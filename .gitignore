@@ -1,0 +1,66 @@
+# Archivos compilados de Python y caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entorno virtual (venv)
+venv/
+
+# Archivos y carpetas de distribución / empaquetado
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Archivos generados por PyInstaller
+*.manifest
+*.spec
+
+# Registros de instalador de pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Reportes de pruebas y cobertura
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Configuraciones específicas de Flask
+instance/
+
+# Caché de mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Archivos de configuración de Docker
+docker/docker-compose.override.yml
+
+# Archivos de configuración de editores/IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
