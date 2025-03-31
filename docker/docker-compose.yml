@@ -1,10 +1,26 @@
-version: '3.4'
+version: '3.8'
 
 services:
-  siiapec:
-    image: siiapec
+  web:
     build:
-      context: .
-      dockerfile: ./Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     ports:
-      - 5002:5002
+      - "5000:5000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydatabase
+      - SECRET_KEY=super-secret-key
+
+  db:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
