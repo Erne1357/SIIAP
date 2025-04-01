@@ -1,5 +1,5 @@
 from flask import Flask, render_template
-from app import Config
+from app.config import Config
 
 def create_app():
     # Create the Flask application
