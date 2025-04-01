@@ -6,6 +6,8 @@ COPY database/DDL/create_tables.sql /docker-entrypoint-initdb.d/
 
 # Set environment variables for PostgreSQL
 ENV POSTGRES_USER=postgres
-ENV POSTGRES_PASSWORD=postgres
-ENV POSTGRES_DB=mydatabase
+ENV POSTGRES_PASSWORD=password
+ENV POSTGRES_DB=SIIAPEC
 # Expose the default PostgreSQL port
+EXPOSE 5432
+# The PostgreSQL image automatically runs the PostgreSQL server when the container starts

@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   web:
@@ -10,7 +10,7 @@ services:
     depends_on:
       - db
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydatabase
+      - DATABASE_URL=postgresql://postgres:password@db:5432/SIIAPEC
       - SECRET_KEY=super-secret-key
 
   db:
