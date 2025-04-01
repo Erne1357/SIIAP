@@ -7,13 +7,16 @@ def create_app():
     app.config.from_object(Config)
     
     # Define a basic route for login
+    @app.route('/')
+
     @app.route('/login')
     def login():
         return render_template('auth/login.html')
     
     return app
 
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
     # Run the app on host 0.0.0.0 so it's accessible from Docker
     app.run(host='0.0.0.0', debug=True)
