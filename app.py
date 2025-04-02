@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect
 from app.config import Config
 
 def create_app():
@@ -8,6 +8,8 @@ def create_app():
     
     # Define a basic route for login
     @app.route('/')
+    def redirect_to_login():
+        return redirect("/login", code=302)
 
     @app.route('/login')
     def login():

@@ -2,6 +2,7 @@
 
 services:
   web:
+    restart: always
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -14,6 +15,7 @@ services:
       - SECRET_KEY=super-secret-key
 
   db:
+    restart: always
     build:
       context: ..
       dockerfile: docker/Dockerfile.db
