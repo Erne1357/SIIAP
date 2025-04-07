@@ -19,7 +19,7 @@ CREATE TABLE "user" (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    registration_date DATE,
+    registration_date TIMESTAMP NOT NULL DEFAULT NOW(),
     is_internal BOOLEAN DEFAULT FALSE,
     role_id INTEGER NOT NULL,
     CONSTRAINT pk_user PRIMARY KEY (id),
@@ -99,8 +99,8 @@ CREATE TABLE submission (
     id SERIAL,
     file_path TEXT NOT NULL,
     status VARCHAR(50) NOT NULL,
-    upload_date DATE,
-    review_date DATE,
+    upload_date TIMESTAMP,
+    review_date TIMESTAMP,
     user_id INTEGER NOT NULL,
     program_id INTEGER NOT NULL,  -- El usuario elige a cuál program aplica
     step_id INTEGER NOT NULL,     -- Qué paso está cumpliendo
@@ -148,7 +148,7 @@ CREATE TABLE user_program (
     id SERIAL,
     user_id INTEGER NOT NULL,
     program_id INTEGER NOT NULL,
-    enrollment_date DATE,
+    enrollment_date TIMESTAMP,
     current_semester INTEGER,
     status VARCHAR(50) NOT NULL DEFAULT 'active', 
         -- Ej. ['active','graduated','dropped'], etc.
