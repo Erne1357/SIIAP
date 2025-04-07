@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import login_user, logout_user, login_required, current_user
-from datetime import datetime
+from datetime import datetime, timezone
 from werkzeug.security import check_password_hash
 from app.models.user import User
 
@@ -18,7 +18,7 @@ def login():
         if user and check_password_hash(user.password, password):
             login_user(user)
             # Registra la actividad inicial de la sesión (timestamp en segundos)
-            session['last_activity'] = datetime.utcnow().timestamp()
+            session['last_activity'] = datetime.now(timezone.utc).timestamp()
             flash("Inicio de sesión exitoso", "success")
             return redirect(url_for('user.dashboard'))
         else:
@@ -36,5 +36,5 @@ def logout():
 @login_required
 def keepalive():
     # Actualiza la marca de actividad para prolongar la sesión
-    session['last_activity'] = datetime.utcnow().timestamp()
+    session['last_activity'] = datetime.now(timezone.utc).timestamp()
     return "OK", 200
