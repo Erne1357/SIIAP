@@ -1,6 +1,6 @@
 from app import db
 from flask_login import UserMixin
-from datetime import datetime,timezone
+from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash
 
 class User(db.Model, UserMixin):
@@ -11,9 +11,9 @@ class User(db.Model, UserMixin):
     last_name = db.Column(db.String(50), nullable=False)
     mother_last_name = db.Column(db.String(50))
     username = db.Column(db.String(50), unique=True, nullable=False)
-    password = db.Column(db.String(128), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False) 
+    password = db.Column(db.String(255), nullable=False)  # Aseguramos la longitud para el hash
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     last_login = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     is_internal = db.Column(db.Boolean, default=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
@@ -25,6 +25,7 @@ class User(db.Model, UserMixin):
         self.username = username
         self.password = generate_password_hash(password)
         self.email = email
-        self.registration_date = datetime.utcnow()
+        self.registration_date = datetime.now(timezone.utc)
+        self.last_login = datetime.now(timezone.utc)
         self.is_internal = False
         self.role_id = role_id

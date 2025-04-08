@@ -1,6 +1,7 @@
 from flask import Flask, session, flash, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
+from flask_migrate import Migrate
 from datetime import datetime, timezone, timedelta
 from app.config import Config
 
@@ -22,6 +23,8 @@ def create_app(test_config=None):
     # Inicializar y configurar el LoginManager
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'  # Redirige al login si no está autenticado
+
+    migrate = Migrate(app, db)
     
     # Definir el user_loader para Flask-Login
     from app.models.user import User
