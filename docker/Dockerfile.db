@@ -4,6 +4,9 @@ FROM postgres:13
 # Copy the SQL initialization script from the project directory into the container
 COPY database/DDL/create_tables.sql /docker-entrypoint-initdb.d/
 
+# Copiar scripts de inserción (DML)
+COPY database/DML/*.sql /docker-entrypoint-initdb.d/
+
 # Set environment variables for PostgreSQL
 ENV POSTGRES_USER=postgres
 ENV POSTGRES_PASSWORD=password
