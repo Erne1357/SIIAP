@@ -1,19 +1,61 @@
-// app/static/js/session.js
-// Tiempo de la sesión en milisegundos (15 minutos)
-const sessionLifetime = 15 * 60 * 1000;
-// Tiempo para mostrar la advertencia (por ejemplo, a los 14 minutos)
-const warningTime = 14 * 60 * 1000;
+// Tiempo total para la sesión (solo para pruebas, puedes ajustarlo para producción)
+const warningTime = 1 * 60 * 1000;  // Tiempo para mostrar el modal (1 minuto)
+const autoLogoutDelay = 1 * 60 * 1000; // Tiempo adicional (1 minuto) para auto-logout
 
-setTimeout(function() {
-    if (confirm("Tu sesión expirará en 1 minuto. ¿Deseas continuar conectado?")) {
-        // Llama a la ruta keepalive para renovar la sesión
-        fetch(sessionKeepaliveUrl)
-            .then(response => {
-                if(response.ok){
-                    location.reload();
-                }
-            });
-    } else {
-        window.location.href = sessionLogoutUrl;
+let autoLogoutTimer;  // Referencia para el timer del auto-logout
+
+function showSessionModal() {
+    let modal = document.getElementById('sessionModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Inicia el timer para auto-logout
+        autoLogoutTimer = setTimeout(function(){
+            window.location.href = sessionLogoutUrl;
+        }, autoLogoutDelay);
     }
-}, warningTime);
+}
+
+function hideSessionModal() {
+    let modal = document.getElementById('sessionModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    // Cancelar el timer de auto logout si se toma acción
+    clearTimeout(autoLogoutTimer);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const continueBtn = document.getElementById('continueBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (continueBtn) {
+        continueBtn.addEventListener('click', function() {
+            // Cancelar auto logout al hacer clic en "Continuar"
+            hideSessionModal();
+            fetch(sessionKeepaliveUrl, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(response => {
+                if (response.ok){
+                    location.reload(); // Se actualiza la marca de actividad y se oculta el modal
+                }
+            })
+            .catch(err => {
+                console.error("Error en keepalive:", err);
+            });
+        });
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            // Cancelar auto logout y redirigir inmediatamente
+            hideSessionModal();
+            window.location.href = sessionLogoutUrl;
+        });
+    }
+
+    // Programa la aparición del modal tras warningTime
+    setTimeout(function() {
+        showSessionModal();
+    }, warningTime);
+});
