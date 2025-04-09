@@ -24,7 +24,7 @@
   </main>
   
   <footer class="text-center mt-5 mb-3">
-    <p>&copy; 2025 Mi Proyecto</p>
+    <p>&copy; Todos los derechos reservados 2025</p>
   </footer>
   
   <!-- Bootstrap Bundle JS (CDN) -->
@@ -34,9 +34,14 @@
     <script>
       var sessionKeepaliveUrl = "{{ url_for('auth.keepalive') }}";
       var sessionLogoutUrl = "{{ url_for('auth.logout') }}";
+      const userLoggedIn = "{{ 'true' if current_user.is_authenticated else 'false' }}";
     </script>
     <!-- Incluir el script de sesión desde la carpeta static/js -->
-    <script src="{{ url_for('static', filename='js/session.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/session_timeout.js') }}"></script>
+
+    <script>
+    </script>
+    
   {% endblock %}
 
 
