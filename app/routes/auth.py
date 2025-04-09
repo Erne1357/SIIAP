@@ -93,5 +93,8 @@ def register():
 @login_required
 def keepalive():
     # Actualiza la marca de actividad para prolongar la sesión
+    if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+        return "Unauthorized", 401
+
     session['last_activity'] = datetime.now(timezone.utc).timestamp()
     return "OK", 200
