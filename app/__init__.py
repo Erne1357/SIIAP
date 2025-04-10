@@ -23,6 +23,7 @@ def create_app(test_config=None):
     # Inicializar y configurar el LoginManager
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'  # Redirige al login si no está autenticado
+    login_manager.login_message = "Por favor, inicia sesión para acceder a esta página."
 
     migrate = Migrate(app, db)
     
