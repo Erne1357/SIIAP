@@ -1,4 +1,5 @@
-from flask import Flask, session, flash, redirect, url_for
+from flask import Flask, session, flash, redirect, url_for, render_template
+from flask import request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
@@ -15,18 +16,17 @@ def create_app(test_config=None):
         app.config.from_object(Config)
     else:
          app.config.update(test_config)
-
-    
     
     db.init_app(app)
     
     # Inicializar y configurar el LoginManager
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'  # Redirige al login si no está autenticado
+    login_manager.login_view = 'auth.login'  #  Redirige al login si no está autenticado
     login_manager.login_message = "Por favor, inicia sesión para acceder a esta página."
 
     migrate = Migrate(app, db)
     
+
     # Definir el user_loader para Flask-Login
     from app.models.user import User
     @login_manager.user_loader
@@ -35,6 +35,7 @@ def create_app(test_config=None):
     
     # Configurar duración de la sesión (15 minutos)
     app.permanent_session_lifetime = timedelta(minutes=15)
+
     
     @app.before_request
     def session_management():
@@ -60,6 +61,7 @@ def create_app(test_config=None):
               return redirect(url_for('auth.login'))
          return redirect(url_for('user.dashboard'))
     
+     
     return app
 
 app = create_app()

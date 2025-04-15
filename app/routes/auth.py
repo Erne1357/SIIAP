@@ -22,6 +22,7 @@ def login():
             # Registra la actividad inicial de la sesión (timestamp en segundos)
             session['last_activity'] = datetime.now(timezone.utc).timestamp()
             flash("Inicio de sesión exitoso", "success")
+            
             return redirect(url_for('user.dashboard'))
         else:
             flash("Credenciales incorrectas", "danger")

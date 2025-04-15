@@ -1,126 +1,98 @@
 {% extends 'base.html' %}
 
-{% block title %}Registro de Usuario{% endblock %}
+{% block title %}SIIAPEC - Registro de Usuario{% endblock %}
 
 {% block styles %}
-<!-- Incluir Tailwind CSS solo para la página de registro -->
+<!-- Incluir Tailwind CSS sólo para la página de registro -->
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gray-100 py-8">
-    <div class="bg-white p-8 rounded shadow-md w-full max-w-2xl">
-        <h2 class="text-2xl font-bold mb-2 text-center">Registro de Usuario</h2>
-        <p class="text-gray-600 text-center mb-6">Completa el formulario para crear tu cuenta</p>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="mb-4">
-            {% for category, message in messages %}
-            <div
-                class="p-2 rounded mb-2 text-white {% if category == 'danger' %}bg-red-500{% elif category == 'success' %}bg-green-500{% elif category == 'warning' %}bg-yellow-500{% else %}bg-gray-500{% endif %}">
-                {{ message }}
+<div class="register-page">
+    <div class="d-flex justify-content-center align-items-center" style="min-height: calc(100vh - 130px);">
+        <div class="bg-white p-8 rounded shadow-md w-full max-w-2xl">
+            <h2 class="text-2xl font-bold mb-1 text-center">Registro de Usuario</h2>
+            <p class="text-gray-600 text-center mb-2">Completa el formulario para crear tu cuenta.</p>
+            <div class="text-center text-sm text-gray-500 mb-4">
+              <hr class="mb-2">
+              <span>Los campos marcados con <span class="text-red-500">*</span> son obligatorios</span>
             </div>
-            {% endfor %}
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                <div class="p-2 rounded mb-2 text-white {% if category == 'danger' %}bg-red-500{% elif category == 'success' %}bg-green-500{% elif category == 'warning' %}bg-yellow-500{% else %}bg-gray-500{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('auth.register') }}" method="POST">
+                <!-- Nombres y apellidos -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label for="first_name" class="block text-gray-700 mb-1">Nombre <span class="text-red-500">*</span></label>
+                        <input type="text" id="first_name" name="first_name" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring" placeholder="Ingresa tu nombre" required>
+                    </div>
+                    <div>
+                        <label for="last_name" class="block text-gray-700 mb-1">Apellido Paterno <span class="text-red-500">*</span></label>
+                        <input type="text" id="last_name" name="last_name" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring" placeholder="Ingresa tu apellido paterno" required>
+                    </div>
+                    <div>
+                        <label for="mother_last_name" class="block text-gray-700 mb-1">Apellido Materno</label>
+                        <input type="text" id="mother_last_name" name="mother_last_name" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring" placeholder="Ingresa tu apellido materno">
+                    </div>
+                </div>
+
+                <!-- Usuario y correo -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="username" class="block text-gray-700 mb-1">Nombre de Usuario <span class="text-red-500">*</span></label>
+                        <input type="text" id="username" name="username" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring" placeholder="Elige un nombre de usuario" required minlength="5">
+                        <p class="text-xs text-gray-500 mt-1">Mínimo 5 caracteres</p>
+                    </div>
+                    <div>
+                        <label for="email" class="block text-gray-700 mb-1">Correo Electrónico <span class="text-red-500">*</span></label>
+                        <input type="email" id="email" name="email" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring" placeholder="correo@ejemplo.com" required>
+                    </div>
+                </div>
+
+                <!-- Contraseñas -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="password" class="block text-gray-700 mb-1">Contraseña <span class="text-red-500">*</span></label>
+                        <input type="password" id="password" name="password" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring" placeholder="Mínimo 8 caracteres" required minlength="8">
+                        <p class="text-xs text-gray-500 mt-1">Mínimo 8 caracteres</p>
+                    </div>
+                    <div>
+                        <label for="confirm_password" class="block text-gray-700 mb-1">Confirmar Contraseña <span class="text-red-500">*</span></label>
+                        <input type="password" id="confirm_password" name="confirm_password" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring" placeholder="Repite tu contraseña" required>
+                    </div>
+                </div>
+
+                <!-- Checkbox para estudiante interno -->
+                <div class="mb-6">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="is_internal" name="is_internal" class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        <label class="text-gray-700" for="is_internal">Soy estudiante interno del Tecnológico</label>
+                    </div>
+                </div>
+
+                <!-- Botón de registro -->
+                <div>
+                    <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition duration-200">
+                        Registrarme
+                    </button>
+                </div>
+            </form>
+
+            <p class="mt-4 text-center">
+                ¿Ya tienes una cuenta? <a href="{{ url_for('auth.login') }}" class="text-blue-500 hover:underline">Iniciar Sesión</a>
+            </p>
         </div>
-        {% endif %}
-        {% endwith %}
-
-        <form action="{{ url_for('auth.register') }}" method="POST">
-            <!-- Nombres y apellidos -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                    <label class="block text-gray-700 mb-2" for="first_name">
-                        Nombre <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="first_name" name="first_name"
-                        class="w-full px-3 py-2 border rounded focus:outline-none focus:ring"
-                        placeholder="Ingresa tu nombre" required>
-                </div>
-                <div>
-                    <label class="block text-gray-700 mb-2" for="last_name">
-                        Apellido Paterno <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="last_name" name="last_name"
-                        class="w-full px-3 py-2 border rounded focus:outline-none focus:ring"
-                        placeholder="Ingresa tu apellido paterno" required>
-                </div>
-                <div>
-                    <label class="block text-gray-700 mb-2" for="mother_last_name">
-                        Apellido Materno
-                    </label>
-                    <input type="text" id="mother_last_name" name="mother_last_name"
-                        class="w-full px-3 py-2 border rounded focus:outline-none focus:ring"
-                        placeholder="Ingresa tu apellido materno">
-                </div>
-            </div>
-
-            <!-- Usuario y correo -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-gray-700 mb-2" for="username">
-                        Nombre de Usuario <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="username" name="username"
-                        class="w-full px-3 py-2 border rounded focus:outline-none focus:ring"
-                        placeholder="Elige un nombre de usuario" required minlength="5">
-                    <p class="text-xs text-gray-500 mt-1">Mínimo 5 caracteres</p>
-                </div>
-                <div>
-                    <label class="block text-gray-700 mb-2" for="email">
-                        Correo Electrónico <span class="text-red-500">*</span>
-                    </label>
-                    <input type="email" id="email" name="email"
-                        class="w-full px-3 py-2 border rounded focus:outline-none focus:ring"
-                        placeholder="correo@ejemplo.com" required>
-                </div>
-            </div>
-
-            <!-- Contraseñas -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-gray-700 mb-2" for="password">
-                        Contraseña <span class="text-red-500">*</span>
-                    </label>
-                    <input type="password" id="password" name="password"
-                        class="w-full px-3 py-2 border rounded focus:outline-none focus:ring"
-                        placeholder="Mínimo 8 caracteres" required minlength="8">
-                    <p class="text-xs text-gray-500 mt-1">Mínimo 8 caracteres</p>
-                </div>
-                <div>
-                    <label class="block text-gray-700 mb-2" for="confirm_password">
-                        Confirmar Contraseña <span class="text-red-500">*</span>
-                    </label>
-                    <input type="password" id="confirm_password" name="confirm_password"
-                        class="w-full px-3 py-2 border rounded focus:outline-none focus:ring"
-                        placeholder="Repite tu contraseña" required>
-                </div>
-            </div>
-
-            <!-- Checkbox para estudiante interno -->
-            <div class="mb-6">
-                <div class="flex items-center">
-                    <input type="checkbox" id="is_internal" name="is_internal"
-                        class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                    <label class="text-gray-700" for="is_internal">
-                        Soy estudiante interno del Tecnológico
-                    </label>
-                </div>
-            </div>
-
-            <!-- Botón de registro -->
-            <div>
-                <button type="submit"
-                    class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition duration-200">
-                    Registrarme
-                </button>
-            </div>
-        </form>
-
-        <p class="mt-4 text-center">
-            ¿Ya tienes una cuenta? <a href="{{ url_for('auth.login') }}" class="text-blue-500 hover:underline">Iniciar
-                Sesión</a>
-        </p>
     </div>
 </div>
 
@@ -129,7 +101,6 @@
     document.querySelector('form').addEventListener('submit', function (e) {
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirm_password').value;
-
         if (password !== confirmPassword) {
             e.preventDefault();
             alert('Las contraseñas no coinciden');
