@@ -20,6 +20,7 @@ main.container {
 .login-page,
 .register-page {
   /* Quitamos un máximo fijo para que se ajuste a la altura del main */
+  min-height: auto;
   width: 100%;
   padding-top: 2rem;
   padding-bottom: 2rem;
