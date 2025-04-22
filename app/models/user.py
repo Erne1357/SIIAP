@@ -13,9 +13,9 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)  # Aseguramos la longitud para el hash
     email = db.Column(db.String(100), unique=True, nullable=False)
-    registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     last_login = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     is_internal = db.Column(db.Boolean, default=False)
+    registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
 
     def __init__(self, first_name, last_name, mother_last_name, username, password, email, role_id):

@@ -28,3 +28,9 @@
     margin: 0 0.5rem;
   }
   
+  .diseño {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 1rem;
+  }

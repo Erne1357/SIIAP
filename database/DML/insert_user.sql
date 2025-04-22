@@ -4,7 +4,7 @@ VALUES (
     'User', 
     'Test', 
     'admin', 
-    'pbkdf2:sha256:260000$Nf1JiGqaYUMvMS4Z$27e6a6757f951a46f54efbd5d4154cdd8b1d65b087278f7411d2257fdaab134a', 
+    'scrypt:32768:8:1$ZshV34gGFmJl1s8G$a675f0c4117ce077f4b3320561c431b84726a615327cae96ec1e23e2ebc97e06b898b9a7d6faea1b055ede7bdaaed1f1086f4cb9c8b7482c5d9f22ca2dc88835', 
     'admin@test.com', 
     CURRENT_TIMESTAMP, 
     false, 

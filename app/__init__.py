@@ -3,6 +3,7 @@ from flask import request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
+from flask_bootstrap import Bootstrap
 from datetime import datetime, timezone, timedelta
 from app.config import Config
 
@@ -11,7 +12,7 @@ login_manager = LoginManager()
 
 def create_app(test_config=None):
      app = Flask(__name__, template_folder='templates', static_folder='static')
-
+     Bootstrap(app)
 
      if test_config is None:
           app.config.from_object(Config)
@@ -39,7 +40,7 @@ def create_app(test_config=None):
 
      @app.errorhandler(404)
      def page_not_found(e):
-               return render_template('404.html', error = e), 404
+          return render_template('404.html', error = e), 404
 
      
      @app.before_request

@@ -31,8 +31,9 @@ def login():
 @auth.route('/logout')
 @login_required
 def logout():
+    session.pop('_flashes', None)  # Limpiar mensajes de flash
     logout_user()
-    flash("Has cerrado sesión", "info")
+    flash("Has cerrado sesión ", "info")
     return redirect(url_for('auth.login'))
 
 @auth.route('/register', methods=['GET', 'POST'])

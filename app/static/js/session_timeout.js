@@ -14,7 +14,7 @@ if (userLoggedIn !== 'true') {
             modal.style.display = 'flex';
             // Inicia el timer para auto-logout
             autoLogoutTimer = setTimeout(function(){
-                window.location.href = sessionLogoutUrl;
+                window.location.href = sessionLogoutUrl + '?expired=1';
             }, autoLogoutDelay);
         }
     }
@@ -51,7 +51,7 @@ if (userLoggedIn !== 'true') {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', function() {
                 hideSessionModal();
-                window.location.href = sessionLogoutUrl;
+                window.location.href = sessionLogoutUrl + '?expired=1';
             });
         }
 
