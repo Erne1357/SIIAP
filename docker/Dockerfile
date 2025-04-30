@@ -1,20 +1,11 @@
-# Usa una imagen oficial de Python optimizada
+# docker/Dockerfile (antes docker/dockerfile)
 FROM python:3.9-slim
-
-# Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
-
-# Copia el archivo de dependencias
 COPY requirements.txt .
-
-# Instala dependencias
 RUN pip install --upgrade pip && pip install -r requirements.txt
-
-# Copia todo el contenido del proyecto al contenedor
+# instala gunicorn
+RUN pip install gunicorn
 COPY . .
-
-# Expone el puerto en el que corre Flask
 EXPOSE 5000
-
-# Comando para correr la app directamente
-CMD ["python", "app.py"]
+# usa gunicorn en lugar de 'python app.py'
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]

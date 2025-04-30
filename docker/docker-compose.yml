@@ -1,13 +1,13 @@
-
-
+# docker/docker-compose.yml
+version: '3.8'
 services:
   web:
-    restart: always
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    ports:
-      - "5000:5000"
+    # ya no publica directamente el 5000 a host, lo deja interno
+    expose:
+      - "5000"
     depends_on:
       - db
     environment:
@@ -15,14 +15,21 @@ services:
       - SECRET_KEY=super-secret-key
 
   db:
-    restart: always
     build:
       context: ..
       dockerfile: docker/Dockerfile.db
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"                   # expone el puerto HTTP
+    depends_on:
+      - web
+    volumes:
+      - ../app/static:/usr/share/nginx/html/static:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   pgdata:

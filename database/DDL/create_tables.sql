@@ -19,9 +19,9 @@ CREATE TABLE "user" (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    registration_date TIMESTAMP NOT NULL DEFAULT NOW(),
     last_login TIMESTAMP NOT NULL DEFAULT NOW(),
     is_internal BOOLEAN DEFAULT FALSE,
+    registration_date TIMESTAMP NOT NULL DEFAULT NOW(),
     role_id INTEGER NOT NULL,
     CONSTRAINT fk_user_role FOREIGN KEY (role_id)
         REFERENCES role (id)
