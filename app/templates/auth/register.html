@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}SIIAPEC – Registro de Usuario{% endblock %}
+{% block styles %}
+{{ super() }}
+<style>
+  /* Aplica el fondo solo al contenedor del contenido */
+  .auth-bg {
+    padding: 20px;
+    border-radius: 5px;
+  }
+  /* Opcional: hacer la tarjeta semitransparente para mejor contraste */
+  .card {
+    margin-top: 100px;
+    background-color: rgba(255, 255, 255, 0.95);
+  }
+
+  #main-content{
+    background: url("{{ url_for('static', filename='assets/images/fondo.jpg') }}") no-repeat center center ;
+    background-size: auto 100%;
+  }
+</style>
+{% endblock %}
+<!-- Sobrescritura de la barra de navegación para que no aparezca-->
+{% block navbar %}{%endblock%}
+{% block content %}
+<div class="container d-flex justify-content-center">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h3 class="card-title text-center mb-3">Registro de Usuario</h3>
+      <hr class="mx-3">
+      <p class="text-center text-muted mb-4">
+        Completa el formulario para crear tu cuenta. 
+        <br>
+        Todos los campos marcados con <span style="color:red">*</span> son obligatorios.
+      </p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for cat,msg in messages %}
+      <div class="alert alert-{{ 'danger' if cat=='danger' else 'info' if cat=='info' else 'success' }}">
+        {{ msg }}
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+
+      <form method="POST">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label for="first_name" class="form-label">Nombre <span style="color:red">*</span></label>
+            <input type="text" class="form-control" id="first_name" name="first_name" required>
+          </div>
+          <div class="col-md-4">
+            <label for="last_name" class="form-label">Apellido Paterno <span style="color:red">*</span></label>
+            <input type="text" class="form-control" id="last_name" name="last_name" required>
+          </div>
+          <div class="col-md-4">
+            <label for="mother_last_name" class="form-label">Apellido Materno</label>
+            <input type="text" class="form-control" id="mother_last_name" name="mother_last_name">
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label for="username" class="form-label">Usuario <span style="color:red">*</span></label>
+            <input type="text" class="form-control" id="username" name="username" minlength="5" required>
+          </div>
+          <div class="col-md-6">
+            <label for="email" class="form-label">Correo Electrónico <span style="color:red">*</span></label>
+            <input type="email" class="form-control" id="email" name="email" required>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label for="password" class="form-label">Contraseña <span style="color:red">*</span></label>
+            <input type="password" class="form-control" id="password" name="password" minlength="8" required>
+          </div>
+          <div class="col-md-6">
+            <label for="confirm_password" class="form-label">Confirmar Contraseña <span style="color:red">*</span></label>
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+          </div>
+        </div>
+
+        <div class="form-check mb-4">
+          <input class="form-check-input" type="checkbox" id="is_internal" name="is_internal">
+          <label class="form-check-label" for="is_internal">
+            Soy estudiante interno
+          </label>
+        </div>
+
+        <button class="btn btn-success w-100">Registrarme</button>
+      </form>
+
+      <div class="mt-3 text-center">
+        ¿Ya tienes cuenta? <a href="{{ url_for('auth.login') }}">Inicia Sesión</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  document.querySelector('form').addEventListener('submit', function (e) {
+    const pwd = document.getElementById('password').value;
+    const cpwd = document.getElementById('confirm_password').value;
+    if (pwd !== cpwd) {
+      e.preventDefault();
+      alert('Las contraseñas no coinciden');
+    }
+  });
+</script>
+{% endblock %}
