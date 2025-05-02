@@ -13,7 +13,16 @@
   .card {
     background-color: rgba(255, 255, 255, 0.9);
   }
+
+  #main-content{
+    background: url("{{ url_for('static', filename='assets/images/fondo.jpg') }}") no-repeat center center ;
+    background-size: auto 100%;
+  }
 </style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
 {% endblock %}
 
 <!-- Sobrescritura de la barra de navegación para que no aparezca-->

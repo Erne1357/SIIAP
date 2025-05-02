@@ -47,6 +47,7 @@ def register():
         email = request.form.get('email').strip()
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
+        is_internal = request.form.get('is_internal') == 'on'  # Convertir a booleano
         
         # Validación: Contraseñas coinciden
         if password != confirm_password:
@@ -76,7 +77,8 @@ def register():
             username, 
             password, 
             email, 
-            applicant_role.id
+            is_internal,
+            applicant_role.id,
         )
         db.session.add(new_user)
         try:

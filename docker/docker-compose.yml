@@ -2,6 +2,8 @@
 version: '3.8'
 services:
   web:
+    #reinciia el contenedor si se detiene
+    restart: always
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -15,6 +17,8 @@ services:
       - SECRET_KEY=super-secret-key
 
   db:
+    ## reinicia el contenedor si se detiene
+    restart: always
     build:
       context: ..
       dockerfile: docker/Dockerfile.db
@@ -22,6 +26,8 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   nginx:
+    # reinicia el contenedor si se detiene
+    restart: always
     image: nginx:stable-alpine
     ports:
       - "80:80"                   # expone el puerto HTTP

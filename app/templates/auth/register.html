@@ -1,17 +1,24 @@
 {% extends 'base.html' %}
 {% block title %}SIIAPEC – Registro de Usuario{% endblock %}
 {% block styles %}
-  {{ super() }}
-  <style>
-    body {
-      background: url("{{ url_for('static', filename='assets/images/fondo.jpg') }}") no-repeat center center fixed;
-      background-size: cover;
-    }
-    /* Opcional: hacer la tarjeta semitransparente para mejor contraste */
-    .card {
-      background-color: rgba(255, 255, 255, 0.9);
-    }
-  </style>
+{{ super() }}
+<style>
+  /* Aplica el fondo solo al contenedor del contenido */
+  .auth-bg {
+    padding: 20px;
+    border-radius: 5px;
+  }
+  /* Opcional: hacer la tarjeta semitransparente para mejor contraste */
+  .card {
+    margin-top: 100px;
+    background-color: rgba(255, 255, 255, 0.95);
+  }
+
+  #main-content{
+    background: url("{{ url_for('static', filename='assets/images/fondo.jpg') }}") no-repeat center center ;
+    background-size: auto 100%;
+  }
+</style>
 {% endblock %}
 <!-- Sobrescritura de la barra de navegación para que no aparezca-->
 {% block navbar %}{%endblock%}
