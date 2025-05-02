@@ -18,7 +18,7 @@ class User(db.Model, UserMixin):
     registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
 
-    def __init__(self, first_name, last_name, mother_last_name, username, password, email, role_id):
+    def __init__(self, first_name, last_name, mother_last_name, username, password, email,is_internal, role_id):
         self.first_name = first_name
         self.last_name = last_name
         self.mother_last_name = mother_last_name
@@ -27,5 +27,5 @@ class User(db.Model, UserMixin):
         self.email = email
         self.registration_date = datetime.now(timezone.utc)
         self.last_login = datetime.now(timezone.utc)
-        self.is_internal = False
+        self.is_internal = is_internal
         self.role_id = role_id
