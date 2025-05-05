@@ -13,3 +13,14 @@ def list_programs():
     """
     programs = Program.query.all()
     return render_template('programs/list.html', programs=programs)
+
+@program_bp.route('/<string:slug>', methods=['GET'])
+@login_required
+def view_program(slug):
+    """
+    Muestra los detalles de un programa específico.
+    """
+    program = Program.query.filter_by(slug=slug).first_or_404()
+    if not program:
+        return render_template('404.html'), 404
+    return render_template('programs/view.html', program=program)

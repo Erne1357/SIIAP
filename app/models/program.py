@@ -7,7 +7,7 @@ class Program(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     coordinator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    
+    slug = db.Column(db.String(100), unique=True, nullable=False)
     
     def __init__(self, name, description, coordinator_id):
         self.name = name

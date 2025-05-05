@@ -15,7 +15,7 @@
             <!-- Imagen cuadrada (1×1) -->
             <div class="ratio ratio-1x1">
               <img 
-                src="../../static/assets/images/{{p.name}}.webp" 
+                src="{{ url_for('static', filename='assets/images/' ~ p.name ~ '.webp') }}" 
                 alt="Imagen de {{ p.name }}" 
                 style="object-fit: cover; width: 100%; height: 100%;">
             </div>
@@ -26,9 +26,8 @@
               <p class="card-text flex-grow-1">
                 {{ p.description[:180] }}{% if p.description|length > 180 %}…{% endif %}
               </p>
-              
               <a 
-                
+                href="{{ url_for('program.view_program', slug = p.slug) }}"
                 class="btn btn-primary mt-2">
                 Ver más
               </a>

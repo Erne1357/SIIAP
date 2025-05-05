@@ -16,7 +16,8 @@
 
   <!-- CSS extra -->
   <link href="{{ url_for('static', filename='css/session.css') }}?v=1.4" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.0" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.1" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/swup.css') }}?v=1.2" rel="stylesheet">
 
   <!-- Favicon -->
   <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
@@ -85,7 +86,7 @@
         </a>
 
         <hr class="mx-3">
-        <a class="nav-link text-danger mt-auto" href="{{ url_for('auth.logout') }}">
+        <a class="nav-link text-danger mt-auto" href="{{ url_for('auth.logout') }}" data-no-swup>
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
       </nav>
@@ -93,7 +94,7 @@
     {%endblock%}
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow-1 overflow-auto p-4" id="main-content">
+    <main class="flex-grow-1 overflow-auto p-4 swup-transition" id="main-content" data-swup = "main">
       {% block content %}{% endblock %}
     </main>
   </div>
@@ -121,6 +122,9 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js">
   </script>
 
+  <!-- SWup-->
+  <script src="https://unpkg.com/swup@4"></script>
+
   <!-- Session Timeout -->
   <script>
     var sessionKeepaliveUrl = "{{ url_for('auth.keepalive') }}";
@@ -129,6 +133,7 @@
   </script>
 
   <script src="{{ url_for('static', filename='js/session_timeout.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/swup.js') }}?v1.2 "></script>
 
   {% block scripts %}{% endblock %}
 </body>

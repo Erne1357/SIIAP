@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ program.name }}{% endblock %}
+
+{% block content %}
+    {%if program.id == 1%}
+            <div class="container py-4">
+                <h1 class="mb-4 text-center">Programa de Maestría en Ciencias de la Computación</h1>
+                <p class="text-center">{{ program.description }}</p>
+                <img src="{{ url_for('static', filename='assets/images/maestria.webp') }}" alt="Imagen del programa" class="img-fluid rounded mx-auto d-block mb-4">
+            </div>
+    {%elif program.id == 2%}
+            <div class="container py-4">
+                <h1 class="mb-4 text-center">Programa de Maestría en Inteligencia Artificial</h1>
+                <p class="text-center">{{ program.description }}</p>
+                <img src="{{ url_for('static', filename='assets/images/maestria_ia.webp') }}" alt="Imagen del programa" class="img-fluid rounded mx-auto d-block mb-4">
+            </div>
+    {%elif program.id == 3%}
+            <div class="container py-4">
+                <h1 class="mb-4 text-center">Programa de Posgrado no encontrado</h1>
+                <p class="text-center">El programa que buscas no está disponible.</p>
+            </div>
+    {%elif program.id == 4%}
+            <div class="container py-4">
+                <h1 class="mb-4 text-center">Programa de Doctorado en Ciencias de la Computación</h1>
+                <p class="text-center">{{ program.description }}</p>
+                <img src="{{ url_for('static', filename='assets/images/doctorado.webp') }}" alt="Imagen del programa" class="img-fluid rounded mx-auto d-block mb-4">
+            </div>
+    {%endif%}
+
+{%endblock%}
+
+
