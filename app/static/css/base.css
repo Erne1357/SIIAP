@@ -1,0 +1,37 @@
+ /*  ==========   DISPOSICIÓN GENERAL   ==========  */
+ html, body {
+    height: 100%;
+  }
+  
+  /* El body es un grid de 3 filas: header – main wrapper – footer */
+  body {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;               /* Evita scroll en la ventana */
+  }
+  
+  /*  ==========   HEADER   ==========  */
+  /* Queda pegado arriba, pero participa en el flujo del grid       */
+  /* Si prefirieras que flote encima del contenido, usa position:fixed */
+  #page-header {
+    z-index: 1020;                  /* sobre el sidebar si se solapa */
+  }
+  
+  /*  ==========   WRAPPER (sidebar + main)   ==========  */
+  #wrapper {
+    min-height: 0;                  /* importante para que funcione overflow */
+  }
+  
+  /*  ==========   SIDEBAR   ==========  */
+  #sidebar {
+    width: 240px;                   /* tu ancho fijo */
+    overflow-y: auto;               /* scroll propio si el menú crece */
+    flex-shrink: 0;                 /* nunca se hace más estrecho */
+  }
+  
+  /*  ==========   CONTENIDO PRINCIPAL   ==========  */
+  #main-content {
+    overflow-y: auto;               /* SOLO aquí hay scroll vertical */
+    min-height: 0;                  /* permite que flex + overflow convivan */
+  }
+  
