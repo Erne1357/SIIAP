@@ -31,6 +31,7 @@ CREATE TABLE program (
     name           VARCHAR(100) NOT NULL,
     description    TEXT,
     coordinator_id INTEGER      NOT NULL,
+    slug          VARCHAR(100)  NOT NULL UNIQUE,
     CONSTRAINT fk_program_user
         FOREIGN KEY (coordinator_id)
         REFERENCES "user" (id)
