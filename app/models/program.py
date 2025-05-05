@@ -9,9 +9,6 @@ class Program(db.Model):
     coordinator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
     
-    # Relación: Un programa puede tener varios ProgramStep, que a su vez relacionan steps.
-    program_steps = db.relationship('ProgramStep', backref='program', lazy=True)
-    
     def __init__(self, name, description, coordinator_id):
         self.name = name
         self.description = description

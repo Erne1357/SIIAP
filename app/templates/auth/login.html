@@ -3,22 +3,7 @@
 
 {% block styles %}
 {{ super() }}
-<style>
-  /* Aplica el fondo solo al contenedor del contenido */
-  .auth-bg {
-    padding: 20px;
-    border-radius: 5px;
-  }
-  /* Opcional: hacer la tarjeta semitransparente para mejor contraste */
-  .card {
-    background-color: rgba(255, 255, 255, 0.9);
-  }
-
-  #main-content{
-    background: url("{{ url_for('static', filename='assets/images/fondo.jpg') }}") no-repeat center center ;
-    background-size: auto 100%;
-  }
-</style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth/login-register.css') }}?v=1.2">
 {% endblock %}
 
 {% block scripts %}
