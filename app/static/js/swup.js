@@ -9,16 +9,22 @@ const swup = new Swup({
 });
 
 // --- Elegir dirección de animación según el orden en la sidebar ---
-swup.hooks.on('link:click', (link) => {
+swup.hooks.on('visit:start', (visit) => {
+    let link = visit.trigger.el.href;
     const current = navLinks.findIndex(a => a.classList.contains('active'));
-    const target = navLinks.findIndex(a => a.href === link.href);
-    document.documentElement.dataset.swupDir =
-        target > current ? 'down' : 'up';
+    const target = navLinks.findIndex(a => a.href === link);
+    document.documentElement.dataset.swupDir = target > current ? 'down' : 'up';
+
+    const custom = visit.trigger.el.dataset.swupAnimation;
+    if (custom) {
+        visit.animation = custom;
+    }
+
 });
 
 swup.hooks.on('content:replace', () => {
     navLinks.forEach(a => a.classList.toggle(
-      'active',
-      a.pathname === window.location.pathname
+        'active',
+        a.pathname === window.location.pathname
     ));
-  });
+});

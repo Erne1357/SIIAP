@@ -1,5 +1,5 @@
 /* 1) Estado inicial cuando empieza la transición ------------------- */
-html.is-leaving[data-swup-dir="down"] #main-content {          /* saliendo hacia arriba */
+  html.is-leaving[data-swup-dir="down"] #main-content {          /* saliendo hacia arriba */
     animation: slideUp 400ms forwards;
   }
   html.is-leaving[data-swup-dir="up"] #main-content {            /* saliendo hacia abajo */
@@ -7,11 +7,21 @@ html.is-leaving[data-swup-dir="down"] #main-content {          /* saliendo hacia
   }
   
   /* 2) Estado de entrada de la nueva vista -------------------------- */
-  html.is-rendering[data-swup-dir="down"] #main-content {
+  html.is-rendering[data-swup-dir="up"] #main-content {
     animation: slideDownEnter 400ms forwards;
   }
-  html.is-rendering[data-swup-dir="up"] #main-content {
+  html.is-rendering[data-swup-dir="down"] #main-content {
     animation: slideUpEnter 400ms forwards;
+  }
+
+  /* ===== saliendo (se encoge y se desvanece) ===== */
+  html.is-leaving[data-swup-animation="zoom-card"] #main-content .card {
+    animation: zoomOut 350ms forwards;
+  }
+
+  /* ===== entrando (empieza peque y aparece) ===== */
+  html.is-rendering[data-swup-animation="zoom-card"] #main-content {
+    animation: zoomIn 350ms forwards;
   }
   
   /* 3) Keyframes ----------------------------------------------------- */
@@ -26,3 +36,8 @@ html.is-leaving[data-swup-dir="down"] #main-content {          /* saliendo hacia
     to   { transform: translateY(0);     opacity:1; }
   }
   
+  @keyframes zoomOut { to { transform: scale(.8); opacity: 0; } }
+  @keyframes zoomIn  {
+    from { transform: scale(.8); opacity: 0; }
+    to   { transform: scale(1);  opacity: 1; }
+  }

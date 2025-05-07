@@ -61,7 +61,7 @@ CREATE TABLE step (
 
 -- 6) program_step (puente) -------------------------------
 CREATE TABLE program_step (
-    program_step SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     sequence     INTEGER NOT NULL,
     program_id   INTEGER NOT NULL,
     step_id      INTEGER NOT NULL,
@@ -80,7 +80,7 @@ CREATE TABLE program_step (
 -- 7) archive ---------------------------------------------
 CREATE TABLE archive (
     id              SERIAL PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL,
+    name            VARCHAR(150) NOT NULL,
     description     TEXT,
     file_path       TEXT NOT NULL,
     is_downloadable BOOLEAN NOT NULL DEFAULT FALSE,
@@ -114,7 +114,7 @@ CREATE TABLE submission (
         ON UPDATE CASCADE,
     CONSTRAINT fk_submission_program_step
         FOREIGN KEY (program_step_id)
-        REFERENCES program_step (program_step)
+        REFERENCES program_step (id)
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );

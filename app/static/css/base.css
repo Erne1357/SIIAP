@@ -35,3 +35,28 @@
     min-height: 0;                  /* permite que flex + overflow convivan */
   }
   
+  /* ====== Badge de marca ====== */
+.brand-badge {
+  border: 3px solid #b21f2d;          /* rojo institucional */
+  border-radius: .6rem;
+  padding: .25rem 2rem;
+  background-color: #fff;
+  box-shadow: 0 0 4px rgba(0,0,0,.06);
+}
+
+/* Tipografía del nombre */
+.brand-text {
+  font-weight: 700;
+  font-size: 2rem;                    /* ajusta a tu gusto */
+  line-height: 1;
+  color: #212529;                     /* texto gris oscuro */
+}
+
+/* ====== Comportamiento responsivo ====== */
+@media (max-width: 767.98px) {        /* < md */
+  .brand-badge {
+    order: 3;                         /* pasa abajo del todo */
+    width: 100%;                      /* se centra completo */
+    margin-top: .5rem;
+  }
+}

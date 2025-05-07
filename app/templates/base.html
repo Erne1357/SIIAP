@@ -16,8 +16,8 @@
 
   <!-- CSS extra -->
   <link href="{{ url_for('static', filename='css/session.css') }}?v=1.4" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.1" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/swup.css') }}?v=1.2" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.11" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/swup.css') }}?v=1.22" rel="stylesheet">
 
   <!-- Favicon -->
   <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
@@ -32,34 +32,43 @@
 </head>
 
 <body class="d-flex flex-column min-vh-100">
-
   <!-- HEADER: 4 columnas iguales con los logos -->
-  <header class="bg-white border-bottom py-3">
-    <div class="container">
-      <div class="row text-center align-items-center">
-        <div class="col-3">
-          <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}" alt="ITCJ"
-            class="img-fluid mx-auto d-block" style="max-height:60px;">
+  <header class="bg-white border-bottom py-3 shadow-sm">
+    <div class="container-fluid px-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+
+        <!-- === Grupo logos izquierda === -->
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}" alt="ITCJ" class="img-fluid"
+            style="max-height:50px; padding-left: 30px;">
+          <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}" alt="TECNM" class="img-fluid"
+            style="max-height:80px; padding-left: 30px;">
         </div>
-        <div class="col-3">
-          <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}" alt="TECNM"
-            class="img-fluid mx-auto d-block" style="max-height:60px;">
+
+        <!-- === Badge central === -->
+        <div class="brand-badge flex-grow-0 text-center">
+          <span class="brand-text">SIIAPEC</span>
         </div>
-        <div class="col-3">
-          <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}" alt="SEP"
-            class="img-fluid mx-auto d-block" style="max-height:60px;">
-        </div>
-        <div class="col-3">
+
+        <!-- === Grupo logos derecha === -->
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}" alt="SEP"
+            class="img-fluid" style="max-height:80px; padding-right: 30px;">
           <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}" alt="Posgrado"
-            class="img-fluid mx-auto d-block" style="max-height:60px;">
+            class="img-fluid" style="max-height:80px; padding-right: 30px;">
         </div>
+
       </div>
     </div>
   </header>
 
 
+
+
+
+
   <!-- WRAPPER: sidebar + contenido -->
-  <div  id = "wrapper" class="container-fluid flex-grow-1 d-flex p-0">
+  <div id="wrapper" class="container-fluid flex-grow-1 d-flex p-0">
     <!-- SIDEBAR -->
     {%block navbar%}
     <aside class="bg-light border-end " style="width:240px;">
@@ -94,7 +103,7 @@
     {%endblock%}
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow-1 overflow-auto p-4 swup-transition" id="main-content" data-swup = "main">
+    <main class="flex-grow-1 overflow-auto p-4 swup-transition" id="main-content" data-swup="main">
       {% block content %}{% endblock %}
     </main>
   </div>
@@ -132,8 +141,8 @@
     const userLoggedIn = "{{ 'true' if current_user.is_authenticated else 'false' }}";
   </script>
 
-  <script src="{{ url_for('static', filename='js/session_timeout.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/swup.js') }}?v1.2 "></script>
+  <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v1.11"></script>
+  <script src="{{ url_for('static', filename='js/swup.js') }}?v1.74 "></script>
 
   {% block scripts %}{% endblock %}
 </body>

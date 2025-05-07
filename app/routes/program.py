@@ -1,6 +1,10 @@
 from flask import Blueprint, render_template
 from flask_login import login_required
-from app.models.program import Program  # Ajusta el import según tu estructura real
+from sqlalchemy.orm import joinedload, selectinload
+from app import db
+from app.models.program import Program  
+from app.models.step import Step  
+from app.models.program_step import ProgramStep  
 
 program_bp = Blueprint('program', __name__, url_prefix='/programs')
 
@@ -20,7 +24,22 @@ def view_program(slug):
     """
     Muestra los detalles de un programa específico.
     """
-    program = Program.query.filter_by(slug=slug).first_or_404()
+    program = (
+    Program.query
+    .filter_by(slug=slug)
+    .options(
+        # 1) Program → ProgramStep → Step → Phase
+        joinedload(Program.program_steps)
+          .joinedload(ProgramStep.step)
+          .joinedload(Step.phase),
+
+        # 2) Program → ProgramStep → Step → Archives
+        joinedload(Program.program_steps)
+          .joinedload(ProgramStep.step)
+          .selectinload(Step.archives)
+    )
+    .first_or_404()
+    )
     if not program:
         return render_template('404.html'), 404
     return render_template('programs/view.html', program=program)
