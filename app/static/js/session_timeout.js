@@ -64,3 +64,10 @@ if (userLoggedIn !== 'true') {
         }, warningTime);
     });
 }
+
+function random(){
+    numero =  Math.floor(Math.random() * 100) + 1;
+    if(numero === 6){
+        alert("Si quieres conocer los secretos del Tec, entra al dashboard y resuelve el acertijo");
+    }
+}

@@ -15,7 +15,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/SIIAPEC
       - SECRET_KEY=super-secret-key
-
   db:
     ## reinicia el contenedor si se detiene
     restart: always

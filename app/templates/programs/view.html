@@ -1,32 +1,167 @@
+{# ────────────────────────────────────────────────────────────── #}
+{# app/templates/programs/view.html #}
+{# ────────────────────────────────────────────────────────────── #}
 {% extends "base.html" %}
 {% block title %}{{ program.name }}{% endblock %}
 
-{% block content %}
-    {%if program.id == 1%}
-            <div class="container py-4">
-                <h1 class="mb-4 text-center">Programa de Maestría en Ciencias de la Computación</h1>
-                <p class="text-center">{{ program.description }}</p>
-                <img src="{{ url_for('static', filename='assets/images/maestria.webp') }}" alt="Imagen del programa" class="img-fluid rounded mx-auto d-block mb-4">
-            </div>
-    {%elif program.id == 2%}
-            <div class="container py-4">
-                <h1 class="mb-4 text-center">Programa de Maestría en Inteligencia Artificial</h1>
-                <p class="text-center">{{ program.description }}</p>
-                <img src="{{ url_for('static', filename='assets/images/maestria_ia.webp') }}" alt="Imagen del programa" class="img-fluid rounded mx-auto d-block mb-4">
-            </div>
-    {%elif program.id == 3%}
-            <div class="container py-4">
-                <h1 class="mb-4 text-center">Programa de Posgrado no encontrado</h1>
-                <p class="text-center">El programa que buscas no está disponible.</p>
-            </div>
-    {%elif program.id == 4%}
-            <div class="container py-4">
-                <h1 class="mb-4 text-center">Programa de Doctorado en Ciencias de la Computación</h1>
-                <p class="text-center">{{ program.description }}</p>
-                <img src="{{ url_for('static', filename='assets/images/doctorado.webp') }}" alt="Imagen del programa" class="img-fluid rounded mx-auto d-block mb-4">
-            </div>
-    {%endif%}
-
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/program/view.css') }}?v=1.0">
 {%endblock%}
 
+{% block content %}
+<div class="container py-4">
 
+    {# ───────── ENCABEZADO GENERAL ────────── #}
+    <div class="text-center mb-5">
+        <h1 class="display-6 fw-bold">{{ program.name }}</h1>
+        <p class="lead">{{ program.description }}</p>
+    </div>
+
+    {# ───────── CONTENIDO ESPECÍFICO POR PROGRAMA ────────── #}
+    {% if program.id == 1 %}
+    <section class="text-center mb-5">
+        <img src="{{ url_for('static', filename='assets/images/maestria.webp') }}" class="img-fluid rounded mb-3"
+            style="max-height:320px; object-fit:cover;">
+        <h2 class="h4 fw-bold">Maestría en Ciencias de la Computación</h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</p>
+    </section>
+    {% elif program.id == 2 %}
+    <section class="text-center mb-5">
+        <img src="{{ url_for('static', filename='assets/images/maestria_ia.webp') }}" class="img-fluid rounded mb-3"
+            style="max-height:320px; object-fit:cover;">
+        <h2 class="h4 fw-bold">Maestría en Inteligencia Artificial</h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</p>
+    </section>
+    {% elif program.id == 4 %}
+    <section class="text-center mb-5">
+        <img src="{{ url_for('static', filename='assets/images/doctorado.webp') }}" class="img-fluid rounded mb-3"
+            style="max-height:320px; object-fit:cover;">
+        <h2 class="h4 fw-bold">Doctorado en Ciencias de la Computación</h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</p>
+    </section>
+    {% endif %}
+
+    {# ───────── PASOS AGRUPADOS POR FASE (versión corregida) ────────── #}
+    <section id="pasos" class="mb-5">
+        <h2 class="h4 fw-bold text-center mb-4">Proceso de inscripción</h2>
+
+        {% if program.program_steps %}
+        {# 1) Pasos en orden de secuencia #}
+        {% set steps = program.program_steps | sort(attribute='sequence') %}
+
+        {# 2) Agrupar pasos por fase #}
+        {% set phase_groups = {} %}
+        {% for ps in steps %}
+        {% set _ = phase_groups.setdefault(ps.step.phase, []).append(ps) %}
+        {% endfor %}
+
+        {# 3) Generar lista de fases ordenadas por id #}
+        {% set sorted_phases = phase_groups.keys() | list | sort(attribute='id') %}
+
+        <div class="row g-4">
+            {% for phase in sorted_phases %}
+            {% set items = phase_groups[phase] %}
+            <div class="col-12 col-md-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header bg-primary text-white text-center">
+                        {{ phase.name|title }}
+                    </div>
+
+                    <div class="card-body p-0">
+                        <div class="accordion accordion-flush" id="accordion-{{ phase.id }}">
+                            {% for ps in items %}
+                            {% set cid = 'collapse-' ~ phase.id ~ '-' ~ ps.id %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-{{ cid }}">
+                                    <button class="accordion-button collapsed py-2" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#{{ cid }}" aria-expanded="false"
+                                        aria-controls="{{ cid }}">
+                                        Paso {{ ps.sequence }} — {{ ps.step.name }}
+                                    </button>
+                                </h2>
+
+                                <div id="{{ cid }}" class="accordion-collapse collapse"
+                                    aria-labelledby="heading-{{ cid }}" data-bs-parent="#accordion-{{ phase.id }}">
+                                    <div class="accordion-body">
+
+                                        <p class="small text-muted mb-2">
+                                            {{ ps.step.description or "Sin descripción." }}
+                                        </p>
+
+                                        {% if ps.step.archives %}
+                                        <ul class="list-unstyled mb-0">
+                                            {% for file in ps.step.archives %}
+                                            <li class="mb-1">
+                                                <a href="{{ url_for('static',
+                                                    filename=file.file_path) }}" target="_blank"
+                                                    class="link-primary text-decoration-none">
+                                                    <i class="fas fa-file-alt me-1"></i>{{ file.name }}
+                                                </a>
+                                                {% if file.is_downloadable %}
+                                                <i class="fas fa-download ms-1 text-secondary"></i>
+                                                {% endif %}
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% else %}
+                                        <span class="fst-italic text-muted">No hay archivos.</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-secondary">
+            Los pasos para este programa aún no están configurados.
+        </div>
+        {% endif %}
+    </section>
+
+
+    {# ───────── SECCIONES ADICIONALES (ejemplo) ────────── #}
+    <section id="perfil-egresado" class="mb-5">
+        <h2 class="h4 fw-bold">Perfil del egresado</h2>
+        {% if program.id == 1 %}
+        <p>Lorem ipsum dolor sit amet (perfil Maestría CC)…</p>
+        {% elif program.id == 2 %}
+        <p>Lorem ipsum dolor sit amet (perfil Maestría IA)…</p>
+        {% elif program.id == 4 %}
+        <p>Lorem ipsum dolor sit amet (perfil Doctorado)…</p>
+        {% else %}
+        <p>Información próximamente.</p>
+        {% endif %}
+    </section>
+
+    <section id="lineas-trabajo" class="mb-5">
+        <h2 class="h4 fw-bold">Líneas de investigación</h2>
+        <ul>
+            {% for line in program.lines_of_research or [] %}
+            <li>{{ line }}</li>
+            {% else %}
+            <li class="fst-italic text-muted">Aún sin datos.</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    {# ───────── BOTÓN DE INSCRIPCIÓN ────────── #}
+    <div class="text-center my-5">
+        <a class="btn btn-primary btn-lg">
+            Iniciar solicitud de inscripción
+        </a>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/program/view.js') }} ?v1.0"></script>
+
+{%endblock%}
