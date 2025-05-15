@@ -16,6 +16,7 @@ CREATE TABLE "user" (
     email            VARCHAR(100) NOT NULL UNIQUE,
     last_login       TIMESTAMP    NOT NULL DEFAULT NOW(),
     is_internal      BOOLEAN      NOT NULL DEFAULT FALSE,
+    scolarship_type  VARCHAR(50) NOT NULL DEFAULT 'none',
     registration_date TIMESTAMP   NOT NULL DEFAULT NOW(),
     role_id           INTEGER      NOT NULL,
     CONSTRAINT fk_user_role
@@ -31,6 +32,7 @@ CREATE TABLE program (
     name           VARCHAR(100) NOT NULL,
     description    TEXT,
     coordinator_id INTEGER      NOT NULL,
+    slug          VARCHAR(100)  NOT NULL UNIQUE,
     CONSTRAINT fk_program_user
         FOREIGN KEY (coordinator_id)
         REFERENCES "user" (id)
@@ -60,7 +62,7 @@ CREATE TABLE step (
 
 -- 6) program_step (puente) -------------------------------
 CREATE TABLE program_step (
-    program_step SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     sequence     INTEGER NOT NULL,
     program_id   INTEGER NOT NULL,
     step_id      INTEGER NOT NULL,
@@ -79,10 +81,11 @@ CREATE TABLE program_step (
 -- 7) archive ---------------------------------------------
 CREATE TABLE archive (
     id              SERIAL PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL,
+    name            VARCHAR(150) NOT NULL,
     description     TEXT,
-    file_path       TEXT NOT NULL,
+    file_path       TEXT,
     is_downloadable BOOLEAN NOT NULL DEFAULT FALSE,
+    is_uploadable   BOOLEAN NOT NULL DEFAULT FALSE,
     step_id         INTEGER NOT NULL,
     CONSTRAINT fk_archive_step
         FOREIGN KEY (step_id)
@@ -113,7 +116,7 @@ CREATE TABLE submission (
         ON UPDATE CASCADE,
     CONSTRAINT fk_submission_program_step
         FOREIGN KEY (program_step_id)
-        REFERENCES program_step (program_step)
+        REFERENCES program_step (id)
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );

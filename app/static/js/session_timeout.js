@@ -4,14 +4,17 @@ if (userLoggedIn !== 'true') {
     console.log("No hay sesión activa, no se inicia el temporizador de sesión.");
 } else {
     // Tiempo para mostrar la advertencia (por ejemplo, 1 minuto para este ejemplo)
+    console.log("Usuario autenticado, se inicia el temporizador de sesión.");
     const warningTime = 1 * 60 * 1000;
     const autoLogoutDelay = 1 * 60 * 1000; // tiempo adicional para auto logout
     let autoLogoutTimer;
 
     function showSessionModal() {
         let modal = document.getElementById('sessionModal');
+        console.log("Modal de sesión:", modal);
         if (modal) {
             modal.style.display = 'flex';
+            console.log("Mostrando modal de sesión.");
             // Inicia el timer para auto-logout
             autoLogoutTimer = setTimeout(function(){
                 window.location.href = sessionLogoutUrl + '?expired=1';
@@ -60,4 +63,11 @@ if (userLoggedIn !== 'true') {
             showSessionModal();
         }, warningTime);
     });
+}
+
+function random(){
+    numero =  Math.floor(Math.random() * 100) + 1;
+    if(numero === 6){
+        alert("Si quieres conocer los secretos del Tec, entra al dashboard y resuelve el acertijo");
+    }
 }

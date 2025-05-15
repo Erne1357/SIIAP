@@ -1,0 +1,130 @@
+{# app/templates/programs/_admission_steps.html #}
+<section id="admision" class="py-4 my-4">
+  <div class="text-center mb-4" data-aos="fade-up">
+    <h2 class="h3 fw-bold mb-3">Proceso de Inscripción</h2>
+    <div class="divider-center mb-3"></div>
+    <p class="lead mx-auto" style="max-width: 800px;">
+      Conoce los pasos para formar parte de nuestro programa y prepararte para una experiencia académica transformadora.
+    </p>
+  </div>
+
+  {% if program.program_steps %}
+  {# 1) Pasos en orden de secuencia #}
+  {% set steps = program.program_steps | sort(attribute='sequence') %}
+
+  {# 2) Agrupar pasos por fase #}
+  {% set phase_groups = {} %}
+  {% for ps in steps %}
+  {% set _ = phase_groups.setdefault(ps.step.phase, []).append(ps) %}
+  {% endfor %}
+
+  {# 3) Generar lista de fases ordenadas por id #}
+  {% set sorted_phases = phase_groups.keys() | list | sort(attribute='id') %}
+
+  <div class="admission-process" data-aos="fade-up">
+    <!-- Navegación de fases horizontal -->
+    <ul class="nav nav-pills nav-justified admission-phases-nav mb-4" id="admissionPhasesTab" role="tablist">
+      {% for phase in sorted_phases %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link {% if loop.first %}active{% endif %}" 
+                id="phase-{{ phase.id }}-tab" 
+                data-bs-toggle="pill" 
+                data-bs-target="#phase-{{ phase.id }}" 
+                type="button" 
+                role="tab" 
+                aria-controls="phase-{{ phase.id }}" 
+                aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+          <div class="phase-icon-container">
+            <div class="phase-icon">
+              {% if phase.name|lower == 'admisión' %}
+                <i class="fas fa-user-plus"></i>
+              {% elif phase.name|lower == 'permanencia' %}
+                <i class="fas fa-book-reader"></i>
+              {% elif phase.name|lower == 'conclusión' %}
+                <i class="fas fa-graduation-cap"></i>
+              {% else %}
+                <i class="fas fa-clipboard-list"></i>
+              {% endif %}
+            </div>
+          </div>
+          <span class="phase-name">{{ phase.name|title }}</span>
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <!-- Contenido de las fases -->
+    <div class="tab-content" id="admissionPhasesContent">
+      {% for phase in sorted_phases %}
+      {% set items = phase_groups[phase] %}
+      <div class="tab-pane fade {% if loop.first %}show active{% endif %}" 
+           id="phase-{{ phase.id }}" 
+           role="tabpanel" 
+           aria-labelledby="phase-{{ phase.id }}-tab">
+        
+        <div class="phase-content">
+          <div class="phase-header mb-4">
+            <h3 class="h4 fw-bold text-primary">{{ phase.name|title }}</h3>
+            <p class="text-muted">
+              {% if phase.name|lower == 'admisión' %}
+                Completa estos pasos para iniciar tu proceso de admisión al programa.
+              {% elif phase.name|lower == 'permanencia' %}
+                Requisitos y actividades durante tu estancia en el programa.
+              {% elif phase.name|lower == 'conclusión' %}
+                Pasos finales para obtener tu grado académico.
+              {% else %}
+                Sigue estos pasos para completar esta fase del programa.
+              {% endif %}
+            </p>
+          </div>
+          
+          <!-- Timeline de pasos -->
+          <div class="steps-timeline">
+            {% for ps in items %}
+            <div class="timeline-item" data-aos="fade-up" data-aos-delay="{{ loop.index * 100 }}">
+              <div class="timeline-dot">
+                <span class="step-number">{{ ps.sequence }}</span>
+              </div>
+              <div class="timeline-content card border-0 shadow-sm">
+                <div class="card-header bg-light py-3">
+                  <h4 class="h5 fw-bold mb-0">{{ ps.step.name }}</h4>
+                </div>
+                <div class="card-body">
+                  <p class="mb-3">
+                    {{ ps.step.description or "Sin descripción." }}
+                  </p>
+
+                  {% if ps.step.archives %}
+                  <h5 class="h6 fw-bold text-primary mb-2">Documentos requeridos:</h5>
+                  <ul class="list-unstyled mb-0">
+                    {% for file in ps.step.archives %}
+                    <li class="mb-2">
+                      <a  target="_blank"
+                        class="text-decoration-none document-link">
+                        <i class="fas fa-file-alt me-2"></i>{{ file.name }}
+                        {% if file.is_downloadable %}
+                        <i class="fas fa-download ms-1"></i>
+                        {% endif %}
+                      </a>
+                    </li>
+                    {% endfor %}
+                  </ul>
+                  {% else %}
+                  <p class="fst-italic text-muted mb-0">No hay documentos asociados a este paso.</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info text-center">
+    Los pasos para este programa aún no están configurados.
+  </div>
+  {% endif %}
+</section>

@@ -1,29 +1,26 @@
 {# app/templates/base.html #}
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}SIIAPEC{% endblock %}</title>
 
   <!-- Bootstrap CSS -->
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
-    rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <!-- Font Awesome -->
-  <link
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
-    rel="stylesheet" crossorigin="anonymous">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet"
+    crossorigin="anonymous">
 
-  <!-- tu CSS extra -->
-  <link href="{{ url_for('static', filename='css/session.css') }}" rel="stylesheet">
+  <!-- CSS extra -->
+  <link href="{{ url_for('static', filename='css/session.css') }}?v=1.4" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.15" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/swup.css') }}?v=1.22" rel="stylesheet">
 
   <!-- Favicon -->
-  <link
-    rel="icon"
-    href="{{ url_for('static', filename='assets/icons/favicon.ico') }}"
-    type="image/x-icon">
+  <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
 
   <!-- Preload logos -->
   <link rel="preload" as="image" href="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}">
@@ -31,68 +28,79 @@
   <link rel="preload" as="image" href="{{ url_for('static', filename='assets/images/logo_sep.png') }}">
   <link rel="preload" as="image" href="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}">
 
+  <!-- Preload css -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/program/list.css') }}?v=1.14">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/program/view.css') }}?v=1.15">
+  
+
   {% block styles %}{% endblock %}
 </head>
-<body class="d-flex flex-column min-vh-100">
 
+<body class="d-flex flex-column min-vh-100">
   <!-- HEADER: 4 columnas iguales con los logos -->
-  <header class="bg-white border-bottom py-3">
-    <div class="container">
-      <div class="row text-center align-items-center">
-        <div class="col-3">
-          <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}"
-               alt="ITCJ" class="img-fluid mx-auto d-block" style="max-height:60px;">
+  <header id ="page-header" class="bg-white border-bottom py-3 shadow-sm">
+    <div class="container-fluid px-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+
+        <!-- === Grupo logos izquierda === -->
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}" alt="ITCJ" class="img-fluid"
+            style="max-height:50px; padding-left: 30px;">
+          <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}" alt="TECNM" class="img-fluid"
+            style="max-height:80px; padding-left: 30px;">
         </div>
-        <div class="col-3">
-          <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}"
-               alt="TECNM" class="img-fluid mx-auto d-block" style="max-height:60px;">
+
+        <!-- === Badge central === -->
+        <div class="brand-badge flex-grow-0 text-center">
+          <span class="brand-text">SIIAPEC</span>
         </div>
-        <div class="col-3">
-          <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}"
-               alt="SEP" class="img-fluid mx-auto d-block" style="max-height:60px;">
+
+        <!-- === Grupo logos derecha === -->
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}" alt="SEP"
+            class="img-fluid" style="max-height:80px; padding-right: 30px;">
+          <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}" alt="Posgrado"
+            class="img-fluid" style="max-height:80px; padding-right: 30px;">
         </div>
-        <div class="col-3">
-          <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}"
-               alt="Posgrado" class="img-fluid mx-auto d-block" style="max-height:60px;">
-        </div>
+
       </div>
     </div>
   </header>
 
-  
+
+
+
+
+
   <!-- WRAPPER: sidebar + contenido -->
-  <div class="container-fluid flex-grow-1 d-flex p-0" >
+  <div id="wrapper" class="container-fluid flex-grow-1 d-flex p-0">
     <!-- SIDEBAR -->
     {%block navbar%}
-    <aside class="bg-light border-end vh-100" style="width:240px;">
+    <aside id = "sidebar" class="bg-light border-end " style="width:240px;">
       <nav class="nav flex-column py-4">
-        <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}"
-          >
+        <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}">
           <i class="fas fa-user me-2"></i>Perfil
         </a>
         <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
-           href="{{ url_for('user.dashboard') }}">
+          href="{{ url_for('user.dashboard') }}">
           <i class="fas fa-th-large me-2"></i>Dashboard
         </a>
-        <a class="nav-link {% if request.endpoint=='user.programs' %}active{% endif %}"
-           href="{{ url_for('user.dashboard') }}">
+        <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
+          href="{{ url_for('program.list_programs') }}">
           <i class="fas fa-clipboard  me-2"></i>Programas
         </a>
-        <a class="nav-link {% if request.endpoint=='user.admission' %}active{% endif %}"
-           >
+        <a class="nav-link {% if request.endpoint=='user.admission' %}active{% endif %}">
           <i class="fas fa-clipboard-list me-2"></i>Admisión
         </a>
-        <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}"
-           >
+        <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}">
           <i class="fas fa-calendar-alt me-2"></i>Permanencia
         </a>
-        <a class="nav-link {% if request.endpoint=='user.documents' %}active{% endif %}"
-          >
+        <a class="nav-link {% if request.endpoint=='user.documents' %}active{% endif %}">
           <i class="fas fa-file-alt me-2"></i>Documentos
         </a>
-        
+
         <hr class="mx-3">
-        <a class="nav-link text-danger mt-auto" href="{{ url_for('auth.logout') }}">
+        <a class="nav-link text-danger mt-auto" href="{{ url_for('auth.logout') }}" data-no-swup>
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
       </nav>
@@ -100,7 +108,7 @@
     {%endblock%}
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow-1 overflow-auto p-4" id = "main-content">
+    <main class="flex-grow-1  p-4 swup-transition" id="main-content" >
       {% block content %}{% endblock %}
     </main>
   </div>
@@ -111,19 +119,6 @@
       <small>&copy; 2025 SIIAPEC. Todos los derechos reservados.</small>
     </div>
   </footer>
-
-  <!-- Bootstrap JS Bundle -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js">
-  </script>
-
-  <!-- Session Timeout -->
-  <script>
-    var sessionKeepaliveUrl = "{{ url_for('auth.keepalive') }}";
-    var sessionLogoutUrl    = "{{ url_for('auth.logout') }}";
-    const userLoggedIn      = "{{ 'true' if current_user.is_authenticated else 'false' }}";
-  </script>
-  <script src="{{ url_for('static', filename='js/session_timeout.js') }}"></script>
 
   <!-- Modal -->
   <div id="sessionModal" class="session-modal" style="display: none;">
@@ -137,6 +132,24 @@
     </div>
   </div>
 
+  <!-- Bootstrap JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js">
+  </script>
+
+  <!-- SWup-->
+  <script src="https://unpkg.com/swup@4"></script>
+
+  <!-- Session Timeout -->
+  <script>
+    var sessionKeepaliveUrl = "{{ url_for('auth.keepalive') }}";
+    var sessionLogoutUrl = "{{ url_for('auth.logout') }}";
+    const userLoggedIn = "{{ 'true' if current_user.is_authenticated else 'false' }}";
+  </script>
+
+  <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v1.11"></script>
+  <script src="{{ url_for('static', filename='js/swup.js') }}?v1.792 "></script>
+
   {% block scripts %}{% endblock %}
 </body>
+
 </html>

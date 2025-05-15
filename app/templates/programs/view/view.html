@@ -1,0 +1,42 @@
+{# ────────────────────────────────────────────────────────────── #}
+{# app/templates/programs/view.html #}
+{# ────────────────────────────────────────────────────────────── #}
+{% extends "base.html" %}
+{% block title %}{{ program.name }}{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" data-swup-include-style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/program/view.css') }}?v=1.174" data-swup-include-style>
+{% endblock %}
+
+{% block content %}
+<div class="program-view-container">
+    {# Hero Section #}
+    {% include 'programs/view/_hero.html' %}
+
+    {# Información del Programa #}
+    {% include 'programs/view/_program_info.html' %}
+
+    {# Proceso de Admisión #}
+    {% include 'programs/view/_admission_steps.html' %}
+
+    {# Plan de Estudios #}
+    {% include 'programs/view/_curriculum.html' %}
+
+    {# Perfil del Egresado #}
+    {% include 'programs/view/_graduate_profile.html' %}
+
+    {# Contacto #}
+    {% include 'programs/view/_contact.html' %}
+
+    {# Botones flotantes #}
+    {% include 'programs/view/_floating_buttons.html' %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+<script src="{{ url_for('static', filename='js/program/view.js') }}?v=1.178"></script>
+{% endblock %}
