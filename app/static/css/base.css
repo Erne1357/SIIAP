@@ -1,62 +1,94 @@
  /*  ==========   DISPOSICIÓN GENERAL   ==========  */
- html, body {
-    height: 100%;
-  }
-  
-  /* El body es un grid de 3 filas: header – main wrapper – footer */
-  body {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    overflow: hidden;               /* Evita scroll en la ventana */
-  }
-  
-  /*  ==========   HEADER   ==========  */
-  /* Queda pegado arriba, pero participa en el flujo del grid       */
-  /* Si prefirieras que flote encima del contenido, usa position:fixed */
-  #page-header {
-    z-index: 1020;                  /* sobre el sidebar si se solapa */
-  }
-  
-  /*  ==========   WRAPPER (sidebar + main)   ==========  */
-  #wrapper {
-    min-height: 0;                  /* importante para que funcione overflow */
-  }
-  
-  /*  ==========   SIDEBAR   ==========  */
-  #sidebar {
-    width: 240px;                   /* tu ancho fijo */
-    overflow-y: auto;               /* scroll propio si el menú crece */
-    flex-shrink: 0;                 /* nunca se hace más estrecho */
-  }
-  
-  /*  ==========   CONTENIDO PRINCIPAL   ==========  */
-  #main-content {
-    overflow-y: auto;               /* SOLO aquí hay scroll vertical */
-    min-height: 0;                  /* permite que flex + overflow convivan */
-  }
-  
-  /* ====== Badge de marca ====== */
-.brand-badge {
-  border: 3px solid #b21f2d;          /* rojo institucional */
-  border-radius: .6rem;
-  padding: .25rem 2rem;
-  background-color: #fff;
-  box-shadow: 0 0 4px rgba(0,0,0,.06);
-}
+ html,
+ body {
+   height: 100%;
+ }
 
-/* Tipografía del nombre */
-.brand-text {
-  font-weight: 700;
-  font-size: 2rem;                    /* ajusta a tu gusto */
-  line-height: 1;
-  color: #212529;                     /* texto gris oscuro */
-}
+ /* El body es un grid de 3 filas: header – main wrapper – footer */
+ body {
+   display: block;
+   overflow-x: hidden;
+   /* Evita scroll en la ventana */
+ }
 
-/* ====== Comportamiento responsivo ====== */
-@media (max-width: 767.98px) {        /* < md */
-  .brand-badge {
-    order: 3;                         /* pasa abajo del todo */
-    width: 100%;                      /* se centra completo */
-    margin-top: .5rem;
+ /*  ==========   HEADER   ==========  */
+ /* Queda pegado arriba, pero participa en el flujo del grid       */
+ /* Si prefirieras que flote encima del contenido, usa position:fixed */
+ #page-header {
+   position: fixed;
+   top: 0;
+   left: 0;
+   right: 0;
+   z-index: 1020;
+   height: 110px;
+   /* ↙ adapta si tu header es más alto/bajo */
+ }
+
+ /*  ==========   WRAPPER (sidebar + main)   ==========  */
+ #wrapper {
+   min-height: 0;
+   /* importante para que funcione overflow */
+ }
+
+ /*  ==========   SIDEBAR   ==========  */
+ #sidebar {
+   position: fixed;
+   top: 110px;
+   /* mismo alto que #page-header */
+   bottom: 0;
+   left: 0;
+   width: 240px;
+   overflow-y: auto;
+   /* si crece, se scrollea dentro */
+ }
+
+ /* 4) CONTENIDO PRINCIPAL: deja sitio al header y al sidebar */
+ #main-content {
+   margin-top: 110px;
+   /* empuja debajo del header */
+   margin-left: 240px;
+   /* empuja a la derecha del sidebar */
+   padding: 1.5rem;
+   min-height: calc(100vh - 110px);
+   /* asegura que llegue al footer */
+ }
+
+  /*  ==========   FOOTER   ==========  */
+  footer{
+    margin-left : 240px;
+    position: fixed;
+    z-index: 1;
   }
-}
+
+ /* ====== Badge de marca ====== */
+ .brand-badge {
+   border: 3px solid #b21f2d;
+   /* rojo institucional */
+   border-radius: .6rem;
+   padding: .25rem 2rem;
+   background-color: #fff;
+   box-shadow: 0 0 4px rgba(0, 0, 0, .06);
+ }
+
+ /* Tipografía del nombre */
+ .brand-text {
+   font-weight: 700;
+   font-size: 2rem;
+   /* ajusta a tu gusto */
+   line-height: 1;
+   color: #212529;
+   /* texto gris oscuro */
+ }
+
+ /* ====== Comportamiento responsivo ====== */
+ @media (max-width: 767.98px) {
+
+   /* < md */
+   .brand-badge {
+     order: 3;
+     /* pasa abajo del todo */
+     width: 100%;
+     /* se centra completo */
+     margin-top: .5rem;
+   }
+ }

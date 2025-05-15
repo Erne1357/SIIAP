@@ -1,70 +1,114 @@
 -- insert_archive.sql
 -- === Phase: Admission ===
-INSERT INTO archive (name, description, file_path, is_downloadable, step_id) VALUES
-('Currículum Vitae con documentos probatorios.','Currículum Vitae con documentos probatorios.','/uploads/curr_culum_vitae_con_documentos_probatorios.pdf',FALSE,1),
-('Cartas de Recomendación (2) Dirigidas al Comité de Admisión firmadas por especialistas externos al plantel.','Cartas de Recomendación (2) Dirigidas al Comité de Admisión firmadas por especialistas externos al plantel.','/templates/cartas_de_recomendaci_n_2_dirigidas_al_comit_de_admisi_n_firmadas_por_especialistas_externos_al_plantel.pdf',TRUE,1),
-('Comprobante EXANI III ≥1000 puntos de CENEVAL.','Comprobante EXANI III ≥1000 puntos de CENEVAL.','/uploads/comprobante_exani_iii_1000_puntos_de_ceneval.pdf',FALSE,6),
-('Solicitud de ingreso y exposición de motivos','Solicitud de ingreso y exposición de motivos','/templates/solicitud_de_ingreso_y_exposici_n_de_motivos.pdf',TRUE,1),
-('Entrevista con Comité de Admisión.','Entrevista con Comité de Admisión.','/uploads/entrevista_con_comit_de_admisi_n.pdf',FALSE,8),
-('Comprobante Inglés ≥ 400 puntos TOEFL o  nivel IV del Centro de Lenguas Extranjeras del ITCJ.','Comprobante Inglés ≥ 400 puntos TOEFL o  nivel IV del Centro de Lenguas Extranjeras del ITCJ.','/uploads/comprobante_ingl_s_400_puntos_toefl_o_nivel_iv_del_centro_de_lenguas_extranjeras_del_itcj.pdf',FALSE,6),
-('Certificado de Estudios de Licenciatura.','Certificado de Estudios de Licenciatura.','/uploads/certificado_de_estudios_de_licenciatura.pdf',FALSE,1),
-('Titulo de Licenciatura o Acta de Examen de Grado.','Titulo de Licenciatura o Acta de Examen de Grado.','/uploads/titulo_de_licenciatura_o_acta_de_examen_de_grado.pdf',FALSE,6),
-('Maestría en Ingeniería: Industrial/Administrativa','Maestría en Ingeniería: Industrial/Administrativa','/uploads/maestr_a_en_ingenier_a_industrial_administrativa.pdf',FALSE,4),
-('Acreditar examen de conocimientos: Matemáticas y Probabilidad y Estadística.','Acreditar examen de conocimientos: Matemáticas y Probabilidad y Estadística.','/templates/acreditar_examen_de_conocimientos_matem_ticas_y_probabilidad_y_estad_stica.pdf',TRUE,6),
-('Maestría en Administración de Negocios Internacionales','Maestría en Administración de Negocios Internacionales','/uploads/maestr_a_en_administraci_n_de_negocios_internacionales.pdf',FALSE,3),
-('Acreditar examen de conocimientos: Administración y Probabilidad - Estadística.','Acreditar examen de conocimientos: Administración y Probabilidad - Estadística.','/templates/acreditar_examen_de_conocimientos_administraci_n_y_probabilidad_estad_stica.pdf',TRUE,6),
-('Certificado de Estudios de Maestría.','Certificado de Estudios de Maestría.','/uploads/certificado_de_estudios_de_maestr_a.pdf',FALSE,1),
-('Titulo de Maestría o Acta de Examen de Grado.','Titulo de Maestría o Acta de Examen de Grado.','/uploads/titulo_de_maestr_a_o_acta_de_examen_de_grado.pdf',FALSE,6),
-('Comprobante de Inglés≥450 puntos TOEFL.','Comprobante de Inglés≥450 puntos TOEFL.','/uploads/comprobante_de_ingl_s_450_puntos_toefl.pdf',FALSE,7),
-('Acreditar examen de conocimientos: Matemáticas / Probabilidad y Estadística.','Acreditar examen de conocimientos: Matemáticas / Probabilidad y Estadística.','/uploads/acreditar_examen_de_conocimientos_matem_ticas_probabilidad_y_estad_stica.pdf',FALSE,6),
-('Protocolo/propuesta de investigación avalado por claustro doctoral.','Protocolo/propuesta de investigación avalado por claustro doctoral.','/uploads/protocolo_propuesta_de_investigaci_n_avalado_por_claustro_doctoral.pdf',FALSE,1),
-('Defensa de protocolo/propuesta de investigación con Comité de admisión.','Defensa de protocolo/propuesta de investigación con Comité de admisión.','/templates/defensa_de_protocolo_propuesta_de_investigaci_n_con_comit_de_admisi_n.pdf',TRUE,1),
-('Temarios','Temarios','/uploads/temarios.pdf',FALSE,1),
-('Probabilidad - Estadística','Probabilidad - Estadística','/templates/probabilidad_estad_stica.pdf',TRUE,1),
-('Administración','Administración','/templates/administraci_n.pdf',TRUE,1),
-('Matemáticas','Matemáticas','/templates/matem_ticas.pdf',TRUE,1),
-('Lista de Requisitos de Inscripción (Consulta en Servicios Escolares) ENLACE A PAGINA SE','Lista de Requisitos de Inscripción (Consulta en Servicios Escolares) ENLACE A PAGINA SE','/templates/lista_de_requisitos_de_inscripci_n_consulta_en_servicios_escolares_enlace_a_pagina_se.pdf',TRUE,1),
-('Validación de la coordinación del posgrado documento correcto.','Validación de la coordinación del posgrado documento correcto.','/uploads/validaci_n_de_la_coordinaci_n_del_posgrado_documento_correcto.pdf',FALSE,1);
-
+INSERT INTO archive (name, description, file_path, is_downloadable,is_uploadable, step_id) VALUES
+--1
+('Currículum Vitae','Currículum Vitae con documentos probatorios.',null,FALSE,TRUE,1),
+--2
+('Cartas de Recomendación','Cartas de Recomendación (2) Dirigidas al Comité de Admisión firmadas por especialistas externos al plantel.',null,TRUE,TRUE,1),
+--3
+('Comprobante EXANI III.','Comprobante EXANI III ≥1000 puntos de CENEVAL.',null,FALSE,TRUE,1),
+--4
+('Solicitud de ingreso','Solicitud de ingreso y exposición de motivos',null,TRUE,TRUE,1),
+--5
+('Entrevista','Entrevista con Comité de Admisión.',null,FALSE,FALSE,6),
+--6
+('Comprobante Inglés','Comprobante Inglés ≥ 400 puntos TOEFL o  nivel IV del Centro de Lenguas Extranjeras del ITCJ.',null,FALSE,TRUE,2),
+--7
+('Certificado de Licenciatura.','Certificado de Estudios de Licenciatura.',null,FALSE,TRUE,2),
+--8
+('Titulo','Titulo de Licenciatura o Acta de Examen de Grado.','/uploads/titulo_de_licenciatura_o_acta_de_examen_de_grado.pdf',FALSE,TRUE,2),
+--9
+('Examen de conocimientos','Acreditar examen de conocimientos: Matemáticas y Probabilidad y Estadística. Para las maestrías de Ingeniería Industrial/Administrativa',null,TRUE,TRUE,3),
+--10
+('Examen de conocimientos','Acreditar examen de conocimientos: Administración y Probabilidad - Estadística. Para la maestría de en negocios Internacionales',null,TRUE,TRUE,4),
+--11
+('Certificado de Maestría.','Certificado de Estudios de Maestría.',null,FALSE, TRUE,5),
+--12
+('Titulo','Titulo de Maestría o Acta de Examen de Grado.',null,FALSE,TRUE,5),
+--13
+('Comprobante de Inglés','Comprobante de Inglés≥450 puntos TOEFL.',null,FALSE,TRUE,5),
+--14
+('Examen de conocimientos','Acreditar examen de conocimientos: Matemáticas / Probabilidad y Estadística. Para el doctorado',null,FALSE,TRUE,5),
+--15
+('Protocolo/propuesta de investigación','Protocolo/propuesta de investigación avalado por claustro doctoral.',null,FALSE,TRUE,5),
+--16
+('Defensa de protocolo/propuesta','Defensa de protocolo/propuesta de investigación con Comité de admisión.',null,TRUE,FALSE,7),
+--17
+('Probabilidad - Estadística','Temario sobre Probabilidad - Estadística',null,TRUE,FALSE,8),
+--18
+('Administración','Temario para Administración',null,TRUE,FALSE,8),
+--19
+('Matemáticas','Temario para Matemáticas',null,TRUE,FALSE,8);
 -- === Phase: Permanence ===
-INSERT INTO archive (name, description, file_path, is_downloadable, step_id) VALUES
-('Programación de Materias/Tira de materias','Programación de Materias/Tira de materias','/templates/programaci_n_de_materias_tira_de_materias.pdf',TRUE,9),
-('Boleta de Inscripción/Reinscripción Firmada/Sellada','Boleta de Inscripción/Reinscripción Firmada/Sellada','/uploads/boleta_de_inscripci_n_reinscripci_n_firmada_sellada.pdf',FALSE,9),
-('Boleta de Calificación Firmada/Sellada','Boleta de Calificación Firmada/Sellada','/uploads/boleta_de_calificaci_n_firmada_sellada.pdf',FALSE,9),
-('Reporte de Retroalimentación Comité Tutorial (acta de evaluación)','Reporte de Retroalimentación Comité Tutorial (acta de evaluación)','/uploads/reporte_de_retroalimentaci_n_comit_tutorial_acta_de_evaluaci_n.pdf',FALSE,9),
-('Solicitud de Baja Temporal','Solicitud de Baja Temporal','/templates/solicitud_de_baja_temporal.pdf',TRUE,9),
-('Carta del Director de Tesis Similitud <30%','Carta del Director de Tesis Similitud <30%','/templates/carta_del_director_de_tesis_similitud_30.pdf',TRUE,9),
-('Movilidad','Movilidad','/uploads/movilidad.pdf',FALSE,10),
-('Carta Solicitud avalada por Director de Tesis','Carta Solicitud avalada por Director de Tesis','/templates/carta_solicitud_avalada_por_director_de_tesis.pdf',TRUE,9),
-('Carta de Aceptación','Carta de Aceptación','/templates/carta_de_aceptaci_n.pdf',TRUE,9),
-('Carta de Terminación','Carta de Terminación','/templates/carta_de_terminaci_n.pdf',TRUE,9),
-('Informe Final Avalado por Receptor Responsable','Informe Final Avalado por Receptor Responsable','/uploads/informe_final_avalado_por_receptor_responsable.pdf',FALSE,9),
-('Seguimiento Académico','Seguimiento Académico','/uploads/seguimiento_acad_mico.pdf',FALSE,9),
-('Protocolo de Investigación avalado por Director de Tesis','Protocolo de Investigación avalado por Director de Tesis','/uploads/protocolo_de_investigaci_n_avalado_por_director_de_tesis.pdf',FALSE,9),
-('Propuesta del Plan de Actividades','Propuesta del Plan de Actividades','/uploads/propuesta_del_plan_de_actividades.pdf',FALSE,9),
-('Carta Solicitando Alta de Actividad de Retribución Social con el Aval del Director de Tesis','Carta Solicitando Alta de Actividad de Retribución Social con el Aval del Director de Tesis','/templates/carta_solicitando_alta_de_actividad_de_retribuci_n_social_con_el_aval_del_director_de_tesis.pdf',TRUE,9),
-('Carta de Terminación de Retribución Social Avalada por el Director de Tesis','Carta de Terminación de Retribución Social Avalada por el Director de Tesis','/templates/carta_de_terminaci_n_de_retribuci_n_social_avalada_por_el_director_de_tesis.pdf',TRUE,9),
-('Becarios Conahcyt','Becarios Conahcyt','/uploads/becarios_conahcyt.pdf',FALSE,9),
-('Formato de Desempeño','Formato de Desempeño','/templates/formato_de_desempe_o.pdf',TRUE,9);
+INSERT INTO archive (name, description, file_path, is_downloadable, is_uploadable, step_id) VALUES
+--1
+('Mapa Curricular', 'Mapa curricular del programa que cursa.',null,TRUE,FALSE,9),
+--2
+('Programación de Materias','Programación de Materias/Tira de materias',null,TRUE, TRUE,9),
+--3
+('Boleta de Inscripción','Boleta de Inscripción/Reinscripción Firmada/Sellada',null,FALSE,TRUE,9),
+--4
+('Boleta de Calificación Firmada/Sellada','Boleta de Calificación Firmada/Sellada',null,FALSE,TRUE,9),
+--5
+('Reporte de Retroalimentación','Reporte de Retroalimentación Comité Tutorial (acta de evaluación)',null,FALSE,FALSE,9),
+--6
+('Solicitud de Baja Temporal','Solicitud de Baja Temporal',null,TRUE,TRUE,9),
+--7
+('Carta del Director','Carta del Director de Tesis Similitud <30%',null,TRUE,TRUE,9),
+--8
+('Carta Solicitud','Carta Solicitud avalada por Director de Tesis',null,TRUE,TRUE,10),
+--9
+('Carta de Aceptación','Carta de Aceptación',null,TRUE,TRUE,10),
+--10
+('Carta de Terminación','Carta de Terminación',null,TRUE,TRUE,10),
+--11
+('Informe Final','Informe Final Avalado por Receptor Responsable',null,FALSE,TRUE,10),
+--12
+('Protocolo de Investigación','Protocolo de Investigación avalado por Director de Tesis',null,FALSE,TRUE,11),
+--13
+('Plan de Actividades','Propuesta del Plan de Actividades',null,FALSE,TRUE,11),
+--14
+('Carta Alta de Actividad','Carta Solicitando Alta de Actividad de Retribución Social con el Aval del Director de Tesis',null,TRUE,TRUE,11),
+--15
+('Carta de Terminación','Carta de Terminación de Retribución Social Avalada por el Director de Tesis',null,TRUE,TRUE,11),
+--16
+('Formato de Desempeño','Formato de Desempeño',null,TRUE,TRUE,12);
 
 -- === Phase: Conclusion ===
-INSERT INTO archive (name, description, file_path, is_downloadable, step_id) VALUES
-('Solicitud al (a la) jefe(a) de la DEPI, fecha, hora y lugar para realizar el Examen de grado.','Solicitud al (a la) jefe(a) de la DEPI, fecha, hora y lugar para realizar el Examen de grado.','/templates/solicitud_al_a_la_jefe_a_de_la_depi_fecha_hora_y_lugar_para_realizar_el_examen_de_grado.pdf',TRUE,11),
-('Constancia de aprobación de la totalidad de la estructura académica del programa, emitida por el Departamento de Servicios Escolares (promedio=>80)','Constancia de aprobación de la totalidad de la estructura académica del programa, emitida por el Departamento de Servicios Escolares (promedio=>80)','/uploads/constancia_de_aprobaci_n_de_la_totalidad_de_la_estructura_acad_mica_del_programa_emitida_por_el_departamento_de_servicios_escolares_promedio_80.pdf',FALSE,12),
-('Constancia del manejo de un segundo idioma','Constancia del manejo de un segundo idioma','/uploads/constancia_del_manejo_de_un_segundo_idioma.pdf',FALSE,12),
-('Carta de autorización de impresión de la tesis emitida por los miembros del Comité Tutorial.','Carta de autorización de impresión de la tesis emitida por los miembros del Comité Tutorial.','/templates/carta_de_autorizaci_n_de_impresi_n_de_la_tesis_emitida_por_los_miembros_del_comit_tutorial.pdf',TRUE,12),
-('Autorización de impresión de la tesis emitida por la DEPI.','Autorización de impresión de la tesis emitida por la DEPI.','/templates/autorizaci_n_de_impresi_n_de_la_tesis_emitida_por_la_depi.pdf',TRUE,12),
-('Documento de Tesis Final (PDF).','Documento de Tesis Final (PDF).','/uploads/documento_de_tesis_final_pdf.pdf',FALSE,12),
-('Carta de cesión de derechos con firma autógrafa del estudiante.','Carta de cesión de derechos con firma autógrafa del estudiante.','/templates/carta_de_cesi_n_de_derechos_con_firma_aut_grafa_del_estudiante.pdf',TRUE,12),
-('Carta de originalidad, emitida por la Coordinación del Posgrado con similitud >30%.','Carta de originalidad, emitida por la Coordinación del Posgrado con similitud >30%.','/templates/carta_de_originalidad_emitida_por_la_coordinaci_n_del_posgrado_con_similitud_30.pdf',TRUE,12),
-('Constancia No Inconveniencia emitida poR Departamento de Servicios Escolares.','Constancia No Inconveniencia emitida poR Departamento de Servicios Escolares.','/uploads/constancia_no_inconveniencia_emitida_por_departamento_de_servicios_escolares.pdf',FALSE,12),
-('Documento que avale la cobertura de los derechos de examen y de expedición de los documentos.','Documento que avale la cobertura de los derechos de examen y de expedición de los documentos.','/uploads/documento_que_avale_la_cobertura_de_los_derechos_de_examen_y_de_expedici_n_de_los_documentos.pdf',FALSE,12),
-('Documento de no adeudo económicos, ni de material, ni de equipo con las oficinas, laboratorios, talleres y biblioteca del plantel.','Documento de no adeudo económicos, ni de material, ni de equipo con las oficinas, laboratorios, talleres y biblioteca del plantel.','/uploads/documento_de_no_adeudo_econ_micos_ni_de_material_ni_de_equipo_con_las_oficinas_laboratorios_talleres_y_biblioteca_del_plantel.pdf',FALSE,12),
-('Oficio Autorización (dispensa) en caso de haber solicitado presentar el examen de forma extemporánea.','Oficio Autorización (dispensa) en caso de haber solicitado presentar el examen de forma extemporánea.','/uploads/oficio_autorizaci_n_dispensa_en_caso_de_haber_solicitado_presentar_el_examen_de_forma_extempor_nea.pdf',FALSE,12),
-('Comprobante de dos actividades de retribución social durante su estancia en el programa, avalada por su director(a) de tesis.','Comprobante de dos actividades de retribución social durante su estancia en el programa, avalada por su director(a) de tesis.','/templates/comprobante_de_dos_actividades_de_retribuci_n_social_durante_su_estancia_en_el_programa_avalada_por_su_director_a_de_tesis.pdf',TRUE,12),
-('Maestría Profesionalizante','Maestría Profesionalizante','/uploads/maestr_a_profesionalizante.pdf',FALSE,12),
-('Carta de usuario, que indique la incidencia y el grado de satisfacción del proyecto de tesis.','Carta de usuario, que indique la incidencia y el grado de satisfacción del proyecto de tesis.','/uploads/carta_de_usuario_que_indique_la_incidencia_y_el_grado_de_satisfacci_n_del_proyecto_de_tesis.pdf',FALSE,12),
-('Producto académico original (ver sección 4.5) derivado de su trabajo de tesis avalado por el Consejo de Posgrado.','Producto académico original (ver sección 4.5) derivado de su trabajo de tesis avalado por el Consejo de Posgrado.','/uploads/producto_acad_mico_original_ver_secci_n_4_5_derivado_de_su_trabajo_de_tesis_avalado_por_el_consejo_de_posgrado.pdf',FALSE,12),
-('Doctorado','Doctorado','/uploads/doctorado.pdf',FALSE,12),
-('Estancia académica si la investigación lo requiera con el aval del Comité Tutorial.','Estancia académica si la investigación lo requiera con el aval del Comité Tutorial.','/uploads/estancia_acad_mica_si_la_investigaci_n_lo_requiera_con_el_aval_del_comit_tutorial.pdf',FALSE,12),
-('Articulo Publicado o aceptado en revista indizada JCR o de índice CONAHCyT (ver sección 4.5) o registro de patente.','Articulo Publicado o aceptado en revista indizada JCR o de índice CONAHCyT (ver sección 4.5) o registro de patente.','/uploads/articulo_publicado_o_aceptado_en_revista_indizada_jcr_o_de_ndice_conahcyt_ver_secci_n_4_5_o_registro_de_patente.pdf',FALSE,12);
+INSERT INTO archive (name, description, file_path, is_downloadable, is_uploadable , step_id) VALUES
+--1
+('Titulo del grado anterior', 'Titulo del grado anterior o Acta de Examen de Grado.',null,FALSE,TRUE,13),
+--2
+('Solicitud del examen de grado','Solicitud al (a la) jefe(a) de la DEPI, fecha, hora y lugar para realizar el Examen de grado.',null,TRUE,TRUE,13),
+--3
+('Constancia de aprobación','Constancia de aprobación de la totalidad de la estructura académica del programa, emitida por el Departamento de Servicios Escolares (promedio=>80)',null,FALSE,TRUE,13),
+--4
+('Constancia de segundo idioma','Constancia del manejo de un segundo idioma',null,FALSE,TRUE, 13),
+--5
+('Carta de autorización','Carta de autorización de impresión de la tesis emitida por los miembros del Comité Tutorial.',null,TRUE,TRUE,13),
+--6
+('Autorización de impresión','Autorización de impresión de la tesis emitida por la DEPI.',null,TRUE,TRUE,13),
+--7
+('Documento de Tesis Final','Documento de Tesis Final (PDF).',null,FALSE,TRUE,13),
+--8
+('Carta de cesión de derechos','Carta de cesión de derechos con firma autógrafa del estudiante.',null,TRUE,TRUE,13),
+--9
+('Carta de originalidad','Carta de originalidad, emitida por la Coordinación del Posgrado con similitud >30%.',null,TRUE,TRUE,13),
+--10
+('Constancia de No Inconveniencia','Constancia de No Inconveniencia emitida poR Departamento de Servicios Escolares.',null,FALSE,TRUE,13),
+--11
+('Cobertura de los derechos de examen','Documento que avale la cobertura de los derechos de examen y de expedición de los documentos.',null,FALSE,TRUE,13),
+--12
+('No adeudos','Documento de no adeudo económicos, ni de material, ni de equipo con las oficinas, laboratorios, talleres y biblioteca del plantel.',null,FALSE,TRUE,13),
+--13
+('Oficio Autorización (dispensa)','Oficio Autorización (dispensa) en caso de haber solicitado presentar el examen de forma extemporánea.',null,FALSE,TRUE,13),
+--14
+('Comprobante actividades de retribución','Comprobante de dos actividades de retribución social durante su estancia en el programa, avalada por su director(a) de tesis.',null,TRUE,TRUE,13),
+--15
+('Carta de usuario','Carta de usuario, que indique la incidencia y el grado de satisfacción del proyecto de tesis.',null,FALSE,TRUE,14),
+--16
+('Producto académico original','Producto académico original (ver sección 4.5) derivado de su trabajo de tesis avalado por el Consejo de Posgrado.',null,FALSE,TRUE,14),
+--17
+('Estancia académica ','Estancia académica si la investigación lo requiera con el aval del Comité Tutorial.',null,FALSE,TRUE,15),
+--18
+('Articulo Publicado','Articulo Publicado o aceptado en revista indizada JCR o de índice CONAHCyT (ver sección 4.5) o registro de patente.',null,FALSE,TRUE,15);

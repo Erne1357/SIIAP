@@ -20,6 +20,10 @@
     animation: bounce 2s infinite;
 }
 
+#main-content {
+    margin-left : 0;
+}
+
 @keyframes bounce {
 
     0%,

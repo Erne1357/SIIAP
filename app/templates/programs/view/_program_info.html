@@ -1,0 +1,92 @@
+{# app/templates/programs/_program_info.html #}
+<section id="programa" class="py-4 bg-light rounded-3 my-4">
+  <div class="text-center mb-4" data-aos="fade-up">
+    <h2 class="h3 fw-bold mb-3">Acerca del Programa</h2>
+    <div class="divider-center mb-3"></div>
+    <p class="lead mx-auto" style="max-width: 800px;">
+      {% if program.id == 1 %}
+      Nuestro programa de Maestría en Ciencias de la Computación está diseñado para formar profesionales de alto nivel con capacidades de investigación y liderazgo en el campo de la computación.
+      {% elif program.id == 2 %}
+      La Maestría en Inteligencia Artificial ofrece una formación especializada en las técnicas y metodologías más avanzadas en el campo de la IA, preparando profesionales para los desafíos tecnológicos actuales.
+      {% elif program.id == 4 %}
+      El Doctorado en Ciencias de la Computación está orientado a la formación de investigadores de alto nivel, capaces de generar conocimiento original y liderar proyectos de investigación innovadores.
+      {% else %}
+      Nuestro programa está diseñado para formar profesionales de alto nivel con capacidades de investigación y liderazgo en su campo.
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="row g-3 mt-3">
+    <div class="col-md-3" data-aos="fade-up" data-aos-delay="100">
+      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
+        <div class="icon-circle bg-primary-light mb-3 mx-auto">
+          <i class="fas fa-book text-primary"></i>
+        </div>
+        <h3 class="h5 fw-bold">Duración</h3>
+        <p class="mb-0">
+          {% if program.id == 1 or program.id == 2 %}
+          2 años (4 semestres)
+          {% elif program.id == 4 %}
+          3 años (6 semestres)
+          {% else %}
+          Duración variable
+          {% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="col-md-3" data-aos="fade-up" data-aos-delay="200">
+      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
+        <div class="icon-circle bg-primary-light mb-3 mx-auto">
+          <i class="fas fa-award text-primary"></i>
+        </div>
+        <h3 class="h5 fw-bold">Reconocimiento</h3>
+        <p class="mb-0">Programa reconocido por su excelencia académica</p>
+      </div>
+    </div>
+    <div class="col-md-3" data-aos="fade-up" data-aos-delay="300">
+      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
+        <div class="icon-circle bg-primary-light mb-3 mx-auto">
+          <i class="fas fa-clock text-primary"></i>
+        </div>
+        <h3 class="h5 fw-bold">Modalidad</h3>
+        <p class="mb-0">Presencial con recursos digitales</p>
+      </div>
+    </div>
+    <div class="col-md-3" data-aos="fade-up" data-aos-delay="400">
+      <div class="bg-white p-3 rounded shadow-sm text-center h-100">
+        <div class="icon-circle bg-primary-light mb-3 mx-auto">
+          <i class="fas fa-users text-primary"></i>
+        </div>
+        <h3 class="h5 fw-bold">Becas</h3>
+        <p class="mb-0">Posibilidad de becas para estudiantes</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white p-4 rounded shadow-sm mt-4" data-aos="fade-up">
+    <h3 class="h4 fw-bold mb-3">Objetivos del Programa</h3>
+    <ul class="list-unstyled mb-0">
+      {% if program.id == 1 %}
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar especialistas en ciencias de la computación con sólidos conocimientos teóricos y prácticos.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar habilidades para el análisis y solución de problemas computacionales complejos.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la investigación aplicada en el campo de la computación.</li>
+      <li><i class="fas fa-check-circle text-primary me-2"></i> Preparar profesionales con capacidad de liderazgo en proyectos tecnológicos.</li>
+      {% elif program.id == 2 %}
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar especialistas en inteligencia artificial con conocimientos avanzados.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar habilidades para implementar soluciones basadas en IA.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la investigación en áreas emergentes de la inteligencia artificial.</li>
+      <li><i class="fas fa-check-circle text-primary me-2"></i> Preparar profesionales capaces de liderar la transformación digital mediante IA.</li>
+      {% elif program.id == 4 %}
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar investigadores de alto nivel en ciencias de la computación.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar capacidades para generar conocimiento original en el campo.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la colaboración interdisciplinaria en proyectos de investigación.</li>
+      <li><i class="fas fa-check-circle text-primary me-2"></i> Contribuir al avance científico y tecnológico mediante investigación de frontera.</li>
+      {% else %}
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar profesionales especializados en el área.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar habilidades para la resolución de problemas complejos.</li>
+      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la investigación y el desarrollo tecnológico.</li>
+      <li><i class="fas fa-check-circle text-primary me-2"></i> Preparar líderes con compromiso ético en su campo.</li>
+      {% endif %}
+    </ul>
+  </div>
+</section>

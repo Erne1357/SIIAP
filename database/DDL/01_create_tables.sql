@@ -16,6 +16,7 @@ CREATE TABLE "user" (
     email            VARCHAR(100) NOT NULL UNIQUE,
     last_login       TIMESTAMP    NOT NULL DEFAULT NOW(),
     is_internal      BOOLEAN      NOT NULL DEFAULT FALSE,
+    scolarship_type  VARCHAR(50) NOT NULL DEFAULT 'none',
     registration_date TIMESTAMP   NOT NULL DEFAULT NOW(),
     role_id           INTEGER      NOT NULL,
     CONSTRAINT fk_user_role
@@ -82,8 +83,9 @@ CREATE TABLE archive (
     id              SERIAL PRIMARY KEY,
     name            VARCHAR(150) NOT NULL,
     description     TEXT,
-    file_path       TEXT NOT NULL,
+    file_path       TEXT,
     is_downloadable BOOLEAN NOT NULL DEFAULT FALSE,
+    is_uploadable   BOOLEAN NOT NULL DEFAULT FALSE,
     step_id         INTEGER NOT NULL,
     CONSTRAINT fk_archive_step
         FOREIGN KEY (step_id)

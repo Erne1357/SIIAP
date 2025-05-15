@@ -1,0 +1,109 @@
+{# app/templates/programs/_contact.html #}
+<section id="contacto" class="py-4 bg-light rounded-3 my-4">
+  <div class="text-center mb-4" data-aos="fade-up">
+    <h2 class="h3 fw-bold mb-3">Contacto</h2>
+    <div class="divider-center mb-3"></div>
+    <p class="lead mx-auto" style="max-width: 800px;">
+      ¿Tienes preguntas sobre nuestro programa? Estamos aquí para ayudarte.
+    </p>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6" data-aos="fade-right">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-4">
+          <h3 class="h4 fw-bold mb-3">Envíanos un Mensaje</h3>
+          <form>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="name" class="form-label">Nombre Completo</label>
+                <input type="text" class="form-control" id="name" placeholder="Tu nombre">
+              </div>
+              <div class="col-md-6">
+                <label for="email" class="form-label">Correo Electrónico</label>
+                <input type="email" class="form-control" id="email" placeholder="tu@email.com">
+              </div>
+              <div class="col-12">
+                <label for="subject" class="form-label">Asunto</label>
+                <input type="text" class="form-control" id="subject" placeholder="Asunto de tu mensaje">
+              </div>
+              <div class="col-12">
+                <label for="message" class="form-label">Mensaje</label>
+                <textarea class="form-control" id="message" rows="4" placeholder="Escribe tu mensaje aquí..."></textarea>
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary w-100">Enviar Mensaje</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6" data-aos="fade-left">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body p-4">
+          <h3 class="h4 fw-bold mb-3">Información de Contacto</h3>
+          <ul class="list-unstyled mb-0">
+            <li class="d-flex mb-3">
+              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
+                <i class="fas fa-envelope text-primary"></i>
+              </div>
+              <div>
+                <h4 class="h6 fw-bold">Correo Electrónico</h4>
+                <p class="mb-0">
+                  {% if program.id == 1 %}
+                  maestria.cc@universidad.edu<br>
+                  {% elif program.id == 2 %}
+                  maestria.ia@universidad.edu<br>
+                  {% elif program.id == 4 %}
+                  doctorado.cc@universidad.edu<br>
+                  {% else %}
+                  posgrado@universidad.edu<br>
+                  {% endif %}
+                  admisiones@universidad.edu
+                </p>
+              </div>
+            </li>
+            <li class="d-flex mb-3">
+              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
+                <i class="fas fa-phone text-primary"></i>
+              </div>
+              <div>
+                <h4 class="h6 fw-bold">Teléfono</h4>
+                <p class="mb-0">+52 (123) 456-7890<br>+52 (123) 456-7891</p>
+              </div>
+            </li>
+            <li class="d-flex">
+              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
+                <i class="fas fa-map-marker-alt text-primary"></i>
+              </div>
+              <div>
+                <h4 class="h6 fw-bold">Dirección</h4>
+                <p class="mb-0">Av. Universidad 3000, Ciudad Universitaria,<br>Coyoacán, 04510, Ciudad de México</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h3 class="h4 fw-bold mb-3">Próximos Eventos</h3>
+          <ul class="list-unstyled mb-0">
+            <li class="border-start border-3 border-primary ps-3 mb-3">
+              <h4 class="h6 fw-bold">Sesión Informativa Virtual</h4>
+              <p class="mb-0">15 de Junio, 2025 - 18:00 hrs</p>
+            </li>
+            <li class="border-start border-3 border-primary ps-3 mb-3">
+              <h4 class="h6 fw-bold">Jornada de Puertas Abiertas</h4>
+              <p class="mb-0">10 de Julio, 2025 - 10:00 a 14:00 hrs</p>
+            </li>
+            <li class="border-start border-3 border-primary ps-3">
+              <h4 class="h6 fw-bold">Taller de Preparación para Admisión</h4>
+              <p class="mb-0">25 de Julio, 2025 - 16:00 hrs</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
