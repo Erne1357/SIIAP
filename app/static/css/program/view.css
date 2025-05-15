@@ -1,0 +1,414 @@
+/* ────────────────────────────────────────────────────────────── */
+/* app/static/css/program/view.css */
+/* ────────────────────────────────────────────────────────────── */
+
+/* Variables */
+:root {
+    --primary: #0d6efd;
+    --primary-light: #e6f0ff;
+    --primary-dark: #0a58ca;
+    --secondary: #6c757d;
+    --light: #f8f9fa;
+    --dark: #212529;
+    --success: #198754;
+    --info: #0dcaf0;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --white: #ffffff;
+    --black: #000000;
+    --border-radius: 0.375rem;
+    --box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    --transition: all 0.3s ease;
+  }
+  
+  /* Contenedor principal */
+  .program-view-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  /* Secciones */
+  section {
+    scroll-margin-top: 2rem;
+  }
+  
+  /* Hero Section */
+  .program-hero-section {
+    background: linear-gradient(to right, var(--primary-light), #f8f9fa);
+    border-radius: 0.5rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  
+  .program-image-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Divider */
+  .divider-center {
+    width: 60px;
+    height: 3px;
+    background-color: var(--primary);
+    margin: 0 auto;
+  }
+  
+  /* Cards */
+  .hover-card {
+    transition: var(--transition);
+    border: none;
+  }
+  
+  .hover-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--box-shadow);
+  }
+  
+  /* Icon Circles */
+  .icon-circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .bg-primary-light {
+    background-color: var(--primary-light);
+  }
+  
+  /* Accordion */
+  .accordion-button:not(.collapsed) {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    box-shadow: none;
+  }
+  
+  .accordion-button:focus {
+    box-shadow: none;
+    border-color: var(--primary-light);
+  }
+  
+  .accordion-button {
+    padding: 0.75rem 1.25rem;
+  }
+  
+  .accordion-body {
+    padding: 1rem 1.25rem;
+  }
+  
+  /* Document Links */
+  .document-link {
+    color: var(--primary);
+    transition: var(--transition);
+  }
+  
+  .document-link:hover {
+    color: var(--primary-dark);
+    text-decoration: underline !important;
+  }
+  
+  /* Curriculum Table */
+  .curriculum-table {
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .curriculum-table th {
+    background-color: var(--primary);
+    color: var(--white);
+    padding: 0.75rem;
+  }
+  
+  .curriculum-table td {
+    background-color: var(--white);
+    transition: var(--transition);
+    padding: 0.75rem;
+  }
+  
+  .curriculum-table tr:hover td {
+    background-color: var(--primary-light);
+  }
+  
+  /* Buttons */
+  .btn-primary {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    transition: var(--transition);
+  }
+  
+  .btn-primary:hover {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--primary);
+    transition: var(--transition);
+  }
+  
+  .btn-outline-primary:hover {
+    background-color: var(--primary);
+    color: var(--white);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Form Controls */
+  .form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  
+  /* Responsive Adjustments */
+  @media (max-width: 768px) {
+    .program-hero-section {
+      padding: 1.5rem;
+    }
+    
+    .icon-circle {
+      width: 40px;
+      height: 40px;
+    }
+  }
+  
+  @media (max-width: 576px) {
+    h1.display-5 {
+      font-size: 2rem;
+    }
+    
+    .program-hero-section {
+      padding: 1rem;
+    }
+  }
+
+
+  /* Botones flotantes */
+/* Botones flotantes */
+.floating-back-button {
+  position: fixed;
+  top: 130px; /* Ajusta según la altura de tu header */
+  left: 260px; /* Ajusta según el ancho de tu sidebar */
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.5s ease;
+}
+
+.floating-inscription-button {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s ease;
+}
+
+.floating-back-button.visible,
+.floating-inscription-button.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.btn-inscription, .btn-back {
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  font-weight: 500;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.btn-inscription {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.btn-inscription:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-back {
+  background-color: white;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-back:hover {
+  background-color: var(--primary-light);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .floating-back-button {
+    top: 80px;
+    left: 20px;
+  }
+  
+  .floating-inscription-button {
+    bottom: 1.5rem;
+    right: 1.5rem;
+  }
+  
+  .btn-inscription, .btn-back {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
+}
+/* Estilos para la sección de admisión */
+.admission-phases-nav {
+  background-color: var(--light);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.admission-phases-nav .nav-link {
+  border-radius: 0.5rem;
+  padding: 1rem 0.5rem;
+  color: var(--dark);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admission-phases-nav .nav-link.active {
+  background-color: var(--primary);
+  color: white;
+}
+
+.phase-icon-container {
+  margin-bottom: 0.5rem;
+}
+
+.phase-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link.active .phase-icon {
+  background-color: var(--white);
+  color: var(--primary);
+}
+
+.phase-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.phase-content {
+  background-color: var(--white);
+  border-radius: 0.5rem;
+  padding: 2rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Timeline de pasos */
+.steps-timeline {
+  position: relative;
+  padding: 1rem 0;
+}
+
+.steps-timeline:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  height: 100%;
+  width: 2px;
+  background-color: var(--primary-light);
+}
+
+.timeline-item {
+  position: relative;
+  padding-left: 50px;
+  margin-bottom: 2rem;
+}
+
+.timeline-item:last-child {
+  margin-bottom: 0;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.step-number {
+  color: white;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.timeline-content {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .admission-phases-nav .nav-link {
+    padding: 0.75rem 0.25rem;
+  }
+  
+  .phase-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+  
+  .phase-name {
+    font-size: 0.8rem;
+  }
+  
+  .phase-content {
+    padding: 1.5rem;
+  }
+}
+
+/* Animación para botones flotantes */
+.floating-action-buttons {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s ease;
+}
+
+.floating-action-buttons.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.floating-action-buttons.hidden {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+}

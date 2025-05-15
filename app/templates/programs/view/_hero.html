@@ -1,0 +1,48 @@
+{# app/templates/programs/_hero.html #}
+<section id="hero" class="program-hero-section py-4">
+    <div class="row align-items-center">
+        <div class="col-lg-6 mb-4 mb-lg-0" data-aos="fade-right">
+            <h1 class="display-5 fw-bold mb-3">{{ program.name }}</h1>
+            <p class="lead mb-4">{{ program.description }}</p>
+            <div class="d-flex flex-column flex-sm-row gap-3">
+                <a href="#admision" class="btn btn-primary">Proceso de Admisión</a>
+                <a href="#plan-estudios" class="btn btn-outline-primary">Plan de Estudios</a>
+            </div>
+        </div>
+        <div class="col-lg-6" data-aos="fade-left">
+            <div class="program-image-container " >
+                <img src="{{ url_for('static', filename='assets/images/' ~ program.name ~ '.webp') }}" alt="{{ program.name }}" max-heigh="400px"
+                    class="img-fluid rounded-3 shadow-sm">
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4" data-aos="fade-up" data-aos-delay="200">
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card h-100 shadow-sm hover-card">
+                <div class="card-body text-center p-3">
+                    <h3 class="h5 fw-bold text-primary mb-2">Admisión</h3>
+                    <p class="card-text">Conoce los requisitos y pasos para formar parte de nuestro programa de
+                        excelencia.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card h-100 shadow-sm hover-card">
+                <div class="card-body text-center p-3">
+                    <h3 class="h5 fw-bold text-primary mb-2">Permanencia</h3>
+                    <p class="card-text">Descubre las opciones y apoyos disponibles durante tu trayectoria académica.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm hover-card">
+                <div class="card-body text-center p-3">
+                    <h3 class="h5 fw-bold text-primary mb-2">Conclusión</h3>
+                    <p class="card-text">Conoce los pasos para culminar exitosamente tu programa de posgrado.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

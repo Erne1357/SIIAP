@@ -8,7 +8,7 @@ class Phase(db.Model):
     description = db.Column(db.Text)
     
     # Relación: Una fase tiene muchos steps
-    steps = db.relationship('Step', backref='phase', lazy=True)
+    steps = db.relationship("Step", back_populates="phase")
 
     def __init__(self, name, description):
         self.name = name

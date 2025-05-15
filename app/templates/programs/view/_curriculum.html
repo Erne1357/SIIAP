@@ -1,0 +1,200 @@
+{# app/templates/programs/_curriculum.html #}
+<section id="plan-estudios" class="py-4 bg-light rounded-3 my-4">
+  <div class="text-center mb-4" data-aos="fade-up">
+    <h2 class="h3 fw-bold mb-3">Plan de Estudios</h2>
+    <div class="divider-center mb-3"></div>
+    <p class="lead mx-auto" style="max-width: 800px;">
+      Explora la estructura académica de nuestro programa, diseñada para brindarte una formación integral y especializada.
+    </p>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      {% if program.id == 1 %}
+      <!-- Mapa Curricular para Maestría en en Ingeniería Industrial -->
+      <div class="table-responsive" data-aos="fade-up">
+        <table class="table table-bordered curriculum-table">
+          <thead>
+            <tr>
+              <th class="text-center bg-primary text-white">Primer Semestre</th>
+              <th class="text-center bg-primary text-white">Segundo Semestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Fundamentos de Computación Avanzada</td>
+              <td>Algoritmos y Estructuras de Datos</td>
+            </tr>
+            <tr>
+              <td>Metodología de la Investigación</td>
+              <td>Análisis y Diseño de Sistemas</td>
+            </tr>
+            <tr>
+              <td>Matemáticas para Computación</td>
+              <td>Optativa I</td>
+            </tr>
+          </tbody>
+          <thead>
+            <tr>
+              <th class="text-center bg-primary text-white">Tercer Semestre</th>
+              <th class="text-center bg-primary text-white">Cuarto Semestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Seminario de Tesis I</td>
+              <td>Seminario de Tesis II</td>
+            </tr>
+            <tr>
+              <td>Optativa II</td>
+              <td>Trabajo de Tesis</td>
+            </tr>
+            <tr>
+              <td>Optativa III</td>
+              <td>Defensa de Tesis</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% elif program.id == 2 %}
+      <!-- Mapa Curricular para Maestría en Administración de Negocios Internacionales -->
+      <div class="table-responsive" data-aos="fade-up">
+        <table class="table table-bordered curriculum-table">
+          <thead>
+            <tr>
+              <th class="text-center bg-primary text-white">Primer Semestre</th>
+              <th class="text-center bg-primary text-white">Segundo Semestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Fundamentos de Inteligencia Artificial</td>
+              <td>Aprendizaje Automático</td>
+            </tr>
+            <tr>
+              <td>Matemáticas para IA</td>
+              <td>Procesamiento de Lenguaje Natural</td>
+            </tr>
+            <tr>
+              <td>Programación para IA</td>
+              <td>Optativa I</td>
+            </tr>
+          </tbody>
+          <thead>
+            <tr>
+              <th class="text-center bg-primary text-white">Tercer Semestre</th>
+              <th class="text-center bg-primary text-white">Cuarto Semestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Visión por Computadora</td>
+              <td>Seminario de Tesis</td>
+            </tr>
+            <tr>
+              <td>Sistemas Inteligentes</td>
+              <td>Trabajo de Tesis</td>
+            </tr>
+            <tr>
+              <td>Optativa II</td>
+              <td>Defensa de Tesis</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% elif program.id == 3 %}
+      <!-- Mapa Curricular para Maestría en Ingeniería Administrativa -->
+      <div class="table-responsive" data-aos="fade-up">
+        <table class="table table-bordered curriculum-table">
+          <thead>
+            <tr>
+              <th class="text-center bg-primary text-white">Primer Semestre</th>
+              <th class="text-center bg-primary text-white">Segundo Semestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Seminario de Investigación I</td>
+              <td>Seminario de Investigación II</td>
+            </tr>
+            <tr>
+              <td>Metodología Avanzada</td>
+              <td>Tópicos Avanzados I</td>
+            </tr>
+          </tbody>
+          <thead>
+            <tr>
+              <th class="text-center bg-primary text-white">Tercer Semestre</th>
+              <th class="text-center bg-primary text-white">Cuarto Semestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Seminario de Investigación III</td>
+              <td>Seminario de Investigación IV</td>
+            </tr>
+            <tr>
+              <td>Tópicos Avanzados II</td>
+              <td>Avance de Tesis Doctoral</td>
+            </tr>
+          </tbody>
+          <thead>
+            <tr>
+              <th class="text-center bg-primary text-white">Quinto Semestre</th>
+              <th class="text-center bg-primary text-white">Sexto Semestre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Seminario de Investigación V</td>
+              <td>Seminario de Investigación VI</td>
+            </tr>
+            <tr>
+              <td>Avance de Tesis Doctoral</td>
+              <td>Defensa de Tesis Doctoral</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% elif program.id == 4%}
+        <!-- Mapa Curricular para Doctorado en Ciencias de la Ingeniería -->
+      <div class="alert alert-info text-center">
+        El plan de estudios para este programa aún no está disponible.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Líneas de Investigación -->
+  <div class="mt-4" data-aos="fade-up">
+    <h3 class="h4 fw-bold text-center mb-3">Líneas de Investigación</h3>
+    <div class="row g-3 justify-content-center">
+      {% for line in program.lines_of_research or [] %}
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm hover-card">
+          <div class="card-body p-3">
+            <h4 class="h5 fw-bold text-primary mb-2">{{ line }}</h4>
+            <p class="card-text mb-0">
+              {% if loop.index == 1 %}
+              Investigación sobre desarrollo de soluciones tecnológicas innovadoras.
+              {% elif loop.index == 2 %}
+              Análisis y aplicación de metodologías para resolver problemas complejos.
+              {% elif loop.index == 3 %}
+              Estudio de sistemas y arquitecturas computacionales avanzadas.
+              {% else %}
+              Desarrollo de investigación especializada en esta área de conocimiento.
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-md-8">
+        <div class="alert alert-info text-center">
+          Las líneas de investigación para este programa aún no están definidas.
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>

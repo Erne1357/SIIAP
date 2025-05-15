@@ -1,0 +1,50 @@
+/* Estilos específicos para la página 404 */
+
+
+.error-container {
+    min-height: auto;
+    /* Ajusta este valor según la altura real del header y footer */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 1rem;
+}
+
+.error-code {
+    font-size: 8rem;
+    font-weight: bold;
+    color: #343a40;
+    /* Animación de rebote personalizada */
+    animation: bounce 2s infinite;
+}
+
+#main-content {
+    margin-left : 0;
+}
+
+@keyframes bounce {
+
+    0%,
+    20%,
+    50%,
+    80%,
+    100% {
+        transform: translateY(0);
+    }
+
+    40% {
+        transform: translateY(-20px);
+    }
+
+    60% {
+        transform: translateY(-10px);
+    }
+}
+
+.error-message {
+    font-size: 1.5rem;
+    color: #6c757d;
+    margin-top: 20px;
+}

@@ -1,0 +1,15 @@
+.auth-bg {
+  padding: 20px;
+  border-radius: 5px;
+}
+
+.card {
+  background-color: rgba(255, 255, 255, 0.97);
+}
+
+#main-content {
+  background: url("../../assets/images/fondo2.jpg") no-repeat center center;
+  width: 100%;
+  margin-left: 0;
+  background-size: 100% auto;
+}

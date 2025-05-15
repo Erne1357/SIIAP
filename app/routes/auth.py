@@ -10,6 +10,7 @@ auth = Blueprint('auth', __name__)
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
+
     if request.method == 'POST':
         # Obtiene datos del formulario
         username = request.form.get('username')
@@ -21,11 +22,17 @@ def login():
             login_user(user)
             # Registra la actividad inicial de la sesión (timestamp en segundos)
             session['last_activity'] = datetime.now(timezone.utc).timestamp()
+            # Actualiza la fecha de último inicio de sesión
+            user.last_login = datetime.now(timezone.utc)
+            db.session.commit()
             flash("Inicio de sesión exitoso", "success")
             
             return redirect(url_for('user.dashboard'))
         else:
             flash("Credenciales incorrectas", "danger")
+    else:
+        if current_user.is_authenticated:
+            return redirect(url_for('index'))
     return render_template('auth/login.html')
 
 @auth.route('/logout')

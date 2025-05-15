@@ -41,6 +41,10 @@ def create_app(test_config=None):
      @app.errorhandler(404)
      def page_not_found(e):
           return render_template('404.html', error = e), 404
+     
+     @app.errorhandler(500)
+     def internal_server_error(e):
+          return render_template('500.html', error = e), 500
 
      
      @app.before_request
@@ -60,8 +64,10 @@ def create_app(test_config=None):
      # Registrar blueprints
      from app.routes.auth import auth as auth_blueprint
      from app.routes.user import user as user_blueprint
+     from app.routes.program import program_bp as program_blueprint
      app.register_blueprint(auth_blueprint)  
      app.register_blueprint(user_blueprint, url_prefix='/user')
+     app.register_blueprint(program_blueprint, url_prefix='/programs')
      
      @app.route('/')
      def index():

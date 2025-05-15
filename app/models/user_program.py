@@ -10,3 +10,6 @@ class UserProgram(db.Model):
     enrollment_date = db.Column(db.DateTime, default=datetime.utcnow)
     current_semester = db.Column(db.Integer)
     status = db.Column(db.String(50), nullable=False, default='active')
+
+    user = db.relationship('User', back_populates='user_program')
+    program = db.relationship('Program', back_populates='user_program')
