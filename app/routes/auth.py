@@ -22,6 +22,9 @@ def login():
             login_user(user)
             # Registra la actividad inicial de la sesión (timestamp en segundos)
             session['last_activity'] = datetime.now(timezone.utc).timestamp()
+            # Actualiza la fecha de último inicio de sesión
+            user.last_login = datetime.now(timezone.utc)
+            db.session.commit()
             flash("Inicio de sesión exitoso", "success")
             
             return redirect(url_for('user.dashboard'))

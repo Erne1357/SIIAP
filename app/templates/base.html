@@ -16,7 +16,7 @@
 
   <!-- CSS extra -->
   <link href="{{ url_for('static', filename='css/session.css') }}?v=1.4" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.11" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.15" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/swup.css') }}?v=1.22" rel="stylesheet">
 
   <!-- Favicon -->
@@ -28,12 +28,17 @@
   <link rel="preload" as="image" href="{{ url_for('static', filename='assets/images/logo_sep.png') }}">
   <link rel="preload" as="image" href="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}">
 
+  <!-- Preload css -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/program/list.css') }}?v=1.14">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/program/view.css') }}?v=1.15">
+  
+
   {% block styles %}{% endblock %}
 </head>
 
 <body class="d-flex flex-column min-vh-100">
   <!-- HEADER: 4 columnas iguales con los logos -->
-  <header class="bg-white border-bottom py-3 shadow-sm">
+  <header id ="page-header" class="bg-white border-bottom py-3 shadow-sm">
     <div class="container-fluid px-3">
       <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
 
@@ -71,7 +76,7 @@
   <div id="wrapper" class="container-fluid flex-grow-1 d-flex p-0">
     <!-- SIDEBAR -->
     {%block navbar%}
-    <aside class="bg-light border-end " style="width:240px;">
+    <aside id = "sidebar" class="bg-light border-end " style="width:240px;">
       <nav class="nav flex-column py-4">
         <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}">
           <i class="fas fa-user me-2"></i>Perfil
@@ -103,7 +108,7 @@
     {%endblock%}
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow-1 overflow-auto p-4 swup-transition" id="main-content" data-swup="main">
+    <main class="flex-grow-1  p-4 swup-transition" id="main-content" >
       {% block content %}{% endblock %}
     </main>
   </div>
@@ -142,7 +147,7 @@
   </script>
 
   <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v1.11"></script>
-  <script src="{{ url_for('static', filename='js/swup.js') }}?v1.74 "></script>
+  <script src="{{ url_for('static', filename='js/swup.js') }}?v1.792 "></script>
 
   {% block scripts %}{% endblock %}
 </body>

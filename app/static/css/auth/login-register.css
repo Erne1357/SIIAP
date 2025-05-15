@@ -9,5 +9,7 @@
 
 #main-content {
   background: url("../../assets/images/fondo2.jpg") no-repeat center center;
+  width: 100%;
+  margin-left: 0;
   background-size: 100% auto;
 }

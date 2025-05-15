@@ -42,4 +42,4 @@ def view_program(slug):
     )
     if not program:
         return render_template('404.html'), 404
-    return render_template('programs/view.html', program=program)
+    return render_template('programs/view/view.html', program=program)

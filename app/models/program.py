@@ -12,6 +12,13 @@ class Program(db.Model):
     coordinator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     slug = db.Column(db.String(100), unique=True, nullable=False)
     
+    user_program = db.relationship(
+        "UserProgram",
+        back_populates="program",
+        order_by=asc("user_program.enrollment_date"),
+        cascade="all, delete-orphan",
+    )
+
     # 1) asociación con la tabla puente (incluye 'sequence')
     program_steps = db.relationship(
         "ProgramStep",

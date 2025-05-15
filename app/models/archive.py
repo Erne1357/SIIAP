@@ -7,7 +7,7 @@ class Archive(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     is_downloadable = db.Column(db.Boolean, default=True)
-    file_path = db.Column(db.String(200), nullable=False)
+    file_path = db.Column(db.String(200))
     step_id = db.Column(db.Integer, db.ForeignKey('step.id'), nullable=False)
 
     step = db.relationship("Step", back_populates="archives")
