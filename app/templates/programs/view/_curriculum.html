@@ -11,7 +11,7 @@
   <div class="row">
     <div class="col-lg-10 mx-auto">
       {% if program.id == 1 %}
-      <!-- Mapa Curricular para Maestría en Ciencias de la Computación -->
+      <!-- Mapa Curricular para Maestría en en Ingeniería Industrial -->
       <div class="table-responsive" data-aos="fade-up">
         <table class="table table-bordered curriculum-table">
           <thead>
@@ -57,7 +57,7 @@
         </table>
       </div>
       {% elif program.id == 2 %}
-      <!-- Mapa Curricular para Maestría en Inteligencia Artificial -->
+      <!-- Mapa Curricular para Maestría en Administración de Negocios Internacionales -->
       <div class="table-responsive" data-aos="fade-up">
         <table class="table table-bordered curriculum-table">
           <thead>
@@ -102,8 +102,8 @@
           </tbody>
         </table>
       </div>
-      {% elif program.id == 4 %}
-      <!-- Mapa Curricular para Doctorado en Ciencias de la Computación -->
+      {% elif program.id == 3 %}
+      <!-- Mapa Curricular para Maestría en Ingeniería Administrativa -->
       <div class="table-responsive" data-aos="fade-up">
         <table class="table table-bordered curriculum-table">
           <thead>
@@ -156,7 +156,8 @@
           </tbody>
         </table>
       </div>
-      {% else %}
+      {% elif program.id == 4%}
+        <!-- Mapa Curricular para Doctorado en Ciencias de la Ingeniería -->
       <div class="alert alert-info text-center">
         El plan de estudios para este programa aún no está disponible.
       </div>
