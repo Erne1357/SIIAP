@@ -76,6 +76,7 @@ Nginx (caché estática)  ←→  Flask app (Gunicorn)  ←→  PostgreSQL
 Tabla | Propósito
 ------|----------
 \`user\` | Datos de cuenta y preferencias
+\`role\` | Roles de los usuarios (**applicant,social_service, etc**)
 \`program\` | Posgrados ofertados, con coordinador asignado
 \`phase\` | Agrupa pasos por **admission**, **permanence**, **conclusion**
 \`step\` | Requisito individual dentro de una fase

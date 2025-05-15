@@ -78,7 +78,8 @@
     {%block navbar%}
     <aside id = "sidebar" class="bg-light border-end " style="width:240px;">
       <nav class="nav flex-column py-4">
-        <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}">
+        <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %} ""
+         href="{{ url_for('user.profile') }}">
           <i class="fas fa-user me-2"></i>Perfil
         </a>
         <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
