@@ -1,64 +1,41 @@
- /*  ==========   DISPOSICIÓN GENERAL   ==========  */
- html,
- body {
-   height: 100%;
- }
+/* === variables re-utilizables === */
+:root{
+  --header-h: 110px;         /* alto de #page-header       */
+  --sidebar-w: 240px;        /* ancho de #sidebar          */
+  --footer-h: 56px;          /* alto aprox. del footer     */
+}
 
- /* El body es un grid de 3 filas: header – main wrapper – footer */
- body {
-   display: block;
-   overflow-x: hidden;
-   /* Evita scroll en la ventana */
- }
+/* =====  RESET DEL LAYOUT  ===== */
+html,body{height:100%;}
+body{overflow-x:hidden;}
 
- /*  ==========   HEADER   ==========  */
- /* Queda pegado arriba, pero participa en el flujo del grid       */
- /* Si prefirieras que flote encima del contenido, usa position:fixed */
- #page-header {
-   position: fixed;
-   top: 0;
-   left: 0;
-   right: 0;
-   z-index: 1020;
-   height: 110px;
-   /* ↙ adapta si tu header es más alto/bajo */
- }
+#page-header{
+  position:fixed; inset-block-start:0; inset-inline:0;
+  height:var(--header-h); z-index:10;
+}
 
- /*  ==========   WRAPPER (sidebar + main)   ==========  */
- #wrapper {
-   min-height: 0;
-   /* importante para que funcione overflow */
- }
+/* ——  Barra lateral  —— */
+#sidebar{
+  position:fixed;
+  inset-block-start:var(--header-h);
+  inset-block-end:0; inset-inline-start:0;
+  width:var(--sidebar-w);
+  overflow-y:auto;
+}
 
- /*  ==========   SIDEBAR   ==========  */
- #sidebar {
-   position: fixed;
-   top: 110px;
-   /* mismo alto que #page-header */
-   bottom: 0;
-   left: 0;
-   width: 240px;
-   overflow-y: auto;
-   /* si crece, se scrollea dentro */
- }
+/* ——  Contenido principal  —— */
+#main-content{
+  margin-block-start:var(--header-h);
+  margin-inline-start:var(--sidebar-w);
+  padding:1.5rem;
+  min-height:calc(100vh - var(--header-h) - var(--footer-h));
+}
 
- /* 4) CONTENIDO PRINCIPAL: deja sitio al header y al sidebar */
- #main-content {
-   margin-top: 110px;
-   /* empuja debajo del header */
-   margin-left: 240px;
-   /* empuja a la derecha del sidebar */
-   padding: 1.5rem;
-   min-height: calc(100vh - 110px);
-   /* asegura que llegue al footer */
- }
-
-  /*  ==========   FOOTER   ==========  */
-  footer{
-    margin-left : 240px;
-    position: fixed;
-    z-index: 1;
-  }
+/* ——  Footer  —— */
+footer{
+  margin-inline-start:0;
+  background:#212529; color:#fff;
+}
 
  /* ====== Badge de marca ====== */
  .brand-badge {
@@ -80,15 +57,23 @@
    /* texto gris oscuro */
  }
 
- /* ====== Comportamiento responsivo ====== */
- @media (max-width: 767.98px) {
 
-   /* < md */
-   .brand-badge {
-     order: 3;
-     /* pasa abajo del todo */
-     width: 100%;
-     /* se centra completo */
-     margin-top: .5rem;
-   }
- }
+/* opcional: footer “pegajoso” solo cuando haya poco contenido */
+@supports(position:sticky){
+  footer{position:sticky; inset-block-end:0;}
+}
+
+/* ——  responsive: colapsa sidebar <992 px  —— */
+@media (max-width:991.98px){
+  :root{ --sidebar-w:0px; }
+  #main-content{margin-inline-start:0;}
+  footer{margin-inline-start:0;}
+}
+
+/* ——  Ficha de usuario  —— */
+.user-card{
+  margin-top : 20px;
+  background:#f8f9fa;           /* gris claro */
+  border:1px solid #dee2e6;
+  border-radius:.5rem;
+}

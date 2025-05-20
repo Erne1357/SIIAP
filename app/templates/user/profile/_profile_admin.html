@@ -1,0 +1,163 @@
+<div class="card border-danger shadow-sm">
+    <div class="card-header bg-danger bg-opacity-10">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Panel de Administración</h5>
+            <span class="badge bg-danger">Acceso Restringido</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary bg-opacity-10 h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6 class="card-title text-primary">Usuarios Activos</h6>
+                            <i class="bi bi-people text-primary"></i>
+                        </div>
+                        <h2 class="mb-0 text-primary">128</h2>
+                        <small class="text-primary">+12% desde el mes pasado</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6 class="card-title text-success">Documentos Procesados</h6>
+                            <i class="bi bi-file-earmark-text text-success"></i>
+                        </div>
+                        <h2 class="mb-0 text-success">342</h2>
+                        <small class="text-success">+8% desde el mes pasado</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card bg-info bg-opacity-10 h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6 class="card-title text-info">Solicitudes Pendientes</h6>
+                            <i class="bi bi-bell text-info"></i>
+                        </div>
+                        <h2 class="mb-0 text-info">15</h2>
+                        <small class="text-info">-3 desde ayer</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h6 class="mb-3">Acciones Rápidas</h6>
+        <div class="row g-3 mb-4">
+            <div class="col-md-3 col-6">
+                <!--Que pendiente admin.users-->
+                <a  class="btn btn-outline-primary w-100 py-3">
+                    <i class="bi bi-person-plus d-block mb-2 fs-4"></i>
+                    Gestionar Usuarios
+                </a>
+            </div>
+            <div class="col-md-3 col-6">
+                <!--Que pendiente admin.documents-->
+                <a  class="btn btn-outline-success w-100 py-3">
+                    <i class="bi bi-file-earmark-plus d-block mb-2 fs-4"></i>
+                    Revisar Documentos
+                </a>
+            </div>
+            <div class="col-md-3 col-6">
+                <!--Que pendiente admin.notifications-->
+                <a class="btn btn-outline-info w-100 py-3">
+                    <i class="bi bi-bell d-block mb-2 fs-4"></i>
+                    Enviar Notificación
+                </a>
+            </div>
+            <div class="col-md-3 col-6">
+                <!--Que pendiente admin.settings-->
+                <a  class="btn btn-outline-danger w-100 py-3">
+                    <i class="bi bi-gear d-block mb-2 fs-4"></i>
+                    Configuración
+                </a>
+            </div>
+        </div>
+
+        {% if current_user.role.name == 'posgraduate_admin' %}
+        <h6 class="mb-3">Estadísticas Generales</h6>
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title mb-3">Distribución de Usuarios por Rol</h6>
+                        <canvas id="userRolesChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title mb-3">Solicitudes por Programa</h6>
+                        <canvas id="applicationsByProgramChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <h6 class="mb-3">Usuarios Recientes</h6>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Fecha de Registro</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Ana García</td>
+                        <td>Aspirante</td>
+                        <td>12/05/2025</td>
+                        <td>
+                            <span class="badge bg-success">Activo</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success me-1">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-lock"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Miguel López</td>
+                        <td>Aspirante</td>
+                        <td>10/05/2025</td>
+                        <td>
+                            <span class="badge bg-warning text-dark">Pendiente</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success me-1">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-lock"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- Que pendiente el link a los usuarios.-->
+        <a class="btn btn-link text-decoration-none">
+            Ver todos los usuarios →
+        </a>
+    </div>
+</div>

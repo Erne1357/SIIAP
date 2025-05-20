@@ -1,0 +1,199 @@
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Información Personal</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Nombre Completo</label>
+                    <p class="mb-0">{{ current_user.first_name }} {{ current_user.last_name }} {{ current_user.mother_last_name }}</p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Nombre de Usuario</label>
+                    <p class="mb-0">{{ current_user.username }}</p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Correo Electrónico</label>
+                    <p class="mb-0">{{ current_user.email }}</p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Fecha de Registro</label>
+                    <p class="mb-0">{{ current_user.registration_date.strftime('%d/%m/%Y %H:%M') }}</p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Último Acceso</label>
+                    <p class="mb-0">{{ current_user.last_login.strftime('%d/%m/%Y %H:%M') }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Información de Cuenta</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Rol</label>
+                    <p class="mb-0">
+                        {% if current_user.role.name == 'applicant' %}
+                            Aspirante
+                        {% elif current_user.role.name == 'social_service' %}
+                            Servicio Social
+                        {% elif current_user.role.name == 'program_admin' %}
+                            Administrador de Programa
+                        {% elif current_user.role.name == 'posgraduate_admin' %}
+                            Administrador de Posgrado
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Tipo de Usuario</label>
+                    <p class="mb-0">{{ 'Interno' if current_user.is_internal else 'Externo' }}</p>
+                </div>
+                {% if current_user.scolarship_type %}
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Tipo de Beca</label>
+                    <p class="mb-0">{{ current_user.scolarship_type }}</p>
+                </div>
+                {% endif %}
+                <div class="mt-4">
+                    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editProfileModal">
+                        <i class="bi bi-pencil me-2"></i>Editar información
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                        <i class="bi bi-key me-2"></i>Cambiar contraseña
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Actividad Reciente</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex mb-3">
+                    <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-person-check text-primary"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Inicio de sesión exitoso</p>
+                        <small class="text-muted">{{ current_user.last_login.strftime('%d/%m/%Y %H:%M') }}</small>
+                    </div>
+                </div>
+
+                <div class="d-flex mb-3">
+                    <div class="bg-success bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-pencil-square text-success"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Actualización de perfil</p>
+                        <small class="text-muted">Hace 2 semanas</small>
+                    </div>
+                </div>
+
+                <div class="d-flex mb-3">
+                    <div class="bg-info bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-file-earmark-arrow-up text-info"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Documento subido: Curriculum Vitae</p>
+                        <small class="text-muted">Hace 1 mes</small>
+                    </div>
+                </div>
+
+                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                <div class="d-flex">
+                    <div class="bg-danger bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-shield-check text-danger"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Acción administrativa: Revisión de solicitudes</p>
+                        <small class="text-muted">Hace 3 días</small>
+                    </div>
+                </div>
+                {% endif %}
+
+                <a href="#" class="btn btn-link text-decoration-none mt-3">
+                    Ver toda la actividad →
+                </a>
+            </div>
+        </div>
+
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Próximos Eventos</h5>
+            </div>
+            <div class="card-body">
+                {% if current_user.role.name == 'applicant' %}
+                <div class="d-flex mb-3">
+                    <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-calendar text-primary"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Fecha límite de solicitud</p>
+                        <small class="text-muted">15 de Junio, 2025</small>
+                    </div>
+                </div>
+
+                <div class="d-flex mb-3">
+                    <div class="bg-success bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-calendar text-success"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Examen de admisión</p>
+                        <small class="text-muted">22 de Junio, 2025</small>
+                    </div>
+                </div>
+                {% elif current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                <div class="d-flex mb-3">
+                    <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-calendar text-primary"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Revisión de solicitudes</p>
+                        <small class="text-muted">15 de Junio, 2025</small>
+                    </div>
+                </div>
+
+                <div class="d-flex mb-3">
+                    <div class="bg-success bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-calendar text-success"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Reunión de comité académico</p>
+                        <small class="text-muted">22 de Junio, 2025</small>
+                    </div>
+                </div>
+                {% else %}
+                <div class="d-flex mb-3">
+                    <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-calendar text-primary"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Entrega de reportes</p>
+                        <small class="text-muted">15 de Junio, 2025</small>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="d-flex">
+                    <div class="bg-info bg-opacity-10 p-2 rounded-circle me-3">
+                        <i class="bi bi-calendar text-info"></i>
+                    </div>
+                    <div>
+                        <p class="mb-0 fw-medium">Inicio de periodo académico</p>
+                        <small class="text-muted">30 de Junio, 2025</small>
+                    </div>
+                </div>
+
+                <a href="#" class="btn btn-link text-decoration-none mt-3">
+                    Ver calendario completo →
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
