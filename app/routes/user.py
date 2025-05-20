@@ -16,4 +16,4 @@ def profile():
         #Aquí irá la lógia para actualizar el perfil del usuario
         print(request.form)
     else :
-        return render_template('user/profile.html')
+        return render_template('user/profile/profile.html')
