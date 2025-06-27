@@ -65,9 +65,11 @@ def create_app(test_config=None):
      from app.routes.auth import auth as auth_blueprint
      from app.routes.user import user as user_blueprint
      from app.routes.program import program_bp as program_blueprint
+     from app.routes.files import bp_files as files_blueprint
      app.register_blueprint(auth_blueprint)  
      app.register_blueprint(user_blueprint, url_prefix='/user')
      app.register_blueprint(program_blueprint, url_prefix='/programs')
+     app.register_blueprint(files_blueprint, url_prefix='/files')
      
      @app.route('/')
      def index():

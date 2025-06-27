@@ -19,6 +19,7 @@ CREATE TABLE "user" (
     scolarship_type  VARCHAR(50) NOT NULL DEFAULT 'none',
     registration_date TIMESTAMP   NOT NULL DEFAULT NOW(),
     role_id           INTEGER      NOT NULL,
+    avatar            VARCHAR(255) DEFAULT 'default.jpg',
     CONSTRAINT fk_user_role
         FOREIGN KEY (role_id)
         REFERENCES role (id)

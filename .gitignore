@@ -64,3 +64,9 @@ docker/docker-compose.override.yml
 # Archivos del sistema operativo
 .DS_Store
 Thumbs.db
+
+#Archivos crticos
+instance/
+
+#Pruebas con archivos sensibles 
+tests/prueba.py

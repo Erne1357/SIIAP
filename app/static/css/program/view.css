@@ -204,7 +204,7 @@
 
 .floating-inscription-button {
   position: fixed;
-  bottom: 2rem;
+  bottom: 3rem;
   right: 2rem;
   z-index: 1000;
   opacity: 0;
