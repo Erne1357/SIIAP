@@ -21,7 +21,7 @@ class User(db.Model, UserMixin):
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
     avatar = db.Column(db.String(255), default='default.jpg', nullable = True)
 
-    role = db.relationship('Role', back_populates='users')
+    roles = db.relationship('Role', back_populates='users')
     user_program = db.relationship('UserProgram', back_populates='user')
 
     def __init__(self, first_name, last_name, mother_last_name, username, password, email,is_internal,scolarship_type, role_id, avatar):
@@ -43,3 +43,16 @@ class User(db.Model, UserMixin):
         if self.avatar and self.avatar != 'default.jpg':
             return url_for('files.avatar', user_id=self.id, filename=self.avatar)
         return url_for('static', filename='assets/images/default.jpg')
+    
+    def has_role(self, *role_names):
+        """
+        Comprueba si el usuario tiene **todos** los roles pasados.
+        Si sólo hay uno, verifica su existencia en self.roles.
+        """
+        # múltiples roles: exige todos
+        if len(role_names) > 1:
+            return all(self.has_role(r) for r in role_names)
+
+        # único rol: basta con comparar nombres
+        wanted = role_names[0]
+        return any(r.name == wanted for r in self.role)

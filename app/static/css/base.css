@@ -1,79 +1,120 @@
 /* === variables re-utilizables === */
-:root{
-  --header-h: 110px;         /* alto de #page-header       */
-  --sidebar-w: 240px;        /* ancho de #sidebar          */
-  --footer-h: 56px;          /* alto aprox. del footer     */
+:root {
+  --header-h: 110px; /* alto de #page-header       */
+  --sidebar-w: 240px; /* ancho de #sidebar          */
+  --footer-h: 56px; /* alto aprox. del footer     */
+  --bg--tecnm: #0b1e8a; /* azul institucional TECNM   */
+  --banner-h: 3.5rem; /* altura del banner de bienvenida */
+}
+
+/* Personalización de colores Bootstrap */
+.btn-primary {
+  background-color: var(--bg--tecnm) !important;
+  border-color: var(--bg--tecnm) !important;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+  background-color: #0a1a7a !important;
+  border-color: #0a1a7a !important;
+}
+
+.bg-tecnm {
+  background-color: var(--bg--tecnm);
+}
+
+.color-tecnm {
+  color: var(--bg--tecnm);
 }
 
 /* =====  RESET DEL LAYOUT  ===== */
-html,body{height:100%;}
-body{overflow-x:hidden;}
+html,
+body {
+  height: 100%;
+}
+body {
+  overflow-x: hidden;
+}
 
-#page-header{
-  position:fixed; inset-block-start:0; inset-inline:0;
-  height:var(--header-h); z-index:10;
+#page-header {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: var(--header-h);
+  z-index: 10;
 }
 
 /* ——  Barra lateral  —— */
-#sidebar{
-  position:fixed;
-  inset-block-start:var(--header-h);
-  inset-block-end:0; inset-inline-start:0;
-  width:var(--sidebar-w);
-  overflow-y:auto;
+#sidebar {
+  position: fixed;
+  inset-block-start: var(--header-h);
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  width: var(--sidebar-w);
+  overflow-y: auto;
 }
 
 /* ——  Contenido principal  —— */
-#main-content{
-  margin-block-start:var(--header-h);
-  margin-inline-start:var(--sidebar-w);
-  padding:1.5rem;
-  min-height:calc(100vh - var(--header-h) - var(--footer-h));
+#main-content {
+  margin-block-start: var(--header-h);
+  margin-inline-start: var(--sidebar-w);
+  padding: 1.5rem;
+  min-height: calc(100vh - var(--header-h) - var(--footer-h));
 }
 
 /* ——  Footer  —— */
-footer{
-  margin-inline-start:0;
-  background:#212529; color:#fff;
+footer {
+  margin-inline-start: 0;
+  background: #212529;
+  color: #fff;
 }
 
- /* ====== Badge de marca ====== */
- .brand-badge {
-   border: 3px solid #b21f2d;
-   /* rojo institucional */
-   border-radius: .6rem;
-   padding: .25rem 2rem;
-   background-color: #fff;
-   box-shadow: 0 0 4px rgba(0, 0, 0, .06);
- }
+/* ====== Badge de marca ====== */
+.brand-badge {
+  border: 3px solid #b21f2d;
+  /* rojo institucional */
+  border-radius: .6rem;
+  padding: .25rem 2rem;
+  background-color: #fff;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.06);
+}
 
- /* Tipografía del nombre */
- .brand-text {
-   font-weight: 700;
-   font-size: 2rem;
-   /* ajusta a tu gusto */
-   line-height: 1;
-   color: #212529;
-   /* texto gris oscuro */
- }
+/* Tipografía del nombre */
+.brand-text {
+  font-weight: 700;
+  font-size: 2rem;
+  /* ajusta a tu gusto */
+  line-height: 1;
+  color: #212529;
+  /* texto gris oscuro */
+}
 
-
-/* opcional: footer “pegajoso” solo cuando haya poco contenido */
-@supports(position:sticky){
-  footer{position:sticky; inset-block-end:0;}
+/* opcional: footer "pegajoso" solo cuando haya poco contenido */
+@supports (position: sticky) {
+  footer {
+    position: sticky;
+    inset-block-end: 0;
+  }
 }
 
 /* ——  responsive: colapsa sidebar <992 px  —— */
-@media (max-width:991.98px){
-  :root{ --sidebar-w:0px; }
-  #main-content{margin-inline-start:0;}
-  footer{margin-inline-start:0;}
+@media (max-width: 991.98px) {
+  :root {
+    --sidebar-w: 0px;
+  }
+  #main-content {
+    margin-inline-start: 0;
+  }
+  footer {
+    margin-inline-start: 0;
+  }
 }
 
 /* ——  Ficha de usuario  —— */
-.user-card{
-  margin-top : 20px;
-  background:#f8f9fa;           /* gris claro */
-  border:1px solid #dee2e6;
-  border-radius:.5rem;
+.user-card {
+  margin-top: 20px;
+  background: #f8f9fa; /* gris claro */
+  border: 1px solid #dee2e6;
+  border-radius: .5rem;
 }

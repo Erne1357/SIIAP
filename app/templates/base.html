@@ -16,7 +16,7 @@
 
   <!-- CSS extra -->
   <link href="{{ url_for('static', filename='css/session.css') }}?v=1.4" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.155" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/base.css') }}?v=1.1594" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/swup.css') }}?v=1.22" rel="stylesheet">
 
   <!-- Favicon -->
@@ -64,10 +64,6 @@
   </header>
 
 
-
-
-
-
   <!-- WRAPPER: sidebar + contenido -->
   <div id="wrapper" class="container-fluid flex-grow-1 d-flex p-0">
     <!-- SIDEBAR -->
@@ -81,16 +77,16 @@
           <span class="d-block fw-semibold small">
             {{ current_user.first_name }} {{ current_user.last_name }}
           </span>
-          {% if current_user.role.name == 'social_service' %}
-            <span class="badge bg-primary text-uppercase small ">
+          {% if current_user.roles.name == 'social_service' %}
+            <span class="badge bg-warning text-uppercase small ">
               Servicio Social
             </span>
-          {% elif current_user.role.name == 'program_admin' %}
+          {% elif current_user.roles.name == 'program_admin' %}
             <span class="badge bg-success text-uppercase small ">
               Admin. Programa
             </span>
-          {% elif current_user.role.name == 'posgraduate_admin' %}
-            <span class="badge bg-info text-uppercase small ">
+          {% elif current_user.roles.name == 'posgraduate_admin' %}
+            <span class="badge bg-danger text-uppercase small ">
               Admin. Posgrado
             </span>
           {% endif %}
@@ -99,25 +95,25 @@
       <hr class="my-0">
 
       <nav class="nav flex-column py-4">
-        <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %} ""
+        <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %} color-tecnm"
          href=" {{ url_for('user.profile') }}">
           <i class="fas fa-user me-2"></i>Perfil
         </a>
-        <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
+        <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %} color-tecnm"
           href="{{ url_for('user.dashboard') }}">
           <i class="fas fa-th-large me-2"></i>Dashboard
         </a>
-        <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
+        <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %} color-tecnm"
           href="{{ url_for('program.list_programs') }}">
           <i class="fas fa-clipboard  me-2"></i>Programas
         </a>
-        <a class="nav-link {% if request.endpoint=='user.admission' %}active{% endif %}">
+        <a class="nav-link {% if request.endpoint=='user.admission' %}active{% endif %} color-tecnm">
           <i class="fas fa-clipboard-list me-2"></i>Admisión
         </a>
-        <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}">
+        <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %} color-tecnm">
           <i class="fas fa-calendar-alt me-2"></i>Permanencia
         </a>
-        <a class="nav-link {% if request.endpoint=='user.documents' %}active{% endif %}">
+        <a class="nav-link {% if request.endpoint=='user.documents' %}active{% endif %} color-tecnm">
           <i class="fas fa-file-alt me-2"></i>Documentos
         </a>
 

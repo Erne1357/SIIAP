@@ -47,7 +47,7 @@
                 {% else %}
                     <div class="alert alert-info">
                         No estás inscrito en ningún programa académico actualmente.
-                        {% if current_user.role.name == 'applicant' %}
+                        {% if current_user.roles.name == 'applicant' %}
                         <a href="{{ url_for('program.list_programs') }}" class="alert-link">Explora nuestros programas</a>.
                         {% endif %}
                     </div>
@@ -56,7 +56,7 @@
         </div>
     </div>
 
-    {% if current_user.role.name == 'applicant' %}
+    {% if current_user.roles.name == 'applicant' %}
     <div class="col-md-6 mb-4">
         <div class="card shadow-sm">
             <div class="card-header">
@@ -160,7 +160,7 @@
     </div>
     {% endif %}
 
-    {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+    {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
     <div class="col-md-12 mb-4">
         <div class="card shadow-sm">
             <div class="card-header">

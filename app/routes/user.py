@@ -17,3 +17,5 @@ def profile():
         print(request.form)
     else :
         return render_template('user/profile/profile.html')
+    
+
