@@ -2,12 +2,12 @@
 {% block title %}SIIAPEC – Registro de Usuario{% endblock %}
 {% block styles %}
 {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth/login-register.css') }}?v=1.28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth/login-register.css') }}?v=1.34">
 {% endblock %}
 <!-- Sobrescritura de la barra de navegación para que no aparezca-->
 {% block navbar %}{%endblock%}
 {% block content %}
-<div class="container d-flex justify-content-center">
+<div class="auth-container">
   <div class="card shadow-sm">
     <div class="card-body">
       <h3 class="card-title text-center mb-3">Registro de Usuario</h3>
@@ -82,7 +82,6 @@
     </div>
   </div>
 </div>
-
 
 <script>
   document.querySelector('form').addEventListener('submit', function (e) {

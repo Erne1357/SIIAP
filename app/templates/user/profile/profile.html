@@ -21,15 +21,12 @@
                             <div class="position-relative mb-3">
                                 <img src="{{ current_user.avatar_url }}" alt="Foto de perfil" 
                                      class="rounded-circle border border-3 border-light shadow profile-avatar">
-                                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
                                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                                     Admin
                                 </span>
                                 {% endif %}
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#avatarModal">
-                                <i class="bi bi-camera"></i> Cambiar foto
-                            </button>
                         </div>
                         <div class="col-md-9">
                             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -40,13 +37,13 @@
                                 </button>
                             </div>
                             <p class="text-muted">
-                                {% if current_user.role.name == 'applicant' %}
+                                {% if current_user.roles.name == 'applicant' %}
                                     Aspirante
-                                {% elif current_user.role.name == 'social_service' %}
+                                {% elif current_user.roles.name == 'social_service' %}
                                     Servicio Social
-                                {% elif current_user.role.name == 'program_admin' %}
+                                {% elif current_user.roles.name == 'program_admin' %}
                                     Administrador de Programa
-                                {% elif current_user.role.name == 'posgraduate_admin' %}
+                                {% elif current_user.roles.name == 'posgraduate_admin' %}
                                     Administrador de Posgrado
                                 {% endif %}
                             </p>
@@ -56,10 +53,10 @@
                                 {% if current_user.is_internal %}
                                 <span class="badge bg-info me-2">Usuario Interno</span>
                                 {% endif %}
-                                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
                                 <span class="badge bg-danger me-2">Admin</span>
                                 {% endif %}
-                                {% if current_user.scolarship_type %}
+                                {% if current_user.scolarship_type and current_user.scolarship_type != 'none'%}
                                 <span class="badge bg-primary">Beca: {{ current_user.scolarship_type }}</span>
                                 {% endif %}
                             </div>
@@ -85,7 +82,7 @@
                                         <small class="text-muted">Fecha de registro</small>
                                     </div>
                                 </div>
-                                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
                                 <div class="col-md-3 col-6">
                                     <div class="border rounded p-3 text-center">
                                         <h3 class="mb-1">
@@ -118,7 +115,7 @@
                         <i class="bi bi-file-earmark-text me-2"></i>Documentos
                     </button>
                 </li>
-                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
                 <li class="nav-item" role="presentation">
                     <button class="nav-link text-danger" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin-tab-pane" type="button" role="tab" aria-controls="admin-tab-pane" aria-selected="false">
                         <i class="bi bi-shield me-2"></i>Panel de Administración
@@ -145,7 +142,7 @@
                 </div>
                 
                 <!-- Panel de Administración -->
-                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
                 <div class="tab-pane fade" id="admin-tab-pane" role="tabpanel" aria-labelledby="admin-tab" tabindex="0">
                     {% include 'user/profile/_profile_admin.html' %}
                 </div>
@@ -155,33 +152,6 @@
     </div>
 </div>
 
-<!-- Modal para cambiar avatar -->
-<div class="modal fade" id="avatarModal" tabindex="-1" aria-labelledby="avatarModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="avatarModalLabel">Cambiar foto de perfil</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <!--Pendiente de tener el user.update_avatar-->
-            <form  method="POST" enctype="multipart/form-data">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="avatar" class="form-label">Selecciona una nueva imagen</label>
-                        <input class="form-control" type="file" id="avatar" name="avatar" accept="image/*" required>
-                    </div>
-                    <div class="text-center mt-3">
-                        <img id="avatar-preview" src="{{ current_user.avatar_url }}" class="img-thumbnail" style="max-height: 200px;">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- Modal para editar perfil -->
 <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
