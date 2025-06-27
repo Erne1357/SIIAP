@@ -23,14 +23,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const targetElement = document.querySelector(targetId);
       if (!targetElement) return;
       
-      // Obtener el contenedor principal scrolleable (main-content)
-      const mainContent = document.getElementById('main-content');
-      
-      // Calcular la posición del elemento dentro del contenedor scrolleable
-      const targetPosition = targetElement.offsetTop - mainContent.offsetTop;
+      // Calcular la posición del elemento en la página completa
+      const targetPosition = targetElement.getBoundingClientRect().top + window.pageYOffset;
 
-      // Hacer scroll dentro del contenedor principal
-      mainContent.scrollTo({
+      // Hacer scroll en toda la página
+      window.scrollTo({
         top: targetPosition - 20, // Añadir un pequeño margen
         behavior: 'smooth'
       });

@@ -1,4 +1,5 @@
 from app import db
+from flask import url_for
 from flask_login import UserMixin
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash
@@ -18,10 +19,12 @@ class User(db.Model, UserMixin):
     scolarship_type = db.Column(db.String(50))
     registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
+    avatar = db.Column(db.String(255), default='default.jpg', nullable = True)
 
+    roles = db.relationship('Role', back_populates='users')
     user_program = db.relationship('UserProgram', back_populates='user')
 
-    def __init__(self, first_name, last_name, mother_last_name, username, password, email,is_internal,scolarship_type, role_id):
+    def __init__(self, first_name, last_name, mother_last_name, username, password, email,is_internal,scolarship_type, role_id, avatar):
         self.first_name = first_name
         self.last_name = last_name
         self.mother_last_name = mother_last_name
@@ -33,3 +36,23 @@ class User(db.Model, UserMixin):
         self.is_internal = is_internal
         self.scolarship_type = scolarship_type
         self.role_id = role_id
+        self.avatar = avatar
+    
+    @property
+    def avatar_url(self):
+        if self.avatar and self.avatar != 'default.jpg':
+            return url_for('files.avatar', user_id=self.id, filename=self.avatar)
+        return url_for('static', filename='assets/images/default.jpg')
+    
+    def has_role(self, *role_names):
+        """
+        Comprueba si el usuario tiene **todos** los roles pasados.
+        Si sólo hay uno, verifica su existencia en self.roles.
+        """
+        # múltiples roles: exige todos
+        if len(role_names) > 1:
+            return all(self.has_role(r) for r in role_names)
+
+        # único rol: basta con comparar nombres
+        wanted = role_names[0]
+        return any(r.name == wanted for r in self.role)

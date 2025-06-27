@@ -1,0 +1,127 @@
+/* Estilos para la página de perfil */
+
+/* Avatar */
+.profile-avatar {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+}
+
+/* Timeline para estado de solicitud */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+    margin-top: 20px;
+}
+
+.timeline:before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    height: 100%;
+    width: 2px;
+    background-color: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -30px;
+    top: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 10px;
+}
+
+.timeline-content {
+    padding-bottom: 10px;
+}
+
+/* Estilos para las tarjetas */
+.card {
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Estilos para los badges */
+.badge {
+    font-weight: 500;
+}
+
+/* Estilos para los botones de acción */
+.btn-outline-primary, .btn-outline-success, .btn-outline-danger, .btn-outline-info {
+    transition: all 0.2s ease;
+}
+
+.btn-outline-primary:hover, .btn-outline-success:hover, .btn-outline-danger:hover, .btn-outline-info:hover {
+    transform: translateY(-2px);
+}
+
+/* Estilos para los iconos en círculos */
+.bg-primary.bg-opacity-10, .bg-success.bg-opacity-10, .bg-info.bg-opacity-10, .bg-danger.bg-opacity-10, .bg-warning.bg-opacity-10 {
+    transition: all 0.3s ease;
+}
+
+.bg-primary.bg-opacity-10:hover, .bg-success.bg-opacity-10:hover, .bg-info.bg-opacity-10:hover, .bg-danger.bg-opacity-10:hover, .bg-warning.bg-opacity-10:hover {
+    transform: scale(1.05);
+}
+
+/* Estilos para las pestañas */
+.nav-tabs .nav-link {
+    color: #6c757d;
+    font-weight: 500;
+    padding: 0.75rem 1rem;
+}
+
+.nav-tabs .nav-link.active {
+    color: #0d6efd;
+    font-weight: 600;
+}
+
+.nav-tabs .nav-link:hover:not(.active) {
+    color: #495057;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Estilos para tablas */
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Estilos para modales */
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+/* Estilos responsivos */
+@media (max-width: 768px) {
+    .profile-avatar {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .timeline {
+        padding-left: 25px;
+    }
+    
+    .timeline-dot {
+        left: -25px;
+        width: 16px;
+        height: 16px;
+        font-size: 8px;
+    }
+}
