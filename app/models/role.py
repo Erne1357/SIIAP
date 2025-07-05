@@ -8,7 +8,7 @@ class Role(db.Model):
     description = db.Column(db.String(200))
     
     # Relación: Un rol tiene muchos usuarios
-    users = db.relationship('User', back_populates='roles', lazy=True)
+    users = db.relationship('User', back_populates='role')
 
     def __init__(self, name, description):
         self.name = name

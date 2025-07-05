@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 from flask_bootstrap import Bootstrap
 from datetime import datetime, timezone, timedelta
 from app.config import Config
+from app.utils.auth import roles_required
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -46,7 +47,16 @@ def create_app(test_config=None):
      def internal_server_error(e):
           return render_template('500.html', error = e), 500
 
-     
+     @app.errorhandler(403)
+     def forbidden(e):
+          flash("No tienes permiso para acceder a esta página.", "danger")
+          back = request.referrer
+          if not back or back == request.url:
+               back = url_for('index')
+          
+          code = 303 if request.method == 'POST' else 302
+          return redirect(back, code=code)
+
      @app.before_request
      def session_management():
           session.permanent = True
@@ -66,6 +76,7 @@ def create_app(test_config=None):
      from app.routes.user import user as user_blueprint
      from app.routes.program import program_bp as program_blueprint
      from app.routes.files import bp_files as files_blueprint
+     from app.routes import admission
      app.register_blueprint(auth_blueprint)  
      app.register_blueprint(user_blueprint, url_prefix='/user')
      app.register_blueprint(program_blueprint, url_prefix='/programs')

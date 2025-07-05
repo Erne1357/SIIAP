@@ -32,6 +32,39 @@
 
     {# Botones flotantes #}
     {% include 'programs/view/_floating_buttons.html' %}
+
+    <!-- Modal para inscripción con si o no -->
+    <div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <form method="POST" action="{{ url_for('program.inscription_program', program_id=program.id) }}">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="enrollmentModalLabel">
+                            ¿Deseas inscribirte en el programa?
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        Por favor confirma si deseas proceder con la inscripción al programa {{ program.name }}.
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+
+                        <button type="submit" class="btn btn-primary">
+                            Sí, inscribirme
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 

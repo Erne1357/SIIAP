@@ -1,0 +1,26 @@
+/* ─── Flash toast container ─────────────────────────── */
+#flash-container {
+  position: fixed;
+  top: 5rem;
+  right: 1rem;          /* punto final */
+  z-index: 1080;        /* por encima de casi todo */
+  max-width: 320px;
+}
+
+/* ─── Animaciones ────────────────────────────────────── */
+@keyframes slideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(120%); opacity: 0; }
+}
+
+/* Cada toast usa ambas animaciones */
+.flash-toast {
+  animation: slideInRight 0.5s ease-out forwards,
+             slideOutRight 0.5s ease-in forwards 5s; /* 5 s visible */
+  margin-bottom: .5rem;
+}
