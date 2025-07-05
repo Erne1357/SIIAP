@@ -1,0 +1,83 @@
+{# app/templates/admission/dashboard.html #}
+{% extends 'base.html' %}
+{% block title %}Admisión – {{ program.name }}{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/program/admission.css') }}?v=1.1">
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Info/intro -------------------------------------------------- -->
+  <div class="alert alert-info shadow-sm mb-4" role="alert">
+    <h5 class="mb-2">Proceso de Admisión</h5>
+    <p class="mb-0">
+      Sube los documentos requeridos en cada paso. Los siguientes pasos
+      se desbloquearán cuando todos los archivos del paso anterior estén aprobados.
+    </p>
+  </div>
+
+  <!-- Tabs nav ----------------------------------------------------- -->
+  <ul class="nav nav-tabs mb-3" id="stepTab" role="tablist">
+    {% for step in steps %}
+    {% set locked = lock_info[step.id] %}
+    {% set seq = step.program_steps[0].sequence %}
+    <li class="nav-item" role="presentation">
+      <button class="nav-link
+                     {% if loop.first %}active{% endif %}
+                     {% if locked %}disabled{% endif %}" id="tab-{{ step.id }}" data-bs-toggle="tab"
+        data-bs-target="#pane-{{ step.id }}" type="button" role="tab">
+        {{ seq }}. {{ step.name }} {# ← muestra secuencia #}
+        {% if locked %}<i class="fas fa-lock ms-1"></i>{% endif %}
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <!-- Tabs content ------------------------------------------------- -->
+  <div class="tab-content">
+    {% for step in steps %}
+    {% set locked = lock_info[step.id] %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ step.id }}" role="tabpanel">
+      {% if locked %}
+      <div class="alert alert-warning">Completa y aprueba el paso anterior.</div>
+      {% else %}
+      {% include 'programs/admission/_archive_table.html' %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+
+<!-- Modal para subir archivos -->
+ <div class="modal fade" id="uploadModal" tabindex="-1"
+     aria-labelledby="uploadLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="POST" enctype="multipart/form-data" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="uploadLabel">Subir documento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="archive_id" id="archiveIdInput">
+        <input type="file" class="form-control" name="file" required>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary"
+                data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Subir</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/program/admission.js') }}?v=1.1"></script>
+
+
+{% endblock %}

@@ -78,7 +78,7 @@
         </div>
     </div>
 
-    {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
+    {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
     <div class="col-md-12 mb-4">
         <div class="card shadow-sm border-danger">
             <div class="card-header bg-danger bg-opacity-10">

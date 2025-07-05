@@ -1,12 +1,13 @@
 from flask import Blueprint, render_template,redirect, url_for, flash
 from flask_login import login_required, current_user
-from flask_security import roles_required
 from sqlalchemy.orm import joinedload, selectinload
 from app import db
 from app.models.program import Program  
 from app.models.step import Step  
 from app.models.program_step import ProgramStep  
 from app.models.user_program import UserProgram
+from app.utils.auth import roles_required
+import logging
 
 program_bp = Blueprint('program', __name__, url_prefix='/programs')
 
@@ -46,23 +47,21 @@ def view_program(slug):
         return render_template('404.html'), 404
     return render_template('programs/view/view.html', program=program)
 
-@program_bp.route('/programs/<program_id>/inscription', methods=['POST'])
+@program_bp.route('/<int:program_id>/inscription', methods=['POST'])
 @login_required
-@roles_required('applicant')
+@roles_required('applicant')                    # ② protección declarativa
 def inscription_program(program_id):
-    """
-    Registra a un usuario en un programa específico.
-    """
+    """Registra al usuario en UN (1) programa."""
     program = Program.query.get_or_404(program_id)
-    user_id = current_user.id
-    user_program = UserProgram.query.filter_by(user_id=user_id, program_id=program.id).first()
-    if user_program:
-        flash('Ya estás inscrito en un programa.', 'warning')
+
+    # ③ ¿Ya está inscrito en algún programa?
+    already = UserProgram.query.filter_by(user_id=current_user.id).first()
+    if already:
+        flash('Ya estás inscrito en un programa. No puedes inscribirte a otro.', 'warning')
         return redirect(url_for('program.view_program', slug=program.slug))
 
-    user_program = UserProgram(user_id=user_id, program_id=program.id)
-    db.session.add(user_program)
+    # ④ Crear la inscripción
+    db.session.add(UserProgram(user_id=current_user.id, program_id=program.id))
     db.session.commit()
     flash('Te has inscrito en el programa.', 'success')
-
-    return redirect(url_for('program.view_program', slug=program.slug))
+    return redirect(url_for('program.admission_dashboard', slug=program.slug))

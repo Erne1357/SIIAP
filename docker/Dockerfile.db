@@ -1,15 +1,17 @@
-# 1. Imagen base
-FROM postgres:13
+# docker/Dockerfile.db
+# ─────────────────────
+# Imagen base actualizada (alpine ↓30–60 MB)
 
-# 2. Copiar TODOS los *.sql numerados
-#    Al estar en rutas distintas, los concatenamos en un solo COPY
-COPY database/DDL/0*.sql   /docker-entrypoint-initdb.d/
-COPY database/DML/0*.sql   /docker-entrypoint-initdb.d/
+FROM postgres:16-alpine
+# Postgres 16 estará soportado hasta nov-2028
 
-# 3. Variables de entorno
+# Copia de todos los scripts de inicialización numerados
+COPY database/DDL/0*.sql  /docker-entrypoint-initdb.d/
+COPY database/DML/0*.sql  /docker-entrypoint-initdb.d/
+
+# Variables de entorno
 ENV POSTGRES_USER=postgres
 ENV POSTGRES_PASSWORD=password
 ENV POSTGRES_DB=SIIAPEC
 
-# 4. Puerto por defecto
 EXPOSE 5432

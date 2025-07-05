@@ -105,6 +105,8 @@ CREATE TABLE submission (
     user_id         INTEGER     NOT NULL,
     archive_id      INTEGER     NOT NULL,
     program_step_id INTEGER     NOT NULL,
+    period          VARCHAR(50)  NULL,
+    semester        INTEGER      NULL,
     CONSTRAINT fk_submission_user
         FOREIGN KEY (user_id)
         REFERENCES "user" (id)

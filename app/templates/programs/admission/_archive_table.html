@@ -1,0 +1,102 @@
+<table class="table table-hover align-middle" id="archiveTable">
+  <thead class="table-light">
+    <tr>
+      <th style="width:32px;"></th>
+      <th>Documento</th>
+      <th style="width:160px;">Plantilla</th>
+      <th style="width:120px;">Estado</th>
+      <th style="width:140px;">Acciones</th>
+    </tr>
+  </thead>
+
+  <tbody>
+  {% for arch in step.archives %}
+    {% set sub = subs.get(arch.id) %}
+    {% set row_id = "row-" ~ arch.id %}
+    {# --- Fila encabezado ------------------------------------------------ #}
+    <tr>
+      <td><i class="far fa-file-alt text-secondary"></i></td>
+
+      <td>
+        <a class="text-decoration-none"
+           data-bs-toggle="collapse"
+           href="#{{ row_id }}" role="button">
+          {{ arch.name }}
+          <i class="fas fa-chevron-down small ms-1"></i>
+        </a>
+      </td>
+
+      <!-- Plantilla -->
+      <td>
+        {% if arch.is_downloadable and arch.file_path %}
+          <a class="btn btn-link btn-sm"
+             href="{{ arch.file_path }}" target="_blank">
+             Descargar
+          </a>
+        {% else %} — {% endif %}
+      </td>
+
+      <!-- Estado -->
+      <td>
+        {% if not sub %}
+          <span class="badge bg-secondary">Pendiente</span>
+        {% elif sub.status == 'approved' %}
+          <span class="badge bg-success">Aprobado</span>
+        {% elif sub.status == 'rejected' %}
+          <span class="badge bg-danger">Rechazado</span>
+        {% else %}
+          <span class="badge bg-warning text-dark">En revisión</span>
+        {% endif %}
+      </td>
+
+      {% if arch.is_uploadable %}
+      <!-- Acciones -->
+      <td class="d-flex gap-1">
+        {% if sub %}
+          <a class="btn btn-outline-primary btn-sm"
+             title="Ver"
+             href="{{ url_for('files.user_doc',
+                              user_id=current_user.id,
+                              phase='admission',
+                              filename=sub.file_path.split('/')[-1]) }}">
+            <i class="fas fa-eye"></i>
+          </a>
+        {% endif %}
+
+        <button class="btn btn-outline-success btn-sm"
+                title="Subir / Reemplazar"
+                data-bs-toggle="modal"
+                data-bs-target="#uploadModal"
+                data-archive="{{ arch.id }}">
+          <i class="fas fa-upload"></i>
+        </button>
+
+        {% if sub %}
+          <form method="POST"
+                action="{{ url_for('program.delete_submission', sub_id=sub.id) }}"
+                onsubmit="return confirm('¿Eliminar archivo?');">
+            <button class="btn btn-outline-danger btn-sm" title="Borrar">
+              <i class="fas fa-trash"></i>
+            </button>
+          </form>
+        {% endif %}
+      </td>
+      {% else %}
+      <!-- Sin acciones -->
+      <td class="text-center">
+        <span class="text-muted"> Sin acciones </span>
+      </td>
+      {% endif %}
+    </tr>
+
+    {# --- Fila descripción colapsable (sin afectar layout) -------------- #}
+    <tr id="{{ row_id }}" class="collapse">
+      <td></td>
+      <td colspan="4" class="text-muted small">
+        {{ arch.description }}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
