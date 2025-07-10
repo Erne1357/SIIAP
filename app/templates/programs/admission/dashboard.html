@@ -15,6 +15,10 @@
     <p class="mb-0">
       Sube los documentos requeridos en cada paso. Los siguientes pasos
       se desbloquearán cuando todos los archivos del paso anterior estén aprobados.
+      <br>
+
+      <!-- Mensaje para decir como ver la descripción de los archivos -->
+      <strong><i>Para ver la descripción de los archivos, haz clic en el nombre del archivo.</i></strong>
     </p>
   </div>
 
@@ -28,7 +32,7 @@
                      {% if loop.first %}active{% endif %}
                      {% if locked %}disabled{% endif %}" id="tab-{{ step.id }}" data-bs-toggle="tab"
         data-bs-target="#pane-{{ step.id }}" type="button" role="tab">
-        {{ seq }}. {{ step.name }} {# ← muestra secuencia #}
+        {% if seq != 0 %}{{ seq }}. {% endif %}{{ step.name }} {# ← muestra secuencia #}
         {% if locked %}<i class="fas fa-lock ms-1"></i>{% endif %}
       </button>
     </li>

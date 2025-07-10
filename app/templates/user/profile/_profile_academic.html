@@ -32,7 +32,7 @@
                                         <span class="badge bg-secondary">{{ program.status }}</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ program.start_date.strftime('%d/%m/%Y') if program.start_date else 'N/A' }}</td>
+                                    <td>{{ program.enrollment_date.strftime('%d/%m/%Y') if program.enrollment_date else 'N/A' }}</td>
                                     <td>{{ program.end_date.strftime('%d/%m/%Y') if program.end_date else 'N/A' }}</td>
                                     <td>
                                         <a href="{{ url_for('program.view_program', slug=program.program.slug) }}" class="btn btn-sm btn-outline-primary">

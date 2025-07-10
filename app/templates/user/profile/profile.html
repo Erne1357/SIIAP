@@ -63,10 +63,11 @@
 
                             <div class="row g-3 mb-3">
                                 {% if current_user.user_program %}
+                                {% set up = current_user.user_program|first %}
                                 <div class="col-md-3 col-6">
                                     <div class="border rounded p-3 text-center">
-                                        <h3 class="mb-1">{{ current_user.user_program|length }}</h3>
-                                        <small class="text-muted">Programas</small>
+                                        <h3 class="mb-1">{{ up.program.slug }}</h3>
+                                        <small class="text-muted">Programa</small>
                                     </div>
                                 </div>
                                 {% endif %}

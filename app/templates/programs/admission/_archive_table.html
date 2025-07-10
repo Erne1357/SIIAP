@@ -6,6 +6,8 @@
       <th style="width:160px;">Plantilla</th>
       <th style="width:120px;">Estado</th>
       <th style="width:140px;">Acciones</th>
+      <th>Observaciones</th>
+      <th style="width:130px;">Revisado</th>
     </tr>
   </thead>
 
@@ -13,13 +15,13 @@
   {% for arch in step.archives %}
     {% set sub = subs.get(arch.id) %}
     {% set row_id = "row-" ~ arch.id %}
-    {# --- Fila encabezado ------------------------------------------------ #}
+
+    <!-- Fila principal --------------------------------------------------- -->
     <tr>
       <td><i class="far fa-file-alt text-secondary"></i></td>
 
       <td>
-        <a class="text-decoration-none"
-           data-bs-toggle="collapse"
+        <a class="text-decoration-none" data-bs-toggle="collapse"
            href="#{{ row_id }}" role="button">
           {{ arch.name }}
           <i class="fas fa-chevron-down small ms-1"></i>
@@ -30,9 +32,8 @@
       <td>
         {% if arch.is_downloadable and arch.file_path %}
           <a class="btn btn-link btn-sm"
-             href="{{ arch.file_path }}" target="_blank">
-             Descargar
-          </a>
+             href="{{ url_for('files.template', filename=arch.file_path) }}"
+             target="_blank">Descargar</a>
         {% else %} — {% endif %}
       </td>
 
@@ -49,12 +50,10 @@
         {% endif %}
       </td>
 
-      {% if arch.is_uploadable %}
       <!-- Acciones -->
       <td class="d-flex gap-1">
         {% if sub %}
-          <a class="btn btn-outline-primary btn-sm"
-             title="Ver"
+          <a class="btn btn-outline-primary btn-sm" title="Ver"
              href="{{ url_for('files.user_doc',
                               user_id=current_user.id,
                               phase='admission',
@@ -81,22 +80,33 @@
           </form>
         {% endif %}
       </td>
-      {% else %}
-      <!-- Sin acciones -->
-      <td class="text-center">
-        <span class="text-muted"> Sin acciones </span>
+
+      <!-- Observaciones -->
+      <td>
+        {% if sub and sub.reviewer_comment %}
+          {{ sub.reviewer_comment }}
+        {% else %}
+          — 
+        {% endif %}
       </td>
-      {% endif %}
+
+      <!-- Fecha de revisión -->
+      <td>
+        {% if sub and sub.review_date %}
+          {{ sub.review_date.strftime('%d/%m/%Y') }}
+        {% else %}
+          —
+        {% endif %}
+      </td>
     </tr>
 
-    {# --- Fila descripción colapsable (sin afectar layout) -------------- #}
+    <!-- Fila descripción colapsable -------------------------------------- -->
     <tr id="{{ row_id }}" class="collapse">
       <td></td>
-      <td colspan="4" class="text-muted small">
+      <td colspan="6" class="text-muted small">  {# icon + 6 columnas #}
         {{ arch.description }}
       </td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-

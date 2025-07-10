@@ -29,3 +29,11 @@ def _safe_send(root: Path, filename: str, as_attachment=False):
     if not file_path or not Path(file_path).is_file():
         abort(404)
     return send_from_directory(root, filename, as_attachment=as_attachment)
+
+# ---------- Plantillas públicas ---------------------------------------------
+@bp_files.route('/template/<path:filename>')
+@login_required          # quítalo si quieres que sean públicas
+def template(filename: str):
+    root: Path = current_app.config['TEMPLATE_STORE']
+    return _safe_send(root, filename, as_attachment=True)
+
