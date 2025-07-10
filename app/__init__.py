@@ -53,7 +53,13 @@ def create_app(test_config=None):
           back = request.referrer
           if not back or back == request.url:
                back = url_for('index')
-          
+          code = 303 if request.method == 'POST' else 302
+          return redirect(back, code=code)
+     
+     @app.errorhandler(400)
+     def bad_request(e):
+          flash(e.description, "danger")
+          back = request.referrer
           code = 303 if request.method == 'POST' else 302
           return redirect(back, code=code)
 

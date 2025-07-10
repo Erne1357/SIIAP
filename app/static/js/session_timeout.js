@@ -5,7 +5,7 @@ if (userLoggedIn !== 'true') {
 } else {
     // Tiempo para mostrar la advertencia (por ejemplo, 1 minuto para este ejemplo)
     console.log("Usuario autenticado, se inicia el temporizador de sesión.");
-    const warningTime = 1 * 60 * 1000;
+    const warningTime = 15 * 60 * 1000;
     const autoLogoutDelay = 1 * 60 * 1000; // tiempo adicional para auto logout
     let autoLogoutTimer;
 
