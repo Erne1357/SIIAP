@@ -4,7 +4,7 @@
 
 {% block styles %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/user/profile.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user/profile.css') }}?v=1.1">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
 {% endblock %}
 
@@ -19,10 +19,11 @@
                     <div class="row">
                         <div class="col-md-3 text-center">
                             <div class="position-relative mb-3">
-                                <img src="{{ current_user.avatar_url }}" alt="Foto de perfil" 
-                                     class="rounded-circle border border-3 border-light shadow profile-avatar">
-                                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                <img src="{{ current_user.avatar_url }}" alt="Foto de perfil"
+                                    class="rounded-circle border border-3 border-light shadow profile-avatar">
+                                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+                                <span
+                                    class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                                     Admin
                                 </span>
                                 {% endif %}
@@ -30,21 +31,23 @@
                         </div>
                         <div class="col-md-9">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h2 class="mb-0">{{ current_user.first_name }} {{ current_user.last_name }} {{ current_user.mother_last_name }}</h2>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editProfileModal">
+                                <h2 class="mb-0">{{ current_user.first_name }} {{ current_user.last_name }} 
+                                    {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{% endif %}</h2>
+                                <button class="btn btn-primary" data-bs-toggle="modal"
+                                    data-bs-target="#editProfileModal">
                                     <i class="bi bi-pencil-fill me-2"></i>
                                     Editar Perfil
                                 </button>
                             </div>
                             <p class="text-muted">
-                                {% if current_user.roles.name == 'applicant' %}
-                                    Aspirante
-                                {% elif current_user.roles.name == 'social_service' %}
-                                    Servicio Social
-                                {% elif current_user.roles.name == 'program_admin' %}
-                                    Administrador de Programa
-                                {% elif current_user.roles.name == 'posgraduate_admin' %}
-                                    Administrador de Posgrado
+                                {% if current_user.role.name == 'applicant' %}
+                                Aspirante
+                                {% elif current_user.role.name == 'social_service' %}
+                                Servicio Social
+                                {% elif current_user.role.name == 'program_admin' %}
+                                Administrador de Programa
+                                {% elif current_user.role.name == 'posgraduate_admin' %}
+                                Administrador de Posgrado
                                 {% endif %}
                             </p>
 
@@ -53,7 +56,7 @@
                                 {% if current_user.is_internal %}
                                 <span class="badge bg-info me-2">Usuario Interno</span>
                                 {% endif %}
-                                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
+                                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
                                 <span class="badge bg-danger me-2">Admin</span>
                                 {% endif %}
                                 {% if current_user.scolarship_type and current_user.scolarship_type != 'none'%}
@@ -63,10 +66,11 @@
 
                             <div class="row g-3 mb-3">
                                 {% if current_user.user_program %}
+                                {% set up = current_user.user_program|first %}
                                 <div class="col-md-3 col-6">
                                     <div class="border rounded p-3 text-center">
-                                        <h3 class="mb-1">{{ current_user.user_program|length }}</h3>
-                                        <small class="text-muted">Programas</small>
+                                        <h3 class="mb-1">{{ up.program.slug }}</h3>
+                                        <small class="text-muted">Programa</small>
                                     </div>
                                 </div>
                                 {% endif %}
@@ -82,7 +86,7 @@
                                         <small class="text-muted">Fecha de registro</small>
                                     </div>
                                 </div>
-                                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
+                                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
                                 <div class="col-md-3 col-6">
                                     <div class="border rounded p-3 text-center">
                                         <h3 class="mb-1">
@@ -101,23 +105,29 @@
             <!-- Navegación de pestañas -->
             <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info-tab-pane" type="button" role="tab" aria-controls="info-tab-pane" aria-selected="true">
+                    <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info-tab-pane"
+                        type="button" role="tab" aria-controls="info-tab-pane" aria-selected="true">
                         <i class="bi bi-person me-2"></i>Información Personal
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="academic-tab" data-bs-toggle="tab" data-bs-target="#academic-tab-pane" type="button" role="tab" aria-controls="academic-tab-pane" aria-selected="false">
+                    <button class="nav-link" id="academic-tab" data-bs-toggle="tab" data-bs-target="#academic-tab-pane"
+                        type="button" role="tab" aria-controls="academic-tab-pane" aria-selected="false">
                         <i class="bi bi-mortarboard me-2"></i>Información Académica
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents-tab-pane" type="button" role="tab" aria-controls="documents-tab-pane" aria-selected="false">
+                    <button class="nav-link" id="documents-tab" data-bs-toggle="tab"
+                        data-bs-target="#documents-tab-pane" type="button" role="tab" aria-controls="documents-tab-pane"
+                        aria-selected="false">
                         <i class="bi bi-file-earmark-text me-2"></i>Documentos
                     </button>
                 </li>
-                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
+                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link text-danger" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin-tab-pane" type="button" role="tab" aria-controls="admin-tab-pane" aria-selected="false">
+                    <button class="nav-link text-danger" id="admin-tab" data-bs-toggle="tab"
+                        data-bs-target="#admin-tab-pane" type="button" role="tab" aria-controls="admin-tab-pane"
+                        aria-selected="false">
                         <i class="bi bi-shield me-2"></i>Panel de Administración
                     </button>
                 </li>
@@ -127,22 +137,25 @@
             <!-- Contenido de las pestañas -->
             <div class="tab-content" id="profileTabsContent">
                 <!-- Información Personal -->
-                <div class="tab-pane fade show active" id="info-tab-pane" role="tabpanel" aria-labelledby="info-tab" tabindex="0">
+                <div class="tab-pane fade show active" id="info-tab-pane" role="tabpanel" aria-labelledby="info-tab"
+                    tabindex="0">
                     {% include 'user/profile/_profile_info.html' %}
                 </div>
-                
+
                 <!-- Información Académica -->
-                <div class="tab-pane fade" id="academic-tab-pane" role="tabpanel" aria-labelledby="academic-tab" tabindex="0">
+                <div class="tab-pane fade" id="academic-tab-pane" role="tabpanel" aria-labelledby="academic-tab"
+                    tabindex="0">
                     {% include 'user/profile/_profile_academic.html' %}
                 </div>
-                
+
                 <!-- Documentos -->
-                <div class="tab-pane fade" id="documents-tab-pane" role="tabpanel" aria-labelledby="documents-tab" tabindex="0">
+                <div class="tab-pane fade" id="documents-tab-pane" role="tabpanel" aria-labelledby="documents-tab"
+                    tabindex="0">
                     {% include 'user/profile/_profile_documents.html' %}
                 </div>
-                
+
                 <!-- Panel de Administración -->
-                {% if current_user.roles.name in ['program_admin', 'posgraduate_admin'] %}
+                {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
                 <div class="tab-pane fade" id="admin-tab-pane" role="tabpanel" aria-labelledby="admin-tab" tabindex="0">
                     {% include 'user/profile/_profile_admin.html' %}
                 </div>
@@ -166,37 +179,26 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label for="first_name" class="form-label">Nombre</label>
-                            <input type="text" class="form-control" id="first_name" name="first_name" value="{{ current_user.first_name }}" required>
+                            <input type="text" class="form-control" id="first_name" name="first_name"
+                                value="{{ current_user.first_name }}" required>
                         </div>
                         <div class="col-md-4">
                             <label for="last_name" class="form-label">Apellido Paterno</label>
-                            <input type="text" class="form-control" id="last_name" name="last_name" value="{{ current_user.last_name }}" required>
+                            <input type="text" class="form-control" id="last_name" name="last_name"
+                                value="{{ current_user.last_name }}" required>
                         </div>
                         <div class="col-md-4">
-                            <label for="mother_last_name" class="form-label">Apellido Materno</label>
-                            <input type="text" class="form-control" id="mother_last_name" name="mother_last_name" value="{{ current_user.mother_last_name }}">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="email" class="form-label">Correo Electrónico</label>
-                            <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="username" class="form-label">Nombre de Usuario</label>
-                            <input type="text" class="form-control" id="username" name="username" value="{{ current_user.username }}" required>
-                        </div>
-                        <div class="col-12">
-                            <label for="new_password" class="form-label">Nueva Contraseña (dejar en blanco para mantener la actual)</label>
-                            <input type="password" class="form-control" id="new_password" name="new_password">
-                        </div>
-                        <div class="col-12">
-                            <label for="confirm_password" class="form-label">Confirmar Nueva Contraseña</label>
-                            <input type="password" class="form-control" id="confirm_password" name="confirm_password">
+                            <label for="mother_last_name" class="form-label">Apellido Materno (Opcional)</label>
+                            <input type="text" class="form-control" id="mother_last_name" name="mother_last_name"
+                                value="{{ current_user.mother_last_name }}">
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                    <button type="submit" class="btn btn-primary">
+                        Guardar cambios
+                    </button>
                 </div>
             </form>
         </div>

@@ -1,0 +1,18 @@
+/* Reduce padding del botón acordeón para que parezca link */
+.accordion-button {
+  padding-left: 0;
+}
+.accordion-button::after {   /* ícono del accordion ↓ */
+  margin-left: .25rem;
+}
+
+/* Evita que <tr class="collapse"> afecte al 'table-hover' */
+#archiveTable tbody tr.collapse td {
+  background-color: transparent !important;
+}
+
+/* Ícono rota al abrir */
+#archiveTable a[aria-expanded="true"] i {
+  transform: rotate(180deg);
+  transition: transform .2s;
+}

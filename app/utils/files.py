@@ -26,15 +26,15 @@ def save_avatar(file_storage, user_id: int) -> str:
 
     filename = _uuid_name(ext)
     file_storage.save(folder / filename)
-    return f"{user_id}/{filename}"          # valor que guardarás en DB
+    return f"{user_id}/{filename}"          
 
-def save_user_doc(file_storage, user_id: int, phase: str) -> str:
+def save_user_doc(file_storage, user_id: int, phase: str, name: str) -> str:
     ext = _validate_ext(file_storage.filename, current_app.config['ALLOWED_DOC_EXT'])
     folder = docs_dir(user_id, phase)
     folder.mkdir(parents=True, exist_ok=True)
 
-    safe = secure_filename(file_storage.filename.rsplit('.', 1)[0])
-    filename = f"{safe}_{_uuid_name(ext)}"
+    safe = secure_filename(name.rsplit('.', 1)[0])
+    filename = f"{safe}.{ext}"
     file_storage.save(folder / filename)
     return f"{user_id}/{phase}/{filename}"
 
