@@ -36,8 +36,8 @@ def create_app(test_config=None):
      def load_user(user_id):
           return User.query.get(int(user_id))
      
-     # Configurar duración de la sesión (15 minutos)
-     app.permanent_session_lifetime = timedelta(minutes=15)
+     # Configurar duración de la sesión (17 minutos)
+     app.permanent_session_lifetime = timedelta(minutes=17)
 
      @app.errorhandler(404)
      def page_not_found(e):

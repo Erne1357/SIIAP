@@ -85,11 +85,17 @@ def admission_dashboard(slug):
 
     # --- 4. Render ----------------------------------------------------
     lock_info = {s.id: _step_locked(steps, s.id, subs)[0] for s in steps}
-    return render_template('/programs/admission/dashboard.html',
-                           program=program,
-                           steps=steps,
-                           subs=subs,
-                           lock_info=lock_info)
+
+    # Contexto para la plantilla
+    context = {
+        "program": program,
+        "steps": steps,
+        "subs": subs,
+        "lock_info": lock_info
+    }
+
+    return render_template('/programs/admission/dashboard.html', **context)
+
 # --------------------------------------------------------------------
 def _step_locked(all_steps, step_id, subs_dict):
     """

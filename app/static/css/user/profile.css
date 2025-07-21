@@ -107,6 +107,11 @@
     border-bottom: 1px solid #e9ecef;
 }
 
+.legend-dot{
+  display:inline-block;width:12px;height:12px;border-radius:50%;
+}
+
+
 /* Estilos responsivos */
 @media (max-width: 768px) {
     .profile-avatar {
