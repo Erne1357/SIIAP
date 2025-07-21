@@ -102,13 +102,22 @@ CREATE TABLE submission (
     status          VARCHAR(50) NOT NULL,
     upload_date     TIMESTAMP   NOT NULL DEFAULT NOW(),
     review_date     TIMESTAMP,
+    reviewer_id    INTEGER,
+    reviewer_comment TEXT,
     user_id         INTEGER     NOT NULL,
     archive_id      INTEGER     NOT NULL,
     program_step_id INTEGER     NOT NULL,
+    period          VARCHAR(50)  NULL,
+    semester        INTEGER      NULL,
     CONSTRAINT fk_submission_user
         FOREIGN KEY (user_id)
         REFERENCES "user" (id)
         ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    CONSTRAINT fk_submission_reviewer
+        FOREIGN KEY (reviewer_id)
+        REFERENCES "user" (id)
+        ON DELETE set null
         ON UPDATE CASCADE,
     CONSTRAINT fk_submission_archive
         FOREIGN KEY (archive_id)
