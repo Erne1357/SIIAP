@@ -23,6 +23,17 @@ class User(db.Model, UserMixin):
 
     role = db.relationship('Role', back_populates='users',uselist=False)
     user_program = db.relationship('UserProgram', back_populates='user')
+    submissions = db.relationship(
+        'Submission',
+        foreign_keys='Submission.user_id',
+        back_populates='user',
+        cascade='all, delete-orphan'
+    )
+    reviews = db.relationship(
+        'Submission',
+        foreign_keys='Submission.reviewer_id',
+        back_populates='reviewer'
+    )
 
     def __init__(self, first_name, last_name, mother_last_name, username, password, email,is_internal,scolarship_type, role_id, avatar):
         self.first_name = first_name

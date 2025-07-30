@@ -1,0 +1,107 @@
+{# templates/admin/review/submissions_list.html #}
+{% extends 'base.html' %}
+{% block title %}Revisión de Documentos{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_review.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="mb-4">Revisión de Documentos</h1>
+
+  <!-- Filtros -->
+  <form method="get" class="row g-3 mb-4 filter-form">
+    <div class="col-auto">
+      <label class="form-label">Aspirante</label>
+      <select name="applicant_id" class="form-select">
+        <option value="">Todos</option>
+        {% for user in applicants %}
+          <option value="{{ user.id }}" {% if filters.applicant_id == user.id %}selected{% endif %}>
+            {{ user.first_name }} {{ user.last_name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label">Programa</label>
+      <select name="program_id" class="form-select">
+        <option value="">Todos</option>
+        {% for program in programs %}
+          <option value="{{ program.id }}" {% if filters.program_id == program.id %}selected{% endif %}>
+            {{ program.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label">Estado</label>
+      <select name="status" class="form-select">
+        {% for option in ['pending','review','approved','rejected'] %}
+          <option value="{{ option }}" {% if filters.status == option %}selected{% endif %}>
+            {{ option|capitalize }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label">Orden</label>
+      <select name="sort" class="form-select">
+        <option value="desc" {% if filters.sort=='desc' %}selected{% endif %}>Más recientes</option>
+        <option value="asc"  {% if filters.sort=='asc'  %}selected{% endif %}>Más antiguos</option>
+      </select>
+    </div>
+    <div class="col-auto align-self-end">
+      <button type="submit" class="btn btn-primary">Filtrar</button>
+    </div>
+  </form>
+
+  <!-- Tabla de submissions -->
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Aspirante</th>
+          <th>Programa</th>
+          <th>Documento</th>
+          <th>Fecha subida</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sub in submissions %}
+        <tr>
+          <td>{{ sub.id }}</td>
+          <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
+          <td>{{ sub.program_step.program.name }}</td>
+          <td>{{ sub.program_step.step.name }} / {{ sub.archive.name }}</td>
+          <td>{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>
+            <span class="badge bg-{{ 
+              sub.status=='approved' and 'success' or 
+              sub.status=='rejected' and 'danger' or 
+              sub.status=='review' and 'warning' or 
+              'secondary' 
+            }}">{{ sub.status|capitalize }}</span>
+          </td>
+          <td>
+            <a href="{{ url_for('admin.review.submission_detail', sub_id=sub.id) }}"
+               class="btn btn-sm btn-outline-primary">Revisar</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center">No hay documentos para revisar.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin_review.js') }}"></script>
+{% endblock %}
