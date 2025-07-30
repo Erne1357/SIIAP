@@ -1,5 +1,5 @@
 from flask import Flask, session, flash, redirect, url_for, render_template
-from flask import request, jsonify, make_response
+from flask import request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
@@ -83,10 +83,13 @@ def create_app(test_config=None):
      from app.routes.program import program_bp as program_blueprint
      from app.routes.files import bp_files as files_blueprint
      from app.routes import admission
+     from app.routes.admin.admin import admin_bp as admin_blueprint
      app.register_blueprint(auth_blueprint)  
      app.register_blueprint(user_blueprint, url_prefix='/user')
      app.register_blueprint(program_blueprint, url_prefix='/programs')
      app.register_blueprint(files_blueprint, url_prefix='/files')
+     app.register_blueprint(admin_blueprint)
+
      
      @app.route('/')
      def index():

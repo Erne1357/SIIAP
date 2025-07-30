@@ -33,7 +33,6 @@ def profile():
         db.session.commit()
 
         flash('Perfil actualizado correctamente.', 'success')
-        # 4) PRG: redirige al GET para evitar doble envío
         return redirect(url_for('user.profile'))
 
     # ── 1. Datos base ──────────────────────────────────────────────

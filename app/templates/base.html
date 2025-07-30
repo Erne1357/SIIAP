@@ -88,7 +88,7 @@
           <span class="badge bg-success text-uppercase small ">
             Admin. Programa
           </span>
-          {% elif current_user.role.name == 'posgraduate_admin' %}
+          {% elif current_user.role.name == 'postgraduate_admin' %}
           <span class="badge bg-danger text-uppercase small ">
             Admin. Posgrado
           </span>
@@ -120,10 +120,12 @@
         <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %} color-tecnm">
           <i class="fas fa-calendar-alt me-2"></i>Permanencia
         </a>
-        <a class="nav-link {% if request.endpoint=='user.documents' %}active{% endif %} color-tecnm">
+        {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
+        <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %} color-tecnm"
+          href="{{ url_for('admin.review.index') }}">
           <i class="fas fa-file-alt me-2"></i>Documentos
         </a>
-
+        {% endif %}
         <hr class="mx-3">
         <a class="nav-link text-danger mt-auto" href="{{ url_for('auth.logout') }}" data-no-swup>
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
