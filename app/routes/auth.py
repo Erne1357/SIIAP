@@ -86,13 +86,14 @@ def register():
             email, 
             is_internal,
             applicant_role.id,
+            avatar='default.jpg'  # Asignar un avatar por defecto
         )
         db.session.add(new_user)
         try:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            flash("Error al registrar el usuario: {}".format(e), "danger")
+            flash("Error al registrar el usuario: ", "danger")
             return render_template('auth/register.html')
         
         flash("Registro exitoso. Ahora inicia sesión.", "success")

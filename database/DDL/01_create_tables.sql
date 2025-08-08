@@ -16,7 +16,7 @@ CREATE TABLE "user" (
     email            VARCHAR(100) NOT NULL UNIQUE,
     last_login       TIMESTAMP    NOT NULL DEFAULT NOW(),
     is_internal      BOOLEAN      NOT NULL DEFAULT FALSE,
-    scolarship_type  VARCHAR(50) NOT NULL DEFAULT 'none',
+    scolarship_type  VARCHAR(50) DEFAULT NULL,
     registration_date TIMESTAMP   NOT NULL DEFAULT NOW(),
     role_id           INTEGER      NOT NULL,
     avatar            VARCHAR(255) DEFAULT 'default.jpg',

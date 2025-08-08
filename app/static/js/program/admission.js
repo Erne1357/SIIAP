@@ -7,4 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const archId = btn?.getAttribute('data-archive');
     uploadModal.querySelector('[name="archive_id"]').value = archId || '';
   });
+
+  const hash = window.location.hash;
+  if (hash.startsWith('#pane-')) {
+    const btn = document.querySelector(`button[data-bs-target="${hash}"]`);
+    if (btn) {
+      // Bootstrap 5 Tab show
+      new bootstrap.Tab(btn).show();
+    }
+  }
 });
