@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
 from app import db
 from app.utils.auth import roles_required
-from app.models import Submission, ProgramStep
+from app.models import Submission, ProgramStep,User, Program
 
 review_bp = Blueprint('review', __name__, url_prefix='/review')
 
@@ -49,6 +49,18 @@ def submissions():
     else:
         q = q.order_by(Submission.upload_date.desc())
 
+    # Para llenar los select de filtros
+    applicants = (
+        User.query
+        .filter(
+            User.role.has(name='applicant'),   
+            User.user_program.any()            
+        )
+        .order_by(User.first_name)            
+        .all()                                  
+    )
+    programs   = Program.query.order_by(Program.name).all()
+
     submissions = q.all()
     filters = {
         'applicant_id': applicant_id,
@@ -58,7 +70,9 @@ def submissions():
     }
     context = {
         'submissions': submissions,
-        'filters': filters
+        'filters': filters,
+        'applicants': applicants,
+        'programs': programs
     }
     return render_template(
         'admin/review/submissions_list.html',
@@ -102,4 +116,4 @@ def submission_action(sub_id):
 
     db.session.commit()
     flash(f'Documento {"aprobado" if action=="approve" else "rechazado"} con éxito.', 'success')
-    return redirect(url_for('admin.review.submission_detail', sub_id=sub_id))
+    return redirect(url_for('admin.review.index'))

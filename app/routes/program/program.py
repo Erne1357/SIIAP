@@ -7,10 +7,11 @@ from app.models.step import Step
 from app.models.program_step import ProgramStep  
 from app.models.user_program import UserProgram
 from app.utils.auth import roles_required
+from app.routes.program.admission import admission_bp
 import logging
 
 program_bp = Blueprint('program', __name__, url_prefix='/programs')
-
+program_bp.register_blueprint(admission_bp)
 
 @program_bp.route('/', methods=['GET'])
 @login_required
@@ -64,4 +65,4 @@ def inscription_program(program_id):
     db.session.add(UserProgram(user_id=current_user.id, program_id=program.id))
     db.session.commit()
     flash('Te has inscrito en el programa.', 'success')
-    return redirect(url_for('program.admission_dashboard', slug=program.slug))
+    return redirect(url_for('program.admission.admission_dashboard', slug=program.slug))

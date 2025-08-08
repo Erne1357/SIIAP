@@ -112,8 +112,8 @@
         </a>
         {% set up = current_user.user_program|first %}
         {% if up %}
-        <a class="nav-link {% if request.endpoint == 'program.admission_dashboard' %}active{% endif %} color-tecnm"
-          href="{{ url_for('program.admission_dashboard', slug=up.program.slug) }}">
+        <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %} color-tecnm"
+          href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}">
           <i class="fas fa-clipboard-list me-2"></i>Admisión
         </a>
         {% endif %}

@@ -80,9 +80,8 @@ def create_app(test_config=None):
      # Registrar blueprints
      from app.routes.auth import auth as auth_blueprint
      from app.routes.user import user as user_blueprint
-     from app.routes.program import program_bp as program_blueprint
+     from app.routes.program.program import program_bp as program_blueprint
      from app.routes.files import bp_files as files_blueprint
-     from app.routes import admission
      from app.routes.admin.admin import admin_bp as admin_blueprint
      app.register_blueprint(auth_blueprint)  
      app.register_blueprint(user_blueprint, url_prefix='/user')

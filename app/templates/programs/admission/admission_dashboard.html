@@ -27,13 +27,26 @@
     {% for step in steps %}
     {% set locked = lock_info[step.id] %}
     {% set seq = step.program_steps[0].sequence %}
+    {% set state = step_states[step.id] %}
     <li class="nav-item" role="presentation">
       <button class="nav-link
-                     {% if loop.first %}active{% endif %}
-                     {% if locked %}disabled{% endif %}" id="tab-{{ step.id }}" data-bs-toggle="tab"
+               {% if loop.first %}active{% endif %}
+               {% if state=='approved' %}text-success{% elif state=='rejected' %}text-danger{% elif state=='review' %}text-warning{% endif %}
+               {% if locked %}disabled{% endif %}" id="tab-{{ step.id }}" data-bs-toggle="tab"
         data-bs-target="#pane-{{ step.id }}" type="button" role="tab">
-        {% if seq != 0 %}{{ seq }}. {% endif %}{{ step.name }} {# ← muestra secuencia #}
-        {% if locked %}<i class="fas fa-lock ms-1"></i>{% endif %}
+        {% if seq != 0 %}{{ seq }}. {% endif %}{{ step.name }}
+        {# Iconos de estado #}
+        {%if seq !=0 %}
+          {% if locked %}
+          <i class="fas fa-lock ms-1"></i>
+          {% elif state=='approved' %}
+          <i class="fas fa-check-circle ms-1 text-success"></i>
+          {% elif state=='rejected' %}
+          <i class="fas fa-times-circle ms-1 text-danger"></i>
+          {% elif state=='pending' %}
+          <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
+          {% endif %}
+        {% endif %}
       </button>
     </li>
     {% endfor %}
@@ -56,22 +69,19 @@
 
 
 <!-- Modal para subir archivos -->
- <div class="modal fade" id="uploadModal" tabindex="-1"
-     aria-labelledby="uploadLabel" aria-hidden="true">
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadLabel" aria-hidden="true">
   <div class="modal-dialog">
     <form method="POST" enctype="multipart/form-data" class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="uploadLabel">Subir documento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" name="archive_id" id="archiveIdInput">
         <input type="file" class="form-control" name="file" required>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary"
-                data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" class="btn btn-primary">Subir</button>
       </div>
     </form>
@@ -81,7 +91,7 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/program/admission.js') }}?v=1.1"></script>
+<script src="{{ url_for('static', filename='js/program/admission.js') }}?v=1.2"></script>
 
 
 {% endblock %}
