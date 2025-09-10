@@ -7,7 +7,7 @@ from app import db
 from app.utils.auth import roles_required
 from app.utils.files import save_user_doc
 from app.utils.utils import getPeriod
-from app.services.admission import get_admission_state
+from app.services.admission_service import get_admission_state
 from app.models import Program, Archive, Submission, UserProgram
 
 admission_bp = Blueprint('admission', __name__, url_prefix='/admission')

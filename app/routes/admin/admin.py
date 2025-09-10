@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect,flash,url_for
 from flask_login import login_required, current_user
-from app.services.admission import get_admission_state
+from app.services.admission_service import get_admission_state
 from app import db
 from app.routes.admin.review import review_bp as review
 

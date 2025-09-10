@@ -7,12 +7,15 @@ from flask_bootstrap import Bootstrap
 from datetime import datetime, timezone, timedelta
 from app.config import Config
 from app.utils.auth import roles_required
+from app.utils.csrf import generate_csrf_token, validate_csrf_for_api
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 
 def create_app(test_config=None):
      app = Flask(__name__, template_folder='templates', static_folder='static')
+     app.config["STATIC_VERSION"] = "1.0.41111111131"  
+
      Bootstrap(app)
 
      if test_config is None:
@@ -21,7 +24,7 @@ def create_app(test_config=None):
           app.config.update(test_config)
      
      db.init_app(app)
-     
+     register_blueprints(app)
      # Inicializar y configurar el LoginManager
      login_manager.init_app(app)
      login_manager.login_view = 'auth.login'  #  Redirige al login si no está autenticado
@@ -64,20 +67,29 @@ def create_app(test_config=None):
           return redirect(back, code=code)
 
      @app.before_request
-     def session_management():
-          session.permanent = True
-          now_ts = datetime.now(timezone.utc).timestamp()
-          last_activity = session.get('last_activity')
-          if current_user.is_authenticated and last_activity:
-               if now_ts - last_activity > 15 * 60:  # 15 minutos en segundos
-                    flash("Tu sesión ha expirado por inactividad.", "warning")
-                    logout_user()
-                    return redirect(url_for('auth.login'))
-          session['last_activity'] = now_ts
-          
+     def _csrf_guard_api():
+          validate_csrf_for_api()  # protege la API con token
+
+     @app.context_processor
+     def inject_tokens_and_version():
+          return {
+               "static_version": app.config.get("STATIC_VERSION", "1.0.0"),
+               "csrf_token": generate_csrf_token,    # {{ csrf_token() }} en templates
+          }
+     
+     @app.route('/')
+     def index():
+          if not current_user.is_authenticated:
+               return redirect(url_for('auth.login'))
+          return redirect(url_for('user.dashboard'))
      
      
-     # Registrar blueprints
+     return app
+
+def register_blueprints(app):
+     from app.routes.api.auth_api import api_auth_bp
+     app.register_blueprint(api_auth_bp)
+# Registrar blueprints
      from app.routes.auth import auth as auth_blueprint
      from app.routes.user import user as user_blueprint
      from app.routes.program.program import program_bp as program_blueprint
@@ -89,14 +101,5 @@ def create_app(test_config=None):
      app.register_blueprint(files_blueprint, url_prefix='/files')
      app.register_blueprint(admin_blueprint)
 
-     
-     @app.route('/')
-     def index():
-          if not current_user.is_authenticated:
-               return redirect(url_for('auth.login'))
-          return redirect(url_for('user.dashboard'))
-     
-          
-     return app
 
 app = create_app()
