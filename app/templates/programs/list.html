@@ -4,7 +4,7 @@
 
 {% block styles %}
 {{ super() }}
-  <link rel="stylesheet" href="{{url_for('static', filename='css/program/list.css') }}?v=1.14" data-swup-include-style>
+  <link rel="stylesheet" href="{{url_for('static', filename='css/program/list.css') }}?v={{ static_version }}" data-swup-include-style>
 {% endblock %}
 
 {% block content %}
@@ -19,7 +19,7 @@
             <!-- Imagen con overlay y badge -->
             <div class="position-relative overflow-hidden">
               <img 
-                src="{{ url_for('static', filename='assets/images/' ~ p.name ~ '.webp') }}" 
+                src="{{ url_for('static', filename='assets/images/' ~ p.name ~ '.webp') }}?v={{ static_version }}" 
                 alt="{{ p.name }}"
                 
                 class="program-image w-100">
