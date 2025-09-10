@@ -1,4 +1,5 @@
 # docker/docker-compose.yml
+name: SIIAPEC
 services:
   web:
     #reinciia el contenedor si se detiene

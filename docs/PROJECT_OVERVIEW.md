@@ -93,7 +93,7 @@ Esta plataforma permitirá que la administración de posgrado y los estudiantes 
 4. **Roles y Visibilidad**  
    - `postgraduate_admin`: control total (ver todos los programas, usuarios y validaciones).  
    - `program_admin`: maneja un programa específico (validar documentos de su programa, editar requisitos, etc.).  
-   - `document_reviewer`: revisa archivos con un alcance más limitado.  
+   - `social_service`: revisa archivos con un alcance más limitado.  
    - `applicant`: sube documentos y sigue su estado de admisión o permanencia.
 
 ---

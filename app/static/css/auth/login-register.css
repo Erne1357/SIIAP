@@ -1,4 +1,10 @@
 /* ===== BANNER DE BIENVENIDA ===== */
+html, body { height: 100%; }
+body { overflow-x: hidden; }
+
+/* Evitar que el banner + header generen scroll por subpíxeles */
+.siiapec-welcome-banner { will-change: transform; }
+
 .siiapec-welcome-banner {
   position: fixed;
   top: var(--header-h);
@@ -49,7 +55,9 @@
 }
 
 .card {
-  background-color: rgba(255, 255, 255, 0.97);
+  background-color: rgba(255, 255, 255, 1);
+  box-shadow: 6px 5px 5px 0px rgba(0,0,0,0.41);
+  border-top : 5px solid #4a7c59 !important;
   border: none;
   border-radius: 0.75rem;
 }
@@ -62,7 +70,6 @@
 #main-content {
   background: url("../../assets/images/fondo2.jpg") no-repeat center center;
   background-size: cover;
-  background-attachment: fixed;
   width: 100%;
   margin-left: 0;
   padding: 0;

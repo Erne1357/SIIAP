@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, redirect,flash,url_for
 from flask_login import login_required, current_user
-from app.services.adminission import get_admission_state
+from app.services.admission_service import get_admission_state
 from app import db
-
+ 
 
 user = Blueprint('user', __name__)
 
@@ -33,7 +33,6 @@ def profile():
         db.session.commit()
 
         flash('Perfil actualizado correctamente.', 'success')
-        # 4) PRG: redirige al GET para evitar doble envío
         return redirect(url_for('user.profile'))
 
     # ── 1. Datos base ──────────────────────────────────────────────

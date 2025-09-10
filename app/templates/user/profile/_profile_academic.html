@@ -140,7 +140,7 @@
 
                 {% if pending_items %}
                 <div class="mt-3">
-                    <a class="btn btn-primary btn-sm" href="{{ url_for('program.admission_dashboard',
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('program.admission.admission_dashboard',
                             slug=program.slug) }}">
                         <i class="bi bi-upload me-2"></i>Subir documentos pendientes
                     </a>
@@ -152,7 +152,7 @@
 
     {% endif %}
 
-    {% if current_user.role.name in ['program_admin', 'posgraduate_admin'] %}
+    {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
     <div class="col-md-12 mb-4">
         <div class="card shadow-sm">
             <div class="card-header">
