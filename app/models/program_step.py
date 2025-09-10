@@ -10,3 +10,4 @@ class ProgramStep(db.Model):
     
     program = db.relationship("Program", back_populates="program_steps")
     step    = db.relationship("Step",    back_populates="program_steps")
+    submissions = db.relationship('Submission', back_populates='program_step')

@@ -5,6 +5,8 @@
   --footer-h: 56px; /* alto aprox. del footer     */
   --bg--tecnm: #0b1e8a; /* azul institucional TECNM   */
   --banner-h: 3.5rem; /* altura del banner de bienvenida */
+  --rojoTec: #dc3545;
+  --azulFuerte: #1a71cf;
 }
 
 /* Personalización de colores Bootstrap */
@@ -29,13 +31,97 @@
 }
 
 /* =====  RESET DEL LAYOUT  ===== */
-html,
-body {
+/* === NUEVO: alturas modernas para min-altura y evitar scrollbars en auth === */
+html, body {
   height: 100%;
 }
 body {
   overflow-x: hidden;
+  min-height: 100svh; /* soporta iOS/Android barras dinámicas */
 }
+
+/* ====== Header logos responsive ====== */
+.header-logo {
+  display: block;
+  height: auto;
+  object-fit: contain;
+  /* tamaño base grande (desktop) con clamp */
+  max-height: clamp(36px, 5.5vh, 80px);
+}
+
+/* Ajustes por “marca” si quieres proporciones distintas */
+.header-logo.sep      { max-height: clamp(28px, 4.5vh, 60px); }
+.header-logo.tecnm    { max-height: clamp(36px, 5.5vh, 80px); }
+.header-logo.itcj     { max-height: clamp(36px, 5.5vh, 80px); }
+.header-logo.posgrado { max-height: clamp(34px, 5vh, 72px); }
+
+/* La marca central se escala suavemente */
+.brand-text {
+  font-weight: 700;
+  font-size: clamp(1.25rem, 2.6vw, 2rem);
+  line-height: 1;
+  color: #212529;
+}
+
+/* Desaparición progresiva de logos en viewport angosto */
+@media (max-width: 992px) {
+  .header-logos img { opacity: 0.95; }
+  /* opcional: reducir aún más */
+  .header-logo { max-height: clamp(28px, 4.5vh, 60px); }
+}
+@media (max-width: 768px) {
+  /* oculta 1 logo por lado */
+  .header-logos-left .tecnm, .header-logos-right .posgrado { display: none !important; }
+  .brand-text { font-size: clamp(1.15rem, 2.8vw, 1.6rem); }
+}
+@media (max-width: 576px) {
+  /* móvil: oculta todos los logos, deja solo SIIAPEC */
+  .header-logos { display: none !important; }
+  :root { --header-h: 72px; } /* reduce header en móvil */
+}
+
+/* ====== Off-canvas sidebar en móvil ====== */
+#sidebar {
+  position: fixed;
+  inset-block-start: var(--header-h);
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  width: var(--sidebar-w);
+  overflow-y: auto;
+  background: #f8f9fa;
+  z-index: 1040; /* sobre contenido */
+}
+
+/* contenido principal */
+#main-content {
+  margin-block-start: var(--header-h);
+  margin-inline-start: var(--sidebar-w);
+  padding: 1.5rem;
+  min-height: calc(100svh - var(--header-h) - var(--footer-h));
+}
+
+/* Colapso en <992px: sidebar como off-canvas superpuesto */
+@media (max-width: 991.98px) {
+  :root { --sidebar-w: 260px; } /* ancho fijo en overlay */
+  #main-content { margin-inline-start: 0; }
+  #sidebar {
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    box-shadow: 0 0 18px rgba(0,0,0,.15);
+  }
+  #sidebar.open { transform: translateX(0); }
+  .sidebar-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.35);
+    opacity: 0; visibility: hidden;
+    transition: opacity .2s ease, visibility .2s;
+    z-index: 1035;
+  }
+  .sidebar-backdrop.show { opacity: 1; visibility: visible; }
+  body.no-scroll { overflow: hidden; }
+}
+
+/* Mantengo tus colores y ajustes previos… */
 
 #page-header {
   position: fixed;
@@ -118,3 +204,24 @@ footer {
   border: 1px solid #dee2e6;
   border-radius: .5rem;
 }
+
+/* ===== Header responsive ===== */
+.header-logo { max-height: clamp(28px, 6vw, 50px); }
+.header-logo.tall { max-height: clamp(32px, 8vw, 80px); }
+
+@media (max-width: 992px) {
+  .brand-text { font-size: 1.5rem; }
+}
+
+@media (max-width: 576px) {
+  /* ocultar logos laterales en móviles: se queda solo SIIAPEC */
+  .header-logos-left,
+  .header-logos-right { display: none !important; }
+
+  /* aseguremos centrado perfecto del badge */
+  #page-header .brand-badge { margin-inline: auto; }
+  #page-header .d-flex.align-items-center.justify-content-between {
+    justify-content: center !important;
+  }
+}
+

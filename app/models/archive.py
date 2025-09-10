@@ -12,8 +12,9 @@ class Archive(db.Model):
     step_id = db.Column(db.Integer, db.ForeignKey('step.id'), nullable=False)
 
     step = db.relationship("Step", back_populates="archives")
+    submissions = db.relationship('Submission', back_populates='archive')
 
-    def __init__(self, name, description, file_path,step_id, is_downloadable=True, is_uploadable=True):
+    def __init__(self, name, description, file_path, step_id, is_downloadable=True, is_uploadable=True):
         self.name = name
         self.description = description
         self.file_path = file_path

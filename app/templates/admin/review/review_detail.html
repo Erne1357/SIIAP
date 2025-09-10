@@ -1,0 +1,49 @@
+{# templates/admin/review/review_detail.html #}
+{% extends 'base.html' %}
+{% block title %}Revisión de Documento #{{ sub.id }}{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/admin_review.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <a href="{{ url_for('admin.review.submissions') }}" class="btn btn-link mb-3">&larr; Volver al listado</a>
+    <h2 class="mb-4">Documento #{{ sub.id }} – {{ sub.archive.name }}</h2>
+
+    <div class="viewer-container mb-4">
+        {% set filename = sub.file_path.split('/')[-1] %}
+        {% set phase = sub.archive.step.phase.name %}
+
+        {% if filename.endswith('.pdf') %}
+        <iframe src="{{ url_for('files.user_doc',
+                        user_id=sub.user_id,
+                        phase=phase,
+                        filename=filename) }}" width="100%" height="600px" style="border: none;">
+        </iframe>
+        {% else %}
+        <div class="doc-info">
+            <p>Tipo de archivo: <strong>{{ filename.rsplit('.',1)[1]|upper }}</strong></p>
+            <a href="{{ url_for('files.user_doc',
+                             user_id=sub.user_id,
+                             phase=phase,
+                             filename=filename) }}" class="btn btn-primary">Descargar documento</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <form method="post" action="{{ url_for('admin.review.submission_action', sub_id=sub.id) }}">
+        <div class="mb-3">
+            <label for="comment" class="form-label">Comentario del revisor</label>
+            <textarea id="comment" name="comment" class="form-control" rows="4"
+                placeholder="Agrega un comentario…">{{ sub.reviewer_comment or '' }}</textarea>
+        </div>
+        <button type="submit" name="action" value="approve" class="btn btn-success me-2">Aprobar</button>
+        <button type="submit" name="action" value="reject" class="btn btn-danger btn-reject">Rechazar</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin/admin_review.css.js') }}?v={{ static_version }}"></script>
+{% endblock %}

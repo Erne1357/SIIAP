@@ -17,6 +17,10 @@ class Submission(db.Model):
     period = db.Column(db.String(50), nullable=True)
     semester = db.Column(db.Integer, nullable=True)
 
+    user          = db.relationship('User',foreign_keys=[user_id],back_populates='submissions')
+    reviewer      = db.relationship('User',foreign_keys=[reviewer_id],back_populates='reviews')
+    archive       = db.relationship('Archive',back_populates='submissions')
+    program_step  = db.relationship('ProgramStep',back_populates='submissions')
 
     def __init__(self, file_path, status, user_id, archive_id, program_step_id, period, semester, review_date=None, reviewer_id=None, reviewer_comment=None):
         self.file_path = file_path

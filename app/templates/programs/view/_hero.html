@@ -11,7 +11,7 @@
         </div>
         <div class="col-lg-6" data-aos="fade-left">
             <div class="program-image-container " >
-                <img src="{{ url_for('static', filename='assets/images/' ~ program.name ~ '.webp') }}" alt="{{ program.name }}" max-heigh="400px"
+                <img src="{{ url_for('static', filename='assets/images/' ~ program.name ~ '.webp') }}?v={{ static_version }}" alt="{{ program.name }}" max-heigh="400px"
                     class="img-fluid rounded-3 shadow-sm">
             </div>
         </div>
