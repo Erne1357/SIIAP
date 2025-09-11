@@ -13,50 +13,37 @@ def api_login():
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
-
     user = User.query.filter_by(username=username).first()
     if not user or not check_password_hash(user.password, password):
-        return jsonify({"data": None, "error": {"code": "INVALID_CREDENTIALS", "message": "Usuario o contraseña inválidos"}}), 401
+        return jsonify({"data": None, "error": {"code":"INVALID_CREDENTIALS","message":"Usuario o contraseña inválidos"}}), 401
 
     login_user(user)
     session['last_activity'] = datetime.now(timezone.utc).timestamp()
     user.last_login = datetime.now(timezone.utc)
     db.session.commit()
 
-    return jsonify({
-        "data": {
-            "id": user.id,
-            "username": user.username,
-            "role": getattr(getattr(user, "role", None), "name", None)
-        },
-        "error": None,
-        "meta": {}
-    }), 200
+    return jsonify({"data": {"id": user.id, "username": user.username, "role": getattr(getattr(user,"role",None),"name",None)}, "error": None, "meta": {}}), 200
 
 @api_auth_bp.post("/logout")
 @login_required
 def api_logout():
     logout_user()
+    # limpiar flashes (opcional)
+    session.pop('_flashes', None)
     return jsonify({"data": True, "error": None, "meta": {}}), 200
 
 @api_auth_bp.get("/me")
 @login_required
 def api_me():
     u = current_user
-    return jsonify({
-        "data": {
-            "id": u.id,
-            "username": u.username,
-            "email": u.email,
-            "first_name": u.first_name,
-            "last_name": u.last_name,
-            "role": getattr(getattr(u, "role", None), "name", None)
-        },
-        "error": None, "meta": {}
-    }), 200
+    return jsonify({"data": {
+        "id": u.id, "username": u.username, "email": u.email,
+        "first_name": u.first_name, "last_name": u.last_name,
+        "role": getattr(getattr(u,"role",None),"name",None)
+    }, "error": None, "meta": {}}), 200
 
-@api_auth_bp.get("/csrf")
-def api_csrf():
-    # útil si un cliente JS puro necesita pedir token antes del primer POST
-    from app.utils.csrf import generate_csrf_token
-    return jsonify({"data": {"csrf_token": generate_csrf_token()}, "error": None, "meta": {}}), 200
+@api_auth_bp.get("/keepalive")
+@login_required
+def api_keepalive():
+    session['last_activity'] = datetime.now(timezone.utc).timestamp()
+    return jsonify({"data": "OK", "error": None, "meta": {}}), 200
