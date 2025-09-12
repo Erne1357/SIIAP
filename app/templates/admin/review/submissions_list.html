@@ -87,7 +87,7 @@
             }}">{{ sub.status|capitalize }}</span>
           </td>
           <td>
-            <a href="{{ url_for('admin.review.submission_detail', sub_id=sub.id) }}"
+            <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
                class="btn btn-sm btn-outline-primary">Revisar</a>
           </td>
         </tr>
@@ -103,5 +103,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/admin_review.css.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/admin/admin_review.js') }}?v={{ static_version }}"></script>
 {% endblock %}

@@ -12,6 +12,8 @@
   <link href="{{ url_for('static', filename='css/session.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/base.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/auth/login-register.css') }}?v={{ static_version }}" rel="stylesheet">
+  <!-- Favicon -->
+  <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {% block styles %}{% endblock %}
 </head>
