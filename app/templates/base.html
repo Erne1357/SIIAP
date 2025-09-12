@@ -5,6 +5,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 
   <title>{% block title %}SIIAPEC{% endblock %}</title>
 
@@ -68,10 +69,11 @@
 
         <!-- Logos derecha -->
         <div class="header-logos header-logos-right d-none d-sm-flex align-items-center gap-3 flex-wrap">
-          <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}" alt="ITCJ"
-            class="img-fluid header-logo tall">
-          <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}?v={{ static_version }}" alt="Posgrado"
-            class="img-fluid header-logo tall">
+          <img
+            src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}"
+            alt="ITCJ" class="img-fluid header-logo tall">
+          <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}?v={{ static_version }}"
+            alt="Posgrado" class="img-fluid header-logo tall">
         </div>
       </div>
     </div>
@@ -106,11 +108,11 @@
 
       <nav class="nav flex-column py-4">
         <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %} color-tecnm"
-          href="{{ url_for('user.profile') }}">
+          href="{{ url_for('pages_user.profile') }}">
           <i class="fas fa-user me-2"></i>Perfil
         </a>
         <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %} color-tecnm"
-          href="{{ url_for('user.dashboard') }}">
+          href="{{ url_for('pages_user.dashboard') }}">
           <i class="fas fa-th-large me-2"></i>Dashboard
         </a>
         <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %} color-tecnm"
@@ -129,12 +131,12 @@
         </a>
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
         <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %} color-tecnm"
-          href="{{ url_for('admin.review.index') }}">
+          href="{{ url_for('pages_admin.pages_review.index') }}">
           <i class="fas fa-file-alt me-2"></i>Documentos
         </a>
         {% endif %}
         <hr class="mx-3">
-        <a class="nav-link text-danger mt-auto" href="{{ url_for('auth.logout') }}" data-no-swup>
+        <a href="#" class="nav-link text-danger js-api-logout" data-no-swup>
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
       </nav>
@@ -157,9 +159,9 @@
         </div>
         <nav class="nav flex-column">
           <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}"
-            href="{{ url_for('user.profile') }}" data-bs-dismiss="offcanvas"><i class="fas fa-user me-2"></i>Perfil</a>
+            href="{{ url_for('pages_user.profile') }}" data-bs-dismiss="offcanvas"><i class="fas fa-user me-2"></i>Perfil</a>
           <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
-            href="{{ url_for('user.dashboard') }}" data-bs-dismiss="offcanvas"><i
+            href="{{ url_for('pages_user.dashboard') }}" data-bs-dismiss="offcanvas"><i
               class="fas fa-th-large me-2"></i>Dashboard</a>
           <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
             href="{{ url_for('program.list_programs') }}" data-bs-dismiss="offcanvas"><i
@@ -173,12 +175,13 @@
             data-bs-dismiss="offcanvas"><i class="fas fa-calendar-alt me-2"></i>Permanencia</a>
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
           <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
-            href="{{ url_for('admin.review.index') }}" data-bs-dismiss="offcanvas"><i
+            href="{{ url_for('pages_admin.pages_review.index') }}" data-bs-dismiss="offcanvas"><i
               class="fas fa-file-alt me-2"></i>Documentos</a>
           {% endif %}
           <hr>
-          <a class="nav-link text-danger" href="{{ url_for('auth.logout') }}" data-no-swup
-            data-bs-dismiss="offcanvas"><i class="fas fa-sign-out-alt me-2" data-no-swup></i>Cerrar Sesión</a>
+          <a href="#" class="nav-link text-danger js-api-logout" data-no-swup data-bs-dismiss="offcanvas">
+            <i class="fas fa-sign-out-alt me-2" data-no-swup></i>Cerrar Sesión
+          </a>
         </nav>
       </div>
     </div>
@@ -218,8 +221,9 @@
 
   <!-- Session Timeout -->
   <script>
-    var sessionKeepaliveUrl = "{{ url_for('auth.keepalive') }}";
-    var sessionLogoutUrl = "{{ url_for('auth.logout') }}";
+    var sessionKeepaliveUrl = "{{ url_for('api_auth.api_keepalive') }}";
+    var sessionLogoutUrl = "{{ url_for('api_auth.api_logout') }}";
+    var loginPageUrl = "{{ url_for('pages_auth.login_page') }}";
     const userLoggedIn = "{{ 'true' if current_user.is_authenticated else 'false' }}";
   </script>
 
@@ -238,6 +242,41 @@
       const open = () => { sidebar.classList.add('open'); backdrop.classList.add('show'); document.body.classList.add('no-scroll'); }
       toggleBtn.addEventListener('click', () => sidebar.classList.contains('open') ? close() : open());
       backdrop.addEventListener('click', close);
+    })();
+  </script>
+  <script>
+    (function () {
+      const getCsrf = () => {
+        const el = document.querySelector('meta[name="csrf-token"]');
+        return el ? el.getAttribute('content') : '';
+      };
+
+      function wireLogout(selector) {
+        document.querySelectorAll(selector).forEach(el => {
+          el.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            try {
+              const res = await fetch("{{ url_for('api_auth.api_logout') }}", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "X-CSRF-Token": getCsrf() }
+              });
+              const json = await res.json().catch(() => ({}));
+              if (json.flash) {
+                json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
+              }
+              if (!res.ok) throw new Error("Error al cerrar sesión");
+            } catch (e) {
+              console.error(e);
+            } finally {
+              // Vayas como vayas, redirige a login
+              window.location.href = "{{ url_for('pages_auth.login_page') }}";
+            }
+          });
+        });
+      }
+
+      wireLogout('.js-api-logout');
     })();
   </script>
 

@@ -14,7 +14,7 @@ login_manager = LoginManager()
 
 def create_app(test_config=None):
      app = Flask(__name__, template_folder='templates', static_folder='static')
-     app.config["STATIC_VERSION"] = "1.0.41111111131"  
+     app.config["STATIC_VERSION"] = "1.0.41111111141"  
 
      Bootstrap(app)
 
@@ -27,7 +27,7 @@ def create_app(test_config=None):
      register_blueprints(app)
      # Inicializar y configurar el LoginManager
      login_manager.init_app(app)
-     login_manager.login_view = 'auth.login'  #  Redirige al login si no está autenticado
+     login_manager.login_view = 'pages_auth.login_page'  #  Redirige al login si no está autenticado
      login_manager.login_message = "Por favor, inicia sesión para acceder a esta página."
 
      migrate = Migrate(app, db)
@@ -80,26 +80,40 @@ def create_app(test_config=None):
      @app.route('/')
      def index():
           if not current_user.is_authenticated:
-               return redirect(url_for('auth.login'))
-          return redirect(url_for('user.dashboard'))
+               return redirect(url_for('pages_auth.login_page'))
+          return redirect(url_for('pages_user.dashboard'))
      
      
      return app
 
 def register_blueprints(app):
+     #Registrarr apis
      from app.routes.api.auth_api import api_auth_bp
+     from app.routes.api.programs_api import api_programs
+     from app.routes.api.admission_api import api_admission
+     from app.routes.api.submissions_api import api_submissions
+     from app.routes.api.files_api import api_files
+     from app.routes.api.users_api import api_users
+     from app.routes.api.admin.review_api import api_review
      app.register_blueprint(api_auth_bp)
-# Registrar blueprints
-     from app.routes.auth import auth as auth_blueprint
-     from app.routes.user import user as user_blueprint
-     from app.routes.program.program import program_bp as program_blueprint
-     from app.routes.files import bp_files as files_blueprint
-     from app.routes.admin.admin import admin_bp as admin_blueprint
-     app.register_blueprint(auth_blueprint)  
-     app.register_blueprint(user_blueprint, url_prefix='/user')
-     app.register_blueprint(program_blueprint, url_prefix='/programs')
-     app.register_blueprint(files_blueprint, url_prefix='/files')
-     app.register_blueprint(admin_blueprint)
+     app.register_blueprint(api_programs)
+     app.register_blueprint(api_admission)
+     app.register_blueprint(api_submissions)
+     app.register_blueprint(api_files)
+     app.register_blueprint(api_users)
+     app.register_blueprint(api_review)
+
+
+     #Registrar páginas
+     from app.routes.pages.auth import pages_auth
+     from app.routes.pages.programs_pages import program_bp
+     from app.routes.pages.users_pages import pages_user
+     from app.routes.pages.admin.admin_pages import pages_admin
+     app.register_blueprint(pages_auth)
+     app.register_blueprint(program_bp)
+     app.register_blueprint(pages_user)
+     app.register_blueprint(pages_admin)
+
 
 
 app = create_app()
