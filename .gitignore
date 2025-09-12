@@ -70,3 +70,6 @@ instance/
 
 #Pruebas con archivos sensibles 
 tests/prueba.py
+
+#database
+database/
