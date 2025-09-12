@@ -13,13 +13,13 @@ pages_auth = Blueprint("pages_auth", __name__)
 def login_page():
     if current_user.is_authenticated:
         # si ya está logueado, llévalo a su dashboard
-        return redirect(url_for("user.dashboard"))
+        return redirect(url_for("pages_user.dashboard"))
     return render_template("auth/login.html")
 
 @pages_auth.route("/register", methods=["GET", "POST"])
 def register_page():
     if current_user.is_authenticated:
-        return redirect(url_for("user.dashboard"))
+        return redirect(url_for("pages_user.dashboard"))
 
     if request.method == "POST":
         first_name = (request.form.get("first_name") or "").strip()

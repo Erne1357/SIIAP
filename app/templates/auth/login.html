@@ -67,7 +67,7 @@
     const password = document.getElementById('password').value;
     try {
       await api('/auth/login', { method: 'POST', body: { username, password } });
-      window.location.href = "{{ url_for('user.dashboard') }}";
+      window.location.href = "{{ url_for('pages_user.dashboard') }}";
     } catch (err) {
       alert(err?.message || 'Error de autenticación');
     }

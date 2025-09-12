@@ -31,8 +31,9 @@
                         </div>
                         <div class="col-md-9">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h2 class="mb-0">{{ current_user.first_name }} {{ current_user.last_name }} 
-                                    {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{% endif %}</h2>
+                                <h2 class="mb-0">{{ current_user.first_name }} {{ current_user.last_name }}
+                                    {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{% endif %}
+                                </h2>
                                 <button class="btn btn-primary" data-bs-toggle="modal"
                                     data-bs-target="#editProfileModal">
                                     <i class="bi bi-pencil-fill me-2"></i>
@@ -174,7 +175,9 @@
                 <h5 class="modal-title" id="editProfileModalLabel">Editar perfil</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ url_for('user.profile') }}" method="POST">
+
+            {# Cambios aquí: sin action, con data-profile-update para que lo intercepte el JS #}
+            <form id="profileForm" data-profile-update="true">
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-4">
@@ -196,9 +199,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">
-                        Guardar cambios
-                    </button>
+                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
                 </div>
             </form>
         </div>

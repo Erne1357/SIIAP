@@ -19,6 +19,9 @@ export async function api(path, { method = 'GET', headers = {}, body } = {}) {
 
   const res = await fetch(`/api/v1${path}`, opts);
   const json = await res.json().catch(() => ({}));
+  if (json.flash) {
+    json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
+  }
   if (!res.ok) throw json.error || { code: 'HTTP_ERROR', message: res.statusText };
   return json.data;
 }

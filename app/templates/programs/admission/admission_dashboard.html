@@ -37,15 +37,15 @@
         {% if seq != 0 %}{{ seq }}. {% endif %}{{ step.name }}
         {# Iconos de estado #}
         {%if seq !=0 %}
-          {% if locked %}
-          <i class="fas fa-lock ms-1"></i>
-          {% elif state=='approved' %}
-          <i class="fas fa-check-circle ms-1 text-success"></i>
-          {% elif state=='rejected' %}
-          <i class="fas fa-times-circle ms-1 text-danger"></i>
-          {% elif state=='pending' %}
-          <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
-          {% endif %}
+        {% if locked %}
+        <i class="fas fa-lock ms-1"></i>
+        {% elif state=='approved' %}
+        <i class="fas fa-check-circle ms-1 text-success"></i>
+        {% elif state=='rejected' %}
+        <i class="fas fa-times-circle ms-1 text-danger"></i>
+        {% elif state=='pending' %}
+        <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
+        {% endif %}
         {% endif %}
       </button>
     </li>
@@ -71,14 +71,23 @@
 <!-- Modal para subir archivos -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <form method="POST" enctype="multipart/form-data" class="modal-content">
+    <!-- IMPORTANTE: data-admission-upload="true" para que el JS lo intercepte -->
+    <form method="POST" enctype="multipart/form-data" class="modal-content" data-admission-upload="true">
       <div class="modal-header">
         <h5 class="modal-title" id="uploadLabel">Subir documento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
+        <!-- El JS setea este valor al abrir el modal -->
         <input type="hidden" name="archive_id" id="archiveIdInput">
-        <input type="file" class="form-control" name="file" required>
+        <input type="hidden" name="program_id" id="programIdInput" value="{{ program.id }}">
+        <div class="mb-2">
+          <label class="form-label">Archivo</label>
+          <!-- respeta tus extensiones permitidas -->
+          <input type="file" class="form-control" name="file" required
+            accept=".pdf">
+          <div class="form-text">Formatos permitidos: PDF, DOC, DOCX, XLSX (máx. 3MB).</div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
