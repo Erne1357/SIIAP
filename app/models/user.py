@@ -51,7 +51,7 @@ class User(db.Model, UserMixin):
     @property
     def avatar_url(self):
         if self.avatar and self.avatar != 'default.jpg':
-            return url_for('files.avatar', user_id=self.id, filename=self.avatar)
+            return url_for('api_files.avatar', user_id=self.id, filename=self.avatar)
         return url_for('static', filename='assets/images/default.jpg')
     
     def has_role(self, *role_names):

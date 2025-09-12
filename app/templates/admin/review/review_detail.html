@@ -8,7 +8,8 @@
 
 {% block content %}
 <div class="container py-4">
-    <a href="{{ url_for('admin.review.submissions') }}" class="btn btn-link mb-3">&larr; Volver al listado</a>
+    <a href="{{ url_for('pages_admin.pages_review.submissions') }}" class="btn btn-link mb-3">&larr; Volver al
+        listado</a>
     <h2 class="mb-4">Documento #{{ sub.id }} – {{ sub.archive.name }}</h2>
 
     <div class="viewer-container mb-4">
@@ -16,7 +17,7 @@
         {% set phase = sub.archive.step.phase.name %}
 
         {% if filename.endswith('.pdf') %}
-        <iframe src="{{ url_for('files.user_doc',
+        <iframe src="{{ url_for('api_files.user_doc',
                         user_id=sub.user_id,
                         phase=phase,
                         filename=filename) }}" width="100%" height="600px" style="border: none;">
@@ -24,7 +25,7 @@
         {% else %}
         <div class="doc-info">
             <p>Tipo de archivo: <strong>{{ filename.rsplit('.',1)[1]|upper }}</strong></p>
-            <a href="{{ url_for('files.user_doc',
+            <a href="{{ url_for('api_files.user_doc',
                              user_id=sub.user_id,
                              phase=phase,
                              filename=filename) }}" class="btn btn-primary">Descargar documento</a>
@@ -32,18 +33,19 @@
         {% endif %}
     </div>
 
-    <form method="post" action="{{ url_for('admin.review.submission_action', sub_id=sub.id) }}">
+    <form id="decisionForm" data-review-form="true" data-sub-id="{{ sub.id }}"
+        data-next-url="{{ url_for('pages_admin.pages_review.submissions') }}">
         <div class="mb-3">
             <label for="comment" class="form-label">Comentario del revisor</label>
             <textarea id="comment" name="comment" class="form-control" rows="4"
                 placeholder="Agrega un comentario…">{{ sub.reviewer_comment or '' }}</textarea>
         </div>
-        <button type="submit" name="action" value="approve" class="btn btn-success me-2">Aprobar</button>
-        <button type="submit" name="action" value="reject" class="btn btn-danger btn-reject">Rechazar</button>
+        <button type="submit" class="btn btn-success me-2" data-action="approve">Aprobar</button>
+        <button type="submit" class="btn btn-danger btn-reject" data-action="reject">Rechazar</button>
     </form>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/admin_review.css.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/admin/admin_review.js') }}?v={{ static_version }}"></script>
 {% endblock %}
