@@ -95,6 +95,11 @@ def register_blueprints(app):
      from app.routes.api.files_api import api_files
      from app.routes.api.users_api import api_users
      from app.routes.api.admin.review_api import api_review
+     from app.routes.api.extensions_api import api_extensions
+     from app.routes.api.events_api import api_events
+     from app.routes.api.appointments_api import api_appointments
+     from app.routes.api.program_changes_api import api_program_changes
+     from app.routes.api.retention_api import api_retention
      app.register_blueprint(api_auth_bp)
      app.register_blueprint(api_programs)
      app.register_blueprint(api_admission)
@@ -102,6 +107,11 @@ def register_blueprints(app):
      app.register_blueprint(api_files)
      app.register_blueprint(api_users)
      app.register_blueprint(api_review)
+     app.register_blueprint(api_extensions)
+     app.register_blueprint(api_events)
+     app.register_blueprint(api_appointments)
+     app.register_blueprint(api_program_changes)
+     app.register_blueprint(api_retention)
 
 
      #Registrar páginas

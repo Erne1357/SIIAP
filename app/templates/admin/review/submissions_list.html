@@ -17,9 +17,9 @@
       <select name="applicant_id" class="form-select">
         <option value="">Todos</option>
         {% for user in applicants %}
-          <option value="{{ user.id }}" {% if filters.applicant_id == user.id %}selected{% endif %}>
-            {{ user.first_name }} {{ user.last_name }}
-          </option>
+        <option value="{{ user.id }}" {% if filters.applicant_id==user.id %}selected{% endif %}>
+          {{ user.first_name }} {{ user.last_name }}
+        </option>
         {% endfor %}
       </select>
     </div>
@@ -28,9 +28,9 @@
       <select name="program_id" class="form-select">
         <option value="">Todos</option>
         {% for program in programs %}
-          <option value="{{ program.id }}" {% if filters.program_id == program.id %}selected{% endif %}>
-            {{ program.name }}
-          </option>
+        <option value="{{ program.id }}" {% if filters.program_id==program.id %}selected{% endif %}>
+          {{ program.name }}
+        </option>
         {% endfor %}
       </select>
     </div>
@@ -38,9 +38,19 @@
       <label class="form-label">Estado</label>
       <select name="status" class="form-select">
         {% for option in ['pending','review','approved','rejected'] %}
-          <option value="{{ option }}" {% if filters.status == option %}selected{% endif %}>
-            {{ option|capitalize }}
-          </option>
+        <option value="{{ option }}" {% if filters.status==option %}selected{% endif %}>
+          {% if option =='pending'%}
+          Pendiente
+          {% elif option =='review'%}
+          En revisión
+          {% elif option =='approved'%}
+          Aprobado
+          {% elif option =='rejected'%}
+          Rechazado
+          {% else %}
+          {{ option|capitalize }}
+          {% endif %}
+        </option>
         {% endfor %}
       </select>
     </div>
@@ -48,7 +58,7 @@
       <label class="form-label">Orden</label>
       <select name="sort" class="form-select">
         <option value="desc" {% if filters.sort=='desc' %}selected{% endif %}>Más recientes</option>
-        <option value="asc"  {% if filters.sort=='asc'  %}selected{% endif %}>Más antiguos</option>
+        <option value="asc" {% if filters.sort=='asc' %}selected{% endif %}>Más antiguos</option>
       </select>
     </div>
     <div class="col-auto align-self-end">
@@ -84,11 +94,21 @@
               sub.status=='rejected' and 'danger' or 
               sub.status=='review' and 'warning' or 
               'secondary' 
-            }}">{{ sub.status|capitalize }}</span>
+            }}">{% if sub.status =='pending'%}
+              Pendiente
+              {% elif sub.status =='review'%}
+              En revisión
+              {% elif sub.status =='approved'%}
+              Aprobado
+              {% elif sub.status =='rejected'%}
+              Rechazado
+              {% else %}
+              {{ sub.status|capitalize }}
+              {% endif %}</span>
           </td>
           <td>
             <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
-               class="btn btn-sm btn-outline-primary">Revisar</a>
+              class="btn btn-sm btn-outline-primary">Revisar</a>
           </td>
         </tr>
         {% else %}

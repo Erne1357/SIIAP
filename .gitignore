@@ -73,3 +73,6 @@ tests/prueba.py
 
 #database
 database/
+
+#Variables de entorno
+.env
