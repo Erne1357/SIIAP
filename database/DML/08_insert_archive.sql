@@ -12,7 +12,7 @@ INSERT INTO archive (name, description, file_path, is_downloadable,is_uploadable
 --5
 ('Entrevista','Entrevista con Comité de Admisión.',null,FALSE,FALSE,6),
 --6
-('Comprobante Inglés','Comprobante Inglés ≥ 400 puntos TOEFL o  nivel IV del Centro de Lenguas Extranjeras del ITCJ.',null,FALSE,TRUE,2),
+('Comprobante Inglés','Comprobante Inglés ≥ 400 puntos TOEFL o  nivel IV del Centro de Lenguas Extranjeras del ITCJ o equivalente.',null,FALSE,TRUE,2),
 --7
 ('Certificado de Licenciatura.','Certificado de Estudios de Licenciatura.',null,FALSE,TRUE,2),
 --8
@@ -26,7 +26,7 @@ INSERT INTO archive (name, description, file_path, is_downloadable,is_uploadable
 --12
 ('Titulo','Titulo de Maestría o Acta de Examen de Grado.',null,FALSE,TRUE,5),
 --13
-('Comprobante de Inglés','Comprobante de Inglés≥450 puntos TOEFL.',null,FALSE,TRUE,5),
+('Comprobante de Inglés','Comprobante de Inglés≥450 puntos TOEFL O equivalente.',null,FALSE,TRUE,5),
 --14
 ('Examen de conocimientos','Acreditar examen de conocimientos: Matemáticas / Probabilidad y Estadística. Para el doctorado',null,FALSE,TRUE,5),
 --15

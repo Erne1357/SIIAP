@@ -1,4 +1,4 @@
-# docker/Dockerfile (antes docker/dockerfile)
+# docker/Dockerfile 
 FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
