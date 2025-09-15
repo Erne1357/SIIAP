@@ -135,6 +135,13 @@
           <i class="fas fa-file-alt me-2"></i>Documentos
         </a>
         {% endif %}
+        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+        <hr class="mx-3">
+        <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %} color-tecnm"
+          href="{{ url_for('pages_admin.pages_settings.index') }}">
+          <i class="fas fa-cog me-2"></i>Configuración
+        </a>
+        {% endif %}
         <hr class="mx-3">
         <a href="#" class="nav-link text-danger js-api-logout" data-no-swup>
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
@@ -177,6 +184,12 @@
           <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
             href="{{ url_for('pages_admin.pages_review.index') }}" data-bs-dismiss="offcanvas"><i
               class="fas fa-file-alt me-2"></i>Documentos</a>
+          {% endif %}
+          {% if current_user.role.name in ['program_admin', 'postgraduate_admin']%}
+          <hr>
+          <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+            href="{{ url_for('pages_admin.pages_settings.index') }}" data-bs-dismiss="offcanvas"><i
+              class="fas fa-cog me-2"></i>Configuración</a>
           {% endif %}
           <hr>
           <a href="#" class="nav-link text-danger js-api-logout" data-no-swup data-bs-dismiss="offcanvas">

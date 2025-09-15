@@ -14,7 +14,7 @@ login_manager = LoginManager()
 
 def create_app(test_config=None):
      app = Flask(__name__, template_folder='templates', static_folder='static')
-     app.config["STATIC_VERSION"] = "1.0.41111111141"  
+     app.config["STATIC_VERSION"] = "1.0.41111111143"  
 
      Bootstrap(app)
 
@@ -100,6 +100,7 @@ def register_blueprints(app):
      from app.routes.api.appointments_api import api_appointments
      from app.routes.api.program_changes_api import api_program_changes
      from app.routes.api.retention_api import api_retention
+     from app.routes.api.archives_api import api_archives
      app.register_blueprint(api_auth_bp)
      app.register_blueprint(api_programs)
      app.register_blueprint(api_admission)
@@ -112,6 +113,7 @@ def register_blueprints(app):
      app.register_blueprint(api_appointments)
      app.register_blueprint(api_program_changes)
      app.register_blueprint(api_retention)
+     app.register_blueprint(api_archives)
 
 
      #Registrar páginas

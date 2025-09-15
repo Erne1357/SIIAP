@@ -16,7 +16,7 @@ INSERT INTO archive (name, description, file_path, is_downloadable,is_uploadable
 --7
 ('Certificado de Licenciatura.','Certificado de Estudios de Licenciatura.',null,FALSE,TRUE,2),
 --8
-('Titulo','Titulo de Licenciatura o Acta de Examen de Grado.','/uploads/titulo_de_licenciatura_o_acta_de_examen_de_grado.pdf',FALSE,TRUE,2),
+('Titulo','Titulo de Licenciatura o Acta de Examen de Grado.',null,FALSE,TRUE,2),
 --9
 ('Examen de conocimientos','Acreditar examen de conocimientos: Matemáticas y Probabilidad y Estadística. Para las maestrías de Ingeniería Industrial/Administrativa',null,TRUE,TRUE,3),
 --10
