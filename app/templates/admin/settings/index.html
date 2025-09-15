@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Configuración{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="h3 mb-4">Configuración</h1>
+
+  <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-archives" data-bs-toggle="tab" data-bs-target="#pane-archives" type="button" role="tab">Archivos</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-retention" data-bs-toggle="tab" data-bs-target="#pane-retention" type="button" role="tab">Retención (sensible)</button>
+    </li>
+  </ul>
+
+  <div class="tab-content border-start border-end border-bottom p-3 bg-white">
+    <!-- ========== ARCHIVOS ========== -->
+    <div class="tab-pane fade show active" id="pane-archives" role="tabpanel" aria-labelledby="tab-archives">
+      <div class="d-flex align-items-center mb-3 gap-2">
+        <button id="btnNew" class="btn btn-success"><i class="fa fa-plus me-1"></i>Nuevo archivo</button>
+        <input id="search" type="search" class="form-control" placeholder="Buscar por nombre/step…" style="max-width: 360px;">
+        <button id="btnReload" class="btn btn-outline-secondary">Recargar</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle" id="tblArchives">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 28%">Archivo</th>
+              <th style="width: 18%">Step</th>
+              <th class="text-center">Sube Alumno</th>
+              <th class="text-center">Descargable</th>
+              <th class="text-center">Coord. Puede subir</th>
+              <th class="text-center">Permitir Prórroga</th>
+              <th style="width: 18%">Plantilla</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyArchives">
+            <tr><td colspan="8" class="text-center text-muted py-4">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="alerts" class="mt-3"></div>
+    </div>
+
+    <!-- ========== RETENCIÓN ========== -->
+    <div class="tab-pane fade" id="pane-retention" role="tabpanel" aria-labelledby="tab-retention">
+      <div class="alert alert-warning">
+        Cambios aquí impactan la eliminación automática de archivos. Revisa dos veces antes de guardar.
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="card">
+            <div class="card-header">Políticas configuradas</div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle" id="tblPolicies">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Archivo</th>
+                      <th class="text-center">Mantener siempre</th>
+                      <th class="text-center">Años</th>
+                      <th>Aplicar después de</th>
+                      <th class="text-end">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyPolicies">
+                    <tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div id="alertsRetention" class="mt-3"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="card">
+            <div class="card-header">Nueva/Editar política</div>
+            <div class="card-body">
+              <form id="formPolicy" autocomplete="off">
+                <input type="hidden" id="polId">
+                <div class="mb-3">
+                  <label class="form-label">Archivo</label>
+                  <select id="polArchive" class="form-select"></select>
+                </div>
+                <div class="form-check form-switch mb-3">
+                  <input class="form-check-input" type="checkbox" id="polForever">
+                  <label class="form-check-label" for="polForever">Mantener para siempre</label>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Años a conservar (si no es para siempre)</label>
+                  <input type="number" min="1" step="1" id="polYears" class="form-control" placeholder="Ej. 4">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Aplicar después de</label>
+                  <select id="polAfter" class="form-select">
+                    <option value="graduated">Graduación</option>
+                    <option value="dropped">Baja/Desistimiento</option>
+                    <option value="enrollment">Inscripción</option>
+                  </select>
+                </div>
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">Guardar</button>
+                  <button type="button" id="btnReset" class="btn btn-outline-secondary">Limpiar</button>
+                  <button type="button" id="btnDelete" class="btn btn-outline-danger d-none">Eliminar</button>
+                  <button type="button" id="btnCandidates" class="btn btn-outline-secondary ms-auto">Ver candidatos…</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal subir plantilla -->
+<div class="modal fade" id="modalTemplate" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="formTemplate">
+      <div class="modal-header">
+        <h5 class="modal-title">Subir plantilla</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tplArchiveId">
+        <div class="mb-3">
+          <label class="form-label">Archivo</label>
+          <input type="file" id="tplFile" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.txt">
+          <div class="form-text">Formatos comunes: PDF, DOCX, XLSX…</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Subir</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal nuevo/editar archivo -->
+<div class="modal fade" id="modalEdit" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="formEdit">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editTitle">Nuevo archivo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editId">
+        <div class="mb-3">
+          <label class="form-label">Nombre</label>
+          <input type="text" id="editName" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Descripción</label>
+          <textarea id="editDesc" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Step</label>
+          <select id="editStep" class="form-select" required></select>
+          <div class="form-text">Solo verás los steps que puedes administrar.</div>
+        </div>
+        <div class="row g-2">
+          <div class="col">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="editIsUploadable">
+              <label class="form-check-label" for="editIsUploadable">Sube Alumno</label>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="editIsDownloadable">
+              <label class="form-check-label" for="editIsDownloadable">Descargable</label>
+            </div>
+          </div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="editAllowCoord">
+              <label class="form-check-label" for="editAllowCoord">Coord. puede subir</label>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="editAllowExt">
+              <label class="form-check-label" for="editAllowExt">Permitir prórroga</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal eliminar -->
+<div class="modal fade" id="modalDelete" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="formDelete">
+      <div class="modal-header">
+        <h5 class="modal-title">Eliminar archivo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="delId">
+        <p class="mb-2">¿Seguro que deseas eliminar este archivo?</p>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="delForce">
+          <label class="form-check-label" for="delForce">Eliminar forzado (también si tiene submissions)</label>
+        </div>
+        <div class="text-muted small mt-2">Esta acción no se puede deshacer.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancelar</button>
+        <button class="btn btn-danger" type="submit">Eliminar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  #tblArchives td, #tblArchives th { vertical-align: middle; }
+  .toggle-cell { text-align: center; }
+  .template-link { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display:inline-block; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{url_for('static',filename='js/admin/settings/index.js')}}"></script>
+<script src="{{url_for('static',filename='js/admin/settings/retention.js')}}"></script>
+{% endblock %}
