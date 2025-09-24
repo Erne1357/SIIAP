@@ -14,7 +14,7 @@ login_manager = LoginManager()
 
 def create_app(test_config=None):
      app = Flask(__name__, template_folder='templates', static_folder='static')
-     app.config["STATIC_VERSION"] = "1.0.41111111143"  
+     app.config["STATIC_VERSION"] = "1.0.41111111145"  
 
      Bootstrap(app)
 
@@ -69,6 +69,29 @@ def create_app(test_config=None):
      @app.before_request
      def _csrf_guard_api():
           validate_csrf_for_api()  # protege la API con token
+          session.permanent = True
+          now_ts = datetime.now(timezone.utc).timestamp()
+          last_activity = session.get('last_activity')
+
+          # Endpoints que NO deben ser bloqueados por expiración
+          safe_endpoints = {
+               'pages_auth.login',           # render del login
+               'api_auth.api_logout',        # logout explícito
+               'api_auth.api_keepalive',     # keepalive
+          }
+
+          if current_user.is_authenticated and last_activity:
+               if now_ts - last_activity > 15 * 60:  # 15 min
+                    logout_user()
+                    session.pop('last_activity', None)
+                    if request.endpoint in safe_endpoints:
+                         return  # deja pasar
+                    flash("Tu sesión ha expirado por inactividad.", "warning")
+                    return redirect(url_for('pages_auth.login'))
+
+          # refresca actividad sólo si el usuario está autenticado
+          if current_user.is_authenticated:
+               session['last_activity'] = now_ts
 
      @app.context_processor
      def inject_tokens_and_version():

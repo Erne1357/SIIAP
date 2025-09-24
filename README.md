@@ -1,4 +1,4 @@
-# SIIAPEC – Sistema Integral de Información - Admisión, PErmanencias y Conclusión
+# SIIAP – Sistema Integral de Información - Admisión, PErmanencias y Conclusión
 
 > Gestión unificada de **admisión → permanencia → conclusión**, 100 % web y container‑ready.
 
@@ -10,7 +10,7 @@
 ---
 
 ## Tabla de Contenidos
-1. [¿Qué es SIIAPEC?](#qué-es-siiapec)
+1. [¿Qué es SIIAP?](#qué-es-siiapec)
 2. [Características clave](#características-clave)
 3. [Arquitectura](#arquitectura)
 4. [Tecnologías](#tecnologías)
@@ -24,7 +24,7 @@
 
 ---
 
-## ¿Qué es SIIAPEC?
+## ¿Qué es SIIAP?
 Plataforma web para la **División de Posgrados** del TecNM‑ITCJ que digitaliza el ciclo completo de un alumno:
 
 * **Admisión** – carga y validación de requisitos.  

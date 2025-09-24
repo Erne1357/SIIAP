@@ -1,5 +1,5 @@
 # app/routes/api/auth_api.py
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session,redirect, url_for
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime, timezone
 from werkzeug.security import check_password_hash
@@ -24,13 +24,25 @@ def api_login():
 
     return jsonify({"data": {"id": user.id, "username": user.username, "role": getattr(getattr(user,"role",None),"name",None)}, "error": None, "meta": {}}), 200
 
-@api_auth_bp.post("/logout")
+@api_auth_bp.route('/logout', methods=['GET', 'POST'])
 @login_required
 def api_logout():
-    logout_user()
-    # limpiar flashes (opcional)
+    """
+    - GET: permite usar <a href="..."> para cerrar sesión y redirigir a /login
+    - POST: usado por JS (session timeout) => responde JSON
+    """
     session.pop('_flashes', None)
-    return jsonify({"data": True, "error": None, "meta": {}}), 200
+    logout_user()
+    session.pop('last_activity', None)
+
+    if request.method == 'GET':
+        return redirect(url_for('pages_auth.login'))
+
+    return jsonify({
+        "data": None,
+        "flash": [{"level": "info", "message": "Has cerrado sesión."}],
+        "error": None, "meta": {}
+    }), 200
 
 @api_auth_bp.get("/me")
 @login_required
