@@ -1,6 +1,5 @@
 (() => {
   const API = "/api/v1";
-  // Tabla Archivos
   const tblBody = document.getElementById("tbodyArchives");
   const alerts = document.getElementById("alerts");
   const search = document.getElementById("search");
@@ -34,6 +33,7 @@
 
   let cached = [];
   let steps = []; // steps permitidos para el usuario actual
+  let stepTabs = [];
 
   function flash(msg, type="success", target=alerts) {
     const el = document.createElement("div");
@@ -46,7 +46,6 @@
   function stepName(step_id) {
     const s = steps.find(x => x.id === step_id);
     return s ? `${s.name} · ${s.phase_name}` : "";
-    // si el archivo no cae en steps permitidos (coordinador) no aparecería en la lista
   }
 
   function rowTemplate(a) {
@@ -75,8 +74,55 @@
     const res = await fetch(`${API}/archives/steps?scope=permitted`, { credentials: "same-origin" });
     const data = await res.json();
     steps = data.items || [];
-    // llenar selects de modales
-    editStep.innerHTML = steps.map(s => `<option value="${s.id}">${s.name} · ${s.phase_name}</option>`).join("");
+    stepTabs = ["Admisión", "Permanencia", "Conclusión"];
+    renderTabs(stepTabs);
+  }
+
+  function renderTabs(tabs) {
+    const tabsContainer = document.getElementById('stepsTabContent');
+    tabsContainer.innerHTML = "";
+    tabs.forEach((tab, idx) => {
+      const tabId = `tab-${idx}`;
+      const tabPaneId = `pane-${idx}`;
+      tabsContainer.innerHTML += `
+        <ul class="nav nav-pills" id="${tabId}" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="btn-${tabId}" data-bs-toggle="pill" data-bs-target="#${tabPaneId}" type="button" role="tab">${tab}</button>
+          </li>
+        </ul>
+        <div class="tab-pane fade show active" id="${tabPaneId}" role="tabpanel" aria-labelledby="btn-${tabId}">
+          <div class="table-responsive" id="table-${tabPaneId}">
+            <!-- Tabla para los pasos cargados -->
+          </div>
+        </div>`;
+      renderStepTable(tab);
+    });
+  }
+
+  function renderStepTable(tabName) {
+    const tableId = `table-${tabName}`;
+    const stepTable = document.getElementById(tableId);
+    const filteredSteps = steps.filter(step => step.phase_name === tabName);
+    stepTable.innerHTML = `
+      <table class="table table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Pasos</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredSteps.map(step => `
+            <tr>
+              <td>${step.name}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-primary btn-edit">Editar</button>
+                <button class="btn btn-sm btn-outline-danger btn-delete">Eliminar</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   async function loadArchives() {
@@ -95,8 +141,8 @@
   function render() {
     const q = (search.value || "").trim().toLowerCase();
     const items = !q ? cached : cached.filter(a =>
-      (a.name||'').toLowerCase().includes(q) ||
-      (a.step_name||'').toLowerCase().includes(q)
+      (a.name || '').toLowerCase().includes(q) ||
+      (a.step_name || '').toLowerCase().includes(q)
     );
     if (!items.length) {
       tblBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Sin resultados</td></tr>`;
@@ -168,7 +214,6 @@
       editIsDownloadable.checked = !!row.is_downloadable;
       editAllowCoord.checked = !!row.allow_coordinator_upload;
       editAllowExt.checked = !!row.allow_extension_request;
-      // step: si el step no está en lista (caso admin con scope limitado), lo agregamos temporalmente
       if (!steps.find(s => s.id === row.step_id)) {
         const opt = document.createElement("option");
         opt.value = row.step_id;

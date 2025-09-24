@@ -12,6 +12,6 @@ COPY database/DML/0*.sql  /docker-entrypoint-initdb.d/
 # Variables de entorno
 ENV POSTGRES_USER=postgres
 ENV POSTGRES_PASSWORD=password
-ENV POSTGRES_DB=SIIAPEC
+ENV POSTGRES_DB=SIIAP
 
 EXPOSE 5432

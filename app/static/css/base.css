@@ -75,7 +75,7 @@ body {
   .brand-text { font-size: clamp(1.15rem, 2.8vw, 1.6rem); }
 }
 @media (max-width: 576px) {
-  /* móvil: oculta todos los logos, deja solo SIIAPEC */
+  /* móvil: oculta todos los logos, deja solo SIIAP */
   .header-logos { display: none !important; }
   :root { --header-h: 72px; } /* reduce header en móvil */
 }
@@ -214,7 +214,7 @@ footer {
 }
 
 @media (max-width: 576px) {
-  /* ocultar logos laterales en móviles: se queda solo SIIAPEC */
+  /* ocultar logos laterales en móviles: se queda solo SIIAP */
   .header-logos-left,
   .header-logos-right { display: none !important; }
 
