@@ -71,27 +71,41 @@
 <!-- Modal para subir archivos -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <!-- IMPORTANTE: data-admission-upload="true" para que el JS lo intercepte -->
     <form method="POST" enctype="multipart/form-data" class="modal-content" data-admission-upload="true">
       <div class="modal-header">
-        <h5 class="modal-title" id="uploadLabel">Subir documento</h5>
+        <h5 class="modal-title" id="uploadLabel">Subir Documento</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <!-- El JS setea este valor al abrir el modal -->
         <input type="hidden" name="archive_id" id="archiveIdInput">
         <input type="hidden" name="program_id" id="programIdInput" value="{{ program.id }}">
-        <div class="mb-2">
-          <label class="form-label">Archivo</label>
-          <!-- respeta tus extensiones permitidas -->
-          <input type="file" class="form-control" name="file" required
-            accept=".pdf">
-          <div class="form-text">Formatos permitidos: PDF, DOC, DOCX, XLSX (máx. 3MB).</div>
+        
+        <!-- Información del archivo existente -->
+        <div id="existingFileInfo" class="alert alert-info d-none">
+          <h6><i class="fas fa-info-circle"></i> Archivo Existente</h6>
+          <p class="mb-1"><strong>Documento:</strong> <span id="existingArchiveName"></span></p>
+          <p class="mb-1"><strong>Archivo actual:</strong> <span id="existingFilename"></span></p>
+          <p class="mb-0"><strong>Subido el:</strong> <span id="existingDate"></span></p>
+          <hr>
+          <p class="mb-0 small text-warning">
+            <i class="fas fa-exclamation-triangle"></i> 
+            Al subir un nuevo archivo, se reemplazará el anterior de forma permanente.
+          </p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Seleccionar Archivo</label>
+          <input type="file" class="form-control" name="file" required accept=".pdf">
+          <div class="form-text">
+            Formatos permitidos: PDF únicamente. Tamaño máximo: 3MB.
+          </div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Subir</button>
+        <button type="submit" class="btn btn-primary" id="uploadSubmitBtn">
+          <span id="uploadBtnText">Subir</span>
+        </button>
       </div>
     </form>
   </div>

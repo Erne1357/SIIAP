@@ -126,6 +126,12 @@
           <i class="fas fa-clipboard-list me-2"></i>Admisión
         </a>
         {% endif %}
+        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+        <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %} color-tecnm"
+          href="{{ url_for('pages_coordinator.dashboard') }}">
+          <i class="fas fa-users me-2"></i>Coordinación
+        </a>
+        {% endif %}
         <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %} color-tecnm">
           <i class="fas fa-calendar-alt me-2"></i>Permanencia
         </a>

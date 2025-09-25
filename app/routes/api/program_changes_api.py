@@ -22,7 +22,7 @@ def create_request():
 @login_required
 def list_requests():
     # simple: propios si es alumno; todos si es admin
-    if current_user.role and current_user.role.name in ('postgraduate_admin','program_admin','coordinator'):
+    if current_user.role and current_user.role.name in ('postgraduate_admin','program_admin'):
         items = ProgramChangeRequest.query.order_by(ProgramChangeRequest.created_at.desc()).all()
     else:
         items = ProgramChangeRequest.query.filter_by(applicant_id=current_user.id).order_by(ProgramChangeRequest.created_at.desc()).all()
@@ -31,7 +31,7 @@ def list_requests():
 
 @api_program_changes.route('/requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin','program_admin','coordinator')
+@roles_required('postgraduate_admin','program_admin')
 def decide(req_id:int):
     data = request.get_json() or {}
     try:

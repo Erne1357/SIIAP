@@ -14,9 +14,9 @@ def create_extension_request():
     reason = data.get('reason')
 
     role = 'student'
-    if current_user.role and current_user.role.name in ('postgraduate_admin','program_admin','coordinator','social_service'):
+    if current_user.role and current_user.role.name in ('postgraduate_admin','program_admin','social_service'):
         # permitir también que el coordinador solicite a nombre del alumno si así lo desean
-        role = 'coordinator'
+        role = 'program_admin'
 
     try:
         er = ExtensionsService.create_request(
@@ -50,7 +50,7 @@ def list_extension_requests():
 
 @api_extensions.route('/requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'coordinator')
+@roles_required('postgraduate_admin', 'program_admin')
 def decide_extension_request(req_id:int):
     data = request.get_json() or {}
     status = data.get('status')  # granted|rejected|cancelled
