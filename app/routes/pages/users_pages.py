@@ -1,6 +1,7 @@
 # app/routes/pages/users_pages.py
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
+from app.models import Program
 from app.services.admission_service import get_admission_state
 
 pages_user = Blueprint("pages_user", __name__, url_prefix="/user")

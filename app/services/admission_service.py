@@ -39,6 +39,7 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     # 3) Lock info por paso
     def _is_locked(step):
         # secuencia 0 nunca bloqueada
+        return False
         seq = step.program_steps[0].sequence
         if seq == 0 or seq == 1:
             return False

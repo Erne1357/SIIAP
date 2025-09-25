@@ -3,12 +3,13 @@ from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.appointments_service import AppointmentsService
 from app.models.appointment import Appointment
+from app import db
 
 api_appointments = Blueprint('api_appointments', __name__, url_prefix='/api/v1/appointments')
 
 @api_appointments.route('', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'coordinator')
+@roles_required('postgraduate_admin', 'program_admin')
 def assign():
     data = request.get_json() or {}
     try:
@@ -62,7 +63,7 @@ def request_change(appointment_id:int):
 
 @api_appointments.route('/change-requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'coordinator')
+@roles_required('postgraduate_admin', 'program_admin')
 def decide_change(req_id:int):
     data = request.get_json() or {}
     try:
@@ -75,3 +76,32 @@ def decide_change(req_id:int):
         return jsonify({"ok": True, "id": acr.id, "status": acr.status}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
+
+@api_appointments.route('/by-slot/<int:slot_id>', methods=['GET'])
+@login_required
+def get_appointment_by_slot(slot_id: int):
+    """Obtiene la cita asignada a un slot específico"""
+    appointment = Appointment.query.filter_by(slot_id=slot_id).first()
+    
+    if not appointment:
+        return jsonify({"ok": True, "appointment": None}), 200
+    
+    # Obtener datos del estudiante
+    from app.models.user import User
+    student = db.session.get(User, appointment.applicant_id)
+    
+    return jsonify({
+        "ok": True,
+        "appointment": {
+            "id": appointment.id,
+            "status": appointment.status,
+            "notes": appointment.notes,
+            "student": {
+                "id": student.id,
+                "full_name": f"{student.first_name} {student.last_name}",
+                "email": student.email
+            } if student else None,
+            "assigned_by": appointment.assigned_by,
+            "created_at": appointment.created_at.isoformat()
+        }
+    }), 200

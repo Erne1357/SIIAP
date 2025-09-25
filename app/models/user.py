@@ -35,6 +35,26 @@ class User(db.Model, UserMixin):
         back_populates='reviewer'
     )
 
+
+    phone = db.Column(db.String(20))
+    mobile_phone = db.Column(db.String(20))
+    address = db.Column(db.Text)
+    curp = db.Column(db.String(18))
+    rfc = db.Column(db.String(13))
+    birth_date = db.Column(db.Date)
+    birth_place = db.Column(db.String(200))
+    cedula_profesional = db.Column(db.String(20))
+    nss = db.Column(db.String(15))
+
+    # Contacto de emergencia
+    emergency_contact_name = db.Column(db.String(200))
+    emergency_contact_phone = db.Column(db.String(20))
+    emergency_contact_relationship = db.Column(db.String(50))
+
+    # Campo para marcar perfil completo (calculado automáticamente)
+    profile_completed = db.Column(db.Boolean, default=False, nullable=False)
+
+
     def __init__(self, first_name, last_name, mother_last_name, username, password, email, is_internal, role_id, avatar):
         self.first_name = first_name
         self.last_name = last_name
@@ -48,6 +68,32 @@ class User(db.Model, UserMixin):
         self.role_id = role_id
         self.avatar = avatar
     
+    def is_profile_complete(self):
+        """
+        Verifica si el perfil está completo basándose en los campos requeridos.
+        Los campos básicos (nombre, email, etc.) ya están en el registro.
+        Los campos adicionales son los que determinan si está "completo".
+        """
+        required_fields = [
+            self.phone or self.mobile_phone,  # Al menos uno de los teléfonos
+            self.address,
+            self.curp,
+            self.birth_date,
+            self.emergency_contact_name,
+            self.emergency_contact_phone,
+            self.emergency_contact_relationship
+        ]
+        
+        # Todos los campos requeridos deben tener valor
+        return all(field and str(field).strip() if isinstance(field, str) else field for field in required_fields)
+
+    def update_profile_completion_status(self):
+        """
+        Actualiza automáticamente el estado de profile_completed
+        """
+        self.profile_completed = self.is_profile_complete()
+        return self.profile_completed
+
     @property
     def avatar_url(self):
         if self.avatar and self.avatar != 'default.jpg':

@@ -27,7 +27,7 @@ class Submission(db.Model):
     program_step  = db.relationship('ProgramStep',back_populates='submissions')
     uploader = db.relationship('User', foreign_keys=[uploaded_by], viewonly=True)
 
-    def __init__(self, file_path, status, user_id, archive_id, program_step_id, period, semester, review_date=None, reviewer_id=None, reviewer_comment=None):
+    def __init__(self, file_path, status, user_id, archive_id, program_step_id, period, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
         self.file_path = file_path
         self.status = status
         self.user_id = user_id
@@ -38,3 +38,7 @@ class Submission(db.Model):
         self.semester = semester
         self.reviewer_id = reviewer_id
         self.reviewer_comment = reviewer_comment
+        self.uploaded_by = uploaded_by
+        self.uploaded_by_role = uploaded_by_role
+        self.deadline_at = deadline_at
+        self.is_in_extension = is_in_extension

@@ -32,15 +32,91 @@
   const delForce = document.getElementById("delForce");
 
   let cached = [];
-  let steps = []; // steps permitidos para el usuario actual
-  let stepTabs = [];
+  let steps = [];
 
-  function flash(msg, type="success", target=alerts) {
-    const el = document.createElement("div");
-    el.className = `alert alert-${type} alert-dismissible fade show`;
-    el.innerHTML = `<div>${msg}</div><button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-    target.prepend(el);
-    setTimeout(() => bootstrap.Alert.getOrCreateInstance(el).close(), 5000);
+  // Función para disparar flash usando el sistema existente
+  function flash(msg, type = "success") {
+    window.dispatchEvent(new CustomEvent('flash', { 
+      detail: { level: type, message: msg } 
+    }));
+  }
+
+  // Función helper para obtener CSRF token
+  function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+  }
+
+  // Validación de archivos
+  function validateFile(file) {
+    const maxSize = 3 * 1024 * 1024; // 3MB
+    const allowedTypes = ['application/pdf'];
+    
+    if (!file) {
+      return { valid: false, error: 'No se ha seleccionado ningún archivo' };
+    }
+    
+    if (!allowedTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.pdf')) {
+      return { valid: false, error: 'Solo se permiten archivos PDF' };
+    }
+    
+    if (file.size > maxSize) {
+      return { valid: false, error: `El archivo excede el límite de 3MB (actual: ${(file.size / (1024 * 1024)).toFixed(2)}MB)` };
+    }
+    
+    return { valid: true };
+  }
+
+  // Función helper para hacer peticiones con manejo de errores mejorado
+  async function apiRequest(url, options = {}) {
+    const defaultHeaders = {
+      'X-CSRF-Token': getCsrfToken()
+    };
+
+    // Solo agregar Content-Type para JSON, no para FormData
+    if (options.body && typeof options.body === 'string') {
+      defaultHeaders['Content-Type'] = 'application/json';
+    }
+
+    const defaultOptions = {
+      credentials: "same-origin",
+      headers: {
+        ...defaultHeaders,
+        ...options.headers
+      }
+    };
+
+    const finalOptions = { ...defaultOptions, ...options };
+
+    try {
+      const response = await fetch(url, finalOptions);
+      
+      // Verificar si la respuesta es HTML (redirección o error de permisos)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        throw new Error('No tienes permisos para realizar esta acción o la sesión ha expirado');
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        throw new Error('Error al procesar la respuesta del servidor');
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `Error HTTP ${response.status}`);
+      }
+
+      if (data.ok === false) {
+        throw new Error(data.error || 'Operación fallida');
+      }
+
+      return { response, data };
+    } catch (error) {
+      console.error('API Request Error:', error);
+      throw error;
+    }
   }
 
   function stepName(step_id) {
@@ -49,92 +125,76 @@
   }
 
   function rowTemplate(a) {
-    const tplUrl = a.template_url ? `<a class="template-link" href="${a.template_url}" target="_blank" rel="noopener">${a.template_name || 'Descargar'}</a>` : `<span class="text-muted">—</span>`;
+    const tplUrl = a.template_url ? 
+      `<a class="template-link" href="${a.template_url}" target="_blank" rel="noopener" title="${a.template_name || 'Descargar'}">${a.template_name || 'Ver plantilla'}</a>` : 
+      `<span class="text-muted">—</span>`;
     const stepLabel = a.step_name || stepName(a.step_id) || "";
+    
     return `
       <tr data-id="${a.id}" data-name="${(a.name||'').toLowerCase()}" data-step="${(stepLabel||'').toLowerCase()}">
-        <td><div class="fw-semibold">${a.name}</div><div class="text-muted small">${a.description||''}</div></td>
+        <td>
+          <div class="fw-semibold">${a.name}</div>
+          <div class="text-muted small">${a.description||''}</div>
+        </td>
         <td>${stepLabel}</td>
-        <td class="toggle-cell"><input class="form-check-input chk-uploadable" type="checkbox" ${a.is_uploadable ? 'checked':''}></td>
-        <td class="toggle-cell"><input class="form-check-input chk-downloadable" type="checkbox" ${a.is_downloadable ? 'checked':''}></td>
-        <td class="toggle-cell"><input class="form-check-input chk-allow-coord" type="checkbox" ${a.allow_coordinator_upload ? 'checked':''}></td>
-        <td class="toggle-cell"><input class="form-check-input chk-allow-ext" type="checkbox" ${a.allow_extension_request ? 'checked':''}></td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-uploadable" type="checkbox" ${a.is_uploadable ? 'checked':''}>
+        </td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-downloadable" type="checkbox" ${a.is_downloadable ? 'checked':''}>
+        </td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-allow-coord" type="checkbox" ${a.allow_coordinator_upload ? 'checked':''}>
+        </td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-allow-ext" type="checkbox" ${a.allow_extension_request ? 'checked':''}>
+        </td>
         <td>${tplUrl}</td>
         <td class="text-end">
-          <button class="btn btn-sm btn-outline-secondary btn-edit">Editar</button>
-          <button class="btn btn-sm btn-outline-danger btn-delete">Eliminar</button>
-          <button class="btn btn-sm btn-outline-primary btn-upload-template">Subir plantilla</button>
-          <button class="btn btn-sm btn-primary btn-save">Guardar toggles</button>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary btn-edit" title="Editar">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-outline-primary btn-upload-template" title="Subir plantilla">
+              <i class="fas fa-upload"></i>
+            </button>
+            <button class="btn btn-success btn-save" title="Guardar cambios">
+              <i class="fas fa-save"></i>
+            </button>
+            <button class="btn btn-outline-danger btn-delete" title="Eliminar">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
         </td>
       </tr>
     `;
   }
 
   async function loadSteps() {
-    const res = await fetch(`${API}/archives/steps?scope=permitted`, { credentials: "same-origin" });
-    const data = await res.json();
-    steps = data.items || [];
-    stepTabs = ["Admisión", "Permanencia", "Conclusión"];
-    renderTabs(stepTabs);
-  }
-
-  function renderTabs(tabs) {
-    const tabsContainer = document.getElementById('stepsTabContent');
-    tabsContainer.innerHTML = "";
-    tabs.forEach((tab, idx) => {
-      const tabId = `tab-${idx}`;
-      const tabPaneId = `pane-${idx}`;
-      tabsContainer.innerHTML += `
-        <ul class="nav nav-pills" id="${tabId}" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="btn-${tabId}" data-bs-toggle="pill" data-bs-target="#${tabPaneId}" type="button" role="tab">${tab}</button>
-          </li>
-        </ul>
-        <div class="tab-pane fade show active" id="${tabPaneId}" role="tabpanel" aria-labelledby="btn-${tabId}">
-          <div class="table-responsive" id="table-${tabPaneId}">
-            <!-- Tabla para los pasos cargados -->
-          </div>
-        </div>`;
-      renderStepTable(tab);
-    });
-  }
-
-  function renderStepTable(tabName) {
-    const tableId = `table-${tabName}`;
-    const stepTable = document.getElementById(tableId);
-    const filteredSteps = steps.filter(step => step.phase_name === tabName);
-    stepTable.innerHTML = `
-      <table class="table table-sm align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>Pasos</th>
-            <th class="text-end">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filteredSteps.map(step => `
-            <tr>
-              <td>${step.name}</td>
-              <td class="text-end">
-                <button class="btn btn-sm btn-outline-primary btn-edit">Editar</button>
-                <button class="btn btn-sm btn-outline-danger btn-delete">Eliminar</button>
-              </td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    `;
+    try {
+      const { data } = await apiRequest(`${API}/archives/steps?scope=permitted`);
+      steps = data.items || [];
+      
+      // Llenar select de steps para crear/editar
+      editStep.innerHTML = steps.map(s => 
+        `<option value="${s.id}">${s.name} (${s.phase_name})</option>`
+      ).join('');
+    } catch (err) {
+      console.error('Error loading steps:', err);
+      flash(`Error cargando steps: ${err.message}`, 'danger');
+    }
   }
 
   async function loadArchives() {
-    tblBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Cargando…</td></tr>`;
+    tblBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Cargando archivos…</td></tr>`;
     try {
-      const res = await fetch(`${API}/archives?include=step`, { credentials: "same-origin" });
-      if (!res.ok) throw new Error("No se pudo cargar el catálogo de archivos");
-      const data = await res.json();
-      cached = (data.items || []);
+      const { data } = await apiRequest(`${API}/archives?include=step`);
+      cached = data.items || [];
       render();
     } catch (err) {
-      tblBody.innerHTML = `<tr><td colspan="8" class="text-danger">${err.message}</td></tr>`;
+      console.error('Error loading archives:', err);
+      tblBody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-4">${err.message}</td></tr>`;
+      flash(`Error cargando archivos: ${err.message}`, 'danger');
     }
   }
 
@@ -144,18 +204,24 @@
       (a.name || '').toLowerCase().includes(q) ||
       (a.step_name || '').toLowerCase().includes(q)
     );
+    
     if (!items.length) {
       tblBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Sin resultados</td></tr>`;
       return;
     }
+    
     tblBody.innerHTML = items.map(rowTemplate).join("");
   }
 
   // ========= Eventos globales =========
-  btnReload.addEventListener("click", async () => { await loadSteps(); await loadArchives(); });
-  search.addEventListener("input", render);
+  btnReload?.addEventListener("click", async () => { 
+    await loadSteps(); 
+    await loadArchives(); 
+  });
+  
+  search?.addEventListener("input", render);
 
-  btnNew.addEventListener("click", () => {
+  btnNew?.addEventListener("click", () => {
     editTitle.textContent = "Nuevo archivo";
     editId.value = "";
     editName.value = "";
@@ -168,44 +234,45 @@
     modalEdit.show();
   });
 
-  tblBody.addEventListener("click", async (ev) => {
+  tblBody?.addEventListener("click", async (ev) => {
     const tr = ev.target.closest("tr");
     if (!tr) return;
     const id = tr.getAttribute("data-id");
+    if (!id) return;
 
-    if (ev.target.classList.contains("btn-upload-template")) {
+    if (ev.target.closest(".btn-upload-template")) {
       tplArchiveId.value = id;
       tplFile.value = "";
       modalTpl.show();
       return;
     }
 
-    if (ev.target.classList.contains("btn-save")) {
+    if (ev.target.closest(".btn-save")) {
       const body = {
         is_uploadable: tr.querySelector(".chk-uploadable").checked,
         is_downloadable: tr.querySelector(".chk-downloadable").checked,
         allow_coordinator_upload: tr.querySelector(".chk-allow-coord").checked,
         allow_extension_request: tr.querySelector(".chk-allow-ext").checked
       };
+      
       try {
-        const res = await fetch(`${API}/archives/${id}`, {
+        await apiRequest(`${API}/archives/${id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
           body: JSON.stringify(body)
         });
-        const data = await res.json();
-        if (!res.ok || data.ok === false) throw new Error(data.error || "Error al guardar");
-        flash("Toggles guardados");
+        
+        flash("Configuración guardada correctamente", "success");
         await loadArchives();
       } catch (err) {
-        flash(err.message, "danger");
+        flash(`Error al guardar: ${err.message}`, "danger");
       }
+      return;
     }
 
-    if (ev.target.classList.contains("btn-edit")) {
+    if (ev.target.closest(".btn-edit")) {
       const row = cached.find(x => String(x.id) === String(id));
       if (!row) return;
+      
       editTitle.textContent = "Editar archivo";
       editId.value = row.id;
       editName.value = row.name || "";
@@ -214,18 +281,12 @@
       editIsDownloadable.checked = !!row.is_downloadable;
       editAllowCoord.checked = !!row.allow_coordinator_upload;
       editAllowExt.checked = !!row.allow_extension_request;
-      if (!steps.find(s => s.id === row.step_id)) {
-        const opt = document.createElement("option");
-        opt.value = row.step_id;
-        opt.textContent = row.step_name || `Step ${row.step_id}`;
-        editStep.appendChild(opt);
-      }
       editStep.value = row.step_id;
       modalEdit.show();
       return;
     }
 
-    if (ev.target.classList.contains("btn-delete")) {
+    if (ev.target.closest(".btn-delete")) {
       delId.value = id;
       delForce.checked = false;
       modalDel.show();
@@ -234,31 +295,66 @@
   });
 
   // ========= Form plantilla =========
-  formTpl.addEventListener("submit", async (ev) => {
+  formTpl?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const id = tplArchiveId.value;
-    if (!tplFile.files.length) { flash("Selecciona un archivo.", "warning"); return; }
+    
+    if (!tplFile.files.length) { 
+      flash("Selecciona un archivo", "warning"); 
+      return; 
+    }
+    
+    // Validar archivo
+    const validation = validateFile(tplFile.files[0]);
+    if (!validation.valid) {
+      flash(validation.error, "danger");
+      return;
+    }
+    
     const fd = new FormData();
     fd.append("file", tplFile.files[0]);
+    
     try {
-      const res = await fetch(`${API}/archives/${id}/template`, {
+      const { data } = await apiRequest(`${API}/archives/${id}/template`, {
         method: "POST",
-        body: fd,
-        credentials: "same-origin"
+        body: fd
       });
-      const data = await res.json();
-      if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo subir la plantilla");
-      flash("Plantilla actualizada");
+      
+      flash("Plantilla actualizada correctamente", "success");
       modalTpl.hide();
       await loadArchives();
     } catch (err) {
-      flash(err.message, "danger");
+      flash(`Error subiendo plantilla: ${err.message}`, "danger");
+    }
+  });
+
+  // Validación en tiempo real para el input de archivo de plantilla
+  tplFile?.addEventListener("change", (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    
+    const validation = validateFile(file);
+    const feedback = ev.target.parentElement.querySelector('.file-feedback') || 
+                     document.createElement('div');
+    
+    if (!ev.target.parentElement.querySelector('.file-feedback')) {
+      feedback.className = 'file-feedback small mt-1';
+      ev.target.parentElement.appendChild(feedback);
+    }
+    
+    if (!validation.valid) {
+      feedback.className = 'file-feedback small mt-1 text-danger';
+      feedback.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${validation.error}`;
+    } else {
+      feedback.className = 'file-feedback small mt-1 text-success';
+      feedback.innerHTML = `<i class="fas fa-check"></i> Archivo válido (${(file.size / (1024 * 1024)).toFixed(2)}MB)`;
     }
   });
 
   // ========= Form editar/crear =========
-  formEdit.addEventListener("submit", async (ev) => {
+  formEdit?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
+    
     const body = {
       name: editName.value.trim(),
       description: editDesc.value.trim(),
@@ -268,60 +364,77 @@
       allow_coordinator_upload: editAllowCoord.checked,
       allow_extension_request: editAllowExt.checked
     };
+    
+    if (!body.name) {
+      flash("El nombre es requerido", "warning");
+      return;
+    }
+    
     try {
-      let res, data;
-      if (editId.value) {
-        res = await fetch(`${API}/archives/${editId.value}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify(body)
-        });
-      } else {
-        res = await fetch(`${API}/archives`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify(body)
-        });
-      }
-      data = await res.json();
-      if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo guardar");
-      flash("Archivo guardado");
+      const isEdit = !!editId.value;
+      const url = isEdit ? `${API}/archives/${editId.value}` : `${API}/archives`;
+      const method = isEdit ? "PUT" : "POST";
+      
+      await apiRequest(url, {
+        method,
+        body: JSON.stringify(body)
+      });
+      
+      flash(`Archivo ${isEdit ? 'actualizado' : 'creado'} correctamente`, "success");
       modalEdit.hide();
       await loadArchives();
     } catch (err) {
-      flash(err.message, "danger");
+      flash(`Error al guardar: ${err.message}`, "danger");
     }
   });
 
   // ========= Form eliminar =========
-  formDel.addEventListener("submit", async (ev) => {
+  formDel?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const id = delId.value;
     const force = delForce.checked ? "?force=true" : "";
+    
     try {
-      const res = await fetch(`${API}/archives/${id}${force}`, {
+      const response = await fetch(`${API}/archives/${id}${force}`, {
         method: "DELETE",
-        credentials: "same-origin"
+        credentials: "same-origin",
+        headers: {
+          'X-CSRF-Token': getCsrfToken()
+        }
       });
-      const data = await res.json();
-      if (res.status === 409 && data.requires_force) {
-        flash(data.message || "Tiene submissions; marca 'Eliminar forzado' para continuar.", "warning");
+
+      // Verificar si es HTML en lugar de JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        throw new Error('No tienes permisos para realizar esta acción');
+      }
+
+      const data = await response.json();
+      
+      if (response.status === 409 && data.requires_force) {
+        flash(data.message || "Tiene submissions; marca 'Eliminar forzado' para continuar", "warning");
         return;
       }
-      if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo eliminar");
-      flash("Archivo eliminado");
+      
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || "No se pudo eliminar");
+      }
+      
+      flash("Archivo eliminado correctamente", "success");
       modalDel.hide();
       await loadArchives();
     } catch (err) {
-      flash(err.message, "danger");
+      flash(`Error al eliminar: ${err.message}`, "danger");
     }
   });
 
   // Inicialización
   (async () => {
-    await loadSteps();
-    await loadArchives();
+    try {
+      await loadSteps();
+      await loadArchives();
+    } catch (err) {
+      flash(`Error inicializando la página: ${err.message}`, 'danger');
+    }
   })();
 })();

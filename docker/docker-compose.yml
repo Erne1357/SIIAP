@@ -17,6 +17,7 @@ services:
       - SECRET_KEY=super-secret-key
     volumes:
       - ../instance:/app/instance
+      - ../:/app
   db:
     ## reinicia el contenedor si se detiene
     restart: always
