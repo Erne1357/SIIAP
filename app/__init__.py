@@ -73,7 +73,7 @@ def create_app(test_config=None):
 
           # Endpoints que NO deben ser bloqueados por expiración
           safe_endpoints = {
-               'pages_auth.login',           # render del login
+               'pages_auth.login_page',           # render del login
                'api_auth.api_logout',        # logout explícito
                'api_auth.api_keepalive',     # keepalive
           }
@@ -85,7 +85,7 @@ def create_app(test_config=None):
                     if request.endpoint in safe_endpoints:
                          return  # deja pasar
                     flash("Tu sesión ha expirado por inactividad.", "warning")
-                    return redirect(url_for('pages_auth.login'))
+                    return redirect(url_for('pages_auth.login_page'))
 
           # refresca actividad sólo si el usuario está autenticado
           if current_user.is_authenticated:

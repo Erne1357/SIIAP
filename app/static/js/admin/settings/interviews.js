@@ -340,13 +340,13 @@
 
         const formData = new FormData(createEventForm);
         const payload = {
-            title: formData.get('title'),
-            program_id: parseInt(formData.get('program_id')),
-            type: formData.get('type'),
-            location: formData.get('location'),
-            description: formData.get('description')
+            title: document.getElementById('eventTitle').value,
+            program_id: parseInt(document.getElementById('eventProgram').value, 10),
+            type: document.getElementById('eventType').value,
+            location: document.getElementById('eventLocation').value,
+            description: document.getElementById('eventDescription').value
         };
-
+        console.log('Creating event with payload:', payload);
         if (!payload.title || !payload.program_id) {
             flash('Título y programa son requeridos', 'warning');
             return;

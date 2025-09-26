@@ -1,4 +1,4 @@
-// static/js/program/admission.js - FASE 1
+// static/js/program/admission.js - Versión mejorada con prórroga y citas
 document.addEventListener('DOMContentLoaded', () => {
   const getCsrf = () => {
     const el = document.querySelector('meta[name="csrf-token"]');
@@ -25,7 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const uploadModal = document.getElementById('uploadModal');
+  const extensionModal = document.getElementById('extensionModal');
   let currentStepForHash = null;
+
+  // ==================== INICIALIZAR TOOLTIPS ====================
+  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
 
   // ==================== MODAL DE SUBIDA MEJORADO ====================
   if (uploadModal) {
@@ -65,10 +72,97 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadModal.addEventListener('hidden.bs.modal', () => {
       const fileInput = uploadModal.querySelector('input[type="file"]');
       if (fileInput) fileInput.value = '';
-      // Limpiar info
       document.getElementById('existingFileInfo').classList.add('d-none');
     });
   }
+
+  // ==================== MODAL DE PRÓRROGA ====================
+  if (extensionModal) {
+    // Configurar fecha mínima (mañana)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowString = tomorrow.toISOString().split('T')[0];
+    document.getElementById('extensionRequestedUntil').min = tomorrowString;
+  }
+
+  // ==================== SOLICITAR PRÓRROGA ====================
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.btn-request-extension')) {
+      const button = e.target.closest('.btn-request-extension');
+      const submissionId = button.getAttribute('data-submission-id');
+      const archiveName = button.getAttribute('data-archive-name');
+      
+      if (submissionId && archiveName) {
+        document.getElementById('extensionSubmissionId').value = submissionId;
+        document.getElementById('extensionArchiveName').textContent = archiveName;
+        
+        // Limpiar formulario
+        document.getElementById('extensionRequestedUntil').value = '';
+        document.getElementById('extensionReason').value = '';
+        
+        const modal = new bootstrap.Modal(extensionModal);
+        modal.show();
+      }
+    }
+  });
+
+  // ==================== ENVIAR SOLICITUD DE PRÓRROGA ====================
+  document.getElementById('extensionForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const submissionId = document.getElementById('extensionSubmissionId').value;
+    const requestedUntil = document.getElementById('extensionRequestedUntil').value;
+    const reason = document.getElementById('extensionReason').value.trim();
+    
+    if (!submissionId || !requestedUntil || !reason) {
+      emitFlash('warning', 'Completa todos los campos requeridos.');
+      return;
+    }
+    
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    submitBtn.disabled = true;
+    
+    try {
+      const payload = {
+        submission_id: parseInt(submissionId),
+        requested_until: requestedUntil,
+        reason: reason
+      };
+      
+      const res = await fetch('/api/v1/extensions/requests', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const json = await res.json().catch(() => ({}));
+      
+      if (!res.ok) {
+        const msg = json?.error || 'No se pudo enviar la solicitud de prórroga.';
+        emitFlash('danger', msg);
+        return;
+      }
+      
+      emitFlash('success', 'Solicitud de prórroga enviada correctamente. Recibirás una respuesta pronto.');
+      closeModal(extensionModal);
+      
+      // Opcional: recargar página para mostrar estado actualizado
+      setTimeout(() => window.location.reload(), 1500);
+      
+    } catch (err) {
+      console.error('Extension request error:', err);
+      emitFlash('danger', 'Error de red al enviar la solicitud.');
+    } finally {
+      submitBtn.innerHTML = originalText;
+      submitBtn.disabled = false;
+    }
+  });
 
   // Restaurar pestaña activa desde hash
   const hash = window.location.hash;
@@ -190,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ==================== MOSTRAR TAMAÑO DE ARCHIVO SELECCIONADO ====================
+  // ==================== VALIDACIÓN DE ARCHIVOS EN TIEMPO REAL ====================
   document.querySelectorAll('input[type="file"]').forEach(input => {
     input.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -217,4 +311,81 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // ==================== CARGAR INFORMACIÓN DE CITA ASIGNADA ====================
+  loadInterviewInfo();
+
+  async function loadInterviewInfo() {
+    try {
+      const res = await fetch('/api/v1/appointments/mine', {
+        credentials: 'same-origin'
+      });
+      
+      if (!res.ok) return; // Sin citas o error
+      
+      const json = await res.json();
+      if (json.ok && json.items && json.items.length > 0) {
+        showInterviewCard(json.items[0]); // Mostrar primera cita
+      }
+      
+    } catch (err) {
+      console.log('No se pudo cargar información de citas');
+    }
+  }
+
+  function showInterviewCard(appointment) {
+    // Crear card de cita asignada si no existe
+    let interviewCard = document.getElementById('interviewCard');
+    if (!interviewCard) {
+      interviewCard = document.createElement('div');
+      interviewCard.id = 'interviewCard';
+      interviewCard.className = 'alert alert-success shadow-sm mb-4';
+      
+      // Insertar después del alert de proceso de admisión
+      const processAlert = document.querySelector('.alert-info');
+      if (processAlert) {
+        processAlert.parentNode.insertBefore(interviewCard, processAlert.nextSibling);
+      }
+    }
+    
+    interviewCard.innerHTML = `
+      <div class="d-flex align-items-center">
+        <div class="flex-grow-1">
+          <h5 class="mb-2">
+            <i class="fas fa-calendar-check me-2"></i>
+            Cita de Entrevista Asignada
+          </h5>
+          <p class="mb-2">
+            <strong>Fecha y hora:</strong> <span id="appointmentDateTime">Cargando...</span><br>
+            <strong>Lugar:</strong> <span id="appointmentLocation">Cargando...</span>
+          </p>
+          <small class="text-muted">
+            Tu entrevista ha sido programada. Si necesitas cambiar el horario, puedes solicitar un cambio.
+          </small>
+        </div>
+        <div class="text-end">
+          <button class="btn btn-outline-warning btn-sm" id="requestChangeBtn">
+            <i class="fas fa-exchange-alt me-1"></i>
+            Solicitar Cambio
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Cargar detalles de la cita (esto requeriría más APIs)
+    loadAppointmentDetails(appointment.id);
+  }
+
+  async function loadAppointmentDetails(appointmentId) {
+    // Esta función cargaría los detalles completos de la cita
+    // Por ahora solo simulamos
+    document.getElementById('appointmentDateTime').textContent = 'Por definir';
+    document.getElementById('appointmentLocation').textContent = 'Por definir';
+    
+    // Configurar botón de solicitar cambio
+    document.getElementById('requestChangeBtn')?.addEventListener('click', () => {
+      // Abrir modal para solicitar cambio de cita
+      alert('Funcionalidad de cambio de cita - Por implementar en siguiente fase');
+    });
+  }
 });

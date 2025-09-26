@@ -291,7 +291,9 @@ def upload_for_student():
         # Crear nueva submission
         submission = Submission(
             file_path=file_relative_path,  # Usar la ruta que devolvió tu función
-            status='pending',  # Queda pendiente de revisión
+            status='approved',  # Coordinador aprueba directamente
+            review_date=datetime.now(timezone.utc),
+            reviewer_comment="[Coordinador] Documento subido y aprobado",
             user_id=student_id,
             archive_id=archive_id,
             program_step_id=program_step.id,
