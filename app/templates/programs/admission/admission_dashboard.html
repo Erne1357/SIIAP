@@ -1,4 +1,4 @@
-{# app/templates/admission/dashboard.html #}
+{# app/templates/programs/admission/admission_dashboard.html #}
 {% extends 'base.html' %}
 {% block title %}Admisión – {{ program.name }}{% endblock %}
 
@@ -16,8 +16,6 @@
       Sube los documentos requeridos en cada paso. Los siguientes pasos
       se desbloquearán cuando todos los archivos del paso anterior estén aprobados.
       <br>
-
-      <!-- Mensaje para decir como ver la descripción de los archivos -->
       <strong><i>Para ver la descripción de los archivos, haz clic en el nombre del archivo.</i></strong>
     </p>
   </div>
@@ -67,7 +65,6 @@
   </div>
 </div>
 
-
 <!-- Modal para subir archivos -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -110,11 +107,46 @@
     </form>
   </div>
 </div>
+<!-- Modal para solicitar prórroga -->
+<div class="modal fade" id="extensionModal" tabindex="-1" aria-labelledby="extensionLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="extensionLabel">Solicitar Prórroga</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="extensionForm">
+        <div class="modal-body">
+          <input type="hidden" id="extensionSubmissionId">
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Solicitando prórroga para: <strong id="extensionArchiveName"></strong>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Fecha solicitada (hasta cuándo necesitas)</label>
+            <input type="date" class="form-control" id="extensionRequestedUntil" required>
+            <div class="form-text">Selecciona una fecha realista para completar el documento.</div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Motivo de la solicitud</label>
+            <textarea class="form-control" id="extensionReason" rows="3" required
+                      placeholder="Explica brevemente por qué necesitas más tiempo..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Solicitar Prórroga</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/program/admission.js') }}?v={{ static_version }}"></script>
-
-
 {% endblock %}

@@ -36,7 +36,7 @@ def api_logout():
     session.pop('last_activity', None)
 
     if request.method == 'GET':
-        return redirect(url_for('pages_auth.login'))
+        return redirect(url_for('pages_auth.login_page'))
 
     return jsonify({
         "data": None,
