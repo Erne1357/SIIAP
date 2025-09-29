@@ -1,0 +1,43 @@
+/* === ESTILOS ESPECÍFICOS PARA LOGIN === */
+:root {
+  --mobile-login-offset: 0.035rem; /* espacio entre el banner y la tarjeta en móvil */
+}
+
+#main-content:not(.register-page) .auth-container.login-container {
+  min-height: calc(100vh - var(--header-h) - var(--banner-h) - var(--footer-h));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--header-h) + var(--banner-h) + 1rem) 1.5rem calc(var(--footer-h) + 3.5rem);
+}
+
+#main-content:not(.register-page) .auth-container.login-container .card {
+  width: 100%;
+  margin-bottom: 2.25rem;
+}
+
+#main-content:not(.register-page) .auth-container.login-container .card-body {
+  padding-bottom: 2.5rem;
+}
+
+#main-content:not(.register-page) .auth-container.login-container .card-body .mt-3 {
+  margin-top: 2rem;
+}
+
+@media (max-width: 991.98px) {
+  #main-content:not(.register-page) .auth-container.login-container {
+    padding: calc(var(--header-h) + var(--banner-h) + 0.75rem) 1rem calc(var(--footer-h) + 3.25rem);
+  }
+}
+
+@media (max-width: 767.98px) {
+  #main-content:not(.register-page) .auth-container.login-container {
+    padding: calc(var(--header-h) + var(--banner-h) + var(--mobile-login-offset)) 1rem calc(var(--footer-h) + 3.75rem);
+  }
+}
+
+@media (max-width: 575.98px) {
+  #main-content:not(.register-page) .auth-container.login-container .card {
+    margin-bottom: 1.5rem;
+  }
+}

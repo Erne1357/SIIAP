@@ -21,7 +21,7 @@ class InterviewEligibilityService:
         
         Criterios:
         1. Perfil completo
-        2. Todos los archivos de pasos anteriores en estado 'approved' o 'extension'
+        2. Todos los archivos de pasos anteriores en estado 'approved' o 'extended'
         3. Solo considerar pasos de la fase de admisión
         4. No incluir el último paso (entrevista)
         
@@ -97,7 +97,7 @@ class InterviewEligibilityService:
                 }
                 
                 # Determinar si el archivo está en estado válido
-                if submission and submission.status in ['approved', 'extension']:
+                if submission and submission.status in ['approved', 'extended']:
                     archive_status["is_valid"] = True
                 else:
                     missing_items.append({

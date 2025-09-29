@@ -1,6 +1,6 @@
 {# templates/admin/review/submissions_list.html #}
 {% extends 'base.html' %}
-{% block title %}Revisión de Documentos{% endblock %}
+{% block title %}Revisión{% endblock %}
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/admin_review.css') }}?v={{ static_version }}">
@@ -8,116 +8,254 @@
 
 {% block content %}
 <div class="container py-4">
-  <h1 class="mb-4">Revisión de Documentos</h1>
+  <h1 class="mb-4">Revisión y Gestión</h1>
 
-  <!-- Filtros -->
-  <form method="get" class="row g-3 mb-4 filter-form">
-    <div class="col-auto">
-      <label class="form-label">Aspirante</label>
-      <select name="applicant_id" class="form-select">
-        <option value="">Todos</option>
-        {% for user in applicants %}
-        <option value="{{ user.id }}" {% if filters.applicant_id==user.id %}selected{% endif %}>
-          {{ user.first_name }} {{ user.last_name }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label">Programa</label>
-      <select name="program_id" class="form-select">
-        <option value="">Todos</option>
-        {% for program in programs %}
-        <option value="{{ program.id }}" {% if filters.program_id==program.id %}selected{% endif %}>
-          {{ program.name }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label">Estado</label>
-      <select name="status" class="form-select">
-        {% for option in ['pending','review','approved','rejected'] %}
-        <option value="{{ option }}" {% if filters.status==option %}selected{% endif %}>
-          {% if option =='pending'%}
-          Pendiente
-          {% elif option =='review'%}
-          En revisión
-          {% elif option =='approved'%}
-          Aprobado
-          {% elif option =='rejected'%}
-          Rechazado
-          {% else %}
-          {{ option|capitalize }}
-          {% endif %}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label">Orden</label>
-      <select name="sort" class="form-select">
-        <option value="desc" {% if filters.sort=='desc' %}selected{% endif %}>Más recientes</option>
-        <option value="asc" {% if filters.sort=='asc' %}selected{% endif %}>Más antiguos</option>
-      </select>
-    </div>
-    <div class="col-auto align-self-end">
-      <button type="submit" class="btn btn-primary">Filtrar</button>
-    </div>
-  </form>
+  <!-- Pestañas -->
+  <ul class="nav nav-tabs mb-4" id="reviewTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="documents-tab" data-bs-toggle="tab" 
+              data-bs-target="#documents-pane" type="button" role="tab">
+        <i class="fas fa-file-alt me-2"></i>Documentos
+        <span class="badge bg-warning ms-2" id="pendingDocsCount">{{ submissions|length }}</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="extensions-tab" data-bs-toggle="tab" 
+              data-bs-target="#extensions-pane" type="button" role="tab">
+        <i class="fas fa-clock me-2"></i>Solicitudes de Prórroga
+        <span class="badge bg-info ms-2" id="pendingExtensionsCount">0</span>
+      </button>
+    </li>
+  </ul>
 
-  <!-- Tabla de submissions -->
-  <div class="table-responsive">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Aspirante</th>
-          <th>Programa</th>
-          <th>Documento</th>
-          <th>Fecha subida</th>
-          <th>Estado</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for sub in submissions %}
-        <tr>
-          <td>{{ sub.id }}</td>
-          <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
-          <td>{{ sub.program_step.program.name }}</td>
-          <td>{{ sub.program_step.step.name }} / {{ sub.archive.name }}</td>
-          <td>{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') }}</td>
-          <td>
-            <span class="badge bg-{{ 
-              sub.status=='approved' and 'success' or 
-              sub.status=='rejected' and 'danger' or 
-              sub.status=='review' and 'warning' or 
-              'secondary' 
-            }}">{% if sub.status =='pending'%}
-              Pendiente
-              {% elif sub.status =='review'%}
-              En revisión
-              {% elif sub.status =='approved'%}
-              Aprobado
-              {% elif sub.status =='rejected'%}
-              Rechazado
-              {% else %}
-              {{ sub.status|capitalize }}
-              {% endif %}</span>
-          </td>
-          <td>
-            <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
-              class="btn btn-sm btn-outline-primary">Revisar</a>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="7" class="text-center">No hay documentos para revisar.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="tab-content">
+    <!-- PESTAÑA: DOCUMENTOS -->
+    <div class="tab-pane fade show active" id="documents-pane" role="tabpanel">
+      <!-- Filtros -->
+      <form method="get" class="row g-3 mb-4 filter-form">
+        <div class="col-md-3">
+          <label class="form-label">Aspirante</label>
+          <select name="applicant_id" class="form-select">
+            <option value="">Todos</option>
+            {% for user in applicants %}
+            <option value="{{ user.id }}" {% if filters.applicant_id==user.id %}selected{% endif %}>
+              {{ user.first_name }} {{ user.last_name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Programa</label>
+          <select name="program_id" class="form-select">
+            <option value="">Todos</option>
+            {% for program in programs %}
+            <option value="{{ program.id }}" {% if filters.program_id==program.id %}selected{% endif %}>
+              {{ program.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Estado</label>
+          <select name="status" class="form-select">
+            {% for option in ['pending','review','approved','rejected'] %}
+            <option value="{{ option }}" {% if filters.status==option %}selected{% endif %}>
+              {% if option=='pending' %}Pendiente
+              {% elif option=='review' %}En revisión
+              {% elif option=='approved' %}Aprobado
+              {% elif option=='rejected' %}Rechazado
+              {% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Orden</label>
+          <select name="sort" class="form-select">
+            <option value="desc" {% if filters.sort=='desc' %}selected{% endif %}>Más recientes</option>
+            <option value="asc" {% if filters.sort=='asc' %}selected{% endif %}>Más antiguos</option>
+          </select>
+        </div>
+        <div class="col-md-2 align-self-end">
+          <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+        </div>
+      </form>
+
+      <!-- Tabla de submissions -->
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Aspirante</th>
+              <th>Programa</th>
+              <th>Documento</th>
+              <th>Fecha subida</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sub in submissions %}
+            <tr>
+              <td>{{ sub.id }}</td>
+              <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
+              <td>{{ sub.program_step.program.name }}</td>
+              <td>{{ sub.archive.name }}</td>
+              <td>{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') }}</td>
+              <td>
+                <span class="badge bg-{{ 
+                  'success' if sub.status=='approved' else
+                  'danger' if sub.status=='rejected' else
+                  'warning' if sub.status=='review' else
+                  'secondary' 
+                }}">
+                  {% if sub.status=='pending' %}Pendiente
+                  {% elif sub.status=='review' %}En revisión
+                  {% elif sub.status=='approved' %}Aprobado
+                  {% elif sub.status=='rejected' %}Rechazado
+                  {% endif %}
+                </span>
+              </td>
+              <td>
+                <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
+                  class="btn btn-sm btn-outline-primary">
+                  <i class="fas fa-eye me-1"></i>Revisar
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">No hay documentos para revisar.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PESTAÑA: PRÓRROGAS -->
+    <div class="tab-pane fade" id="extensions-pane" role="tabpanel">
+      <!-- Filtros para prórrogas -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <label class="form-label">Estudiante</label>
+          <select class="form-select" id="extensionStudentFilter">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Programa</label>
+          <select class="form-select" id="extensionProgramFilter">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Estado</label>
+          <select class="form-select" id="extensionStatusFilter">
+            <option value="">Todos</option>
+            <option value="pending">Pendientes</option>
+            <option value="granted">Concedidas</option>
+            <option value="rejected">Rechazadas</option>
+          </select>
+        </div>
+        <div class="col-md-3 align-self-end">
+          <button class="btn btn-primary w-100" id="filterExtensionsBtn">
+            <i class="fas fa-filter me-1"></i>Filtrar
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabla de solicitudes de prórroga -->
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 50px;">ID</th>
+              <th>Estudiante</th>
+              <th>Documento</th>
+              <th>Solicitado hasta</th>
+              <th>Fecha solicitud</th>
+              <th>Estado</th>
+              <th style="width: 120px;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="extensionsTableBody">
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">Cargando solicitudes...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para revisar prórroga -->
+<div class="modal fade" id="extensionReviewModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Revisar Solicitud de Prórroga</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="reviewExtensionId">
+        
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="alert alert-info">
+              <h6 class="mb-2"><i class="fas fa-user me-2"></i>Estudiante</h6>
+              <p class="mb-1" id="extensionStudentName"></p>
+              <p class="mb-0 small text-muted" id="extensionStudentEmail"></p>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <strong>Documento:</strong>
+            <p id="extensionArchiveName" class="mb-0"></p>
+          </div>
+          
+          <div class="col-md-6">
+            <strong>Fecha solicitada:</strong>
+            <p id="extensionRequestedUntil" class="mb-0"></p>
+          </div>
+          
+          <div class="col-12">
+            <strong>Motivo de la solicitud:</strong>
+            <div class="bg-light p-3 rounded mt-2">
+              <p id="extensionReason" class="mb-0"></p>
+            </div>
+          </div>
+          
+          <div class="col-12">
+            <hr>
+            <h6>Decisión</h6>
+          </div>
+          
+          <div class="col-12">
+            <label class="form-label">Fecha concedida (si apruebas)</label>
+            <input type="date" class="form-control" id="extensionGrantedUntil">
+            <div class="form-text">Puede ser diferente a la fecha solicitada</div>
+          </div>
+          
+          <div class="col-12">
+            <label class="form-label">Comentarios / Condiciones (opcional)</label>
+            <textarea class="form-control" id="extensionConditions" rows="3"
+                      placeholder="Ej: Aprobado hasta el 15 de octubre. Deberás..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="rejectExtensionBtn">
+          <i class="fas fa-times me-1"></i>Rechazar
+        </button>
+        <button type="button" class="btn btn-success" id="approveExtensionBtn">
+          <i class="fas fa-check me-1"></i>Aprobar
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

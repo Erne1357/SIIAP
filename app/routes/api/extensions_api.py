@@ -3,6 +3,8 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.extensions_service import ExtensionsService
+from app.models import ExtensionRequest,ProgramStep
+from app import db
 from datetime import datetime
 
 api_extensions = Blueprint('api_extensions', __name__, url_prefix='/api/v1/extensions')
@@ -222,3 +224,49 @@ def get_archive_extension_status(archive_id: int):
         
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+    
+@api_extensions.route('/requests/for-review', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+def list_extension_requests_for_review():
+    """
+    Lista solicitudes con información adicional del usuario para revisión administrativa.
+    Query params: user_id, status, program_id
+    """
+    user_id = request.args.get('user_id', type=int)
+    status = request.args.get('status')
+    program_id = request.args.get('program_id', type=int)
+
+    from app.models.user import User
+    
+    query = db.session.query(ExtensionRequest).join(User, ExtensionRequest.user_id == User.id)
+    
+    if user_id:
+        query = query.filter(ExtensionRequest.user_id == user_id)
+    if status:
+        query = query.filter(ExtensionRequest.status == status)
+    if program_id:
+        query = query.join(ProgramStep).filter(ProgramStep.program_id == program_id)
+
+    requests = query.order_by(ExtensionRequest.created_at.desc()).all()
+    
+    items = []
+    for er in requests:
+        user = db.session.get(User, er.user_id)
+        items.append({
+            "id": er.id,
+            "user_id": er.user_id,
+            "user_name": f"{user.first_name} {user.last_name}" if user else None,
+            "user_email": user.email if user else None,
+            "archive_id": er.archive_id,
+            "archive_name": er.archive.name if er.archive else None,
+            "status": er.status,
+            "reason": er.reason,
+            "requested_until": er.requested_until.isoformat() if er.requested_until else None,
+            "granted_until": er.granted_until.isoformat() if er.granted_until else None,
+            "condition_text": er.condition_text,
+            "created_at": er.created_at.isoformat(),
+            "decided_at": er.decided_at.isoformat() if er.decided_at else None
+        })
+    
+    return jsonify({"ok": True, "items": items}), 200
