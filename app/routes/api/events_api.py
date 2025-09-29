@@ -33,13 +33,14 @@ def create_event():
 @roles_required('postgraduate_admin', 'program_admin')
 def add_window(event_id:int):
     data = request.get_json() or {}
+    current_app.logger.warning(f"Received add_window request with data: {data}")
     try:
         current_app.logger.warning(f"Adding window with data: {data}")
         win = EventsService.add_window(
             event_id=event_id,
-            window_date=date.fromisoformat(str(data.get('day'))),
-            start=time.fromisoformat(str(data.get('start'))),
-            end=time.fromisoformat(str(data.get('end'))),
+            window_date=date.fromisoformat(str(data.get('date'))),
+            start=time.fromisoformat(str(data.get('start_time'))),
+            end=time.fromisoformat(str(data.get('end_time'))),
             slot_minutes=int(data.get('slot_minutes')),
             timezone_str=data.get('timezone','America/Ciudad_Juarez')
         )
@@ -172,7 +173,38 @@ def delete_event(event_id: int):
         db.session.rollback()
         return jsonify({"ok": False, "error": str(e)}), 500
 
-# ========== EN app/routes/api/appointments_api.py ==========
-# Agregar después de los endpoints existentes:
-
-
+@api_events.route('/<int:event_id>', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def get_event_details(event_id: int):
+    """Obtiene detalles completos de un evento incluyendo sus ventanas"""
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+    
+    # Verificar permisos
+    if current_user.role.name == 'program_admin':
+        if event.program_id:
+            program = db.session.get(Program, event.program_id)
+            if not program or program.coordinator_id != current_user.id:
+                return jsonify({"ok": False, "error": "No tienes permiso"}), 403
+    
+    # Obtener ventanas
+    windows = EventWindow.query.filter_by(event_id=event_id).all()
+    
+    return jsonify({
+        "ok": True,
+        "id": event.id,
+        "title": event.title,
+        "type": event.type,
+        "location": event.location,
+        "description": event.description,
+        "program_id": event.program_id,
+        "windows": [{
+            "id": w.id,
+            "date": w.date.isoformat(),
+            "start_time": w.start_time.isoformat(),
+            "end_time": w.end_time.isoformat(),
+            "slot_minutes": w.slot_minutes
+        } for w in windows]
+    }), 200

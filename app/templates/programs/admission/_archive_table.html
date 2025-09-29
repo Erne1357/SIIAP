@@ -100,7 +100,7 @@
 
               {% if arch.allow_extension_request %}
               <button class="btn btn-outline-info btn-sm btn-request-extension" 
-                      data-submission-id="{{ sub.id }}"
+                      data-archive-id="{{ arch.id }}"
                       data-archive-name="{{ arch.name }}"
                       title="Solicitar prórroga">
                 <i class="fas fa-clock me-1"></i>Prórroga
@@ -152,7 +152,7 @@
 
               {% if arch.allow_extension_request %}
               <button class="btn btn-outline-info btn-request-extension" 
-                      data-submission-id="{{ sub.id }}"
+                      data-archive-id="{{arch.id}}"
                       data-archive-name="{{ arch.name }}"
                       title="Solicitar prórroga">
                 <i class="fas fa-clock"></i>
@@ -247,4 +247,3 @@
     </tbody>
   </table>
 </div>
-

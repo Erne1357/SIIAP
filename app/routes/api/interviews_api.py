@@ -1,0 +1,85 @@
+# app/routes/api/interviews_api.py
+from app import db
+from flask import Blueprint, request, jsonify
+from flask_login import login_required, current_user
+from app.utils.auth import roles_required
+from app.services.interview_service import InterviewEligibilityService
+
+api_interviews = Blueprint('api_interviews', __name__, url_prefix='/api/v1/interviews')
+
+@api_interviews.route('/eligibility/<int:student_id>/<int:program_id>', methods=['GET'])
+@login_required
+@roles_required('program_admin', 'postgraduate_admin')
+def check_eligibility(student_id: int, program_id: int):
+    """
+    Verifica si un estudiante específico es elegible para entrevista.
+    """
+    try:
+        eligibility = InterviewEligibilityService.check_student_eligibility(student_id, program_id)
+        return jsonify({
+            "ok": True,
+            "student_id": student_id,
+            "program_id": program_id,
+            "eligibility": eligibility
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+@api_interviews.route('/eligible-students/<int:program_id>', methods=['GET'])
+@login_required
+@roles_required('program_admin', 'postgraduate_admin')
+def list_eligible_students(program_id: int):
+    """
+    Lista todos los estudiantes elegibles para entrevista en un programa.
+    """
+    # Verificar permisos del coordinador
+    if current_user.role.name == 'program_admin':
+        from app.models.program import Program
+        program = db.session.get(Program, program_id)
+        if not program or program.coordinator_id != current_user.id:
+            return jsonify({
+                "ok": False,
+                "error": "No tienes permiso para gestionar este programa"
+            }), 403
+    
+    try:
+        eligible_students = InterviewEligibilityService.get_eligible_students(program_id)
+        return jsonify({
+            "ok": True,
+            "program_id": program_id,
+            "eligible_students": eligible_students,
+            "count": len(eligible_students)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+@api_interviews.route('/mark-profile-complete/<int:user_id>', methods=['POST'])
+@login_required
+@roles_required('program_admin', 'postgraduate_admin')
+def mark_profile_complete(user_id: int):
+    """
+    Marca el perfil de un usuario como completo (uso administrativo).
+    """
+    try:
+        success = InterviewEligibilityService.mark_profile_complete(user_id)
+        if success:
+            return jsonify({
+                "ok": True,
+                "message": "Perfil marcado como completo"
+            }), 200
+        else:
+            return jsonify({
+                "ok": False,
+                "error": "No se pudo completar el perfil - faltan campos requeridos"
+            }), 400
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500

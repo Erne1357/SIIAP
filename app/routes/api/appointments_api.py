@@ -61,6 +61,103 @@ def request_change(appointment_id:int):
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
+@api_appointments.route('/<int:appointment_id>/details', methods=['GET'])
+@login_required
+def appointment_details(appointment_id: int):
+    """Obtiene detalles completos de una cita incluyendo slot, window y evento"""
+    from app.models.event import Event, EventSlot, EventWindow
+    from app.models.user import User
+    
+    appt = db.session.get(Appointment, appointment_id)
+    if not appt:
+        return jsonify({"ok": False, "error": "Cita no encontrada"}), 404
+    
+    # Verificar permisos
+    if current_user.id != appt.applicant_id and current_user.role.name not in ('postgraduate_admin', 'program_admin'):
+        return jsonify({"ok": False, "error": "No tienes permiso para ver esta cita"}), 403
+    
+    # Obtener relaciones
+    slot = db.session.get(EventSlot, appt.slot_id)
+    if not slot:
+        return jsonify({"ok": False, "error": "Slot no encontrado"}), 404
+        
+    window = db.session.get(EventWindow, slot.event_window_id)
+    if not window:
+        return jsonify({"ok": False, "error": "Window no encontrada"}), 404
+        
+    event = db.session.get(Event, window.event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+    
+    # Información del coordinador que asignó
+    assigner = db.session.get(User, appt.assigned_by) if appt.assigned_by else None
+    
+    return jsonify({
+        "ok": True,
+        "appointment": {
+            "id": appt.id,
+            "status": appt.status,
+            "notes": appt.notes,
+            "created_at": appt.created_at.isoformat(),
+            "slot": {
+                "id": slot.id,
+                "starts_at": slot.starts_at.isoformat(),
+                "ends_at": slot.ends_at.isoformat(),
+                "status": slot.status
+            },
+            "event": {
+                "id": event.id,
+                "title": event.title,
+                "type": event.type,
+                "location": event.location,
+                "description": event.description
+            },
+            "assigned_by": {
+                "id": assigner.id,
+                "name": f"{assigner.first_name} {assigner.last_name}"
+            } if assigner else None
+        }
+    }), 200
+
+@api_appointments.route('/mine/active', methods=['GET'])
+@login_required
+def my_active_appointments():
+    """Obtiene todas las citas activas del usuario actual con detalles completos"""
+    from app.models.event import Event, EventSlot, EventWindow
+    
+    appointments = Appointment.query.filter_by(
+        applicant_id=current_user.id,
+        status='scheduled'
+    ).all()
+    
+    items = []
+    for appt in appointments:
+        slot = db.session.get(EventSlot, appt.slot_id)
+        if not slot:
+            continue
+            
+        window = db.session.get(EventWindow, slot.event_window_id)
+        if not window:
+            continue
+            
+        event = db.session.get(Event, window.event_id)
+        if not event:
+            continue
+        
+        items.append({
+            "id": appt.id,
+            "status": appt.status,
+            "notes": appt.notes,
+            "event_type": event.type,
+            "event_title": event.title,
+            "location": event.location,
+            "starts_at": slot.starts_at.isoformat(),
+            "ends_at": slot.ends_at.isoformat(),
+            "created_at": appt.created_at.isoformat()
+        })
+    
+    return jsonify({"ok": True, "appointments": items}), 200
+
 @api_appointments.route('/change-requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')
