@@ -1,4 +1,7 @@
 <div class="table-responsive">
+  {% if step.name == 'Entrevista' or step.name == 'Defensa de Protocolo/Propuesta' %}
+
+  {%else%}
   <table class="table table-hover align-middle" id="archiveTable">
     <thead class="table-light">
       <tr>
@@ -43,13 +46,24 @@
         <td>
           <div class="d-flex align-items-center gap-1">
             {% if not sub %}
-            <span class="badge bg-secondary">Pendiente</span>
+              {% if arch.id in all_extensions %}
+                {% set ext = all_extensions[arch.id] %}
+                {% if ext.status == 'pending' %}
+                <span class="badge bg-warning text-dark">Prórroga Pendiente</span>
+                {% elif ext.status == 'granted' %}
+                <span class="badge bg-info">En Prórroga</span>
+                {% elif ext.status == 'rejected' %}
+                <span class="badge bg-danger">Prórroga Rechazada</span>
+                {% elif ext.status == 'cancelled' %}
+                <span class="badge bg-secondary">Prórroga Cancelada</span>
+                {% endif %}
+              {% else %}
+              <span class="badge bg-secondary">Pendiente</span>
+              {% endif %}
             {% elif sub.status == 'approved' %}
             <span class="badge bg-success">Aprobado</span>
             {% elif sub.status == 'rejected' %}
             <span class="badge bg-danger">Rechazado</span>
-            {% elif sub.status == 'extension' %}
-            <span class="badge bg-info">En Prórroga</span>
             {% else %}
             <span class="badge bg-warning text-dark">En Revisión</span>
             {% endif %}
@@ -223,6 +237,28 @@
               </div>
               {% endif %}
               
+              {% if arch.id in all_extensions %}
+              <div class="mb-2">
+                <strong>Estado de prórroga:</strong>
+                {% set ext = all_extensions[arch.id] %}
+                <div class="bg-white p-2 rounded border small mt-1">
+                  <div><strong>Estado:</strong> 
+                    {% if ext.status == 'pending' %}
+                    <span class="badge bg-warning text-dark">Pendiente</span>
+                    {% elif ext.status == 'granted' %}
+                    <span class="badge bg-success">Otorgada</span>
+                    {% elif ext.status == 'rejected' %}
+                    <span class="badge bg-danger">Rechazada</span>
+                    {% endif %}
+                  </div>
+                  <div><strong>Razón:</strong> {{ ext.reason }}</div>
+                  {% if ext.granted_until %}
+                  <div><strong>Válida hasta:</strong> {{ ext.granted_until.strftime('%d/%m/%Y %H:%M') }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endif %}
+              
               {% if sub and sub.reviewer_comment %}
               <div class="mb-2">
                 <strong>Observaciones del revisor:</strong>
@@ -246,4 +282,5 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
 </div>

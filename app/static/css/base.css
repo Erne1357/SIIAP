@@ -1,15 +1,33 @@
-/* === variables re-utilizables === */
+/* === VARIABLES === */
 :root {
-  --header-h: 110px; /* alto de #page-header       */
-  --sidebar-w: 240px; /* ancho de #sidebar          */
-  --footer-h: 56px; /* alto aprox. del footer     */
-  --bg--tecnm: #0b1e8a; /* azul institucional TECNM   */
-  --banner-h: 3.5rem; /* altura del banner de bienvenida */
-  --rojoTec: #dc3545;
+  --header-h: 80px;
+  --sidebar-w: 240px;
+  --footer-h: 56px;
+  --bg--tecnm: #0b1e8a;
+  --banner-h: 3.5rem;
+  --rojoTec: #b21f2d;
   --azulFuerte: #1a71cf;
 }
 
-/* Personalización de colores Bootstrap */
+/* === RESET BASE === */
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* === PERSONALIZACIÓN BOOTSTRAP === */
 .btn-primary {
   background-color: var(--bg--tecnm) !important;
   border-color: var(--bg--tecnm) !important;
@@ -30,198 +48,323 @@
   color: var(--bg--tecnm);
 }
 
-/* =====  RESET DEL LAYOUT  ===== */
-/* === NUEVO: alturas modernas para min-altura y evitar scrollbars en auth === */
-html, body {
-  height: 100%;
-}
-body {
-  overflow-x: hidden;
-  min-height: 100svh; /* soporta iOS/Android barras dinámicas */
+/* === HEADER === */
+#page-header, #auth-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-h);
+  z-index: 1050;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
 }
 
-/* ====== Header logos responsive ====== */
+/* === LOGOS RESPONSIVE === */
 .header-logo {
   display: block;
   height: auto;
   object-fit: contain;
-  /* tamaño base grande (desktop) con clamp */
-  max-height: clamp(36px, 5.5vh, 80px);
+  transition: opacity 0.3s ease;
+  flex-shrink: 0;
 }
 
-/* Ajustes por “marca” si quieres proporciones distintas */
-.header-logo.sep      { max-height: clamp(28px, 4.5vh, 60px); }
-.header-logo.tecnm    { max-height: clamp(36px, 5.5vh, 80px); }
-.header-logo.itcj     { max-height: clamp(36px, 5.5vh, 80px); }
-.header-logo.posgrado { max-height: clamp(34px, 5vh, 72px); }
+.logo-sep {
+  max-height: clamp(32px, 4vh, 48px);
+}
 
-/* La marca central se escala suavemente */
+.logo-tecnm {
+  max-height: clamp(42px, 5.5vh, 66px);
+}
+
+.logo-itcj {
+  max-height: clamp(42px, 5.5vh, 66px);
+}
+
+.logo-posgrado {
+  max-height: clamp(38px, 5vh, 60px);
+}
+
+.header-logos {
+  flex-shrink: 0;
+}
+
+/* === MARCA CENTRAL - AHORA OCUPA MÁS ESPACIO === */
+.brand-container {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
 .brand-text {
   font-weight: 700;
-  font-size: clamp(1.25rem, 2.6vw, 2rem);
+  font-size: clamp(2rem, 5vw, 4rem);
   line-height: 1;
-  color: #212529;
+  color: var(--rojoTec);
+  letter-spacing: 0.08em;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Desaparición progresiva de logos en viewport angosto */
-@media (max-width: 992px) {
-  .header-logos img { opacity: 0.95; }
-  /* opcional: reducir aún más */
-  .header-logo { max-height: clamp(28px, 4.5vh, 60px); }
-}
-@media (max-width: 768px) {
-  /* oculta 1 logo por lado */
-  .header-logos-left .tecnm, .header-logos-right .posgrado { display: none !important; }
-  .brand-text { font-size: clamp(1.15rem, 2.8vw, 1.6rem); }
-}
-@media (max-width: 576px) {
-  /* móvil: oculta todos los logos, deja solo SIIAP */
-  .header-logos { display: none !important; }
-  :root { --header-h: 72px; } /* reduce header en móvil */
-}
-
-/* ====== Off-canvas sidebar en móvil ====== */
-#sidebar {
+/* === WRAPPER Y LAYOUT === */
+#wrapper {
   position: fixed;
-  inset-block-start: var(--header-h);
-  inset-block-end: 0;
-  inset-inline-start: 0;
+  top: var(--header-h);
+  left: 0;
+  right: 0;
+  bottom: var(--footer-h);
+  display: flex;
+  overflow: hidden;
+}
+
+/* === SIDEBAR DESKTOP === */
+#sidebar {
   width: var(--sidebar-w);
+  height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   background: #f8f9fa;
-  z-index: 1040; /* sobre contenido */
+  border-right: 1px solid #dee2e6;
+  flex-shrink: 0;
 }
 
-/* contenido principal */
+/* === MAIN CONTENT === */
 #main-content {
-  margin-block-start: var(--header-h);
-  margin-inline-start: var(--sidebar-w);
-  padding: 1.5rem;
-  min-height: calc(100svh - var(--header-h) - var(--footer-h));
-}
-
-/* Colapso en <992px: sidebar como off-canvas superpuesto */
-@media (max-width: 991.98px) {
-  :root { --sidebar-w: 260px; } /* ancho fijo en overlay */
-  #main-content { margin-inline-start: 0; }
-  #sidebar {
-    transform: translateX(-100%);
-    transition: transform .25s ease;
-    box-shadow: 0 0 18px rgba(0,0,0,.15);
-  }
-  #sidebar.open { transform: translateX(0); }
-  .sidebar-backdrop {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.35);
-    opacity: 0; visibility: hidden;
-    transition: opacity .2s ease, visibility .2s;
-    z-index: 1035;
-  }
-  .sidebar-backdrop.show { opacity: 1; visibility: visible; }
-  body.no-scroll { overflow: hidden; }
-}
-
-/* Mantengo tus colores y ajustes previos… */
-
-#page-header {
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline: 0;
-  height: var(--header-h);
-  z-index: 10;
-}
-
-/* ——  Barra lateral  —— */
-#sidebar {
-  position: fixed;
-  inset-block-start: var(--header-h);
-  inset-block-end: 0;
-  inset-inline-start: 0;
-  width: var(--sidebar-w);
+  flex: 1;
+  height: 100%;
   overflow-y: auto;
-}
-
-/* ——  Contenido principal  —— */
-#main-content {
-  margin-block-start: var(--header-h);
-  margin-inline-start: var(--sidebar-w);
+  overflow-x: hidden;
   padding: 1.5rem;
-  min-height: calc(100vh - var(--header-h) - var(--footer-h));
 }
 
-/* ——  Footer  —— */
+/* === USER CARD === */
+.user-card {
+  margin-top: 1rem;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* === NAV LINKS === */
+.nav-link {
+  padding: 0.65rem 1.25rem;
+  color: #495057;
+  transition: all 0.2s ease;
+  border-radius: 0.375rem;
+  margin: 0.125rem 0.75rem;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  background-color: rgba(11, 30, 138, 0.08);
+  color: var(--bg--tecnm);
+  text-decoration: none;
+}
+
+.nav-link.active {
+  background-color: var(--bg--tecnm);
+  color: #fff !important;
+}
+
+.nav-link.active:hover {
+  background-color: #0a1a7a;
+  color: #fff !important;
+}
+
+.nav-link i {
+  width: 1.25rem;
+  text-align: center;
+}
+
+/* === FOOTER FIJO === */
 footer {
-  margin-inline-start: 0;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--footer-h);
   background: #212529;
   color: #fff;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* ====== Badge de marca ====== */
-.brand-badge {
-  border: 3px solid #b21f2d;
-  /* rojo institucional */
-  border-radius: .6rem;
-  padding: .25rem 2rem;
-  background-color: #fff;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.06);
-}
-
-/* Tipografía del nombre */
-.brand-text {
-  font-weight: 700;
-  font-size: 2rem;
-  /* ajusta a tu gusto */
-  line-height: 1;
-  color: #212529;
-  /* texto gris oscuro */
-}
-
-/* opcional: footer "pegajoso" solo cuando haya poco contenido */
-@supports (position: sticky) {
-  footer {
-    position: sticky;
-    inset-block-end: 0;
-  }
-}
-
-/* ——  responsive: colapsa sidebar <992 px  —— */
+/* === RESPONSIVE TABLETS === */
 @media (max-width: 991.98px) {
   :root {
+    --header-h: 72px;
     --sidebar-w: 0px;
   }
-  #main-content {
-    margin-inline-start: 0;
+
+  #wrapper {
+    top: var(--header-h);
   }
-  footer {
-    margin-inline-start: 0;
+
+  #sidebar {
+    display: none;
+  }
+
+  .header-logo {
+    max-height: clamp(28px, 4vh, 44px);
+  }
+
+  .logo-tecnm, .logo-itcj {
+    max-height: clamp(36px, 5vh, 54px);
+  }
+
+  .brand-text {
+    font-size: clamp(1.8rem, 5vw, 3rem);
   }
 }
 
-/* ——  Ficha de usuario  —— */
-.user-card {
-  margin-top: 20px;
-  background: #f8f9fa; /* gris claro */
-  border: 1px solid #dee2e6;
-  border-radius: .5rem;
+/* === RESPONSIVE MÓVIL === */
+@media (max-width: 767.98px) {
+  :root {
+    --header-h: 70px;
+  }
+
+  /* Ocultar un logo por lado */
+  .logo-sep,
+  .logo-posgrado {
+    display: none !important;
+  }
+
+  .brand-text {
+    font-size: clamp(1.6rem, 6vw, 2.5rem);
+  }
 }
 
-/* ===== Header responsive ===== */
-.header-logo { max-height: clamp(28px, 6vw, 50px); }
-.header-logo.tall { max-height: clamp(32px, 8vw, 80px); }
+@media (max-width: 575.98px) {
+  :root {
+    --header-h: 64px;
+  }
 
-@media (max-width: 992px) {
-  .brand-text { font-size: 1.5rem; }
-}
+  /* Ocultar todos los logos en móvil pequeño */
+  .header-logos {
+    display: none !important;
+  }
 
-@media (max-width: 576px) {
-  /* ocultar logos laterales en móviles: se queda solo SIIAP */
-  .header-logos-left,
-  .header-logos-right { display: none !important; }
-
-  /* aseguremos centrado perfecto del badge */
-  #page-header .brand-badge { margin-inline: auto; }
-  #page-header .d-flex.align-items-center.justify-content-between {
+  /* Asegurar que SIIAP esté centrado cuando desaparecen los logos */
+  #page-header .d-flex,
+  #auth-header .d-flex {
     justify-content: center !important;
   }
+
+  .brand-container {
+    margin: 0 auto;
+  }
+
+  .brand-text {
+    font-size: clamp(1.5rem, 7vw, 2.2rem);
+  }
+
+  #main-content {
+    padding: 1rem;
+  }
 }
 
+/* === OFFCANVAS MÓVIL === */
+.offcanvas {
+  width: 280px !important;
+}
+
+.offcanvas-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.offcanvas-body .nav-link {
+  margin: 0.125rem 0;
+}
+
+/* Fix para que los enlaces funcionen en el offcanvas */
+.offcanvas-body a {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* === ANIMACIONES SUAVES === */
+.nav-link,
+.header-logo {
+  transition: all 0.25s ease;
+}
+
+/* === SCROLLBAR SIDEBAR Y MAIN === */
+#sidebar::-webkit-scrollbar,
+#main-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+#sidebar::-webkit-scrollbar-track,
+#main-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+#sidebar::-webkit-scrollbar-thumb,
+#main-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover,
+#main-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* === MEJORAS DE ACCESIBILIDAD === */
+.btn:focus,
+.nav-link:focus {
+  outline: 2px solid var(--bg--tecnm);
+  outline-offset: 2px;
+}
+
+/* === MEJORA VISUAL DE BADGES === */
+.badge {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  font-weight: 600;
+}
+
+/* === BOTÓN MENÚ MÓVIL === */
+.btn.d-lg-none {
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+}
+
+.btn.d-lg-none:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.btn.d-lg-none:focus {
+  box-shadow: none;
+  outline: 2px solid var(--bg--tecnm);
+}
+
+/* === FIX PARA AOS === */
+[data-aos] {
+  pointer-events: auto;
+}
+
+/* === AOS STYLES OVERRIDE === */
+[data-aos][data-aos][data-aos-duration="800"],
+body[data-aos-duration="800"] [data-aos] {
+  transition-duration: 800ms;
+}
+
+[data-aos][data-aos][data-aos-easing="ease-in-out"],
+body[data-aos-easing="ease-in-out"] [data-aos] {
+  transition-timing-function: ease-in-out;
+}
+
+/* === ASEGURAR QUE NO HAYA SCROLL EXTRA === */
+.d-flex.flex-column.min-vh-100 {
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}

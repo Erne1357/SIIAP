@@ -1,34 +1,99 @@
-/* app/static/css/flash.css */
-
-/* Contenedor fijo, fuera del flujo */
-#flash-container {
+/* === CONTENEDOR DE FLASH MESSAGES === */
+.flash-container {
   position: fixed;
-  top: calc(var(--header-h, 4rem) + .75rem);
-  right: 1rem;
-  z-index: 1080;
-  max-width: 360px;
-  pointer-events: none;         /* que no bloquee clics debajo */
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1060;
+  width: calc(100% - 2rem);
+  max-width: 600px;
+  pointer-events: none;
 }
 
-/* Animaciones */
-@keyframes slideInRight {
-  from { transform: translateX(120%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
-@keyframes slideOutRight {
-  from { transform: translateX(0);    opacity: 1; }
-  to   { transform: translateX(120%); opacity: 0; }
-}
-
-/* Cada toast */
-.flash-toast {
-  pointer-events: auto;         /* sí permite clic en el toast */
-  animation: slideInRight .45s ease-out forwards,
-             slideOutRight .45s ease-in forwards 4.5s; /* visible ~4.5s */
-  margin-bottom: .5rem;
+.flash-container .alert {
+  pointer-events: all;
+  margin-bottom: 0.75rem;
+  animation: slideInDown 0.4s ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 0.5rem;
+  border-left: 4px solid;
 }
 
-/* Opcional: pausa animación al pasar el mouse */
-.flash-toast:hover {
-  animation-play-state: paused;
+/* === COLORES DE BORDES POR TIPO === */
+.flash-container .alert-success {
+  border-left-color: #28a745;
+}
+
+.flash-container .alert-danger {
+  border-left-color: #dc3545;
+}
+
+.flash-container .alert-warning {
+  border-left-color: #ffc107;
+}
+
+.flash-container .alert-info {
+  border-left-color: #17a2b8;
+}
+
+/* === ANIMACIONES === */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flash-container .alert.fade-out {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* === BOTÓN DE CERRAR === */
+.flash-container .btn-close {
+  filter: brightness(0.8);
+}
+
+.flash-container .btn-close:hover {
+  filter: brightness(0.6);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 767.98px) {
+  .flash-container {
+    width: calc(100% - 1rem);
+    max-width: none;
+  }
+  
+  .flash-container .alert {
+    font-size: 0.9rem;
+    padding: 0.75rem 1rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .flash-container {
+    top: 0.5rem;
+    width: calc(100% - 0.5rem);
+  }
+  
+  .flash-container .alert {
+    font-size: 0.85rem;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 0.5rem;
+  }
 }

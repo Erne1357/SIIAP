@@ -1,0 +1,136 @@
+/* === ESTILOS ESPECÍFICOS PARA REGISTRO === */
+:root {
+  --register-wrapper-top: 1rem;    /* espacio superior del área scrollable (desktop) */
+  --register-inner-top: 0.75rem;   /* separación interior antes de la tarjeta */
+  --register-inner-bottom: calc(var(--footer-h) + 2.5rem); /* espacio para mostrar enlaces antes del footer */
+  --mobile-register-offset: 0.035rem; /* espacio entre el banner y la tarjeta en móvil */
+}
+
+body.register-body {
+  height: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+html:has(body.register-body) {
+  height: 100%;
+  overflow: hidden;
+}
+
+.register-body #main-content {
+  position: fixed;
+  top: calc(var(--header-h) + var(--banner-h));
+  left: 0;
+  right: 0;
+  bottom: var(--footer-h);
+  overflow: hidden;
+  padding: 0;
+}
+
+#main-content.register-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--register-wrapper-top) 1.5rem calc(var(--footer-h) + 3rem);
+  height: calc(100vh - var(--header-h) - var(--banner-h) - var(--footer-h));
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#main-content.register-page .auth-container.register-container {
+  width: 100%;
+  max-width: 52rem;
+  flex: 1 1 auto;
+  min-height: 0; /* permite que el scroll interior funcione dentro de flex */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--register-inner-top) 1.5rem var(--register-inner-bottom);
+  overflow-y: auto;
+}
+
+#main-content.register-page .auth-container.register-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+#main-content.register-page .auth-container.register-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+#main-content.register-page .auth-bg.register-container {
+  max-width: 48rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.register-container .card {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.register-container .card-body {
+  padding: 2.5rem;
+}
+
+.register-container .row.g-3 {
+  margin-bottom: 1.25rem;
+}
+
+@media (max-width: 991.98px) {
+  :root {
+    --register-wrapper-top: 0.75rem;
+    --register-inner-top: 0.6rem;
+    --register-inner-bottom: calc(var(--footer-h) + 2.1rem);
+  }
+
+  #main-content.register-page {
+    padding: var(--register-wrapper-top) 1rem calc(var(--footer-h) + 2.75rem);
+  }
+
+  #main-content.register-page .auth-container.register-container {
+    padding: var(--register-inner-top) 1rem var(--register-inner-bottom);
+  }
+}
+
+@media (max-width: 767.98px) {
+  :root {
+    --register-wrapper-top: var(--mobile-register-offset);
+    --register-inner-top: 0.5rem;
+    --register-inner-bottom: calc(var(--footer-h) + 2.6rem);
+  }
+
+  #main-content.register-page {
+    padding: var(--register-wrapper-top) 1rem calc(var(--footer-h) + 2.5rem);
+  }
+
+  #main-content.register-page .auth-container.register-container {
+    padding: var(--register-inner-top) 1rem var(--register-inner-bottom);
+  }
+}
+
+@media (max-width: 575.98px) {
+  :root {
+    --register-inner-top: 0.35rem;
+    --register-inner-bottom: calc(var(--footer-h) + 2.4rem);
+  }
+
+  #main-content.register-page .auth-container.register-container {
+    padding: var(--register-inner-top) 0.75rem var(--register-inner-bottom);
+  }
+
+  .register-container .card-body {
+    padding: 1rem !important;
+  }
+
+  .register-container .row.g-3 {
+    margin-bottom: 1rem;
+  }
+
+  .auth-bg.register-container {
+    max-width: 100%;
+    padding: 0.75rem;
+  }
+}

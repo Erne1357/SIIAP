@@ -1,0 +1,164 @@
+/* === CORRECCIÓN DE COLORES PARA MENÚ Y PESTAÑAS === */
+
+/* Sidebar - Enlaces normales */
+#sidebar .nav-link,
+.offcanvas-body .nav-link {
+  color: #495057 !important;
+  background-color: transparent;
+}
+
+/* Sidebar - Enlaces hover */
+#sidebar .nav-link:hover,
+.offcanvas-body .nav-link:hover {
+  background-color: rgba(11, 30, 138, 0.08) !important;
+  color: var(--bg--tecnm) !important;
+}
+
+/* Sidebar - Enlaces activos */
+#sidebar .nav-link.active,
+.offcanvas-body .nav-link.active {
+  background-color: var(--bg--tecnm) !important;
+  color: #ffffff !important;
+}
+
+#sidebar .nav-link.active:hover,
+.offcanvas-body .nav-link.active:hover {
+  background-color: #0a1a7a !important;
+  color: #ffffff !important;
+}
+
+/* Iconos dentro de enlaces activos */
+#sidebar .nav-link.active i,
+.offcanvas-body .nav-link.active i {
+  color: #ffffff !important;
+}
+
+/* === TABS/PESTAÑAS EN CONTENIDO === */
+
+/* Nav-tabs de Bootstrap */
+.nav-tabs .nav-link {
+  color: #495057;
+  border: 1px solid transparent;
+}
+
+.nav-tabs .nav-link:hover {
+  color: var(--bg--tecnm);
+  border-color: #e9ecef #e9ecef #dee2e6;
+}
+
+.nav-tabs .nav-link.active {
+  color: #ffffff !important;
+  background-color: var(--bg--tecnm) !important;
+  border-color: var(--bg--tecnm) var(--bg--tecnm) #fff !important;
+}
+
+/* Pills */
+.nav-pills .nav-link {
+  color: #495057;
+}
+
+.nav-pills .nav-link:hover {
+  color: var(--bg--tecnm);
+  background-color: rgba(11, 30, 138, 0.08);
+}
+
+.nav-pills .nav-link.active {
+  background-color: var(--bg--tecnm) !important;
+  color: #ffffff !important;
+}
+
+/* === BOTONES EN ESTADO ACTIVO === */
+.btn-outline-primary.active,
+.btn-outline-primary:active {
+  background-color: var(--bg--tecnm) !important;
+  border-color: var(--bg--tecnm) !important;
+  color: #ffffff !important;
+}
+
+/* === BREADCRUMBS === */
+.breadcrumb-item.active {
+  color: var(--bg--tecnm);
+}
+
+/* === LISTGROUPS === */
+.list-group-item.active {
+  background-color: var(--bg--tecnm) !important;
+  border-color: var(--bg--tecnm) !important;
+  color: #ffffff !important;
+}
+
+/* === DROPDOWN MENU === */
+.dropdown-item.active,
+.dropdown-item:active {
+  background-color: var(--bg--tecnm) !important;
+  color: #ffffff !important;
+}
+
+/* === PAGINATION === */
+.page-item.active .page-link {
+  background-color: var(--bg--tecnm) !important;
+  border-color: var(--bg--tecnm) !important;
+  color: #ffffff !important;
+}
+
+/* === BADGES === */
+.badge.bg-primary {
+  background-color: var(--bg--tecnm) !important;
+}
+
+/* === ACCORDION === */
+.accordion-button:not(.collapsed) {
+  background-color: rgba(11, 30, 138, 0.1);
+  color: var(--bg--tecnm);
+}
+
+/* === CARDS CON HEADERS === */
+.card-header {
+  background-color: rgba(11, 30, 138, 0.05);
+  color: #495057;
+}
+
+/* === TABLES === */
+.table-primary {
+  background-color: rgba(11, 30, 138, 0.1);
+  color: #212529;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(11, 30, 138, 0.05);
+}
+
+/* === PROGRESS BARS === */
+.progress-bar {
+  background-color: var(--bg--tecnm);
+}
+
+/* === ALERTS === */
+.alert-primary {
+  background-color: rgba(11, 30, 138, 0.1);
+  border-color: rgba(11, 30, 138, 0.2);
+  color: var(--bg--tecnm);
+}
+
+/* === SPINNERS === */
+.spinner-border.text-primary {
+  color: var(--bg--tecnm) !important;
+}
+
+/* === FOCUS STATES - MEJORAR ACCESIBILIDAD === */
+.nav-link:focus,
+.nav-link:focus-visible {
+  outline: 2px solid var(--bg--tecnm);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* === CORRECCIÓN ESPECÍFICA PARA TEXTO DANGER === */
+.nav-link.text-danger {
+  color: #dc3545 !important;
+}
+
+.nav-link.text-danger:hover {
+  color: #c82333 !important;
+  background-color: rgba(220, 53, 69, 0.08) !important;
+}

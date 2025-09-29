@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 class Config:
-    STATIC_VERSION = "1.0.41111111171" 
+    STATIC_VERSION = "1.0.41111111194" 
     BASE_DIR = Path(__file__).resolve().parent.parent
     INSTANCE_DIR = BASE_DIR / 'instance'
 
@@ -25,7 +25,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'postgresql://postgres:password@db:5432/SIIAP'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    SESSION_COOKIE_NAME = "siiapec_session"
+    SESSION_COOKIE_NAME = "siiap_session"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"   # o "Strict" si no haces POST cross-site
     SESSION_COOKIE_SECURE = False     # True en producción con HTTPS

@@ -23,10 +23,12 @@ def create_app(test_config=None):
      
      db.init_app(app)
      register_blueprints(app)
+     
      # Inicializar y configurar el LoginManager
      login_manager.init_app(app)
-     login_manager.login_view = 'pages_auth.login_page'  #  Redirige al login si no está autenticado
+     login_manager.login_view = 'pages_auth.login_page'
      login_manager.login_message = "Por favor, inicia sesión para acceder a esta página."
+     login_manager.login_message_category = "warning"
 
      migrate = Migrate(app, db)
      
@@ -66,36 +68,47 @@ def create_app(test_config=None):
 
      @app.before_request
      def _csrf_guard_api():
-          validate_csrf_for_api()  # protege la API con token
+          """Valida CSRF y gestiona la expiración de sesión"""
+          validate_csrf_for_api()
+          
+          # Endpoints que NO requieren validación de sesión
+          safe_endpoints = {
+               'pages_auth.login_page',
+               'pages_auth.register_page',
+               'api_auth.api_login',
+               'api_auth.api_logout',
+               'api_auth.api_keepalive',
+               'static',
+          }
+          
+          # Si el endpoint actual es seguro, no validar sesión
+          if request.endpoint in safe_endpoints:
+               return
+
+          # Hacer la sesión permanente
           session.permanent = True
           now_ts = datetime.now(timezone.utc).timestamp()
           last_activity = session.get('last_activity')
 
-          # Endpoints que NO deben ser bloqueados por expiración
-          safe_endpoints = {
-               'pages_auth.login_page',           # render del login
-               'api_auth.api_logout',        # logout explícito
-               'api_auth.api_keepalive',     # keepalive
-          }
-
-          if current_user.is_authenticated and last_activity:
-               if now_ts - last_activity > 15 * 60:  # 15 min
-                    logout_user()
-                    session.pop('last_activity', None)
-                    if request.endpoint in safe_endpoints:
-                         return  # deja pasar
-                    flash("Tu sesión ha expirado por inactividad.", "warning")
-                    return redirect(url_for('pages_auth.login_page'))
-
-          # refresca actividad sólo si el usuario está autenticado
+          # Solo validar expiración si el usuario está autenticado
           if current_user.is_authenticated:
+               if last_activity:
+                    # Verificar si han pasado más de 15 minutos
+                    if now_ts - last_activity > 15 * 60:  # 15 min
+                         # Limpiar la sesión completamente
+                         session.clear()
+                         logout_user()
+                         flash("Tu sesión ha expirado por inactividad.", "warning")
+                         return redirect(url_for('pages_auth.login_page'))
+               
+               # Actualizar la última actividad
                session['last_activity'] = now_ts
 
      @app.context_processor
      def inject_tokens_and_version():
           return {
                "static_version": app.config.get("STATIC_VERSION", "1.0.0"),
-               "csrf_token": generate_csrf_token,    # {{ csrf_token() }} en templates
+               "csrf_token": generate_csrf_token,
           }
      
      @app.route('/')
@@ -108,7 +121,7 @@ def create_app(test_config=None):
      return app
 
 def register_blueprints(app):
-     #Registrarr apis
+     # Registrar apis
      from app.routes.api.auth_api import api_auth_bp
      from app.routes.api.programs_api import api_programs
      from app.routes.api.admission_api import api_admission
@@ -123,7 +136,7 @@ def register_blueprints(app):
      from app.routes.api.retention_api import api_retention
      from app.routes.api.archives_api import api_archives
      from app.routes.api.coordinator_api import api_coordinator
-     from app.routes.api.interviews_api import api_interviews
+     
      app.register_blueprint(api_auth_bp)
      app.register_blueprint(api_programs)
      app.register_blueprint(api_admission)
@@ -138,21 +151,18 @@ def register_blueprints(app):
      app.register_blueprint(api_retention)
      app.register_blueprint(api_archives)
      app.register_blueprint(api_coordinator)
-     app.register_blueprint(api_interviews)
 
-
-     #Registrar páginas
+     # Registrar páginas
      from app.routes.pages.auth import pages_auth
      from app.routes.pages.programs_pages import program_bp
      from app.routes.pages.users_pages import pages_user
      from app.routes.pages.admin.admin_pages import pages_admin
      from app.routes.pages.coordinator_pages import pages_coordinator
+     
      app.register_blueprint(pages_auth)
      app.register_blueprint(program_bp)
      app.register_blueprint(pages_user)
      app.register_blueprint(pages_admin)
      app.register_blueprint(pages_coordinator)
-
-
 
 app = create_app()

@@ -26,6 +26,44 @@
     max-width: 1200px;
     margin: 0 auto;
   }
+
+  /* Fix para AOS personalizado en el contenedor de scroll */
+  .program-view-container [data-aos] {
+    transition-property: transform, opacity;
+    transition-duration: 800ms;
+    transition-timing-function: ease-in-out;
+    will-change: transform, opacity;
+  }
+
+  .program-view-container [data-aos].aos-animate {
+    transform: translateY(0) translateX(0) !important;
+    opacity: 1 !important;
+  }
+
+  .program-view-container [data-aos="fade-up"] {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+
+  .program-view-container [data-aos="fade-in"] {
+    opacity: 0;
+  }
+
+  .program-view-container [data-aos="fade-left"] {
+    transform: translateX(30px);
+    opacity: 0;
+  }
+
+  .program-view-container [data-aos="fade-right"] {
+    transform: translateX(-30px);
+    opacity: 0;
+  }
+
+  /* Mejorar performance de animaciones */
+  .program-view-container [data-aos] {
+    backface-visibility: hidden;
+    perspective: 1000;
+  }
   
   /* Secciones */
   section {
@@ -204,7 +242,7 @@
 
 .floating-inscription-button {
   position: fixed;
-  bottom: 3rem;
+  bottom: 4.5rem;
   right: 2rem;
   z-index: 1000;
   opacity: 0;
@@ -257,7 +295,7 @@
   }
   
   .floating-inscription-button {
-    bottom: 1.5rem;
+    bottom: 3rem;
     right: 1.5rem;
   }
   
