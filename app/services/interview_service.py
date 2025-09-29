@@ -1,13 +1,16 @@
 # app/services/interview_service.py
 from sqlalchemy import select, and_
+from flask import current_app
 from app import db
 from app.models.user import User
 from app.models.program_step import ProgramStep
 from app.models.step import Step
+from app.models.phase import Phase
 from app.models.submission import Submission
 from app.models.archive import Archive
 from app.models.user_program import UserProgram
 from typing import Dict, List, Tuple
+import logging
 
 class InterviewEligibilityService:
     
@@ -19,7 +22,8 @@ class InterviewEligibilityService:
         Criterios:
         1. Perfil completo
         2. Todos los archivos de pasos anteriores en estado 'approved' o 'extension'
-        3. No incluir el último paso (entrevista)
+        3. Solo considerar pasos de la fase de admisión
+        4. No incluir el último paso (entrevista)
         
         Returns:
             Dict con 'eligible', 'reason', 'missing_items', 'profile_status', 'documents_status'
@@ -31,15 +35,22 @@ class InterviewEligibilityService:
         # 1. Verificar perfil completo (ahora usa el método del modelo)
         profile_complete = user.profile_completed
         
-        # 2. Obtener todos los pasos del programa, excluyendo el último
+        # 2. Obtener todos los pasos del programa que pertenezcan a la fase de admisión
         program_steps = db.session.execute(
             select(ProgramStep, Step).join(
                 Step, ProgramStep.step_id == Step.id
+            ).join(
+                Phase, Step.phase_id == Phase.id
             ).where(
-                ProgramStep.program_id == program_id
+                and_(
+                    ProgramStep.program_id == program_id,
+                    Phase.name == 'admission'
+                )
             ).order_by(ProgramStep.sequence)
         ).all()
         
+        current_app.logger.warning(f"Program steps for program_id {program_id}: {program_steps}")
+
         if not program_steps:
             return {"eligible": False, "reason": "Programa sin pasos configurados"}
         
