@@ -123,6 +123,7 @@ def register_blueprints(app):
      from app.routes.api.retention_api import api_retention
      from app.routes.api.archives_api import api_archives
      from app.routes.api.coordinator_api import api_coordinator
+     from app.routes.api.interviews_api import api_interviews
      app.register_blueprint(api_auth_bp)
      app.register_blueprint(api_programs)
      app.register_blueprint(api_admission)
@@ -137,6 +138,7 @@ def register_blueprints(app):
      app.register_blueprint(api_retention)
      app.register_blueprint(api_archives)
      app.register_blueprint(api_coordinator)
+     app.register_blueprint(api_interviews)
 
 
      #Registrar páginas

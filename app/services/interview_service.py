@@ -44,7 +44,7 @@ class InterviewEligibilityService:
             return {"eligible": False, "reason": "Programa sin pasos configurados"}
         
         # Excluir el último paso (presumiblemente la entrevista)
-        steps_to_check = program_steps[:-1] if len(program_steps) > 1 else []
+        steps_to_check = program_steps[1:-1] if len(program_steps) > 1 else []
         
         # 3. Verificar estado de documentos en cada paso
         missing_items = []

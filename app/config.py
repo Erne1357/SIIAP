@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 class Config:
-    STATIC_VERSION = "1.0.41111111166" 
+    STATIC_VERSION = "1.0.41111111171" 
     BASE_DIR = Path(__file__).resolve().parent.parent
     INSTANCE_DIR = BASE_DIR / 'instance'
 
@@ -17,7 +17,7 @@ class Config:
     # ---- límites y tipos permitidos -------------------------------------------
     #ALLOWED_IMAGE_EXT = {'png', 'jpg', 'jpeg', 'webp'}
     ALLOWED_DOC_EXT   = {'pdf'} #, 'doc', 'docx', 'xlsx'}
-    MAX_CONTENT_LENGTH = 10 * 1024 * 1024         # 10 MB
+    MAX_CONTENT_LENGTH = 3 * 1024 * 1024         # 3 MB
 
     # Secret key for sessions
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'clave-secreta'

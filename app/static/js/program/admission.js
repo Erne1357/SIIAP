@@ -89,11 +89,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (e) => {
     if (e.target.closest('.btn-request-extension')) {
       const button = e.target.closest('.btn-request-extension');
-      const submissionId = button.getAttribute('data-submission-id');
+      const archiveId = button.getAttribute('data-archive-id');
       const archiveName = button.getAttribute('data-archive-name');
       
-      if (submissionId && archiveName) {
-        document.getElementById('extensionSubmissionId').value = submissionId;
+      if (archiveId && archiveName) {
+        document.getElementById('extensionArchiveId').value = archiveId;
         document.getElementById('extensionArchiveName').textContent = archiveName;
         
         // Limpiar formulario
@@ -110,11 +110,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('extensionForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const submissionId = document.getElementById('extensionSubmissionId').value;
+    const archiveId = document.getElementById('extensionArchiveId').value;
     const requestedUntil = document.getElementById('extensionRequestedUntil').value;
     const reason = document.getElementById('extensionReason').value.trim();
     
-    if (!submissionId || !requestedUntil || !reason) {
+    if (!archiveId || !requestedUntil || !reason) {
       emitFlash('warning', 'Completa todos los campos requeridos.');
       return;
     }
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     try {
       const payload = {
-        submission_id: parseInt(submissionId),
+        archive_id: parseInt(archiveId),
         requested_until: requestedUntil,
         reason: reason
       };
@@ -317,15 +317,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadInterviewInfo() {
     try {
-      const res = await fetch('/api/v1/appointments/mine', {
+      const res = await fetch('/api/v1/appointments/mine/active', {
         credentials: 'same-origin'
       });
       
-      if (!res.ok) return; // Sin citas o error
+      if (!res.ok) return;
       
       const json = await res.json();
-      if (json.ok && json.items && json.items.length > 0) {
-        showInterviewCard(json.items[0]); // Mostrar primera cita
+      if (json.ok && json.appointments && json.appointments.length > 0) {
+        // Mostrar todas las citas activas
+        json.appointments.forEach(appt => showInterviewCard(appt));
       }
       
     } catch (err) {
@@ -334,37 +335,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showInterviewCard(appointment) {
-    // Crear card de cita asignada si no existe
-    let interviewCard = document.getElementById('interviewCard');
-    if (!interviewCard) {
-      interviewCard = document.createElement('div');
-      interviewCard.id = 'interviewCard';
-      interviewCard.className = 'alert alert-success shadow-sm mb-4';
-      
-      // Insertar después del alert de proceso de admisión
-      const processAlert = document.querySelector('.alert-info');
-      if (processAlert) {
-        processAlert.parentNode.insertBefore(interviewCard, processAlert.nextSibling);
-      }
-    }
+    // Crear card de cita asignada
+    const interviewCard = document.createElement('div');
+    interviewCard.className = 'alert alert-success shadow-sm mb-4';
+    interviewCard.id = `interviewCard-${appointment.id}`;
+    
+    // Formatear fecha y hora
+    const startDate = new Date(appointment.starts_at);
+    const endDate = new Date(appointment.ends_at);
+    const dateStr = startDate.toLocaleDateString('es-MX', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const timeStr = `${startDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} - ${endDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
     
     interviewCard.innerHTML = `
-      <div class="d-flex align-items-center">
-        <div class="flex-grow-1">
+      <div class="row align-items-center">
+        <div class="col-12 col-md-8">
           <h5 class="mb-2">
             <i class="fas fa-calendar-check me-2"></i>
-            Cita de Entrevista Asignada
+            ${appointment.event_title}
           </h5>
           <p class="mb-2">
-            <strong>Fecha y hora:</strong> <span id="appointmentDateTime">Cargando...</span><br>
-            <strong>Lugar:</strong> <span id="appointmentLocation">Cargando...</span>
+            <strong><i class="fas fa-clock me-1"></i> Fecha y hora:</strong> ${dateStr}<br>
+            <strong><i class="fas fa-hourglass-half me-1"></i> Horario:</strong> ${timeStr}<br>
+            <strong><i class="fas fa-map-marker-alt me-1"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
           </p>
-          <small class="text-muted">
-            Tu entrevista ha sido programada. Si necesitas cambiar el horario, puedes solicitar un cambio.
-          </small>
+          ${appointment.notes ? `
+            <div class="alert alert-info py-2 mb-0">
+              <small><strong>Notas:</strong> ${appointment.notes}</small>
+            </div>
+          ` : ''}
         </div>
-        <div class="text-end">
-          <button class="btn btn-outline-warning btn-sm" id="requestChangeBtn">
+        <div class="col-12 col-md-4 text-md-end mt-3 mt-md-0">
+          <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change" data-appointment-id="${appointment.id}">
             <i class="fas fa-exchange-alt me-1"></i>
             Solicitar Cambio
           </button>
@@ -372,20 +378,62 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
     
-    // Cargar detalles de la cita (esto requeriría más APIs)
-    loadAppointmentDetails(appointment.id);
+    // Insertar después del alert de proceso de admisión
+    const processAlert = document.querySelector('.alert-info');
+    if (processAlert) {
+      processAlert.parentNode.insertBefore(interviewCard, processAlert.nextSibling);
+    }
   }
 
-  async function loadAppointmentDetails(appointmentId) {
-    // Esta función cargaría los detalles completos de la cita
-    // Por ahora solo simulamos
-    document.getElementById('appointmentDateTime').textContent = 'Por definir';
-    document.getElementById('appointmentLocation').textContent = 'Por definir';
+  // ==================== SOLICITAR CAMBIO DE CITA ====================
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.btn-request-change')) {
+      const button = e.target.closest('.btn-request-change');
+      const appointmentId = button.getAttribute('data-appointment-id');
+      
+      if (appointmentId) {
+        openChangeRequestModal(appointmentId);
+      }
+    }
+  });
+
+  function openChangeRequestModal(appointmentId) {
+    // Por ahora mostrar un prompt simple
+    const reason = prompt('Motivo del cambio de horario:');
+    if (!reason || !reason.trim()) return;
     
-    // Configurar botón de solicitar cambio
-    document.getElementById('requestChangeBtn')?.addEventListener('click', () => {
-      // Abrir modal para solicitar cambio de cita
-      alert('Funcionalidad de cambio de cita - Por implementar en siguiente fase');
-    });
+    const suggestions = prompt('Sugerencias de horario (opcional):');
+    
+    requestAppointmentChange(appointmentId, reason.trim(), suggestions?.trim());
+  }
+
+  async function requestAppointmentChange(appointmentId, reason, suggestions) {
+    try {
+      const payload = { reason };
+      if (suggestions) payload.suggestions = suggestions;
+      
+      const res = await fetch(`/api/v1/appointments/${appointmentId}/change-requests`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const json = await res.json();
+      
+      if (!res.ok || !json.ok) {
+        emitFlash('danger', json.error || 'No se pudo enviar la solicitud');
+        return;
+      }
+      
+      emitFlash('success', 'Solicitud de cambio enviada. El coordinador la revisará pronto.');
+      
+    } catch (err) {
+      console.error('Change request error:', err);
+      emitFlash('danger', 'Error al enviar la solicitud de cambio');
+    }
   }
 });
