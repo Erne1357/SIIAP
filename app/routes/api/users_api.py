@@ -29,6 +29,7 @@ def me():
         "avatar_url": u.avatar_url,
         "last_login": u.last_login.isoformat() if u.last_login else None,
         "registration_date": u.registration_date.isoformat() if u.registration_date else None,
+        "profile_completed": u.profile_completed,
     }
     return jsonify({"data": {"user": data}, "error": None, "meta": {}}), 200
 

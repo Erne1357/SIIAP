@@ -33,6 +33,10 @@
     {# Botones flotantes #}
     {% include 'programs/view/_floating_buttons.html' %}
 
+</div>
+{% endblock %}
+
+{% block modals %}
     <!-- Modal para inscripción con si o no -->
     <div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalLabel"
         aria-hidden="true">
@@ -64,8 +68,6 @@
             </div>
         </div>
     </div>
-
-</div>
 {% endblock %}
 
 {% block scripts %}

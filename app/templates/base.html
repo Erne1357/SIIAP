@@ -57,10 +57,10 @@
 
         <!-- Logos izquierda -->
         <div class="header-logos header-logos-left d-none d-md-flex align-items-center gap-2 gap-lg-3">
-          <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}?v={{ static_version }}" 
-               alt="SEP" class="header-logo logo-sep">
-          <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}?v={{ static_version }}" 
-               alt="TECNM" class="header-logo logo-tecnm">
+          <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}?v={{ static_version }}" alt="SEP"
+            class="header-logo logo-sep">
+          <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}?v={{ static_version }}" alt="TECNM"
+            class="header-logo logo-tecnm">
         </div>
 
         <!-- SIIAP centrado -->
@@ -70,10 +70,11 @@
 
         <!-- Logos derecha -->
         <div class="header-logos header-logos-right d-none d-md-flex align-items-center gap-2 gap-lg-3">
-          <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}"
-               alt="ITCJ" class="header-logo logo-itcj">
+          <img
+            src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}"
+            alt="ITCJ" class="header-logo logo-itcj">
           <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}?v={{ static_version }}"
-               alt="Posgrado" class="header-logo logo-posgrado">
+            alt="Posgrado" class="header-logo logo-posgrado">
         </div>
       </div>
     </div>
@@ -123,6 +124,10 @@
           <i class="fas fa-clipboard-list me-2"></i>Admisión
         </a>
         {% endif %}
+        <a class="nav-link {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
+          href="{{ url_for('pages_events_public.list_events') }}">
+          <i class="fas fa-calendar-check me-2"></i>Eventos
+        </a>
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
         <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
           href="{{ url_for('pages_coordinator.dashboard') }}">
@@ -136,6 +141,12 @@
         <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
           href="{{ url_for('pages_admin.pages_review.index') }}">
           <i class="fas fa-file-alt me-2"></i>Documentos
+        </a>
+        {% endif %}
+        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+        <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
+          href="{{ url_for('pages_admin.pages_events.index') }}">
+          <i class="fas fa-calendar-check me-2"></i>Eventos
         </a>
         {% endif %}
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
@@ -187,19 +198,26 @@
             href="{{ url_for('pages_coordinator.dashboard') }}" data-bs-dismiss="offcanvas">
             <i class="fas fa-users me-2"></i>Coordinación</a>
           {% endif %}
-          <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}"
-            data-bs-dismiss="offcanvas">
+          <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}" data-bs-dismiss="offcanvas">
             <i class="fas fa-calendar-alt me-2"></i>Permanencia</a>
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
           <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_review.index') }}" data-bs-dismiss="offcanvas">
-            <i class="fas fa-file-alt me-2"></i>Documentos</a>
+            href="{{ url_for('pages_admin.pages_review.index') }}">
+            <i class="fas fa-file-alt me-2"></i>Documentos
+          </a>
           {% endif %}
-          {% if current_user.role.name in ['program_admin', 'postgraduate_admin']%}
-          <hr>
+          {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+          <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
+            href="{{ url_for('pages_admin.pages_events.index') }}">
+            <i class="fas fa-calendar-check me-2"></i>Eventos
+          </a>
+          {% endif %}
+          {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+          <hr class="mx-3">
           <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_settings.index') }}" data-bs-dismiss="offcanvas">
-            <i class="fas fa-cog me-2"></i>Configuración</a>
+            href="{{ url_for('pages_admin.pages_settings.index') }}">
+            <i class="fas fa-cog me-2"></i>Configuración
+          </a>
           {% endif %}
           <hr>
           <a href="#" class="nav-link text-danger js-api-logout" data-bs-dismiss="offcanvas" data-no-swup>
@@ -221,6 +239,9 @@
     <small>&copy; 2025 SIIAP. Todos los derechos reservados.</small>
   </footer>
 
+  <div id="modal-portal">
+    {% block modals %}{% endblock %}
+  </div>
   <!-- Modal sesión -->
   <div id="sessionModal" class="session-modal" style="display: none;">
     <div class="session-modal-content">
@@ -263,7 +284,7 @@
           el.addEventListener('click', async (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
-            
+
             // Cerrar el offcanvas si está abierto
             const offcanvas = document.getElementById('mobileSidebar');
             if (offcanvas) {
@@ -272,7 +293,7 @@
                 bsOffcanvas.hide();
               }
             }
-            
+
             try {
               const res = await fetch("{{ url_for('api_auth.api_logout') }}", {
                 method: "POST",
@@ -295,7 +316,7 @@
 
       // Wire logout buttons en ambos lugares
       wireLogout('.js-api-logout');
-      
+
       // Reiniciar los event listeners después de Swup si lo usas
       if (typeof swup !== 'undefined') {
         swup.on('contentReplaced', () => {
@@ -310,15 +331,15 @@
     function initOffcanvasLinks() {
       const offcanvasElement = document.getElementById('mobileSidebar');
       if (!offcanvasElement) return;
-      
+
       const offcanvasLinks = offcanvasElement.querySelectorAll('.nav-link:not(.js-api-logout)');
-      
+
       offcanvasLinks.forEach(link => {
         // Remover listeners previos para evitar duplicados
         const newLink = link.cloneNode(true);
         link.parentNode.replaceChild(newLink, link);
-        
-        newLink.addEventListener('click', function(e) {
+
+        newLink.addEventListener('click', function (e) {
           const href = this.getAttribute('href');
           // Si el enlace tiene href válido y no es #, cerrar el offcanvas
           if (href && href !== '#' && href !== '') {
@@ -332,14 +353,14 @@
         });
       });
     }
-    
+
     // Inicializar cuando el DOM esté listo
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initOffcanvasLinks);
     } else {
       initOffcanvasLinks();
     }
-    
+
     // Reinicializar después de Swup si lo usas
     if (typeof swup !== 'undefined') {
       swup.on('contentReplaced', initOffcanvasLinks);

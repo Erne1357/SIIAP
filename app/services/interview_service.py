@@ -9,6 +9,7 @@ from app.models.phase import Phase
 from app.models.submission import Submission
 from app.models.archive import Archive
 from app.models.user_program import UserProgram
+from app.models.extension_request import ExtensionRequest
 from typing import Dict, List, Tuple
 import logging
 
@@ -24,6 +25,7 @@ class InterviewEligibilityService:
         2. Todos los archivos de pasos anteriores en estado 'approved' o 'extended'
         3. Solo considerar pasos de la fase de admisión
         4. No incluir el último paso (entrevista)
+        5. Considerar extensiones aprobadas como válidas cuando no hay submission
         
         Returns:
             Dict con 'eligible', 'reason', 'missing_items', 'profile_status', 'documents_status'
@@ -60,7 +62,7 @@ class InterviewEligibilityService:
         # 3. Verificar estado de documentos en cada paso
         missing_items = []
         documents_status = []
-        
+
         for program_step, step in steps_to_check:
             # Obtener archivos requeridos para este paso
             archives = db.session.execute(
@@ -93,19 +95,40 @@ class InterviewEligibilityService:
                     "archive_id": archive.id,
                     "has_submission": bool(submission),
                     "status": submission.status if submission else "missing",
-                    "is_valid": False
+                    "is_valid": False,
+                    "has_granted_extension": False
                 }
                 
                 # Determinar si el archivo está en estado válido
                 if submission and submission.status in ['approved', 'extended']:
                     archive_status["is_valid"] = True
                 else:
-                    missing_items.append({
-                        "type": "document",
-                        "step": step.name,
-                        "archive": archive.name,
-                        "current_status": submission.status if submission else "missing"
-                    })
+                    # Si no hay submission o no está aprobada, verificar si hay extensión aprobada
+                    if not submission:
+                        extension_request = db.session.execute(
+                            select(ExtensionRequest).where(
+                                and_(
+                                    ExtensionRequest.user_id == student_id,
+                                    ExtensionRequest.archive_id == archive.id,
+                                    ExtensionRequest.program_step_id == program_step.id,
+                                    ExtensionRequest.status == 'granted'
+                                )
+                            )
+                        ).scalar_one_or_none()
+                        
+                        if extension_request:
+                            archive_status["is_valid"] = True
+                            archive_status["has_granted_extension"] = True
+                            archive_status["status"] = "extension_granted"
+                    
+                    # Si aún no es válido, agregar a elementos faltantes
+                    if not archive_status["is_valid"]:
+                        missing_items.append({
+                            "type": "document",
+                            "step": step.name,
+                            "archive": archive.name,
+                            "current_status": submission.status if submission else "missing"
+                        })
                 
                 step_status["archives"].append(archive_status)
             

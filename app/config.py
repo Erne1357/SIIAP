@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 class Config:
-    STATIC_VERSION = "1.0.41111111194" 
+    STATIC_VERSION = "1.0.41111111239" 
     BASE_DIR = Path(__file__).resolve().parent.parent
     INSTANCE_DIR = BASE_DIR / 'instance'
 

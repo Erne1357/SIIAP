@@ -136,6 +136,9 @@ def register_blueprints(app):
      from app.routes.api.retention_api import api_retention
      from app.routes.api.archives_api import api_archives
      from app.routes.api.coordinator_api import api_coordinator
+     from app.routes.api.attendance_api import api_attendance
+     from app.routes.api.invitations_api import api_invitations
+     from app.routes.api.interviews_api import api_interviews
      
      app.register_blueprint(api_auth_bp)
      app.register_blueprint(api_programs)
@@ -151,6 +154,9 @@ def register_blueprints(app):
      app.register_blueprint(api_retention)
      app.register_blueprint(api_archives)
      app.register_blueprint(api_coordinator)
+     app.register_blueprint(api_attendance)
+     app.register_blueprint(api_invitations)
+     app.register_blueprint(api_interviews)
 
      # Registrar páginas
      from app.routes.pages.auth import pages_auth
@@ -158,11 +164,13 @@ def register_blueprints(app):
      from app.routes.pages.users_pages import pages_user
      from app.routes.pages.admin.admin_pages import pages_admin
      from app.routes.pages.coordinator_pages import pages_coordinator
+     from app.routes.pages.event_pages import pages_events_public
      
      app.register_blueprint(pages_auth)
      app.register_blueprint(program_bp)
      app.register_blueprint(pages_user)
      app.register_blueprint(pages_admin)
      app.register_blueprint(pages_coordinator)
+     app.register_blueprint(pages_events_public)
 
 app = create_app()

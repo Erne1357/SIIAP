@@ -44,7 +44,7 @@
         {% elif state=='pending' %}
         <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
         {% elif state=='extended' %}
-        <i class="fas fa-file-circle ms-1 text-info"></i>
+        <i class="fas fa-clock ms-1 text-warning"></i>
         {% endif %}
         {% endif %}
       </button>
@@ -66,7 +66,9 @@
     {% endfor %}
   </div>
 </div>
+{% endblock %}
 
+{% block modals %}
 <!-- Modal para subir archivos -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -142,6 +144,58 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-primary">Solicitar Prórroga</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Solicitar Cambio de Horario -->
+<div class="modal fade" id="requestChangeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-exchange-alt me-2"></i>
+          Solicitar Cambio de Horario
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="requestChangeForm">
+        <div class="modal-body">
+          <input type="hidden" id="changeAppointmentId">
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            El coordinador revisará tu solicitud y te contactará.
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">
+              Motivo del cambio <span class="text-danger">*</span>
+            </label>
+            <textarea class="form-control" id="changeReason" rows="3" required
+                      placeholder="Explica por qué necesitas cambiar el horario..."></textarea>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">
+              Sugerencias de horario <span class="text-muted">(opcional)</span>
+            </label>
+            <textarea class="form-control" id="changeSuggestions" rows="2"
+                      placeholder="Ej: Lunes o miércoles por la tarde, después de las 3pm"></textarea>
+            <div class="form-text">
+              Indica tus preferencias de horario si las tienes.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i> Cancelar
+          </button>
+          <button type="submit" class="btn btn-info">
+            <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud
+          </button>
         </div>
       </form>
     </div>

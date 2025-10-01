@@ -202,3 +202,48 @@ def get_appointment_by_slot(slot_id: int):
             "created_at": appointment.created_at.isoformat()
         }
     }), 200
+
+@api_appointments.route('/<int:appointment_id>/cancel', methods=['POST'])
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def cancel_appointment_by_coordinator(appointment_id: int):
+    """Cancelar cita desde el coordinador con motivo"""
+    from app.models.program import Program
+    
+    data = request.get_json() or {}
+    reason = data.get('reason', 'Cancelada por coordinador')
+    
+    try:
+        appt = db.session.get(Appointment, appointment_id)
+        if not appt:
+            return jsonify({"ok": False, "error": "Cita no encontrada"}), 404
+        
+        # Verificar permisos
+        from app.models.event import EventSlot, EventWindow, Event
+        slot = db.session.get(EventSlot, appt.slot_id)
+        if not slot:
+            return jsonify({"ok": False, "error": "Slot no encontrado"}), 404
+            
+        window = db.session.get(EventWindow, slot.event_window_id)
+        event = db.session.get(Event, window.event_id)
+        
+        if current_user.role.name == 'program_admin':
+            if event.program_id:
+                program = db.session.get(Program, event.program_id)
+                if not program or program.coordinator_id != current_user.id:
+                    return jsonify({"ok": False, "error": "Sin permisos"}), 403
+        
+        # Cancelar
+        appt.status = 'cancelled'
+        appt.notes = f"{appt.notes or ''}\n[Cancelada]: {reason}".strip()
+        slot.status = 'free'
+        slot.held_by = None
+        slot.hold_expires_at = None
+        
+        db.session.commit()
+        
+        return jsonify({"ok": True, "id": appointment_id}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500

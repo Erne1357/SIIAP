@@ -74,17 +74,21 @@ window.addEventListener('flash', (event) => {
  * Auto-cerrar alertas después de 5 segundos
  */
 document.addEventListener('DOMContentLoaded', () => {
-  const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
-  alerts.forEach(alert => {
-    setTimeout(() => {
-      alert.classList.add('fade-out');
+  // Solo alertas dentro del contenedor de flash
+  const flashContainer = document.getElementById('flash-container');
+  if (flashContainer) {
+    const alerts = flashContainer.querySelectorAll('.alert:not(.alert-permanent)');
+    alerts.forEach(alert => {
       setTimeout(() => {
-        if (alert.parentElement) {
-          alert.remove();
-        }
-      }, 500);
-    }, 5000);
-  });
+        alert.classList.add('fade-out');
+        setTimeout(() => {
+          if (alert.parentElement) {
+            alert.remove();
+          }
+        }, 500);
+      }, 5000);
+    });
+  }
 });
 
 /**
