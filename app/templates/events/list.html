@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Eventos Disponibles{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3">Eventos Disponibles</h1>
+    <div>
+      <button class="btn btn-outline-secondary btn-sm" id="btnShowMyRegistrations">
+        <i class="fas fa-list"></i> Mis Registros
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <select class="form-select form-select-sm" id="filterType">
+            <option value="">Todos los tipos</option>
+            <option value="interview">Entrevista</option>
+            <option value="defense">Defensa</option>
+            <option value="workshop">Taller</option>
+            <option value="seminar">Seminario</option>
+            <option value="conference">Conferencia</option>
+            <option value="info_session">Sesión Informativa</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <select class="form-select form-select-sm" id="filterCapacity">
+            <option value="">Todas las capacidades</option>
+            <option value="multiple">Con cupo limitado</option>
+            <option value="unlimited">Sin límite</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <input type="search" class="form-control form-control-sm" 
+                 id="searchEvents" placeholder="Buscar eventos...">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de eventos -->
+  <div class="row g-4" id="eventsContainer">
+    <div class="col-12 text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Cargando...</span>
+      </div>
+      <p class="text-muted mt-2">Cargando eventos disponibles...</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/events/list.js') }}?v={{ static_version }}"></script>
+{% endblock %}

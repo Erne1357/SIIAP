@@ -1,6 +1,6 @@
 # app/routes/api/interviews_api.py
 from app import db
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.interview_service import InterviewEligibilityService
@@ -44,9 +44,10 @@ def list_eligible_students(program_id: int):
                 "ok": False,
                 "error": "No tienes permiso para gestionar este programa"
             }), 403
-    
+
     try:
         eligible_students = InterviewEligibilityService.get_eligible_students(program_id)
+        current_app.logger.info(f"Usuario {current_user.id} listó estudiantes elegibles para programa {program_id} - Total: {len(eligible_students)} estudiantes elegibles encontrados {eligible_students}")
         return jsonify({
             "ok": True,
             "program_id": program_id,

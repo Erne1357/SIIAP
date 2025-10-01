@@ -2,7 +2,10 @@
 
 from flask import current_app
 from sqlalchemy.orm import selectinload
+from sqlalchemy import and_, or_, select
+from app import db
 from app.models import Step, ProgramStep, Phase, Submission, ExtensionRequest
+from app.models.event import Event, EventSlot, EventAttendance, EventWindow
 from datetime import datetime, timezone
 import logging,json
 
@@ -77,37 +80,79 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         }
         for archive_id, ext in all_extensions.items()
     }
-    current_app.logger.warning(f"Active extensions for user_id {user_id}, program_id {program_id}: {json.dumps(extensions_json, indent=2)}")
-    # 4) Lock info por paso (considerando extensiones activas)
+    # 4) Lock info por paso (solo bloquear el último paso)
     def _is_locked(step):
-        return False
-        # secuencia 0 nunca bloqueada
+        # Obtener la secuencia de este paso
         seq = step.program_steps[0].sequence
+        
+        # Nunca bloquear los primeros pasos (secuencia 0 y 1)
         if seq == 0 or seq == 1:
             return False
-        # buscar paso previo
-        prev = next((
-            st for st in steps
-            if any(ps.sequence == seq-1 for ps in st.program_steps)
-        ), None)
-        if not prev:
+            
+        # Encontrar el paso con la secuencia más alta (último paso)
+        max_seq = max(st.program_steps[0].sequence for st in steps)
+        
+        # Solo bloquear el último paso (entrevista/defensa)
+        if seq != max_seq:
             return False
-        # revisar todos los archives del paso anterior
-        for arch in prev.archives:
-            sub = subs.get(arch.id)
-            ext = active_extensions.get(arch.id)  # Usar active_extensions
-            # Si hay extensión activa, no bloquea
-            if ext:
+            
+        # Para el último paso, verificar que TODOS los pasos anteriores estén completos
+        for prev_step in steps:
+            prev_seq = prev_step.program_steps[0].sequence
+            
+            # Saltar el paso actual y el paso 0 (registro)
+            if prev_seq >= seq or prev_seq == 0:
                 continue
-            # Si no hay submission o no está aprobada, bloquea
-            if not sub or sub.status != 'approved':
-                return True
+                
+            # Revisar todos los archivos del paso anterior
+            for arch in prev_step.archives:
+                if not arch.is_uploadable:
+                    continue
+                    
+                sub = subs.get(arch.id)
+                ext = active_extensions.get(arch.id)
+                
+                # Si hay extensión activa, está válido
+                if ext:
+                    continue
+                    
+                # Si no hay submission o no está aprobada/extendida, bloquea
+                if not sub or sub.status not in ['approved', 'extended']:
+                    return True
+                    
         return False
 
     lock_info = { step.id: _is_locked(step) for step in steps }
 
-    # 5) Estado resumido por paso (incluyendo extensiones)
+    # 4.5) Verificar si el usuario tiene entrevista asignada (solo EventSlot para entrevistas 1 a 1)
+    def _has_interview_assigned():
+        # Buscar en EventSlot (para entrevistas individuales 1 a 1)
+        slot_assigned = db.session.execute(
+            select(EventSlot).join(
+                EventWindow, EventSlot.event_window_id == EventWindow.id
+            ).join(
+                Event, EventWindow.event_id == Event.id
+            ).where(
+                and_(
+                    EventSlot.held_by == user_id,
+                    EventSlot.status == 'booked',
+                    Event.program_id == program_id,
+                    Event.type == 'interview'
+                )
+            )
+        ).scalar_one_or_none()
+        current_app.logger.warning(f"Entrevista asignada para usuario {user_id} en programa {program_id}: {bool(slot_assigned)}")
+        return bool(slot_assigned)
+    
+    has_interview = _has_interview_assigned()
+
+    # 5) Estado resumido por paso (incluyendo extensiones y entrevistas)
     def _step_state(step):
+        # Determinar si este es el último paso (entrevista/defensa)
+        seq = step.program_steps[0].sequence
+        max_seq = max(st.program_steps[0].sequence for st in steps)
+        is_last_step = (seq == max_seq)
+        
         statuses = []
         has_extension = False
         
@@ -121,15 +166,30 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
             else:
                 statuses.append('pending')
         
-        if 'rejected' in statuses:
-            return 'rejected'
-        if all(s == 'approved' for s in statuses):
-            return 'approved'
-        if 'extended' in statuses:
-            return 'extended'
-        if any(s == 'review' for s in statuses):
-            return 'review'
-        return 'pending'
+        # Para el último paso, considerar también si tiene entrevista asignada
+        if is_last_step:
+            if has_interview:
+                return 'approved'  # Verde con palomita si tiene entrevista
+            else:
+                # Si no tiene entrevista, seguir la lógica normal pero no aprobar automáticamente
+                if 'rejected' in statuses:
+                    return 'rejected'
+                if 'extended' in statuses:
+                    return 'extended'
+                if any(s == 'review' for s in statuses):
+                    return 'review'
+                return 'pending'
+        else:
+            # Para otros pasos, lógica normal
+            if 'rejected' in statuses:
+                return 'rejected'
+            if all(s == 'approved' for s in statuses):
+                return 'approved'
+            if 'extended' in statuses:
+                return 'extended'
+            if any(s == 'review' for s in statuses):
+                return 'review'
+            return 'pending'
 
     step_states = { step.id: _step_state(step) for step in steps }
 

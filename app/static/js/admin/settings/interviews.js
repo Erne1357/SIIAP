@@ -1,4 +1,4 @@
-// app/static/js/admin/settings/interviews.js
+// app/static/js/admin/settings/interviews.js - FASE 3: Con modales
 (() => {
   const API = "/api/v1";
   
@@ -8,17 +8,21 @@
   const slotsCard = document.getElementById("slotsCard");
   const selectedEventTitle = document.getElementById("selectedEventTitle");
   const eligibleStudents = document.getElementById("eligibleStudents");
-  const alertsInterviews = document.getElementById("alertsInterviews");
   
-  // Modales
+  // Modales originales
   const createEventModal = new bootstrap.Modal(document.getElementById("createEventModal"));
   const addWindowModal = new bootstrap.Modal(document.getElementById("addWindowModal"));
   const assignSlotModal = new bootstrap.Modal(document.getElementById("assignSlotModal"));
+  
+  // NUEVOS MODALES DE CONFIRMACIÓN
+  const confirmDeleteEventModal = new bootstrap.Modal(document.getElementById("confirmDeleteEventModal"));
+  const confirmCancelAppointmentModal = new bootstrap.Modal(document.getElementById("confirmCancelAppointmentModal"));
   
   // Formularios
   const createEventForm = document.getElementById("createEventForm");
   const addWindowForm = document.getElementById("addWindowForm");
   const assignSlotForm = document.getElementById("assignSlotForm");
+  const cancelAppointmentForm = document.getElementById("cancelAppointmentForm");
   
   // Estado
   let currentEvents = [];
@@ -27,9 +31,9 @@
   let selectedEventId = null;
   let programs = [];
 
-  function flash(msg, type = "success") {
+  function flash(message, level = "success") {
     window.dispatchEvent(new CustomEvent('flash', { 
-      detail: { level: type, message: msg } 
+      detail: { level: level, message: message } 
     }));
   }
 
@@ -90,12 +94,10 @@
 
   async function loadPrograms() {
     try {
-      // Reutilizar endpoint existente o crear uno específico
       const { data } = await apiRequest(`${API}/coordinator/students`);
       const uniquePrograms = [...new Set(data.students.map(s => ({id: s.program_id, name: s.program_name})))];
       programs = uniquePrograms;
       
-      // Llenar selectores de programa
       const programSelects = [
         document.getElementById("eventProgram"),
         document.getElementById("programFilter")
@@ -212,7 +214,10 @@
                 <i class="fas fa-user-plus"></i> Asignar
               </button>
             ` : slot.status === 'booked' ? `
-              <button class="btn btn-sm btn-outline-danger btn-cancel-appointment">
+              <button class="btn btn-sm btn-outline-danger btn-cancel-appointment" 
+                      data-slot-id="${slot.id}"
+                      data-slot-info="${dateStr} ${timeStr}"
+                      data-student-name="${slot.student_name || 'Sin asignar'}">
                 <i class="fas fa-times"></i> Cancelar
               </button>
             ` : ''}
@@ -273,25 +278,22 @@
 
   // ========== EVENT LISTENERS ==========
   function setupEventListeners() {
-    // Crear evento
     createEventForm?.addEventListener('submit', handleCreateEvent);
-    
-    // Agregar ventana
     addWindowForm?.addEventListener('submit', handleAddWindow);
-    
-    // Asignar slot
     assignSlotForm?.addEventListener('submit', handleAssignSlot);
-    
-    // Generar slots
     document.getElementById('btnGenerateSlots')?.addEventListener('click', handleGenerateSlots);
     
-    // Filtro de programa
+    // NUEVO: Handler para cancelar cita
+    cancelAppointmentForm?.addEventListener('submit', handleCancelAppointment);
+    
+    // NUEVO: Handler para confirmar eliminación de evento
+    document.getElementById('confirmDeleteEventBtn')?.addEventListener('click', handleDeleteEvent);
+    
     document.getElementById('programFilter')?.addEventListener('change', (e) => {
       const programId = e.target.value;
       loadEligibleStudents(programId || null);
     });
     
-    // Delegación de eventos para tabla de eventos
     eventsTable?.addEventListener('click', (e) => {
       const row = e.target.closest('tr[data-event-id]');
       if (!row) return;
@@ -301,11 +303,10 @@
       if (e.target.closest('.btn-view-slots') || e.target.closest('.event-row')) {
         selectEvent(eventId);
       } else if (e.target.closest('.btn-delete-event')) {
-        deleteEvent(eventId);
+        openDeleteEventModal(eventId);
       }
     });
     
-    // Delegación de eventos para tabla de slots
     slotsTable?.addEventListener('click', (e) => {
       if (e.target.closest('.btn-assign-slot')) {
         const button = e.target.closest('.btn-assign-slot');
@@ -313,10 +314,11 @@
         const slotInfo = button.dataset.slotInfo;
         openAssignModal(slotId, slotInfo);
       } else if (e.target.closest('.btn-cancel-appointment')) {
-        // Implementar cancelación de cita
-        const row = e.target.closest('tr');
-        const slotId = row.dataset.slotId;
-        cancelAppointment(slotId);
+        const button = e.target.closest('.btn-cancel-appointment');
+        const slotId = button.dataset.slotId;
+        const slotInfo = button.dataset.slotInfo;
+        const studentName = button.dataset.studentName;
+        openCancelAppointmentModal(slotId, slotInfo, studentName);
       }
     });
   }
@@ -325,7 +327,6 @@
   async function handleCreateEvent(e) {
     e.preventDefault();
     
-    const formData = new FormData(createEventForm);
     const payload = {
       title: document.getElementById('eventTitle').value.trim(),
       program_id: parseInt(document.getElementById('eventProgram').value),
@@ -340,7 +341,7 @@
     }
     
     try {
-      const { data } = await apiRequest(`${API}/events`, {
+      await apiRequest(`${API}/events`, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
@@ -363,7 +364,6 @@
       return;
     }
     
-    const formData = new FormData(addWindowForm);
     const payload = {
       date: document.getElementById('windowDate').value,
       start_time: document.getElementById('windowStartTime').value,
@@ -372,7 +372,7 @@
     };
     
     try {
-      const { data } = await apiRequest(`${API}/events/${selectedEventId}/windows`, {
+      await apiRequest(`${API}/events/${selectedEventId}/windows`, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
@@ -394,7 +394,6 @@
     }
     
     try {
-      // Obtener ventanas del evento
       const { data: eventData } = await apiRequest(`${API}/events/${selectedEventId}`);
       const event = eventData;
       
@@ -405,7 +404,6 @@
       
       let totalCreated = 0;
       
-      // Generar slots para cada ventana
       for (const window of event.windows) {
         const { data: slotsData } = await apiRequest(
           `${API}/events/windows/${window.id}/generate-slots`, 
@@ -425,7 +423,6 @@
   async function handleAssignSlot(e) {
     e.preventDefault();
     
-    const formData = new FormData(assignSlotForm);
     const payload = {
       event_id: document.getElementById('assignEventId').value,
       slot_id: document.getElementById('assignSlotId').value,
@@ -439,7 +436,7 @@
     }
     
     try {
-      const { data } = await apiRequest(`${API}/appointments`, {
+      await apiRequest(`${API}/appointments`, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
@@ -454,6 +451,50 @@
     }
   }
 
+  // NUEVO: Handler para cancelar cita
+  async function handleCancelAppointment(e) {
+    e.preventDefault();
+    
+    const slotId = document.getElementById('cancelSlotId').value;
+    const reason = document.getElementById('cancelReason').value.trim();
+    
+    try {
+      // TODO Fase 4: Implementar API correcta
+      // Por ahora simular
+      flash('Cita cancelada correctamente', 'success');
+      confirmCancelAppointmentModal.hide();
+      cancelAppointmentForm.reset();
+      await loadSlots(selectedEventId);
+      
+    } catch (err) {
+      flash(`Error cancelando cita: ${err.message}`, 'danger');
+    }
+  }
+
+  // NUEVO: Handler para eliminar evento
+  async function handleDeleteEvent() {
+    const eventId = parseInt(document.getElementById('deleteEventId').value);
+    if (!eventId) return;
+    
+    try {
+      await apiRequest(`${API}/events/${eventId}`, { method: 'DELETE' });
+      
+      currentEvents = currentEvents.filter(e => e.id !== eventId);
+      renderEventsTable();
+      
+      if (selectedEventId === eventId) {
+        selectedEventId = null;
+        slotsCard.style.display = 'none';
+      }
+      
+      flash('Evento eliminado correctamente', 'success');
+      confirmDeleteEventModal.hide();
+      
+    } catch (err) {
+      flash(`Error eliminando evento: ${err.message}`, 'danger');
+    }
+  }
+
   // ========== UTILITY FUNCTIONS ==========
   function selectEvent(eventId) {
     const event = currentEvents.find(e => e.id === eventId);
@@ -462,12 +503,10 @@
     selectedEventId = eventId;
     selectedEventTitle.textContent = event.title;
     
-    // Actualizar UI
     document.querySelectorAll('.event-row').forEach(row => {
       row.classList.toggle('table-active', parseInt(row.dataset.eventId) === eventId);
     });
     
-    // Mostrar card de slots y cargar datos
     slotsCard.style.display = 'block';
     document.getElementById('windowEventId').value = eventId;
     
@@ -479,7 +518,6 @@
     document.getElementById('assignSlotId').value = slotId;
     document.getElementById('assignSlotInfo').textContent = slotInfo;
     
-    // Llenar selector de estudiantes elegibles
     const studentSelect = document.getElementById('assignStudentId');
     studentSelect.innerHTML = '<option value="">Seleccionar estudiante...</option>' +
       eligibleStudentsList.map(s => 
@@ -489,52 +527,42 @@
     assignSlotModal.show();
   }
 
-  async function deleteEvent(eventId) {
-    if (!confirm('¿Eliminar este evento? Esta acción no se puede deshacer.')) return;
+  // NUEVO: Abrir modal de confirmación para eliminar evento
+  function openDeleteEventModal(eventId) {
+    const event = currentEvents.find(e => e.id === eventId);
+    if (!event) return;
     
-    try {
-      // Por ahora solo remover del array local - implementar API después
-      currentEvents = currentEvents.filter(e => e.id !== eventId);
-      renderEventsTable();
-      
-      if (selectedEventId === eventId) {
-        selectedEventId = null;
-        slotsCard.style.display = 'none';
-      }
-      
-      flash('Evento eliminado correctamente', 'success');
-      
-    } catch (err) {
-      flash(`Error eliminando evento: ${err.message}`, 'danger');
+    document.getElementById('deleteEventId').value = eventId;
+    document.getElementById('deleteEventTitle').textContent = event.title;
+    
+    // Mostrar advertencia si hay citas
+    const warningEl = document.getElementById('deleteEventWarning');
+    if (event.slots_booked > 0) {
+      document.getElementById('deleteEventAppointmentsCount').textContent = event.slots_booked;
+      warningEl.classList.remove('d-none');
+    } else {
+      warningEl.classList.add('d-none');
     }
+    
+    confirmDeleteEventModal.show();
   }
 
-  async function cancelAppointment(slotId) {
-    if (!confirm('¿Cancelar esta cita?')) return;
+  // NUEVO: Abrir modal para cancelar cita
+  function openCancelAppointmentModal(slotId, slotInfo, studentName) {
+    document.getElementById('cancelSlotId').value = slotId;
+    document.getElementById('cancelSlotInfo').textContent = slotInfo;
+    document.getElementById('cancelStudentName').textContent = studentName;
+    document.getElementById('cancelReason').value = '';
     
-    try {
-      // Encontrar appointment por slot_id y cancelar
-      const reason = prompt('Motivo de cancelación (opcional):');
-      
-      // Por ahora simular - implementar API después
-      flash('Cita cancelada correctamente', 'success');
-      await loadSlots(selectedEventId);
-      
-    } catch (err) {
-      flash(`Error cancelando cita: ${err.message}`, 'danger');
-    }
+    confirmCancelAppointmentModal.show();
   }
 
   // ========== INICIALIZACIÓN ==========
-  
-  // Solo ejecutar si estamos en la pestaña de entrevistas
   if (document.getElementById('pane-interviews')) {
-    // Ejecutar cuando se activa la pestaña de entrevistas
     document.getElementById('tab-interviews')?.addEventListener('shown.bs.tab', () => {
       init();
     });
     
-    // Si la pestaña ya está activa al cargar la página
     if (document.getElementById('tab-interviews')?.classList.contains('active')) {
       init();
     }

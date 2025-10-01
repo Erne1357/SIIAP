@@ -7,23 +7,23 @@
 
   <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
     <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="tab-archives" data-bs-toggle="tab" data-bs-target="#pane-archives" type="button" role="tab">Archivos</button>
+      <button class="nav-link active" id="tab-archives" data-bs-toggle="tab" data-bs-target="#pane-archives"
+        type="button" role="tab">Archivos</button>
     </li>
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="tab-retention" data-bs-toggle="tab" data-bs-target="#pane-retention" type="button" role="tab">Retención (sensible)</button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="tab-interviews" data-bs-toggle="tab" data-bs-target="#pane-interviews" type="button" role="tab">Entrevistas</button>
+      <button class="nav-link" id="tab-retention" data-bs-toggle="tab" data-bs-target="#pane-retention" type="button"
+        role="tab">Retención (sensible)</button>
     </li>
   </ul>
 
   <div class="tab-content border-start border-end border-bottom p-3 bg-white">
-    
+
     <!-- ========== ARCHIVOS ========== -->
     <div class="tab-pane fade show active" id="pane-archives" role="tabpanel" aria-labelledby="tab-archives">
       <div class="d-flex align-items-center mb-3 gap-2">
         <button id="btnNew" class="btn btn-success"><i class="fa fa-plus me-1"></i>Nuevo archivo</button>
-        <input id="search" type="search" class="form-control" placeholder="Buscar por nombre/step…" style="max-width: 360px;">
+        <input id="search" type="search" class="form-control" placeholder="Buscar por nombre/step…"
+          style="max-width: 360px;">
         <button id="btnReload" class="btn btn-outline-secondary">Recargar</button>
       </div>
 
@@ -42,7 +42,9 @@
             </tr>
           </thead>
           <tbody id="tbodyArchives">
-            <tr><td colspan="8" class="text-center text-muted py-4">Cargando archivos...</td></tr>
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">Cargando archivos...</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -72,7 +74,9 @@
                     </tr>
                   </thead>
                   <tbody id="tbodyPolicies">
-                    <tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr>
+                    <tr>
+                      <td colspan="5" class="text-center text-muted py-4">Cargando…</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -111,7 +115,8 @@
                   <button type="submit" class="btn btn-primary">Guardar</button>
                   <button type="button" id="btnReset" class="btn btn-outline-secondary">Limpiar</button>
                   <button type="button" id="btnDelete" class="btn btn-outline-danger d-none">Eliminar</button>
-                  <button type="button" id="btnCandidates" class="btn btn-outline-secondary ms-auto">Ver candidatos…</button>
+                  <button type="button" id="btnCandidates" class="btn btn-outline-secondary ms-auto">Ver
+                    candidatos…</button>
                 </div>
               </form>
             </div>
@@ -120,253 +125,12 @@
       </div>
     </div>
 
-    <!-- ========== ENTREVISTAS ========== -->
-    <div class="tab-pane fade" id="pane-interviews" role="tabpanel" aria-labelledby="tab-interviews">
-      <div class="row g-4">
-        
-        <!-- Panel izquierdo: Gestión de eventos -->
-        <div class="col-lg-8">
-          <!-- Crear evento -->
-          <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">Eventos de Entrevista</h5>
-              <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createEventModal">
-                <i class="fas fa-plus"></i> Nuevo Evento
-              </button>
-            </div>
-            <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-sm" id="eventsTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Evento</th>
-                      <th>Programa</th>
-                      <th class="text-center">Ventanas</th>
-                      <th class="text-center">Slots</th>
-                      <th class="text-center">Ocupados</th>
-                      <th class="text-end">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="6" class="text-center text-muted py-3">Cargando eventos...</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Horarios disponibles para evento seleccionado -->
-          <div class="card" id="slotsCard" style="display: none;">
-            <div class="card-header">
-              <h5 class="mb-0">Horarios Disponibles - <span id="selectedEventTitle"></span></h5>
-            </div>
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                  <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addWindowModal">
-                    <i class="fas fa-plus"></i> Agregar Ventana
-                  </button>
-                  <button class="btn btn-info btn-sm ms-2" id="btnGenerateSlots">
-                    <i class="fas fa-cogs"></i> Generar Horarios
-                  </button>
-                </div>
-                <div>
-                  <span class="badge bg-success me-1"><span id="freeSlots">0</span> Libres</span>
-                  <span class="badge bg-primary me-1"><span id="bookedSlots">0</span> Ocupados</span>
-                  <span class="badge bg-secondary"><span id="totalSlots">0</span> Total</span>
-                </div>
-              </div>
-              
-              <div class="table-responsive">
-                <table class="table table-sm" id="slotsTable">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Hora</th>
-                      <th class="text-center">Estado</th>
-                      <th>Estudiante</th>
-                      <th class="text-end">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="5" class="text-center text-muted py-3">Selecciona un evento</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Panel derecho: Estudiantes elegibles -->
-        <div class="col-lg-4">
-          <div class="card">
-            <div class="card-header">
-              <h5 class="mb-0">Estudiantes Elegibles</h5>
-            </div>
-            <div class="card-body">
-              <div class="mb-3">
-                <select class="form-select form-select-sm" id="programFilter">
-                  <option value="">Todos los programas</option>
-                  <!-- Se llena dinámicamente -->
-                </select>
-              </div>
-              
-              <div id="eligibleStudents" class="list-group list-group-flush">
-                <div class="list-group-item text-center text-muted py-4">
-                  Cargando estudiantes...
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="alertsInterviews" class="mt-3"></div>
-    </div>
-
   </div>
 </div>
 
-<!-- Modal: Crear Evento -->
-<div class="modal fade" id="createEventModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Crear Evento de Entrevista</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="createEventForm">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Título del evento</label>
-            <input type="text" class="form-control" id="eventTitle" required 
-                   placeholder="Ej: Entrevistas de Admisión 2025-1">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Programa</label>
-            <select class="form-select" id="eventProgram" required>
-              <option value="">Seleccionar programa...</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Tipo</label>
-            <select class="form-select" id="eventType">
-              <option value="interview">Entrevista</option>
-              <option value="defense">Defensa de Protocolo</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Lugar</label>
-            <input type="text" class="form-control" id="eventLocation" 
-                   placeholder="Ej: Salón 301, Edificio de Posgrado">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Descripción (opcional)</label>
-            <textarea class="form-control" id="eventDescription" rows="2"
-                      placeholder="Información adicional sobre el evento..."></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Crear Evento</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+{% endblock %}
 
-<!-- Modal: Agregar Ventana de Horarios -->
-<div class="modal fade" id="addWindowModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Agregar Ventana de Horarios</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="addWindowForm">
-        <div class="modal-body">
-          <input type="hidden" id="windowEventId">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">Fecha</label>
-              <input type="date" class="form-control" id="windowDate" required>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Duración por slot</label>
-              <select class="form-select" id="windowSlotMinutes" required>
-                <option value="15">15 minutos</option>
-                <option value="20">20 minutos</option>
-                <option value="30" selected>30 minutos</option>
-                <option value="45">45 minutos</option>
-                <option value="60">60 minutos</option>
-              </select>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Hora de inicio</label>
-              <input type="time" class="form-control" id="windowStartTime" required value="09:00">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Hora de fin</label>
-              <input type="time" class="form-control" id="windowEndTime" required value="11:00">
-            </div>
-          </div>
-          <div class="mt-3">
-            <small class="text-muted">
-              <i class="fas fa-info-circle"></i> 
-              Se generarán automáticamente los slots individuales según la duración especificada.
-            </small>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Crear Ventana</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Asignar Estudiante a Slot -->
-<div class="modal fade" id="assignSlotModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Asignar Estudiante</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="assignSlotForm">
-        <div class="modal-body">
-          <input type="hidden" id="assignEventId">
-          <input type="hidden" id="assignSlotId">
-          
-          <div class="alert alert-info">
-            <strong>Horario seleccionado:</strong> <span id="assignSlotInfo"></span>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">Estudiante</label>
-            <select class="form-select" id="assignStudentId" required>
-              <option value="">Seleccionar estudiante elegible...</option>
-            </select>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">Notas (opcional)</label>
-            <textarea class="form-control" id="assignNotes" rows="2"
-                      placeholder="Observaciones sobre la cita..."></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Asignar Cita</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Modales anteriores de archivos y retención... -->
-<!-- [Los modales existentes permanecen igual] -->
+{% block modals %}
 <!-- Modal subir plantilla -->
 <div class="modal fade" id="modalTemplate" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
@@ -476,15 +240,49 @@
   </div>
 </div>
 
+
+{% endblock %}
+
+{% block styles %}
 <style>
-  #tblArchives td, #tblArchives th { vertical-align: middle; }
-  .toggle-cell { text-align: center; }
-  .template-link { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display:inline-block; }
-  .student-card { cursor: pointer; transition: all 0.2s; }
-  .student-card:hover { background-color: #f8f9fa; }
-  .student-card.selected { background-color: #e3f2fd; border-left: 3px solid #1976d2; }
-  #slotsTable tbody tr.slot-free { background-color: #f8fff8; }
-  #slotsTable tbody tr.slot-booked { background-color: #fff3cd; }
+  #tblArchives td,
+  #tblArchives th {
+    vertical-align: middle;
+  }
+
+  .toggle-cell {
+    text-align: center;
+  }
+
+  .template-link {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+  }
+
+  .student-card {
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .student-card:hover {
+    background-color: #f8f9fa;
+  }
+
+  .student-card.selected {
+    background-color: #e3f2fd;
+    border-left: 3px solid #1976d2;
+  }
+
+  #slotsTable tbody tr.slot-free {
+    background-color: #f8fff8;
+  }
+
+  #slotsTable tbody tr.slot-booked {
+    background-color: #fff3cd;
+  }
 </style>
 {% endblock %}
 
@@ -492,5 +290,4 @@
 {{ super() }}
 <script src="{{ url_for('static', filename='js/admin/settings/index.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/admin/settings/retention.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/admin/settings/interviews.js') }}?v={{ static_version }}"></script>
 {% endblock %}

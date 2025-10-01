@@ -26,6 +26,7 @@ class AppointmentsService:
             raise ValueError("El slot no está disponible")
 
         slot.status = 'booked'
+        slot.held_by = applicant_id
         appt = Appointment(
             event_id=event_id,
             slot_id=slot_id,
@@ -51,6 +52,8 @@ class AppointmentsService:
         slot = db.session.get(EventSlot, appt.slot_id)
         if slot and slot.status == 'booked':
             slot.status = 'free'
+            slot.held_by = None
+            slot.hold_expires_at = None
         appt.status = 'cancelled'
         if reason:
             appt.notes = (appt.notes + "\n" if appt.notes else "") + f"[CANCEL]: {reason}"

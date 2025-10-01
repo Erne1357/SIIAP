@@ -1,4 +1,4 @@
-// static/js/program/admission.js - Versión mejorada con prórroga y citas
+// static/js/program/admission.js - Flash corregido
 document.addEventListener('DOMContentLoaded', () => {
   const getCsrf = () => {
     const el = document.querySelector('meta[name="csrf-token"]');
@@ -6,8 +6,11 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const csrf = getCsrf();
 
-  function emitFlash(level, message) {
-    window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
+  // FUNCIÓN FLASH CORRECTA
+  function flash(message, level = 'success') {
+    window.dispatchEvent(new CustomEvent('flash', { 
+      detail: { level: level, message: message } 
+    }));
   }
 
   function persistFlashes(flashes) {
@@ -45,12 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const existingFilename = btn?.getAttribute('data-existing-filename');
       const existingDate = btn?.getAttribute('data-existing-date');
 
-      // Llenar inputs hidden
       const inputArchive = uploadModal.querySelector('[name="archive_id"]');
       if (inputArchive) inputArchive.value = archId || '';
       currentStepForHash = stepId || null;
 
-      // Mostrar/ocultar información de archivo existente
       const existingInfo = document.getElementById('existingFileInfo');
       const uploadBtnText = document.getElementById('uploadBtnText');
       const uploadSubmitBtn = document.getElementById('uploadSubmitBtn');
@@ -78,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ==================== MODAL DE PRÓRROGA ====================
   if (extensionModal) {
-    // Configurar fecha mínima (mañana)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowString = tomorrow.toISOString().split('T')[0];
@@ -96,7 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('extensionArchiveId').value = archiveId;
         document.getElementById('extensionArchiveName').textContent = archiveName;
         
-        // Limpiar formulario
         document.getElementById('extensionRequestedUntil').value = '';
         document.getElementById('extensionReason').value = '';
         
@@ -115,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const reason = document.getElementById('extensionReason').value.trim();
     
     if (!archiveId || !requestedUntil || !reason) {
-      emitFlash('warning', 'Completa todos los campos requeridos.');
+      flash('Completa todos los campos requeridos', 'warning');
       return;
     }
     
@@ -145,19 +144,18 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (!res.ok) {
         const msg = json?.error || 'No se pudo enviar la solicitud de prórroga.';
-        emitFlash('danger', msg);
+        flash(msg, 'danger');
         return;
       }
       
-      emitFlash('success', 'Solicitud de prórroga enviada correctamente. Recibirás una respuesta pronto.');
+      flash('Solicitud de prórroga enviada correctamente. Recibirás una respuesta pronto', 'success');
       closeModal(extensionModal);
       
-      // Opcional: recargar página para mostrar estado actualizado
       setTimeout(() => window.location.reload(), 1500);
       
     } catch (err) {
       console.error('Extension request error:', err);
-      emitFlash('danger', 'Error de red al enviar la solicitud.');
+      flash('Error de red al enviar la solicitud', 'danger');
     } finally {
       submitBtn.innerHTML = originalText;
       submitBtn.disabled = false;
@@ -180,23 +178,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = fd.get('file');
 
       if (!archiveId || !file || (file instanceof File && !file.name)) {
-        emitFlash('danger', 'Selecciona un archivo válido.');
+        flash('Selecciona un archivo válido', 'danger');
         return;
       }
 
-      // VALIDACIÓN: Tamaño máximo 3MB
       if (file.size > 3 * 1024 * 1024) {
-        emitFlash('danger', 'El archivo no puede superar los 3MB.');
+        flash('El archivo no puede superar los 3MB', 'danger');
         return;
       }
 
-      // VALIDACIÓN: Solo PDF
       if (!file.name.toLowerCase().endsWith('.pdf')) {
-        emitFlash('danger', 'Solo se permiten archivos PDF.');
+        flash('Solo se permiten archivos PDF', 'danger');
         return;
       }
 
-      // Mostrar loading en el botón
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
@@ -214,9 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo subir el documento.';
           if (Array.isArray(json.flash) && json.flash.length) {
-            json.flash.forEach(f => emitFlash(f.level || 'danger', f.message || msg));
+            json.flash.forEach(f => flash(f.message || msg, f.level || 'danger'));
           } else {
-            emitFlash('danger', msg);
+            flash(msg, 'danger');
           }
           return;
         }
@@ -233,9 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       } catch (err) {
         console.error('Upload error:', err);
-        emitFlash('danger', 'Error de red al subir.');
+        flash('Error de red al subir', 'danger');
       } finally {
-        // Restaurar botón
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
       }
@@ -249,6 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const subId = btn.getAttribute('data-delete-submission');
       const stepId = btn.getAttribute('data-step');
       if (!subId) return;
+      
+      // TODO Fase 3: Reemplazar con modal de confirmación
       if (!confirm('¿Eliminar este archivo?')) return;
 
       try {
@@ -262,9 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo eliminar.';
           if (Array.isArray(json.flash) && json.flash.length) {
-            json.flash.forEach(f => emitFlash(f.level || 'danger', f.message || msg));
+            json.flash.forEach(f => flash(f.message || msg, f.level || 'danger'));
           } else {
-            emitFlash('danger', msg);
+            flash(msg, 'danger');
           }
           return;
         }
@@ -279,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       } catch (err) {
         console.error('Delete error:', err);
-        emitFlash('danger', 'Error de red al eliminar.');
+        flash('Error de red al eliminar', 'danger');
       }
     });
   });
@@ -325,22 +321,44 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const json = await res.json();
       if (json.ok && json.appointments && json.appointments.length > 0) {
-        // Mostrar todas las citas activas
         json.appointments.forEach(appt => showInterviewCard(appt));
+      }else if (json.ok && !json.appointments.length) {
+        // Verificar si ya completo su perfil, si no, mostrar alerta de que debe completar perfil, si no, mostrar que es elegible para entrevista
+        const res = await fetch('/api/v1/users/me', {
+          credentials: 'same-origin'
+        });
+        const userInfo = await res.json();
+        if (res.ok && !userInfo.data.user.profile_completed) {
+          const processAlert = document.querySelector('.interview-info');
+          if (processAlert) {
+            processAlert.className = 'alert alert-warning interview-info';
+            processAlert.innerHTML = `
+              <i class="fas fa-user-edit me-2"></i>
+              Completa tu perfil para ser elegible para entrevista.
+              <a href="/user/profile" class="alert-link">Ir a mi perfil</a>
+            `;
+          }
+        }else{
+          const processAlert = document.querySelector('.interview-info');
+          if (processAlert) {
+            processAlert.className = 'alert alert-info interview-info';
+            processAlert.innerHTML = `
+              <i class="fas fa-info-circle me-2"></i>
+              Eres elegible para entrevista. Pronto recibirás una notificación con la fecha y hora asignada.
+            `;
+          }
+        }
       }
-      
     } catch (err) {
       console.log('No se pudo cargar información de citas');
     }
   }
 
   function showInterviewCard(appointment) {
-    // Crear card de cita asignada
     const interviewCard = document.createElement('div');
     interviewCard.className = 'alert alert-success shadow-sm mb-4';
     interviewCard.id = `interviewCard-${appointment.id}`;
     
-    // Formatear fecha y hora
     const startDate = new Date(appointment.starts_at);
     const endDate = new Date(appointment.ends_at);
     const dateStr = startDate.toLocaleDateString('es-MX', { 
@@ -378,8 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
     
-    // Insertar después del alert de proceso de admisión
-    const processAlert = document.querySelector('.alert-info');
+    const processAlert = document.querySelector('.interview-info');
     if (processAlert) {
       processAlert.parentNode.insertBefore(interviewCard, processAlert.nextSibling);
     }
@@ -392,13 +409,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const appointmentId = button.getAttribute('data-appointment-id');
       
       if (appointmentId) {
+        // TODO Fase 3: Reemplazar con modal
         openChangeRequestModal(appointmentId);
       }
     }
   });
 
   function openChangeRequestModal(appointmentId) {
-    // Por ahora mostrar un prompt simple
+    // TODO Fase 3: Modal en lugar de prompt
     const reason = prompt('Motivo del cambio de horario:');
     if (!reason || !reason.trim()) return;
     
@@ -425,15 +443,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const json = await res.json();
       
       if (!res.ok || !json.ok) {
-        emitFlash('danger', json.error || 'No se pudo enviar la solicitud');
+        flash(json.error || 'No se pudo enviar la solicitud', 'danger');
         return;
       }
       
-      emitFlash('success', 'Solicitud de cambio enviada. El coordinador la revisará pronto.');
+      flash('Solicitud de cambio enviada. El coordinador la revisará pronto', 'success');
       
     } catch (err) {
       console.error('Change request error:', err);
-      emitFlash('danger', 'Error al enviar la solicitud de cambio');
+      flash('Error al enviar la solicitud de cambio', 'danger');
     }
   }
 });
