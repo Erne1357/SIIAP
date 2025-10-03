@@ -25,7 +25,7 @@
                                     <th>Evento</th>
                                     <th>Programa</th>
                                     <th class="text-center">Ventanas</th>
-                                    <th class="text-center">Slots</th>
+                                    <th class="text-center">Horarios</th>
                                     <th class="text-center">Ocupados</th>
                                     <th class="text-end">Acciones</th>
                                 </tr>
@@ -55,13 +55,13 @@
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active" id="tab-windows" data-bs-toggle="tab"
                                     data-bs-target="#pane-windows" type="button" role="tab">
-                                    <i class="fas fa-window-maximize"></i> Ventanas de Horarios
+                                    <i class="fas fa-window-maximize"></i> Gestión de Horarios
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="tab-slots" data-bs-toggle="tab"
                                     data-bs-target="#pane-slots" type="button" role="tab">
-                                    <i class="fas fa-calendar-alt"></i> Slots Individuales
+                                    <i class="fas fa-calendar-alt"></i> Asignaciones de horarios
                                 </button>
                             </li>
                         </ul>
@@ -72,7 +72,7 @@
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <button class="btn btn-success btn-sm" data-bs-toggle="modal"
                                         data-bs-target="#addWindowModal">
-                                        <i class="fas fa-plus"></i> Agregar Ventana
+                                        <i class="fas fa-plus"></i> Agregar Plazos
                                     </button>
                                     <button class="btn btn-info btn-sm" id="btnGenerateSlotsFromWindows">
                                         <i class="fas fa-cogs"></i> Generar Todos los Horarios
@@ -87,7 +87,7 @@
                                                 <th>Horario</th>
                                                 <th>Duración</th>
                                                 <th class="text-center">Generado</th>
-                                                <th class="text-center">Slots</th>
+                                                <th class="text-center">Cupos</th>
                                                 <th class="text-center">Libres</th>
                                                 <th class="text-center">Ocupados</th>
                                                 <th class="text-end">Acciones</th>
@@ -95,8 +95,8 @@
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td colspan="8" class="text-center text-muted py-3">No hay ventanas
-                                                    creadas
+                                                <td colspan="8" class="text-center text-muted py-3">No hay plazos
+                                                    creados
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -254,7 +254,7 @@
         </div>
 
         <!-- Panel derecho: Estudiantes elegibles -->
-        <div class="col-lg-4">
+        <div class="col-lg-4" id="eligibleStudentsPanel" style="display: none;">
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">Estudiantes Elegibles</h5>
@@ -424,7 +424,7 @@
                             <input type="date" class="form-control" id="windowDate" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Duración por slot</label>
+                            <label class="form-label">Duración por cita</label>
                             <select class="form-select" id="windowSlotMinutes" required>
                                 <option value="15">15 minutos</option>
                                 <option value="20">20 minutos</option>

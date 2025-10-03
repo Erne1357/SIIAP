@@ -35,6 +35,19 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
 
     # 2) Map submissions del usuario
     archive_ids = [a.id for step in steps for a in step.archives]
+    
+    # Separar archivos de secuencia 0 (informativos) de los que cuentan para progreso
+    informative_archive_ids = []
+    progress_archive_ids = []
+    
+    for step in steps:
+        seq = step.program_steps[0].sequence if step.program_steps else None
+        for archive in step.archives:
+            if seq == 0:
+                informative_archive_ids.append(archive.id)
+            else:
+                progress_archive_ids.append(archive.id)
+    
     subs = {
         s.archive_id: s
         for s in Submission.query
@@ -43,7 +56,7 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                           .all()
     }
 
-    # 3) Map extensiones activas del usuario
+    # 3) Map extensiones activas del usuario (solo para archivos que cuentan para progreso)
     now = datetime.now(timezone.utc)
     all_extensions = {
         e.archive_id: e
@@ -67,19 +80,6 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
             if granted_until > now:
                 active_extensions[aid] = ext
     
-    extensions_json = {
-        str(archive_id): {
-            'id': ext.id,
-            'archive_id': ext.archive_id,
-            'status': ext.status,
-            'reason': ext.reason,
-            'granted_until': ext.granted_until.isoformat() if ext.granted_until else None,
-            'requested_by': ext.requested_by,
-            'role': ext.role,
-            'created_at': ext.created_at.isoformat() if ext.created_at else None
-        }
-        for archive_id, ext in all_extensions.items()
-    }
     # 4) Lock info por paso (solo bloquear el último paso)
     def _is_locked(step):
         # Obtener la secuencia de este paso
@@ -193,11 +193,11 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
 
     step_states = { step.id: _step_state(step) for step in steps }
 
-    # 6) Conteos y segmentos de progreso (incluyendo extensiones activas)
-    total = len(archive_ids)
+    # 6) Conteos y segmentos de progreso (solo archivos que cuentan, excluyendo secuencia 0)
+    total = len(progress_archive_ids)
     status_count = {k:0 for k in ('approved','rejected','review','pending','extended')}
     
-    for aid in archive_ids:
+    for aid in progress_archive_ids:  # Solo contar archivos que no son informativos
         if aid in active_extensions:  # Usar active_extensions
             status_count['extended'] += 1
         elif aid in subs:
@@ -220,9 +220,15 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     
     progress_pct = round(status_count['approved']/total*100) if total else 0
 
-    # 7) Lista de pendientes/rechazados (considerando todas las extensiones)
+    # 7) Lista de pendientes/rechazados (solo archivos que cuentan para progreso)
     pending_items = []
     for step in steps:
+        seq = step.program_steps[0].sequence if step.program_steps else None
+        
+        # Saltar archivos informativos (secuencia 0)
+        if seq == 0:
+            continue
+            
         for arch in step.archives:
             if arch.id in active_extensions:
                 # Archivo con extensión activa
@@ -262,16 +268,77 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
          'state':getattr(up,'decision_status','pending')}
     ]
 
+    processed_steps = []
+    skip_next = False
+    def _combined_state(step1_id, step2_id):
+        """Calcula el estado combinado de dos steps"""
+        s1 = step_states.get(step1_id, 'pending')
+        s2 = step_states.get(step2_id, 'pending')
+        
+        if 'rejected' in (s1, s2):
+            return 'rejected'
+        if s1 == 'approved' and s2 == 'approved':
+            return 'approved'
+        if 'extended' in (s1, s2):
+            return 'extended'
+        if 'review' in (s1, s2):
+            return 'review'
+        return 'pending'
+    
+    for i, step in enumerate(steps):
+        if skip_next:
+            skip_next = False
+            continue
+            
+        seq = step.program_steps[0].sequence if step.program_steps else None
+        
+        
+        # Si es sequence 2, intentar combinar con 3
+        if seq == 2 and i + 1 < len(steps):
+            next_step = steps[i + 1]
+            next_seq = next_step.program_steps[0].sequence if next_step.program_steps else None
+            
+            if next_seq == 3:
+                # Crear step combinado
+                combined_step = {
+                    'is_combined': True,
+                    'id': f"combined-{step.id}-{next_step.id}",
+                    'name': 'Requisitos Específicos',
+                    'sequence': 2,
+                    'step1': step,
+                    'step2': next_step,
+                    'locked': lock_info.get(step.id, False) or lock_info.get(next_step.id, False),
+                    'state': _combined_state(step.id, next_step.id)
+                }
+                processed_steps.append(combined_step)
+                skip_next = True
+                continue
+        
+        # Step normal
+        processed_steps.append({
+            'is_combined': False,
+            'step': step,
+            'sequence': seq,
+            'locked': lock_info.get(step.id, False),
+            'state': step_states.get(step.id, 'pending')
+        })
+    
+
+    
+    # ========== FIN NUEVO ==========
+
     return {
-        'steps': steps,
+        'steps': steps,  # mantener original para compatibilidad
+        'processed_steps': processed_steps,  # NUEVO: lista procesada
         'subs': subs,
-        'extensions': active_extensions,  # Solo extensiones activas para compatibilidad
-        'all_extensions': all_extensions,  # Todas las extensiones para mostrar estados
+        'extensions': active_extensions,
+        'all_extensions': all_extensions,
         'lock_info': lock_info,
         'step_states': step_states,
         'progress_segments': segments,
         'status_count': status_count,
         'progress_pct': progress_pct,
         'pending_items': pending_items,
-        'timeline': timeline
+        'timeline': timeline,
+        'extended_docs': status_count.get('extended', 0)  # NUEVO: conteo de archivos con extensión
     }

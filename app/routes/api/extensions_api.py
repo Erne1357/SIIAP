@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.extensions_service import ExtensionsService
-from app.models import ExtensionRequest,ProgramStep
+from app.models import ExtensionRequest,ProgramStep, User
 from app import db
 from datetime import datetime
 
@@ -104,9 +104,12 @@ def list_extension_requests():
         
         items = []
         for er in requests:
+            user= User.query.filter_by(id=er.user_id).first()
+            userName = f"{user.first_name} {user.last_name}" if user else "Desconocido"
             items.append({
                 "id": er.id,
                 "user_id": er.user_id,
+                "user_name": userName,
                 "archive_id": er.archive_id,
                 "archive_name": er.archive.name,
                 "status": er.status,

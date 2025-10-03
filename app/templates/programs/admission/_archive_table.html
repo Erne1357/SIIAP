@@ -1,5 +1,5 @@
 <div class="table-responsive">
-  {% if step.name == 'Entrevista' or step.name == 'Defensa de Protocolo/Propuesta' %}
+  {% if step.name == 'Entrevista' or step.name == 'Defensa de Protocolo' %}
   <div class="interview-info">
   </div>
   {%else%}
@@ -86,7 +86,8 @@
         <td>
           <div class="btn-group-vertical btn-group-sm d-md-none w-100" role="group">
             <!-- Versión móvil: botones apilados -->
-            {% if arch.is_uploadable %}
+            {% set is_informative = step.program_steps and step.program_steps[0].sequence == 0 %}
+            {% if arch.is_uploadable and not is_informative %}
               {% if sub %}
               <a class="btn btn-outline-primary btn-sm" 
                  title="Ver documento" 
@@ -130,6 +131,10 @@
                 <i class="fas fa-trash me-1"></i>Eliminar
               </button>
               {% endif %}
+            {% elif is_informative %}
+            <span class="text-info small">
+              <i class="fas fa-info-circle me-1"></i>Solo informativo
+            </span>
             {% else %}
             <span class="text-muted small">
               <i class="fas fa-ban"></i> Sin acciones
@@ -139,7 +144,7 @@
 
           <!-- Versión desktop: botones horizontales -->
           <div class="btn-group btn-group-sm d-none d-md-flex" role="group">
-            {% if arch.is_uploadable %}
+            {% if arch.is_uploadable and not is_informative %}
               {% if sub %}
               <a class="btn btn-outline-primary" 
                  title="Ver documento" 
@@ -182,6 +187,10 @@
                 <i class="fas fa-trash"></i>
               </button>
               {% endif %}
+            {% elif is_informative %}
+            <span class="text-info small">
+              <i class="fas fa-info-circle"></i> Informativo
+            </span>
             {% else %}
             <span class="text-muted small">
               <i class="fas fa-ban"></i> Sin acciones

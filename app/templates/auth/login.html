@@ -35,18 +35,54 @@
 
 <script type="module">
   import { api } from "{{ url_for('static', filename='js/api/http.js') }}?v={{ static_version }}";
+  
+  // Función flash consistente con el resto de la aplicación
+  function flash(message, level = 'success') {
+    window.dispatchEvent(new CustomEvent('flash', {
+      detail: { level: level, message: message }
+    }));
+  }
+  
   const form = document.getElementById('loginForm');
+  const submitBtn = form.querySelector('button[type="submit"]');
+  
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
+    
+    if (!username || !password) {
+      flash('Por favor completa todos los campos', 'warning');
+      return;
+    }
+    
+    // Mostrar estado de carga
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Iniciando sesión...';
+    submitBtn.disabled = true;
+    
     try {
-      await api('/auth/login', { method: 'POST', body: { username, password } });
-      window.location.href = "{{ url_for('pages_user.dashboard') }}";
+      const result = await api('/auth/login', { 
+        method: 'POST', 
+        body: { username, password } 
+      });
+      
+      flash('Inicio de sesión exitoso. Redirigiendo...', 'success');
+      
+      // Pequeño delay para mostrar el mensaje antes de redirigir
+      setTimeout(() => {
+        window.location.href = "{{ url_for('pages_user.dashboard') }}";
+      }, 100);
+      
     } catch (err) {
-      window.dispatchEvent(new CustomEvent('flash', { 
-        detail: { level: 'danger', message: err?.message || 'Error de autenticación' }
-      }));
+      console.error('Login error:', err);
+      const errorMsg = err?.message || 'Error de autenticación. Verifica tus credenciales.';
+      flash(errorMsg, 'danger');
+    } finally {
+      // Restaurar botón
+      submitBtn.innerHTML = originalText;
+      submitBtn.disabled = false;
     }
   });
 </script>

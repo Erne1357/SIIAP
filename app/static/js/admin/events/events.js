@@ -340,9 +340,7 @@
 
     async function loadEligibleStudents(programId = null) {
         try {
-            const url = programId
-                ? `${API}/interviews/eligible-students/${programId}`
-                : `${API}/coordinator/students?phase=admission&status=approved`;
+            const url = `${API}/interviews/eligible-students/${programId}`;
 
             const { data } = await apiRequest(url);
             eligibleStudentsList = data.eligible_students || data.students || [];
@@ -736,6 +734,7 @@
         const singleContent = document.getElementById('singleCapacityContent');
         const multipleContent = document.getElementById('multipleCapacityContent');
         const card = document.getElementById('eventManagementCard');
+        const rightPanel = document.getElementById('eligibleStudentsPanel');
 
         card.style.display = 'block';
 
@@ -743,12 +742,15 @@
             singleContent.style.display = 'block';
             multipleContent.style.display = 'none';
             document.getElementById('windowEventId').value = eventId;
+            rightPanel.style.display = 'block';
+            console.log("rightPanel", rightPanel);
+            console.log("display", rightPanel.style.display);
             loadWindows(eventId);
             loadSlots(eventId);
         } else {
             singleContent.style.display = 'none';
             multipleContent.style.display = 'block';
-
+            document.getElementById('eligibleStudentsPanel').style.display = 'none';
             // Cargar fechas del evento si existen
             if (event.event_date) {
                 const date = new Date(event.event_date);

@@ -22,7 +22,7 @@
       Todos los campos marcados con <span style="color:red">*</span> son obligatorios.
     </p>
 
-    <form method="POST">
+    <form method="POST" id="registerForm">
       <div class="row g-3 mb-3">
         <div class="col-md-4">
           <label for="first_name" class="form-label">Nombre <span style="color:red">*</span></label>
@@ -70,14 +70,114 @@
 </div>
 
 <script>
-  document.querySelector('form').addEventListener('submit', function (e) {
+  // Función flash consistente con el resto de la aplicación
+  function flash(message, level = 'success') {
+    window.dispatchEvent(new CustomEvent('flash', {
+      detail: { level: level, message: message }
+    }));
+  }
+  
+  // Función para obtener CSRF token
+  const getCsrf = () => {
+    const el = document.querySelector('meta[name="csrf-token"]');
+    return el ? el.getAttribute('content') : '';
+  };
+  
+  const form = document.getElementById('registerForm');
+  const submitBtn = form.querySelector('button[type="submit"]');
+  
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    
+    // Validación de contraseñas
     const pwd = document.getElementById('password').value;
     const cpwd = document.getElementById('confirm_password').value;
+    
     if (pwd !== cpwd) {
-      e.preventDefault();
-      window.dispatchEvent(new CustomEvent('flash', { 
-        detail: { level: 'danger', message: 'Las contraseñas no coinciden' }
-      }));
+      flash('Las contraseñas no coinciden', 'danger');
+      return;
+    }
+    
+    // Validaciones adicionales
+    const firstName = document.getElementById('first_name').value.trim();
+    const lastName = document.getElementById('last_name').value.trim();
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    
+    if (!firstName || !lastName || !username || !email || !pwd) {
+      flash('Por favor completa todos los campos obligatorios', 'warning');
+      return;
+    }
+    
+    if (username.length < 5) {
+      flash('El nombre de usuario debe tener al menos 5 caracteres', 'warning');
+      return;
+    }
+    
+    if (pwd.length < 8) {
+      flash('La contraseña debe tener al menos 8 caracteres', 'warning');
+      return;
+    }
+    
+    // Mostrar estado de carga
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Registrando...';
+    submitBtn.disabled = true;
+    
+    try {
+      const formData = new FormData(form);
+      const csrf = getCsrf();
+      
+      const response = await fetch(form.action || window.location.href, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'X-CSRF-Token': csrf
+        },
+        body: formData
+      });
+      
+      const json = await response.json().catch(() => ({}));
+      
+      if (!response.ok) {
+        const errorMsg = json?.error || json?.message || 'Error al registrar usuario';
+        flash(errorMsg, 'danger');
+        return;
+      }
+      
+      if (json.ok) {
+        flash('Registro exitoso. Redirigiendo al inicio de sesión...', 'success');
+        
+        // Redirigir al login después de mostrar el mensaje
+        setTimeout(() => {
+          window.location.href = "{{ url_for('pages_auth.login_page') }}";
+        }, 150);
+      } else {
+        const errorMsg = json?.error || 'Error al registrar usuario';
+        flash(errorMsg, 'danger');
+      }
+      
+    } catch (err) {
+      console.error('Registration error:', err);
+      flash('Error de red al registrar. Inténtalo nuevamente.', 'danger');
+    } finally {
+      // Restaurar botón
+      submitBtn.innerHTML = originalText;
+      submitBtn.disabled = false;
+    }
+  });
+  
+  // Validación en tiempo real de contraseñas
+  document.getElementById('confirm_password').addEventListener('input', function() {
+    const pwd = document.getElementById('password').value;
+    const cpwd = this.value;
+    
+    if (cpwd && pwd !== cpwd) {
+      this.setCustomValidity('Las contraseñas no coinciden');
+      this.classList.add('is-invalid');
+    } else {
+      this.setCustomValidity('');
+      this.classList.remove('is-invalid');
     }
   });
 </script>

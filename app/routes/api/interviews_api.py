@@ -2,6 +2,7 @@
 from app import db
 from flask import Blueprint, current_app, request, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy import select
 from app.utils.auth import roles_required
 from app.services.interview_service import InterviewEligibilityService
 
@@ -55,6 +56,73 @@ def list_eligible_students(program_id: int):
             "count": len(eligible_students)
         }), 200
     except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+@api_interviews.route('/eligible-students', methods=['GET'])
+@login_required
+@roles_required('program_admin', 'postgraduate_admin')
+def list_all_eligible_students():
+    """
+    Lista todos los estudiantes elegibles para entrevista en todos los programas.
+    Si es coordinador (program_admin), solo muestra sus programas.
+    Si es admin de posgrado (postgraduate_admin), muestra todos los programas.
+    """
+    try:
+        from app.models.program import Program
+        
+        # Determinar qué programas puede ver el usuario
+        if current_user.role.name == 'program_admin':
+            # Coordinador: solo sus programas
+            managed_programs = db.session.execute(
+                select(Program).where(Program.coordinator_id == current_user.id)
+            ).scalars().all()
+            
+            if not managed_programs:
+                return jsonify({
+                    "ok": True,
+                    "programs": [],
+                    "total_eligible_students": 0,
+                    "message": "No tienes programas asignados"
+                }), 200
+                
+        else:
+            # Admin de posgrado: todos los programas
+            managed_programs = db.session.execute(
+                select(Program)
+            ).scalars().all()
+
+        # Obtener estudiantes elegibles por programa
+        programs_data = []
+        total_eligible = 0
+        
+        for program in managed_programs:
+            eligible_students = InterviewEligibilityService.get_eligible_students(program.id)
+            
+            programs_data.append({
+                "program_id": program.id,
+                "program_name": program.name,
+                "program_slug": program.slug,
+                "eligible_students": eligible_students,
+                "eligible_count": len(eligible_students)
+            })
+            
+            total_eligible += len(eligible_students)
+
+        current_app.logger.info(f"Usuario {current_user.id} listó estudiantes elegibles de todos sus programas - Total: {total_eligible} estudiantes elegibles")
+        
+        return jsonify({
+            "ok": True,
+            "programs": programs_data,
+            "total_programs": len(managed_programs),
+            "total_eligible_students": total_eligible,
+            "user_role": current_user.role.name
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error obteniendo estudiantes elegibles para todos los programas: {str(e)}")
         return jsonify({
             "ok": False,
             "error": str(e)

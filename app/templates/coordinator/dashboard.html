@@ -126,7 +126,7 @@
                       <th>Estudiante</th>
                       <th>Programa</th>
                       <th class="text-center" style="width: 120px;">Progreso</th>
-                      <th class="text-center" style="width: 100px;">Documentos</th>
+                      <th class="text-center" style="width: 140px;">Documentos</th>
                       <th class="text-center" style="width: 100px;">Estado</th>
                       <th style="width: 150px;">Acciones</th>
                     </tr>
@@ -205,6 +205,63 @@
 {% endblock %}
 
 {% block modals %}
+<!-- Modal: Detalles del Estudiante -->
+<div class="modal fade" id="studentDetailsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="d-flex align-items-center">
+          <img src="" alt="Avatar" class="rounded-circle me-3" style="width: 48px; height: 48px;" id="modalStudentAvatar">
+          <div>
+            <h5 class="modal-title mb-0" id="modalStudentName">Cargando...</h5>
+            <small class="text-muted" id="modalStudentEmail"></small><br>
+            <small class="text-muted"><i class="fas fa-graduation-cap me-1"></i><span id="modalStudentProgram"></span></small>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalContent">
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="studentDetailsTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" 
+                    data-bs-target="#general-pane" type="button" role="tab">
+              <i class="fas fa-user me-1"></i>General
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="documents-tab" data-bs-toggle="tab" 
+                    data-bs-target="#documents-pane" type="button" role="tab">
+              <i class="fas fa-file-alt me-1"></i>Documentos
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="interview-tab" data-bs-toggle="tab" 
+                    data-bs-target="#interview-pane" type="button" role="tab">
+              <i class="fas fa-calendar-alt me-1"></i>Entrevista
+            </button>
+          </li>
+        </ul>
+        
+        <!-- Tab Content -->
+        <div class="tab-content" id="studentDetailsTabContent">
+          <div class="tab-pane fade show active" id="general-pane" role="tabpanel">
+            <div id="generalTabContent"></div>
+          </div>
+          <div class="tab-pane fade" id="documents-pane" role="tabpanel">
+            <div id="documentsTabContent"></div>
+          </div>
+          <div class="tab-pane fade" id="interview-pane" role="tabpanel">
+            <div id="interviewTabContent"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Modal para subir documento por estudiante -->
 <div class="modal fade" id="uploadForStudentModal" tabindex="-1" aria-labelledby="uploadForStudentLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
@@ -250,6 +307,7 @@
     </form>
   </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}

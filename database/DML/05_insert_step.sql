@@ -7,7 +7,7 @@ INSERT INTO step (id, name, description, phase_id) VALUES
 (4, 'Documentos Específicos MANI', 'Requisitos específicos del programa MANI', 1),
 (5, 'Documentos Específicos DCI', 'Requisitos específicos del programa DCI', 1),
 (6, 'Entrevista', 'Entrevista con Comité de Admisión', 1),
-(7, 'Defensa de Protocolo ', 'Defensa de protocolo/propuesta de investigación con Comité de admisión',1),
+(7, 'Defensa de Protocolo', 'Defensa de protocolo/propuesta de investigación con Comité de admisión',1),
 (8, 'Temarios de Examen', 'Temarios de examenes de admisión',1),
 --Fase de permanencia
 (9,'Permanencia' , 'Documentos de permanencia', 2),
