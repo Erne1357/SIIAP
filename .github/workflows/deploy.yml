@@ -23,7 +23,7 @@ jobs:
             set -e  # Detener en caso de error
             
             echo "📂 Navegando al directorio del proyecto..."
-            cd /home/cuaderno/SIIA
+            cd /home/cuaderno/SIIAP
             
             echo "🔄 Actualizando código desde GitHub..."
             git fetch origin
