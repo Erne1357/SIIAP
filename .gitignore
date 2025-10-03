@@ -76,3 +76,5 @@ database/
 
 #Variables de entorno
 .env
+docker/.env.prod
+docker/.env.dev

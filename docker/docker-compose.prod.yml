@@ -1,0 +1,51 @@
+# docker/docker-compose.prod.yml
+name: SIIAP
+
+services:
+  web:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    expose:
+      - "5000"
+    depends_on:
+      - db
+    env_file:
+      - .env.prod
+    volumes:
+      # Solo montamos instance para uploads persistentes
+      - /home/cuaderno/SIIAPEC/instance:/app/instance
+    command: >
+      sh -c "gunicorn 
+      --bind 0.0.0.0:5000 
+      --workers ${GUNICORN_WORKERS:-4}
+      --timeout ${GUNICORN_TIMEOUT:-120}
+      --access-logfile -
+      --error-logfile -
+      app:app"
+
+  db:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.db
+    env_file:
+      - .env.prod
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  nginx:
+    restart: always
+    image: nginx:stable-alpine
+    depends_on:
+      - web
+    volumes:
+      - ../app/static:/usr/share/nginx/html/static:ro
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      # Solo expone en localhost para que nginx del servidor lo proxee
+      - "127.0.0.1:8081:80"
+
+volumes:
+  pgdata:
