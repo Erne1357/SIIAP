@@ -2,7 +2,7 @@
 name: SIIAP
 services:
   web:
-    #reinciia el contenedor si se detiene
+    #reinicia el contenedor si se detiene
     restart: always
     build:
       context: ..
