@@ -38,6 +38,16 @@ def save_user_doc(file_storage, user_id: int, phase: str, name: str) -> str:
     file_storage.save(folder / filename)
     return f"{user_id}/{phase}/{filename}"
 
+def save_system_template(file_storage, name: str) -> str:
+    ext = _validate_ext(file_storage.filename, current_app.config['ALLOWED_DOC_EXT'])
+    folder = current_app.config['TEMPLATE_STORE']
+    folder.mkdir(parents=True, exist_ok=True)
+
+    safe = secure_filename(name.rsplit('.', 1)[0])
+    filename = f"{safe}.{ext}"
+    file_storage.save(folder / filename)
+    return filename
+
 def _validate_ext(name: str, allowed: set[str]) -> str:
     if '.' not in name:
         abort(400, "Archivo sin extensión")

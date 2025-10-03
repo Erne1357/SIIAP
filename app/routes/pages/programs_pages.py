@@ -30,7 +30,7 @@ def inscription_program(program_id):
     # SSR: mantiene flash + redirect sin JS
     try:
         program = svc.enroll_user_once(program_id, current_user.id)
-        flash('Te has inscrito en el programa.', 'success')
+        flash('Te has postulado en el programa.', 'success')
         return redirect(url_for('program.admission.admission_dashboard', slug=program.slug))
     except svc.AlreadyEnrolledError as e:
         # Si ya está inscrito, redirige al detalle del programa que intentó ver

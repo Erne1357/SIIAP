@@ -1,4 +1,3 @@
-{# app/templates/admission/dashboard.html #}
 {% extends 'base.html' %}
 {% block title %}Admisión – {{ program.name }}{% endblock %}
 
@@ -9,91 +8,279 @@
 
 {% block content %}
 <div class="container py-4">
-  <!-- Info/intro -------------------------------------------------- -->
+  <!-- Info/intro -->
   <div class="alert alert-info shadow-sm mb-4" role="alert">
     <h5 class="mb-2">Proceso de Admisión</h5>
     <p class="mb-0">
       Sube los documentos requeridos en cada paso. Los siguientes pasos
       se desbloquearán cuando todos los archivos del paso anterior estén aprobados.
       <br>
-
-      <!-- Mensaje para decir como ver la descripción de los archivos -->
       <strong><i>Para ver la descripción de los archivos, haz clic en el nombre del archivo.</i></strong>
     </p>
+    <div class="d-flex justify-content-end mb-3">
+      <button type="button" class="btn btn-outline-primary btn-sm" id="btnRequestProgramChange"
+        data-program-id="{{ program.id }}" data-program-slug="{{ program.slug }}">
+        <i class="fas fa-exchange-alt me-1"></i>
+        Cambiar de Programa
+      </button>
+    </div>
   </div>
 
-  <!-- Tabs nav ----------------------------------------------------- -->
+  <!-- Tabs nav -->
   <ul class="nav nav-tabs mb-3" id="stepTab" role="tablist">
-    {% for step in steps %}
-    {% set locked = lock_info[step.id] %}
-    {% set seq = step.program_steps[0].sequence %}
-    {% set state = step_states[step.id] %}
+    {% for item in processed_steps %}
+    {% if item.is_combined %}
+    {# Tab combinado #}
     <li class="nav-item" role="presentation">
       <button class="nav-link
-               {% if loop.first %}active{% endif %}
-               {% if state=='approved' %}text-success{% elif state=='rejected' %}text-danger{% elif state=='review' %}text-warning{% endif %}
-               {% if locked %}disabled{% endif %}" id="tab-{{ step.id }}" data-bs-toggle="tab"
-        data-bs-target="#pane-{{ step.id }}" type="button" role="tab">
-        {% if seq != 0 %}{{ seq }}. {% endif %}{{ step.name }}
-        {# Iconos de estado #}
-        {%if seq !=0 %}
-        {% if locked %}
+                   {% if loop.first %}active{% endif %}
+                   {% if item.state=='approved' %}text-success{% elif item.state=='rejected' %}text-danger{% elif item.state=='review' %}text-warning{% endif %}
+                   {% if item.locked %}disabled{% endif %}" id="tab-{{ item.id }}" data-bs-toggle="tab"
+        data-bs-target="#pane-{{ item.id }}" type="button" role="tab">
+        {{ item.sequence }}. {{ item.name }}
+        {% if item.locked %}
         <i class="fas fa-lock ms-1"></i>
-        {% elif state=='approved' %}
+        {% elif item.state=='approved' %}
         <i class="fas fa-check-circle ms-1 text-success"></i>
-        {% elif state=='rejected' %}
+        {% elif item.state=='rejected' %}
         <i class="fas fa-times-circle ms-1 text-danger"></i>
-        {% elif state=='pending' %}
+        {% elif item.state=='pending' %}
         <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
-        {% endif %}
+        {% elif item.state=='extended' %}
+        <i class="fas fa-clock ms-1 text-warning"></i>
         {% endif %}
       </button>
     </li>
+    {% else %}
+    {# Tab normal #}
+    <li class="nav-item" role="presentation">
+      <button class="nav-link
+                   {% if loop.first %}active{% endif %}
+                   {% if item.state=='approved' %}text-success{% elif item.state=='rejected' %}text-danger{% elif item.state=='review' %}text-warning{% endif %}
+                   {% if item.locked %}disabled{% endif %}" id="tab-{{ item.step.id }}" data-bs-toggle="tab"
+        data-bs-target="#pane-{{ item.step.id }}" type="button" role="tab">
+        {% set display_seq = item.sequence if item.sequence <= 2 else (item.sequence - 1) %} {{ display_seq }}. {{
+          item.step.name }} {% if item.locked %} <i class="fas fa-lock ms-1"></i>
+          {% elif item.state=='approved' %}
+          <i class="fas fa-check-circle ms-1 text-success"></i>
+          {% elif item.state=='rejected' %}
+          <i class="fas fa-times-circle ms-1 text-danger"></i>
+          {% elif item.state=='pending' %}
+          <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
+          {% elif item.state=='extended' %}
+          <i class="fas fa-clock ms-1 text-warning"></i>
+          {% endif %}
+      </button>
+    </li>
+    {% endif %}
     {% endfor %}
   </ul>
 
-  <!-- Tabs content ------------------------------------------------- -->
+  {% from 'programs/admission/_archive_rows.html' import render_archive_row %}
+
+  <!-- Tabs content -->
   <div class="tab-content">
-    {% for step in steps %}
-    {% set locked = lock_info[step.id] %}
-    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ step.id }}" role="tabpanel">
-      {% if locked %}
+    {% for item in processed_steps %}
+    {% if item.is_combined %}
+    {# Tab combinado - tabla única sin divisiones #}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ item.id }}" role="tabpanel">
+      {% if item.locked %}
       <div class="alert alert-warning">Completa y aprueba el paso anterior.</div>
       {% else %}
+
+      <div class="table-responsive">
+        {% if item.step1.name == 'Entrevista' or item.step1.name == 'Defensa de Protocolo/Propuesta' %}
+        <div class="interview-info"></div>
+        {% else %}
+        <table class="table table-hover align-middle" id="archiveTable">
+          <thead class="table-light">
+            <tr>
+              <th style="width:32px;"></th>
+              <th>Documento</th>
+              <th class="d-none d-md-table-cell" style="width:160px;">Plantilla</th>
+              <th style="width:140px;">Estado</th>
+              <th style="width:180px;">Acciones</th>
+              <th class="d-none d-lg-table-cell" style="width:200px;">Observaciones</th>
+              <th class="d-none d-lg-table-cell" style="width:130px;">Revisado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {# Archivos del primer step (Requisitos de Maestrías) #}
+            {% for arch in item.step1.archives %}
+            {{ render_archive_row(arch, item.step1, subs, all_extensions, current_user) }}
+            {% endfor %}
+
+            {# Archivos del segundo step (Documentos Específicos) #}
+            {% for arch in item.step2.archives %}
+            {{ render_archive_row(arch, item.step2, subs, all_extensions, current_user) }}
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+
+      {% endif %}
+    </div>
+    {% else %}
+    {# Tab normal #}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ item.step.id }}" role="tabpanel">
+      {% if item.locked %}
+      <div class="alert alert-warning">Completa y aprueba el paso anterior.</div>
+      {% else %}
+      {% set step = item.step %}
       {% include 'programs/admission/_archive_table.html' %}
       {% endif %}
     </div>
+    {% endif %}
+
     {% endfor %}
   </div>
 </div>
+{% endblock %}
 
+{% block modals %}
 
 <!-- Modal para subir archivos -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <!-- IMPORTANTE: data-admission-upload="true" para que el JS lo intercepte -->
     <form method="POST" enctype="multipart/form-data" class="modal-content" data-admission-upload="true">
       <div class="modal-header">
-        <h5 class="modal-title" id="uploadLabel">Subir documento</h5>
+        <h5 class="modal-title" id="uploadLabel">Subir Documento</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <!-- El JS setea este valor al abrir el modal -->
         <input type="hidden" name="archive_id" id="archiveIdInput">
         <input type="hidden" name="program_id" id="programIdInput" value="{{ program.id }}">
-        <div class="mb-2">
-          <label class="form-label">Archivo</label>
-          <!-- respeta tus extensiones permitidas -->
-          <input type="file" class="form-control" name="file" required
-            accept=".pdf">
-          <div class="form-text">Formatos permitidos: PDF, DOC, DOCX, XLSX (máx. 3MB).</div>
+
+        <div id="existingFileInfo" class="d-none" style="display: none;">
+          <div class="alert alert-info">
+            <h6><i class="fas fa-info-circle"></i> Archivo Existente</h6>
+            <p class="mb-1"><strong>Documento:</strong> <span id="existingArchiveName"></span></p>
+            <p class="mb-1"><strong>Archivo actual:</strong> <span id="existingFilename"></span></p>
+            <p class="mb-0"><strong>Subido el:</strong> <span id="existingDate"></span></p>
+            <hr>
+            <p class="mb-0 small text-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+              Al subir un nuevo archivo, se reemplazará el anterior de forma permanente.
+            </p>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Seleccionar Archivo</label>
+          <input type="file" class="form-control" name="file" required accept=".pdf">
+          <div class="form-text">
+            Formatos permitidos: PDF únicamente. Tamaño máximo: 3MB.
+          </div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Subir</button>
+        <button type="submit" class="btn btn-primary" id="uploadSubmitBtn">
+          <span id="uploadBtnText">Subir</span>
+        </button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal para solicitar prórroga -->
+<div class="modal fade" id="extensionModal" tabindex="-1" aria-labelledby="extensionLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="extensionLabel">Solicitar Prórroga</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="extensionForm">
+        <div class="modal-body">
+          <input type="hidden" id="extensionArchiveId">
+
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Solicitando prórroga para: <strong id="extensionArchiveName"></strong>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Fecha solicitada (hasta cuándo necesitas)</label>
+            <input type="date" class="form-control" id="extensionRequestedUntil" required>
+            <div class="form-text">Selecciona una fecha realista para completar el documento.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Motivo de la solicitud</label>
+            <textarea class="form-control" id="extensionReason" rows="3" required
+              placeholder="Explica brevemente por qué necesitas más tiempo..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Solicitar Prórroga</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="selectProgramModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-exchange-alt me-2"></i>
+          Cambiar de Programa
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          Selecciona el programa al que deseas cambiar. Se analizarán tus documentos actuales
+          y se te mostrará qué se conservará y qué se perderá.
+        </div>
+
+        <h6 class="mb-3">Programas Disponibles</h6>
+        <div id="availableProgramsList">
+          <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Cargando...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnContinueSelection">
+          <i class="fas fa-arrow-right me-1"></i>Continuar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Análisis de Transferencia -->
+<div class="modal fade" id="analysisModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Análisis de Cambio de Programa
+        </h5>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <div id="analysisContent">
+          <!-- Se llenará dinámicamente -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCancelTransfer">
+          <i class="fas fa-times me-1"></i>Cancelar
+        </button>
+        <button type="button" class="btn btn-danger" id="btnConfirmTransfer">
+          <i class="fas fa-check me-1"></i>Confirmar Cambio
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -101,6 +288,5 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/program/admission.js') }}?v={{ static_version }}"></script>
-
-
+<script src="{{ url_for('static', filename='js/program/program_transfer.js') }}?v={{ static_version }}"></script>
 {% endblock %}

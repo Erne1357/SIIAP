@@ -3,14 +3,93 @@
 // ────────────────────────────────────────────────────────────── 
 
 document.addEventListener('DOMContentLoaded', function() {
+  // Debug: Verificar que los elementos AOS existen
+  console.log('Elementos con data-aos encontrados:', document.querySelectorAll('[data-aos]').length);
+  
   // Obtener el contenedor principal scrolleable
-  // Inicializar AOS (Animate On Scroll)
-   AOS.init({
-    duration: 800,
-    once: true,
-    easing: 'ease-in-out',
-    offset: 50
-  });
+  // Implementar AOS personalizado para contenedor con scroll
+  function initCustomAOS() {
+    const mainContent = document.getElementById('main-content');
+    const elementsToAnimate = document.querySelectorAll('[data-aos]');
+    
+    if (!mainContent || elementsToAnimate.length === 0) return;
+    
+    // Función para verificar si un elemento está visible en el contenedor
+    function isElementInViewport(el, container) {
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = el.getBoundingClientRect();
+      
+      const containerTop = containerRect.top;
+      const containerBottom = containerRect.bottom;
+      const elementTop = elementRect.top;
+      const elementBottom = elementRect.bottom;
+      
+      // Margen de activación (más generoso)
+      const offset = 150;
+      
+      // Elemento está visible si cualquier parte está dentro del viewport del contenedor
+      const isVisible = (elementTop <= containerBottom + offset && elementBottom >= containerTop - offset);
+      
+      return isVisible;
+    }
+    
+    // Función para activar animaciones
+    function activateAnimations() {
+      let animatedCount = 0;
+      elementsToAnimate.forEach((element, index) => {
+        if (isElementInViewport(element, mainContent)) {
+          if (!element.classList.contains('aos-animate')) {
+            // Aplicar delay si existe
+            const delay = element.getAttribute('data-aos-delay') || 0;
+            
+            setTimeout(() => {
+              element.classList.add('aos-animate');
+              element.style.transform = 'translateY(0) translateX(0)';
+              element.style.opacity = '1';
+              animatedCount++;
+            }, parseInt(delay));
+          }
+        }
+      });
+      
+      if (animatedCount > 0) {
+        console.log(`Animando ${animatedCount} elementos`);
+      }
+    }
+    
+    // Configurar estilos iniciales
+    elementsToAnimate.forEach(element => {
+      const animationType = element.getAttribute('data-aos') || 'fade-up';
+      element.style.transition = 'all 800ms ease-in-out';
+      
+      if (animationType.includes('fade-up')) {
+        element.style.transform = 'translateY(30px)';
+        element.style.opacity = '0';
+      } else if (animationType.includes('fade-in')) {
+        element.style.opacity = '0';
+      } else if (animationType.includes('fade-left')) {
+        element.style.transform = 'translateX(30px)';
+        element.style.opacity = '0';
+      } else if (animationType.includes('fade-right')) {
+        element.style.transform = 'translateX(-30px)';
+        element.style.opacity = '0';
+      }
+    });
+    
+    // Activar inmediatamente para elementos ya visibles
+    activateAnimations();
+    
+    // Escuchar scroll en el contenedor principal
+    mainContent.addEventListener('scroll', activateAnimations);
+    
+    // También activar en resize
+    window.addEventListener('resize', activateAnimations);
+    
+    return activateAnimations;
+  }
+  
+  // Inicializar AOS personalizado
+  const activateAnimations = initCustomAOS();
 
   // Smooth scroll para los enlaces de navegación dentro del contenido principal
   document.querySelectorAll('.program-view-container a[href^="#"]').forEach(anchor => {
@@ -128,14 +207,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-    // Función para manejar el cambio de tabs en el proceso de admisión
+  // Función para manejar el cambio de tabs en el proceso de admisión
   const admissionTabs = document.querySelectorAll('#admissionPhasesTab button');
   if (admissionTabs.length > 0) {
     admissionTabs.forEach(tab => {
       tab.addEventListener('shown.bs.tab', function (e) {
-        // Refrescar AOS cuando se cambia de tab
+        // Activar animaciones personalizadas cuando se cambia de tab
         setTimeout(() => {
-          AOS.refresh();
+          if (typeof activateAnimations === 'function') {
+            activateAnimations();
+          }
         }, 150);
       });
     });
@@ -158,6 +239,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let lastScrollTop = 0;
     mainContent.addEventListener('scroll', function() {
       const st = mainContent.scrollTop;
+      
+      // Activar animaciones personalizadas en cada scroll
+      if (typeof activateAnimations === 'function') {
+        activateAnimations();
+      }
+      
       if (st > lastScrollTop && st > 300) {
         // Scroll hacia abajo
         floatingInscriptionButton.style.opacity = '0';
@@ -175,7 +262,24 @@ document.addEventListener('DOMContentLoaded', function() {
   // También ejecutar cuando se redimensione la ventana
   window.addEventListener('resize', equalizeCardHeights);
 
-   document.addEventListener('swup:contentReplaced', () => {
-    AOS.refreshHard();
+  // Manejar eventos de Swup para reinicializar AOS personalizado
+  document.addEventListener('swup:contentReplaced', () => {
+    // Reinicializar AOS personalizado
+    setTimeout(() => {
+      initCustomAOS();
+    }, 100);
   });
+
+  // Función para forzar la detección después de la carga
+  setTimeout(() => {
+    if (typeof activateAnimations === 'function') {
+      activateAnimations();
+    }
+    // Segundo intento para elementos que se cargan dinámicamente
+    setTimeout(() => {
+      if (typeof activateAnimations === 'function') {
+        activateAnimations();
+      }
+    }, 500);
+  }, 200);
 });

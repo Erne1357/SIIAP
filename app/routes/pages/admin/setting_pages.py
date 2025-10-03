@@ -1,0 +1,17 @@
+from flask import Blueprint, render_template
+from flask_login import login_required
+from app.utils.auth import roles_required
+
+pages_settings = Blueprint('pages_settings', __name__, url_prefix='/settings')
+
+@pages_settings.route('/', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin','program_admin')
+def index():
+    return render_template('admin/settings/index.html')
+
+@pages_settings.route('/retention', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin','program_admin')
+def retention():
+    return render_template('admin/settings/retention.html')

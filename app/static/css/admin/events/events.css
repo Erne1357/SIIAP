@@ -1,0 +1,37 @@
+/* app/static/css/admin/events/events.css */
+
+.student-card {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.student-card:hover {
+  background-color: #f8f9fa;
+}
+
+.student-card.selected {
+  background-color: #e3f2fd;
+  border-left-color: #1976d2;
+}
+
+#slotsTable tbody tr.slot-free {
+  background-color: #f8fff8;
+}
+
+#slotsTable tbody tr.slot-booked {
+  background-color: #fff3cd;
+}
+
+.event-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.event-row:hover {
+  background-color: #f8f9fa;
+}
+
+.event-row.table-active {
+  background-color: #e7f3ff;
+}
