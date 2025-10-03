@@ -1,5 +1,6 @@
 // static/js/program/admission.js - Flash corregido
 document.addEventListener('DOMContentLoaded', () => {
+
   const getCsrf = () => {
     const el = document.querySelector('meta[name="csrf-token"]');
     return el ? el.getAttribute('content') : '';
@@ -8,8 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // FUNCIÓN FLASH CORRECTA
   function flash(message, level = 'success') {
-    window.dispatchEvent(new CustomEvent('flash', { 
-      detail: { level: level, message: message } 
+    window.dispatchEvent(new CustomEvent('flash', {
+      detail: { level: level, message: message }
     }));
   }
 
@@ -17,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const arr = Array.isArray(flashes) ? flashes : [];
       sessionStorage.setItem('flashQueue', JSON.stringify(arr));
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function closeModal(modalEl) {
@@ -56,14 +57,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const uploadBtnText = document.getElementById('uploadBtnText');
       const uploadSubmitBtn = document.getElementById('uploadSubmitBtn');
 
-      if (hasExisting && existingFilename) {
+      // SIEMPRE empezar ocultando la información de archivo existente
+      existingInfo.style.display = 'none';
+
+      // DEBUG: Mostrar todos los valores para diagnosticar
+      console.log('=== DEBUG MODAL UPLOAD ===');
+      console.log('hasExisting:', hasExisting);
+      console.log('existingFilename:', existingFilename);
+      console.log('existingDate:', existingDate);
+      console.log('archiveName:', archiveName);
+
+      // Solo mostrar información de archivo existente si realmente hay uno Y tiene datos válidos
+      const shouldShow = hasExisting === true 
+        && existingFilename 
+        && typeof existingFilename === 'string' 
+        && existingFilename.trim() !== '' 
+        && existingDate 
+        && typeof existingDate === 'string' 
+        && existingDate.trim() !== '';
+      
+      console.log('shouldShow:', shouldShow);
+      
+      if (shouldShow) {
+        console.log('MOSTRANDO archivo existente');
         document.getElementById('existingArchiveName').textContent = archiveName || '';
-        document.getElementById('existingFilename').textContent = existingFilename || '';
-        document.getElementById('existingDate').textContent = existingDate || '';
+        document.getElementById('existingFilename').textContent = existingFilename;
+        document.getElementById('existingDate').textContent = existingDate;
+        // Mostrar el contenedor
+        existingInfo.style.display = 'block';
         existingInfo.classList.remove('d-none');
         uploadBtnText.textContent = 'Reemplazar';
         uploadSubmitBtn.className = 'btn btn-warning';
       } else {
+        console.log('OCULTANDO archivo existente');
+        existingInfo.style.display = 'none';
         existingInfo.classList.add('d-none');
         uploadBtnText.textContent = 'Subir';
         uploadSubmitBtn.className = 'btn btn-primary';
@@ -72,8 +99,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     uploadModal.addEventListener('hidden.bs.modal', () => {
       const fileInput = uploadModal.querySelector('input[type="file"]');
+      console.log('Limpiando input file', fileInput);
       if (fileInput) fileInput.value = '';
-      document.getElementById('existingFileInfo').classList.add('d-none');
+      
+      // Siempre ocultar la información de archivo existente al cerrar
+      const existingInfo = document.getElementById('existingFileInfo');
+      existingInfo.style.display = 'none';
+      existingInfo.classList.add('d-none');
+      
+      // Limpiar contenido para evitar que se muestre información residual
+      document.getElementById('existingArchiveName').textContent = '';
+      document.getElementById('existingFilename').textContent = '';
+      document.getElementById('existingDate').textContent = '';
     });
   }
 
@@ -91,14 +128,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const button = e.target.closest('.btn-request-extension');
       const archiveId = button.getAttribute('data-archive-id');
       const archiveName = button.getAttribute('data-archive-name');
-      
+
       if (archiveId && archiveName) {
         document.getElementById('extensionArchiveId').value = archiveId;
         document.getElementById('extensionArchiveName').textContent = archiveName;
-        
+
         document.getElementById('extensionRequestedUntil').value = '';
         document.getElementById('extensionReason').value = '';
-        
+
         const modal = new bootstrap.Modal(extensionModal);
         modal.show();
       }
@@ -108,28 +145,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==================== ENVIAR SOLICITUD DE PRÓRROGA ====================
   document.getElementById('extensionForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const archiveId = document.getElementById('extensionArchiveId').value;
     const requestedUntil = document.getElementById('extensionRequestedUntil').value;
     const reason = document.getElementById('extensionReason').value.trim();
-    
+
     if (!archiveId || !requestedUntil || !reason) {
       flash('Completa todos los campos requeridos', 'warning');
       return;
     }
-    
+
     const submitBtn = e.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
     submitBtn.disabled = true;
-    
+
     try {
       const payload = {
         archive_id: parseInt(archiveId),
         requested_until: requestedUntil,
         reason: reason
       };
-      
+
       const res = await fetch('/api/v1/extensions/requests', {
         method: 'POST',
         credentials: 'same-origin',
@@ -139,20 +176,20 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         body: JSON.stringify(payload)
       });
-      
+
       const json = await res.json().catch(() => ({}));
-      
+
       if (!res.ok) {
         const msg = json?.error || 'No se pudo enviar la solicitud de prórroga.';
         flash(msg, 'danger');
         return;
       }
-      
+
       flash('Solicitud de prórroga enviada correctamente. Recibirás una respuesta pronto', 'success');
       closeModal(extensionModal);
-      
+
       setTimeout(() => window.location.reload(), 1500);
-      
+
     } catch (err) {
       console.error('Extension request error:', err);
       flash('Error de red al enviar la solicitud', 'danger');
@@ -164,10 +201,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Restaurar pestaña activa desde hash
   const hash = window.location.hash;
-  if (hash.startsWith('#pane-')) {
+  if (hash && hash.startsWith('#pane-')) {
     const btn = document.querySelector(`button[data-bs-target="${hash}"]`);
     if (btn) new bootstrap.Tab(btn).show();
   }
+
+  // Actualizar hash cuando cambie de tab
+  document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', (e) => {
+      const target = e.target.getAttribute('data-bs-target');
+      if (target) {
+        window.location.hash = target;
+      }
+    });
+  });
 
   // ==================== SUBIR ARCHIVOS CON VALIDACIONES ====================
   document.querySelectorAll('form[data-admission-upload="true"]').forEach(form => {
@@ -222,7 +269,16 @@ document.addEventListener('DOMContentLoaded', () => {
           ? json.flash
           : [{ level: 'success', message: 'Documento subido correctamente.' }];
 
-        if (currentStepForHash) window.location.hash = `#pane-${currentStepForHash}`;
+        if (currentStepForHash) {
+          // Buscar si este step está en un tab combinado
+          const combinedTab = document.querySelector(`[data-bs-target*="pane-combined-"][data-bs-target*="${currentStepForHash}"]`);
+          if (combinedTab) {
+            const target = combinedTab.getAttribute('data-bs-target');
+            window.location.hash = target;
+          } else {
+            window.location.hash = `#pane-${currentStepForHash}`;
+          }
+        }
         persistFlashes(flashes);
         window.location.reload();
 
@@ -243,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const subId = btn.getAttribute('data-delete-submission');
       const stepId = btn.getAttribute('data-step');
       if (!subId) return;
-      
+
       // TODO Fase 3: Reemplazar con modal de confirmación
       if (!confirm('¿Eliminar este archivo?')) return;
 
@@ -288,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
       let feedbackEl = e.target.parentNode.querySelector('.file-feedback');
-      
+
       if (!feedbackEl) {
         feedbackEl = document.createElement('div');
         feedbackEl.className = 'file-feedback small mt-1';
@@ -316,13 +372,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/v1/appointments/mine/active', {
         credentials: 'same-origin'
       });
-      
+
       if (!res.ok) return;
-      
+
       const json = await res.json();
       if (json.ok && json.appointments && json.appointments.length > 0) {
         json.appointments.forEach(appt => showInterviewCard(appt));
-      }else if (json.ok && !json.appointments.length) {
+      } else if (json.ok && !json.appointments.length) {
         // Verificar si ya completo su perfil, si no, mostrar alerta de que debe completar perfil, si no, mostrar que es elegible para entrevista
         const res = await fetch('/api/v1/users/me', {
           credentials: 'same-origin'
@@ -338,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <a href="/user/profile" class="alert-link">Ir a mi perfil</a>
             `;
           }
-        }else{
+        } else {
           const processAlert = document.querySelector('.interview-info');
           if (processAlert) {
             processAlert.className = 'alert alert-info interview-info';
@@ -358,17 +414,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const interviewCard = document.createElement('div');
     interviewCard.className = 'alert alert-success shadow-sm mb-4';
     interviewCard.id = `interviewCard-${appointment.id}`;
-    
+
     const startDate = new Date(appointment.starts_at);
     const endDate = new Date(appointment.ends_at);
-    const dateStr = startDate.toLocaleDateString('es-MX', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const dateStr = startDate.toLocaleDateString('es-MX', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
     const timeStr = `${startDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} - ${endDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
-    
+
     interviewCard.innerHTML = `
       <div class="row align-items-center">
         <div class="col-12 col-md-8">
@@ -395,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
     `;
-    
+
     const processAlert = document.querySelector('.interview-info');
     if (processAlert) {
       processAlert.parentNode.insertBefore(interviewCard, processAlert.nextSibling);
@@ -407,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.closest('.btn-request-change')) {
       const button = e.target.closest('.btn-request-change');
       const appointmentId = button.getAttribute('data-appointment-id');
-      
+
       if (appointmentId) {
         // TODO Fase 3: Reemplazar con modal
         openChangeRequestModal(appointmentId);
@@ -419,9 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // TODO Fase 3: Modal en lugar de prompt
     const reason = prompt('Motivo del cambio de horario:');
     if (!reason || !reason.trim()) return;
-    
+
     const suggestions = prompt('Sugerencias de horario (opcional):');
-    
+
     requestAppointmentChange(appointmentId, reason.trim(), suggestions?.trim());
   }
 
@@ -429,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const payload = { reason };
       if (suggestions) payload.suggestions = suggestions;
-      
+
       const res = await fetch(`/api/v1/appointments/${appointmentId}/change-requests`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -439,16 +495,16 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         body: JSON.stringify(payload)
       });
-      
+
       const json = await res.json();
-      
+
       if (!res.ok || !json.ok) {
         flash(json.error || 'No se pudo enviar la solicitud', 'danger');
         return;
       }
-      
+
       flash('Solicitud de cambio enviada. El coordinador la revisará pronto', 'success');
-      
+
     } catch (err) {
       console.error('Change request error:', err);
       flash('Error al enviar la solicitud de cambio', 'danger');

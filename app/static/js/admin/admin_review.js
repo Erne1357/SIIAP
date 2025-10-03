@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('Error al cargar solicitudes');
 
       const json = await res.json();
+      console.log('Loaded extensions:', json);
       extensionRequests = json.items || [];
 
       renderExtensions();

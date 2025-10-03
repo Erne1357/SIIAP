@@ -37,6 +37,77 @@
   <link rel="preload" as="image"
     href="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}?v={{ static_version }}">
 
+  <!-- Estilos para menús desplegables -->
+  <style>
+    .dropdown-menu-container {
+      position: relative;
+    }
+    
+    .dropdown-toggle-custom {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+    
+    .dropdown-arrow {
+      font-size: 0.75rem;
+      transition: transform 0.2s ease;
+    }
+    
+    .dropdown-toggle-custom.expanded .dropdown-arrow {
+      transform: rotate(90deg);
+    }
+    
+    .dropdown-submenu {
+      display: none;
+      padding-left: 1rem;
+      margin-top: 0.25rem;
+      margin-bottom: 0.25rem;
+      border-left: 2px solid rgba(0,0,0,0.1);
+      background: rgba(0,0,0,0.02);
+      border-radius: 0 4px 4px 0;
+    }
+    
+    .dropdown-submenu.show {
+      display: block;
+      animation: slideDown 0.2s ease;
+    }
+    
+    .submenu-item {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.9rem;
+    }
+    
+    .submenu-item:hover {
+      background: rgba(0,0,0,0.05);
+      border-radius: 4px;
+    }
+    
+    /* Animación */
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+      }
+      to {
+        opacity: 1;
+        max-height: 200px;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+      }
+    }
+    
+    /* Estilos específicos para móvil */
+    .dropdown-menu-container.mobile .dropdown-submenu {
+      background: rgba(0,0,0,0.05);
+      margin-left: 0.5rem;
+      margin-right: 0.5rem;
+    }
+  </style>
+
   {% block styles %}{% endblock %}
 </head>
 
@@ -124,10 +195,28 @@
           <i class="fas fa-clipboard-list me-2"></i>Admisión
         </a>
         {% endif %}
-        <a class="nav-link {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
-          href="{{ url_for('pages_events_public.list_events') }}">
-          <i class="fas fa-calendar-check me-2"></i>Eventos
-        </a>
+        
+        <!-- Menú desplegable de Eventos -->
+        <div class="dropdown-menu-container">
+          <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}" 
+             data-dropdown="events-menu">
+            <i class="fas fa-calendar-check me-2"></i>Eventos
+            <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
+          </a>
+          <div class="dropdown-submenu" id="events-menu">
+            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
+              href="{{ url_for('pages_events_public.list_events') }}">
+              <i class="fas fa-calendar me-2"></i>Eventos Públicos
+            </a>
+            {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_events.index') }}">
+              <i class="fas fa-calendar-plus me-2"></i>Gestión de Eventos
+            </a>
+            {% endif %}
+          </div>
+        </div>
+
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
         <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
           href="{{ url_for('pages_coordinator.dashboard') }}">
@@ -143,18 +232,23 @@
           <i class="fas fa-file-alt me-2"></i>Documentos
         </a>
         {% endif %}
-        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-        <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-          href="{{ url_for('pages_admin.pages_events.index') }}">
-          <i class="fas fa-calendar-check me-2"></i>Eventos
-        </a>
-        {% endif %}
+        
+        <!-- Menú desplegable de Configuración -->
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
         <hr class="mx-3">
-        <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
-          href="{{ url_for('pages_admin.pages_settings.index') }}">
-          <i class="fas fa-cog me-2"></i>Configuración
-        </a>
+        <div class="dropdown-menu-container">
+          <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}" 
+             data-dropdown="config-menu">
+            <i class="fas fa-cog me-2"></i>Configuración
+            <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
+          </a>
+          <div class="dropdown-submenu" id="config-menu">
+            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_settings.index') }}">
+              <i class="fas fa-folder me-2"></i>Archivos
+            </a>
+          </div>
+        </div>
         {% endif %}
         <hr class="mx-3">
         <a href="#" class="nav-link text-danger js-api-logout" data-no-swup>
@@ -193,6 +287,28 @@
             data-bs-dismiss="offcanvas">
             <i class="fas fa-clipboard-list me-2"></i>Admisión</a>
           {% endif %}
+          
+          <!-- Menú desplegable móvil de Eventos -->
+          <div class="dropdown-menu-container mobile">
+            <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}" 
+               data-dropdown="mobile-events-menu">
+              <i class="fas fa-calendar-check me-2"></i>Eventos
+              <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
+            </a>
+            <div class="dropdown-submenu" id="mobile-events-menu">
+              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
+                href="{{ url_for('pages_events_public.list_events') }}" data-bs-dismiss="offcanvas">
+                <i class="fas fa-calendar me-2"></i>Eventos Públicos
+              </a>
+              {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
+                href="{{ url_for('pages_admin.pages_events.index') }}" data-bs-dismiss="offcanvas">
+                <i class="fas fa-calendar-plus me-2"></i>Gestión de Eventos
+              </a>
+              {% endif %}
+            </div>
+          </div>
+
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
           <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
             href="{{ url_for('pages_coordinator.dashboard') }}" data-bs-dismiss="offcanvas">
@@ -202,22 +318,27 @@
             <i class="fas fa-calendar-alt me-2"></i>Permanencia</a>
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
           <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_review.index') }}">
+            href="{{ url_for('pages_admin.pages_review.index') }}" data-bs-dismiss="offcanvas">
             <i class="fas fa-file-alt me-2"></i>Documentos
           </a>
           {% endif %}
+          
+          <!-- Menú desplegable móvil de Configuración -->
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-          <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_events.index') }}">
-            <i class="fas fa-calendar-check me-2"></i>Eventos
-          </a>
-          {% endif %}
-          {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-          <hr class="mx-3">
-          <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_settings.index') }}">
-            <i class="fas fa-cog me-2"></i>Configuración
-          </a>
+          <hr>
+          <div class="dropdown-menu-container mobile">
+            <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}" 
+               data-dropdown="mobile-config-menu">
+              <i class="fas fa-cog me-2"></i>Configuración
+              <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
+            </a>
+            <div class="dropdown-submenu" id="mobile-config-menu">
+              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+                href="{{ url_for('pages_admin.pages_settings.index') }}" data-bs-dismiss="offcanvas">
+                <i class="fas fa-folder me-2"></i>Archivos
+              </a>
+            </div>
+          </div>
           {% endif %}
           <hr>
           <a href="#" class="nav-link text-danger js-api-logout" data-bs-dismiss="offcanvas" data-no-swup>
@@ -326,13 +447,57 @@
     })();
   </script>
 
-  <!-- Script para cerrar offcanvas al hacer clic en enlaces -->
+  <!-- Script para menús desplegables y offcanvas -->
   <script>
+    function initDropdownMenus() {
+      // Manejar dropdowns
+      document.querySelectorAll('[data-dropdown]').forEach(trigger => {
+        // Remover listeners previos
+        const newTrigger = trigger.cloneNode(true);
+        trigger.parentNode.replaceChild(newTrigger, trigger);
+
+        newTrigger.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const targetId = this.getAttribute('data-dropdown');
+          const submenu = document.getElementById(targetId);
+          const arrow = this.querySelector('.dropdown-arrow');
+          
+          if (submenu) {
+            const isShowing = submenu.classList.contains('show');
+            
+            // Cerrar todos los otros submenús
+            document.querySelectorAll('.dropdown-submenu.show').forEach(menu => {
+              if (menu !== submenu) {
+                menu.classList.remove('show');
+              }
+            });
+            document.querySelectorAll('.dropdown-toggle-custom.expanded').forEach(toggle => {
+              if (toggle !== this) {
+                toggle.classList.remove('expanded');
+              }
+            });
+            
+            // Toggle el submenu actual
+            if (isShowing) {
+              submenu.classList.remove('show');
+              this.classList.remove('expanded');
+            } else {
+              submenu.classList.add('show');
+              this.classList.add('expanded');
+            }
+          }
+        });
+      });
+    }
+
     function initOffcanvasLinks() {
       const offcanvasElement = document.getElementById('mobileSidebar');
       if (!offcanvasElement) return;
 
-      const offcanvasLinks = offcanvasElement.querySelectorAll('.nav-link:not(.js-api-logout)');
+      // Enlaces normales (no dropdowns)
+      const offcanvasLinks = offcanvasElement.querySelectorAll('.nav-link:not(.js-api-logout):not(.dropdown-toggle-custom)');
 
       offcanvasLinks.forEach(link => {
         // Remover listeners previos para evitar duplicados
@@ -352,19 +517,56 @@
           }
         });
       });
+
+      // Enlaces dentro de submenús (cerrar offcanvas después del click)
+      const submenuLinks = offcanvasElement.querySelectorAll('.submenu-item');
+      submenuLinks.forEach(link => {
+        const newLink = link.cloneNode(true);
+        link.parentNode.replaceChild(newLink, link);
+
+        newLink.addEventListener('click', function (e) {
+          const href = this.getAttribute('href');
+          if (href && href !== '#' && href !== '') {
+            // Dar tiempo para que se procese la navegación
+            setTimeout(() => {
+              const bsOffcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
+              if (bsOffcanvas) {
+                bsOffcanvas.hide();
+              }
+            }, 100);
+          }
+        });
+      });
+    }
+
+    function initAllMenus() {
+      initDropdownMenus();
+      initOffcanvasLinks();
     }
 
     // Inicializar cuando el DOM esté listo
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initOffcanvasLinks);
+      document.addEventListener('DOMContentLoaded', initAllMenus);
     } else {
-      initOffcanvasLinks();
+      initAllMenus();
     }
 
     // Reinicializar después de Swup si lo usas
     if (typeof swup !== 'undefined') {
-      swup.on('contentReplaced', initOffcanvasLinks);
+      swup.on('contentReplaced', initAllMenus);
     }
+
+    // Cerrar dropdowns al hacer click fuera
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.dropdown-menu-container')) {
+        document.querySelectorAll('.dropdown-submenu.show').forEach(menu => {
+          menu.classList.remove('show');
+        });
+        document.querySelectorAll('.dropdown-toggle-custom.expanded').forEach(toggle => {
+          toggle.classList.remove('expanded');
+        });
+      }
+    });
   </script>
 
   {% block scripts %}{% endblock %}
