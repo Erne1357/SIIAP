@@ -9,16 +9,16 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
+<div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
     <div class="row">
         <!-- Contenido principal -->
-        <main class="col-md-12">
+        <main class="col-12">
             <!-- Cabecera del perfil -->
             <div class="card mb-4 shadow-sm">
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 text-center">
-                            <div class="position-relative mb-3">
+                    <div class="row align-items-center">
+                        <div class="col-12 col-md-3 text-center mb-3 mb-md-0">
+                            <div class="position-relative d-inline-block">
                                 <img src="{{ current_user.avatar_url }}" alt="Foto de perfil"
                                     class="rounded-circle border border-3 border-light shadow profile-avatar">
                                 {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
@@ -28,30 +28,53 @@
                                 </span>
                                 {% endif %}
                             </div>
-                        </div>
-                        <div class="col-md-9">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h2 class="mb-0">{{ current_user.first_name }} {{ current_user.last_name }}
-                                    {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{% endif %}
-                                </h2>
-                                <button class="btn btn-primary" data-bs-toggle="modal"
+                            <!-- Botón de editar en móvil -->
+                            <div class="d-md-none mt-3">
+                                <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal"
                                     data-bs-target="#editProfileModal">
-                                    <i class="bi bi-pencil-fill me-2"></i>
-                                    Editar Perfil
+                                    <i class="bi bi-pencil-fill me-2"></i>Editar Perfil
                                 </button>
                             </div>
-                            <p class="text-muted">
-                                {% if current_user.role.name == 'applicant' %}
-                                Aspirante
-                                {% elif current_user.role.name == 'social_service' %}
-                                Servicio Social
-                                {% elif current_user.role.name == 'program_admin' %}
-                                Administrador de Programa
-                                {% elif current_user.role.name == 'postgraduate_admin' %}
-                                Administrador de Posgrado
-                                {% endif %}
-                            </p>
+                        </div>
+                        <div class="col-12 col-md-9">
+                            <div
+                                class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
+                                <div>
+                                    <h2 class="mb-1 h3 h-md-2">{{ current_user.first_name }} {{ current_user.last_name
+                                        }}
+                                        {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{%
+                                        endif %}
+                                    </h2>
+                                    <p class="text-muted mb-2">
+                                        {% if current_user.role.name == 'applicant' %}
+                                        Aspirante
+                                        {% elif current_user.role.name == 'social_service' %}
+                                        Servicio Social
+                                        {% elif current_user.role.name == 'program_admin' %}
+                                        Administrador de Programa
+                                        {% elif current_user.role.name == 'postgraduate_admin' %}
+                                        Administrador de Posgrado
+                                        {% elif current_user.role.name == 'coordinator' %}
+                                        Coordinador de Programa
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <!-- Botón de editar en desktop -->
+                                <div class="d-none d-md-block">
+                                    <button class="btn btn-primary" data-bs-toggle="modal"
+                                        data-bs-target="#editProfileModal">
+                                        <i class="bi bi-pencil-fill me-2"></i>Editar Perfil
+                                    </button>
+                                    {% if not current_user.profile_completed %}
+                                    <button class="btn btn-outline-primary ms-2" data-bs-toggle="modal"
+                                        data-bs-target="#completeProfileModal">
+                                        <i class="bi bi-person-plus me-2"></i>Completar Perfil
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
 
+                            <!-- Badges -->
                             <div class="mb-3">
                                 <span class="badge bg-success me-2">Activo</span>
                                 {% if current_user.is_internal %}
@@ -63,77 +86,109 @@
                                 {% if current_user.scolarship_type and current_user.scolarship_type != 'none'%}
                                 <span class="badge bg-primary">Beca: {{ current_user.scolarship_type }}</span>
                                 {% endif %}
+                                {% if not current_user.profile_completed %}
+                                <span class="badge bg-warning">Perfil Incompleto</span>
+                                {% else %}
+                                <span class="badge bg-success">Perfil Completo</span>
+                                {% endif %}
                             </div>
 
-                            <div class="row g-3 mb-3">
+                            <!-- Estadísticas en cards móviles -->
+                            <div class="row g-2 g-md-3">
                                 {% if current_user.user_program %}
                                 {% set up = current_user.user_program|first %}
-                                <div class="col-md-3 col-6">
-                                    <div class="border rounded p-3 text-center">
-                                        <h3 class="mb-1">{{ up.program.slug }}</h3>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 p-md-3 text-center">
+                                        <h5 class="mb-1 h6 h-md-5">{{ up.program.slug }}</h5>
                                         <small class="text-muted">Programa</small>
                                     </div>
                                 </div>
                                 {% endif %}
-                                <div class="col-md-3 col-6">
-                                    <div class="border rounded p-3 text-center">
-                                        <h3 class="mb-1">{{ current_user.last_login.strftime('%d/%m/%Y') }}</h3>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 p-md-3 text-center">
+                                        <h5 class="mb-1 h6 h-md-5">{{ current_user.last_login.strftime('%d/%m/%Y') }}
+                                        </h5>
                                         <small class="text-muted">Último acceso</small>
                                     </div>
                                 </div>
-                                <div class="col-md-3 col-6">
-                                    <div class="border rounded p-3 text-center">
-                                        <h3 class="mb-1">{{ current_user.registration_date.strftime('%d/%m/%Y') }}</h3>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 p-md-3 text-center">
+                                        <h5 class="mb-1 h6 h-md-5">{{
+                                            current_user.registration_date.strftime('%d/%m/%Y') }}</h5>
                                         <small class="text-muted">Fecha de registro</small>
                                     </div>
                                 </div>
                                 {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-                                <div class="col-md-3 col-6">
-                                    <div class="border rounded p-3 text-center">
-                                        <h3 class="mb-1">
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 p-md-3 text-center">
+                                        <h5 class="mb-1 h6 h-md-5">
                                             <i class="bi bi-shield-check"></i>
-                                        </h3>
+                                        </h5>
                                         <small class="text-muted">Administrador</small>
                                     </div>
                                 </div>
                                 {% endif %}
                             </div>
+
+                            <!-- Completar perfil en móvil -->
+                            {% if not current_user.profile_completed %}
+                            <div class="d-md-none mt-3">
+                                <button class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal"
+                                    data-bs-target="#completeProfileModal">
+                                    <i class="bi bi-person-plus me-2"></i>Completar Perfil
+                                </button>
+                            </div>
+                            {% endif%}
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Navegación de pestañas -->
-            <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info-tab-pane"
-                        type="button" role="tab" aria-controls="info-tab-pane" aria-selected="true">
-                        <i class="bi bi-person me-2"></i>Información Personal
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="academic-tab" data-bs-toggle="tab" data-bs-target="#academic-tab-pane"
-                        type="button" role="tab" aria-controls="academic-tab-pane" aria-selected="false">
-                        <i class="bi bi-mortarboard me-2"></i>Información Académica
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="documents-tab" data-bs-toggle="tab"
-                        data-bs-target="#documents-tab-pane" type="button" role="tab" aria-controls="documents-tab-pane"
-                        aria-selected="false">
-                        <i class="bi bi-file-earmark-text me-2"></i>Documentos
-                    </button>
-                </li>
-                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link text-danger" id="admin-tab" data-bs-toggle="tab"
-                        data-bs-target="#admin-tab-pane" type="button" role="tab" aria-controls="admin-tab-pane"
-                        aria-selected="false">
-                        <i class="bi bi-shield me-2"></i>Panel de Administración
-                    </button>
-                </li>
-                {% endif %}
-            </ul>
+            <!-- Navegación de pestañas responsiva -->
+            <div class="card mb-4">
+                <div class="card-header p-0">
+                    <ul class="nav nav-tabs card-header-tabs" id="profileTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="info-tab" data-bs-toggle="tab"
+                                data-bs-target="#info-tab-pane" type="button" role="tab" aria-controls="info-tab-pane"
+                                aria-selected="true">
+                                <i class="bi bi-person me-1 me-md-2"></i>
+                                <span class="d-none d-sm-inline">Información</span>
+                                <span class="d-sm-none">Info</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="academic-tab" data-bs-toggle="tab"
+                                data-bs-target="#academic-tab-pane" type="button" role="tab"
+                                aria-controls="academic-tab-pane" aria-selected="false">
+                                <i class="bi bi-mortarboard me-1 me-md-2"></i>
+                                <span class="d-none d-sm-inline">Académico</span>
+                                <span class="d-sm-none">Estud.</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="documents-tab" data-bs-toggle="tab"
+                                data-bs-target="#documents-tab-pane" type="button" role="tab"
+                                aria-controls="documents-tab-pane" aria-selected="false">
+                                <i class="bi bi-file-earmark-text me-1 me-md-2"></i>
+                                <span class="d-none d-sm-inline">Documentos</span>
+                                <span class="d-sm-none">Docs</span>
+                            </button>
+                        </li>
+                        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link text-danger" id="admin-tab" data-bs-toggle="tab"
+                                data-bs-target="#admin-tab-pane" type="button" role="tab" aria-controls="admin-tab-pane"
+                                aria-selected="false">
+                                <i class="bi bi-shield me-1 me-md-2"></i>
+                                <span class="d-none d-sm-inline">Admin</span>
+                                <span class="d-sm-none">Adm</span>
+                            </button>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
 
             <!-- Contenido de las pestañas -->
             <div class="tab-content" id="profileTabsContent">
@@ -166,7 +221,9 @@
     </div>
 </div>
 
+{% endblock %}
 
+{% block modals %}
 <!-- Modal para editar perfil -->
 <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -176,21 +233,20 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            {# Cambios aquí: sin action, con data-profile-update para que lo intercepte el JS #}
             <form id="profileForm" data-profile-update="true">
                 <div class="modal-body">
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-12 col-md-4">
                             <label for="first_name" class="form-label">Nombre</label>
                             <input type="text" class="form-control" id="first_name" name="first_name"
                                 value="{{ current_user.first_name }}" required>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-12 col-md-4">
                             <label for="last_name" class="form-label">Apellido Paterno</label>
                             <input type="text" class="form-control" id="last_name" name="last_name"
                                 value="{{ current_user.last_name }}" required>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-12 col-md-4">
                             <label for="mother_last_name" class="form-label">Apellido Materno (Opcional)</label>
                             <input type="text" class="form-control" id="mother_last_name" name="mother_last_name"
                                 value="{{ current_user.mother_last_name }}">
@@ -200,6 +256,160 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para completar perfil -->
+<div class="modal fade" id="completeProfileModal" tabindex="-1" aria-labelledby="completeProfileModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="completeProfileModalLabel">Completar Perfil Personal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form id="completeProfileForm" data-complete-profile="true">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Esta información es importante para el proceso de entrevistas y trámites administrativos.
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label for="phone" class="form-label">Teléfono Personal</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" placeholder="(614) 123-4567">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="mobile_phone" class="form-label">Teléfono Celular</label>
+                            <input type="tel" class="form-control" id="mobile_phone" name="mobile_phone"
+                                placeholder="(614) 987-6543">
+                        </div>
+
+                        <div class="col-12">
+                            <label for="address" class="form-label">Dirección Completa</label>
+                            <textarea class="form-control" id="address" name="address" rows="2"
+                                placeholder="Calle, número, colonia, ciudad, estado, CP"></textarea>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label for="curp" class="form-label">CURP</label>
+                            <input type="text" class="form-control" id="curp" name="curp"
+                                placeholder="ABCD123456HIJKLMN07" maxlength="18">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="rfc" class="form-label">RFC</label>
+                            <input type="text" class="form-control" id="rfc" name="rfc" placeholder="ABCD123456ABC"
+                                maxlength="13">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label for="birth_date" class="form-label">Fecha de Nacimiento</label>
+                            <input type="date" class="form-control" id="birth_date" name="birth_date">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="birth_place" class="form-label">Lugar de Nacimiento</label>
+                            <input type="text" class="form-control" id="birth_place" name="birth_place"
+                                placeholder="Ciudad, Estado, País">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label for="cedula_profesional" class="form-label">Cédula Profesional</label>
+                            <input type="text" class="form-control" id="cedula_profesional" name="cedula_profesional"
+                                placeholder="12345678">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="nss" class="form-label">Número de Seguridad Social</label>
+                            <input type="text" class="form-control" id="nss" name="nss" placeholder="12345678901">
+                        </div>
+
+                        <hr class="my-4">
+                        <h6 class="mb-3">Contacto de Emergencia</h6>
+
+                        <div class="col-12 col-md-6">
+                            <label for="emergency_contact_name" class="form-label">Nombre Completo</label>
+                            <input type="text" class="form-control" id="emergency_contact_name"
+                                name="emergency_contact_name" placeholder="Nombre del contacto de emergencia">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="emergency_contact_phone" class="form-label">Teléfono</label>
+                            <input type="tel" class="form-control" id="emergency_contact_phone"
+                                name="emergency_contact_phone" placeholder="(614) 123-4567">
+                        </div>
+
+                        <div class="col-12">
+                            <label for="emergency_contact_relationship" class="form-label">Parentesco</label>
+                            <select class="form-select" id="emergency_contact_relationship"
+                                name="emergency_contact_relationship">
+                                <option value="">Seleccionar...</option>
+                                <option value="padre">Padre</option>
+                                <option value="madre">Madre</option>
+                                <option value="esposo">Esposo(a)</option>
+                                <option value="hermano">Hermano(a)</option>
+                                <option value="hijo">Hijo(a)</option>
+                                <option value="abuelo">Abuelo(a)</option>
+                                <option value="tio">Tío(a)</option>
+                                <option value="primo">Primo(a)</option>
+                                <option value="amigo">Amigo(a)</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar información</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Modal para subir documento -->
+<div class="modal fade" id="uploadDocumentModal" tabindex="-1" aria-labelledby="uploadDocumentModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadDocumentModalLabel">Subir nuevo documento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <!--Que pendiente esta sección-->
+            <form action="" method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="document_name" class="form-label">Nombre del documento</label>
+                        <input type="text" class="form-control" id="document_name" name="document_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="document_type" class="form-label">Tipo de documento</label>
+                        <select class="form-select" id="document_type" name="document_type" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="cv">Curriculum Vitae</option>
+                            <option value="certificate">Certificado de Estudios</option>
+                            <option value="letter">Carta de Motivos</option>
+                            <option value="recommendation">Carta de Recomendación</option>
+                            <option value="payment">Comprobante de Pago</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="document_file" class="form-label">Archivo</label>
+                        <input class="form-control" type="file" id="document_file" name="document_file" required>
+                        <div class="form-text">Formatos permitidos: PDF, JPG, PNG. Tamaño máximo: 5MB.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="document_description" class="form-label">Descripción (opcional)</label>
+                        <textarea class="form-control" id="document_description" name="document_description"
+                            rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Subir documento</button>
                 </div>
             </form>
         </div>

@@ -1,0 +1,850 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Eventos{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="h3 mb-4">Gestión de Eventos</h1>
+
+    <div class="row g-4">
+
+        <!-- Panel izquierdo: Gestión de eventos -->
+        <div class="col-lg-8">
+            <!-- Crear evento -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Eventos</h5>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createEventModal">
+                        <i class="fas fa-plus"></i> Nuevo Evento
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="eventsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Evento</th>
+                                    <th>Programa</th>
+                                    <th class="text-center">Ventanas</th>
+                                    <th class="text-center">Horarios</th>
+                                    <th class="text-center">Ocupados</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">Cargando eventos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" id="eventManagementCard" style="display: none;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        Gestión - <span id="selectedEventTitle"></span>
+                        <span class="badge" id="selectedEventTypeBadge"></span>
+                    </h5>
+                </div>
+                <div class="card-body">
+
+                    <!-- Para eventos de capacidad SINGLE (1:1) -->
+                    <div id="singleCapacityContent" style="display: none;">
+                        <ul class="nav nav-tabs mb-3" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="tab-windows" data-bs-toggle="tab"
+                                    data-bs-target="#pane-windows" type="button" role="tab">
+                                    <i class="fas fa-window-maximize"></i> Gestión de Horarios
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tab-slots" data-bs-toggle="tab"
+                                    data-bs-target="#pane-slots" type="button" role="tab">
+                                    <i class="fas fa-calendar-alt"></i> Asignaciones de horarios
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- TAB: VENTANAS (código existente) -->
+                            <div class="tab-pane fade show active" id="pane-windows" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <button class="btn btn-success btn-sm" data-bs-toggle="modal"
+                                        data-bs-target="#addWindowModal">
+                                        <i class="fas fa-plus"></i> Agregar Plazos
+                                    </button>
+                                    <button class="btn btn-info btn-sm" id="btnGenerateSlotsFromWindows">
+                                        <i class="fas fa-cogs"></i> Generar Todos los Horarios
+                                    </button>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-sm" id="windowsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha</th>
+                                                <th>Horario</th>
+                                                <th>Duración</th>
+                                                <th class="text-center">Generado</th>
+                                                <th class="text-center">Cupos</th>
+                                                <th class="text-center">Libres</th>
+                                                <th class="text-center">Ocupados</th>
+                                                <th class="text-end">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="8" class="text-center text-muted py-3">No hay plazos
+                                                    creados
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- TAB: SLOTS (código existente) -->
+                            <div class="tab-pane fade" id="pane-slots" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div>
+                                        <button class="btn btn-info btn-sm" id="btnGenerateSlots">
+                                            <i class="fas fa-cogs"></i> Regenerar Faltantes
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm ms-2" id="btnRefreshSlots">
+                                            <i class="fas fa-sync"></i> Actualizar
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-success me-1"><span id="freeSlots">0</span> Libres</span>
+                                        <span class="badge bg-primary me-1"><span id="bookedSlots">0</span>
+                                            Ocupados</span>
+                                        <span class="badge bg-secondary"><span id="totalSlots">0</span> Total</span>
+                                    </div>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-sm" id="slotsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha</th>
+                                                <th>Hora</th>
+                                                <th class="text-center">Estado</th>
+                                                <th>Estudiante</th>
+                                                <th class="text-end">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-3">Selecciona un evento
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Para eventos de capacidad MULTIPLE/UNLIMITED -->
+                    <div id="multipleCapacityContent" style="display: none;">
+
+                        <div class="alert alert-info mb-4">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Evento de Capacidad Múltiple:</strong>
+                            Los estudiantes pueden registrarse directamente o puedes invitarlos específicamente.
+                        </div>
+
+                        <!-- Información del evento -->
+                        <div class="card bg-light mb-4">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label small text-muted">Fecha del Evento</label>
+                                        <input type="datetime-local" class="form-control" id="eventDateTime">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small text-muted">Fecha de Fin (opcional)</label>
+                                        <input type="datetime-local" class="form-control" id="eventEndDateTime">
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-primary mt-3" id="btnSaveEventDates">
+                                    <i class="fas fa-save"></i> Guardar Fechas
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tabs: Registrados e Invitaciones -->
+                        <ul class="nav nav-tabs mb-3" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="tab-registrations" data-bs-toggle="tab"
+                                    data-bs-target="#pane-registrations-multi" type="button" role="tab">
+                                    <i class="fas fa-users"></i> Registrados (<span id="countRegistered">0</span>)
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tab-invitations" data-bs-toggle="tab"
+                                    data-bs-target="#pane-invitations" type="button" role="tab">
+                                    <i class="fas fa-envelope"></i> Invitaciones (<span id="countInvitations">0</span>)
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content">
+
+                            <!-- TAB: Registrados -->
+                            <div class="tab-pane fade show active" id="pane-registrations-multi" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <button class="btn btn-success btn-sm" data-bs-toggle="modal"
+                                        data-bs-target="#inviteStudentsModal">
+                                        <i class="fas fa-user-plus"></i> Invitar Estudiantes
+                                    </button>
+                                    <button class="btn btn-outline-primary btn-sm" id="btnViewFullAttendance">
+                                        <i class="fas fa-clipboard-check"></i> Control de Asistencia
+                                    </button>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-sm" id="quickRegistrationsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Estudiante</th>
+                                                <th>Email</th>
+                                                <th>Origen</th>
+                                                <th>Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted py-3">Sin registros</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- TAB: Invitaciones -->
+                            <div class="tab-pane fade" id="pane-invitations" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-sm" id="invitationsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Estudiante</th>
+                                                <th>Invitado por</th>
+                                                <th>Fecha</th>
+                                                <th>Estado</th>
+                                                <th class="text-end">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-3">Sin invitaciones
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel derecho: Estudiantes elegibles -->
+        <div class="col-lg-4" id="eligibleStudentsPanel" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Estudiantes Elegibles</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <select class="form-select form-select-sm" id="programFilter">
+                            <option value="">Todos los programas</option>
+                            <!-- Se llena dinámicamente -->
+                        </select>
+                    </div>
+
+                    <div id="eligibleStudents" class="list-group list-group-flush">
+                        <div class="list-group-item text-center text-muted py-4">
+                            Cargando estudiantes...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="alertsEvents" class="mt-3"></div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal: Crear Evento -->
+<div class="modal fade" id="createEventModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Crear Evento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createEventForm">
+                <div class="modal-body">
+
+                    <!-- Información básica -->
+                    <h6 class="mb-3">Información Básica</h6>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-8">
+                            <label class="form-label">Título del evento *</label>
+                            <input type="text" class="form-control" id="eventTitle" required
+                                placeholder="Ej: Entrevistas de Admisión 2025-1">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Tipo *</label>
+                            <select class="form-select" id="eventType">
+                                <option value="interview">Entrevista</option>
+                                <option value="defense">Defensa de Protocolo</option>
+                                <option value="workshop">Taller</option>
+                                <option value="seminar">Seminario</option>
+                                <option value="conference">Conferencia</option>
+                                <option value="info_session">Sesión Informativa</option>
+                                <option value="other">Otro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Programa</label>
+                        <select class="form-select" id="eventProgram">
+                            <option value="">Todos los programas</option>
+                        </select>
+                        <div class="form-text">
+                            Deja en "Todos los programas" para eventos informativos o generales
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Lugar</label>
+                            <input type="text" class="form-control" id="eventLocation"
+                                placeholder="Ej: Salón 301, Edificio de Posgrado">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Estado</label>
+                            <select class="form-select" id="eventStatus">
+                                <option value="draft">Borrador</option>
+                                <option value="published" selected>Publicado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" id="eventDescription" rows="2"
+                            placeholder="Información adicional sobre el evento..."></textarea>
+                    </div>
+
+                    <hr>
+
+                    <!-- Configuración de capacidad -->
+                    <h6 class="mb-3">Configuración de Capacidad</h6>
+
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de capacidad *</label>
+                        <select class="form-select" id="eventCapacityType" required>
+                            <option value="single" selected>Capacidad Individual (1:1) - Requiere asignación de slots
+                            </option>
+                            <option value="multiple">Capacidad Múltiple - Límite de participantes</option>
+                            <option value="unlimited">Sin Límite - Cualquiera puede registrarse</option>
+                        </select>
+                        <div class="form-text">
+                            <strong>Individual:</strong> Para entrevistas, defensas (requiere crear ventanas y
+                            slots)<br>
+                            <strong>Múltiple:</strong> Para talleres, seminarios con cupo limitado<br>
+                            <strong>Sin límite:</strong> Para conferencias, webinars abiertos
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="maxCapacityGroup" style="display: none;">
+                        <label class="form-label">Capacidad máxima *</label>
+                        <input type="number" class="form-control" id="eventMaxCapacity" min="1" placeholder="Ej: 30">
+                        <div class="form-text">Número máximo de participantes permitidos</div>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="eventRequiresRegistration" checked>
+                        <label class="form-check-label" for="eventRequiresRegistration">
+                            Requiere registro previo
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="eventAllowsAttendance">
+                        <label class="form-check-label" for="eventAllowsAttendance">
+                            Permitir control de asistencia
+                        </label>
+                    </div>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="eventVisibleToStudents" checked>
+                        <label class="form-check-label" for="eventVisibleToStudents">
+                            Visible para estudiantes
+                        </label>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Evento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Agregar Ventana de Horarios -->
+<div class="modal fade" id="addWindowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agregar Ventana de Horarios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addWindowForm">
+                <div class="modal-body">
+                    <input type="hidden" id="windowEventId">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha</label>
+                            <input type="date" class="form-control" id="windowDate" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Duración por cita</label>
+                            <select class="form-select" id="windowSlotMinutes" required>
+                                <option value="15">15 minutos</option>
+                                <option value="20">20 minutos</option>
+                                <option value="30" selected>30 minutos</option>
+                                <option value="45">45 minutos</option>
+                                <option value="60">60 minutos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hora de inicio</label>
+                            <input type="time" class="form-control" id="windowStartTime" required value="09:00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hora de fin</label>
+                            <input type="time" class="form-control" id="windowEndTime" required value="11:00">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            Se generarán automáticamente los slots individuales según la duración especificada.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Ventana</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Asignar Estudiante a Slot -->
+<div class="modal fade" id="assignSlotModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Asignar Estudiante</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="assignSlotForm">
+                <div class="modal-body">
+                    <input type="hidden" id="assignEventId">
+                    <input type="hidden" id="assignSlotId">
+
+                    <div class="alert alert-info">
+                        <strong>Horario seleccionado:</strong> <span id="assignSlotInfo"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Estudiante</label>
+                        <select class="form-select" id="assignStudentId" required>
+                            <option value="">Seleccionar estudiante elegible...</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notas (opcional)</label>
+                        <textarea class="form-control" id="assignNotes" rows="2"
+                            placeholder="Observaciones sobre la cita..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Asignar Cita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar Eliminación de Evento -->
+<div class="modal fade" id="confirmDeleteEventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteEventId">
+
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Advertencia:</strong> Esta acción no se puede deshacer.
+                </div>
+
+                <p class="mb-2">¿Estás seguro de que deseas eliminar este evento?</p>
+                <div class="card bg-light">
+                    <div class="card-body py-2">
+                        <strong id="deleteEventTitle"></strong>
+                    </div>
+                </div>
+
+                <div id="deleteEventWarning" class="alert alert-danger mt-3 d-none">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Este evento tiene <strong id="deleteEventAppointmentsCount">0</strong> citas activas.
+                    <br>
+                    <small>Se cancelarán todas las citas asociadas.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteEventBtn">
+                    <i class="fas fa-trash me-1"></i> Eliminar Evento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar Cancelación de Cita -->
+<div class="modal fade" id="confirmCancelAppointmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">
+                    <i class="fas fa-times-circle me-2"></i>
+                    Cancelar Cita
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="cancelAppointmentForm">
+                <div class="modal-body">
+                    <input type="hidden" id="cancelAppointmentId">
+
+                    <p class="mb-3">¿Estás seguro de que deseas cancelar esta cita?</p>
+
+                    <div class="card bg-light mb-3">
+                        <div class="card-body py-2">
+                            <div><strong>Horario:</strong> <span id="cancelSlotInfo"></span></div>
+                            <div><strong>Estudiante:</strong> <span id="cancelStudentName"></span></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Motivo de cancelación <span class="text-muted">(opcional)</span>
+                        </label>
+                        <textarea class="form-control" id="cancelReason" rows="3"
+                            placeholder="Explica el motivo de la cancelación..."></textarea>
+                        <div class="form-text">
+                            Este motivo será visible para el estudiante.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> No cancelar
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-times-circle me-1"></i> Confirmar Cancelación
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar Eliminación de Ventana -->
+<div class="modal fade" id="confirmDeleteWindowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Eliminar Ventana de Horarios
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteWindowId">
+
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Advertencia:</strong> Se eliminarán todos los slots de esta ventana.
+                </div>
+
+                <p class="mb-2">¿Estás seguro de que deseas eliminar esta ventana?</p>
+                <div class="card bg-light">
+                    <div class="card-body py-2">
+                        <div><strong>Fecha:</strong> <span id="deleteWindowDate"></span></div>
+                        <div><strong>Horario:</strong> <span id="deleteWindowTime"></span></div>
+                    </div>
+                </div>
+
+                <div id="deleteWindowWarning" class="alert alert-danger mt-3 d-none">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Esta ventana tiene <strong id="deleteWindowSlotsCount">0</strong> slots ocupados.
+                    <br>
+                    <small>Se cancelarán todas las citas asociadas.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteWindowBtn">
+                    <i class="fas fa-trash me-1"></i> Eliminar Ventana
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar Eliminación de Slot -->
+<div class="modal fade" id="confirmDeleteSlotModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">
+                    <i class="fas fa-trash me-2"></i>
+                    Eliminar Slot
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteSlotId">
+
+                <p class="mb-3">¿Estás seguro de que deseas eliminar este slot?</p>
+
+                <div class="card bg-light mb-3">
+                    <div class="card-body py-2">
+                        <div><strong>Horario:</strong> <span id="deleteSlotInfo"></span></div>
+                        <div id="deleteSlotStudent" class="d-none">
+                            <strong>Estudiante asignado:</strong> <span id="deleteSlotStudentName"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="deleteSlotWarning" class="alert alert-danger d-none">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Este slot tiene una cita asignada. Se cancelará automáticamente.
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <small>Puedes regenerar este slot más tarde usando "Regenerar Faltantes".</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-warning" id="confirmDeleteSlotBtn">
+                    <i class="fas fa-trash me-1"></i> Eliminar Slot
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="viewRegistrationsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-users me-2"></i>
+                    Registros del Evento - <span id="registrationsEventTitle"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="registrationsEventId">
+
+                <!-- Estadísticas -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h3 class="mb-0" id="statsTotal">0</h3>
+                                <small class="text-muted">Total Registrados</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h3 class="mb-0" id="statsAttended">0</h3>
+                                <small>Asistieron</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning">
+                            <div class="card-body text-center">
+                                <h3 class="mb-0" id="statsNoShow">0</h3>
+                                <small>No Asistieron</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h3 class="mb-0" id="statsRegistered">0</h3>
+                                <small>Pendientes</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="filterStatus" id="filterAll" value="" checked>
+                        <label class="btn btn-outline-secondary btn-sm" for="filterAll">Todos</label>
+
+                        <input type="radio" class="btn-check" name="filterStatus" id="filterRegistered"
+                            value="registered">
+                        <label class="btn btn-outline-info btn-sm" for="filterRegistered">Registrados</label>
+
+                        <input type="radio" class="btn-check" name="filterStatus" id="filterAttended" value="attended">
+                        <label class="btn btn-outline-success btn-sm" for="filterAttended">Asistieron</label>
+
+                        <input type="radio" class="btn-check" name="filterStatus" id="filterNoShow" value="no_show">
+                        <label class="btn btn-outline-warning btn-sm" for="filterNoShow">No Asistieron</label>
+                    </div>
+
+                    <button class="btn btn-outline-primary btn-sm" id="btnExportAttendance">
+                        <i class="fas fa-download"></i> Exportar
+                    </button>
+                </div>
+
+                <!-- Tabla de registros -->
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover" id="registrationsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Estudiante</th>
+                                <th>Email</th>
+                                <th>Fecha de Registro</th>
+                                <th class="text-center">Estado</th>
+                                <th>Asistió</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-3">Cargando registros...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal: Invitar Estudiantes -->
+<div class="modal fade" id="inviteStudentsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Invitar Estudiantes al Evento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="inviteEventId">
+
+                <div class="mb-3">
+                    <label class="form-label">Seleccionar estudiantes</label>
+                    <select class="form-select" id="inviteStudentSelect" multiple size="8">
+                        <!-- Se llena dinámicamente -->
+                    </select>
+                    <div class="form-text">
+                        Mantén presionado Ctrl (Windows) o Cmd (Mac) para seleccionar múltiples
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Mensaje de invitación (opcional)</label>
+                    <textarea class="form-control" id="inviteMessage" rows="3"
+                        placeholder="Escribe un mensaje personalizado para la invitación..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSendInvitations">
+                    <i class="fas fa-paper-plane"></i> Enviar Invitaciones
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .student-card {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .student-card:hover {
+        background-color: #f8f9fa;
+    }
+
+    .student-card.selected {
+        background-color: #e3f2fd;
+        border-left: 3px solid #1976d2;
+    }
+
+    #slotsTable tbody tr.slot-free {
+        background-color: #f8fff8;
+    }
+
+    #slotsTable tbody tr.slot-booked {
+        background-color: #fff3cd;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/admin/events/events.js') }}?v={{ static_version }}"></script>
+{% endblock %}

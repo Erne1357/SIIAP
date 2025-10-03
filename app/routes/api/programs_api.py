@@ -42,7 +42,7 @@ def api_enroll(program_id):
         program = svc.enroll_user_once(program_id, current_user.id)
         return jsonify({
             "data": {"program": {"id": program.id, "slug": program.slug}},
-            "flash": [{"level": "success", "message": "Te has inscrito en el programa."}],
+            "flash": [{"level": "success", "message": "Te has postulado en el programa."}],
             "error": None, "meta": {}
         }), 200
     except svc.AlreadyEnrolledError as e:

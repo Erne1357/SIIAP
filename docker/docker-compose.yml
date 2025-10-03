@@ -1,5 +1,5 @@
 # docker/docker-compose.yml
-name: SIIAPEC
+name: SIIAP
 services:
   web:
     #reinciia el contenedor si se detiene
@@ -13,10 +13,11 @@ services:
     depends_on:
       - db
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/SIIAPEC
+      - DATABASE_URL=postgresql://postgres:password@db:5432/SIIAP
       - SECRET_KEY=super-secret-key
     volumes:
       - ../instance:/app/instance
+      - ../:/app
   db:
     ## reinicia el contenedor si se detiene
     restart: always

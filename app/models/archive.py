@@ -10,6 +10,8 @@ class Archive(db.Model):
     is_uploadable = db.Column(db.Boolean, default=True)
     file_path = db.Column(db.String(200))
     step_id = db.Column(db.Integer, db.ForeignKey('step.id'), nullable=False)
+    allow_coordinator_upload = db.Column(db.Boolean,default=False,nullable=False)
+    allow_extension_request = db.Column(db.Boolean, default=False, nullable=False)
 
     step = db.relationship("Step", back_populates="archives")
     submissions = db.relationship('Submission', back_populates='archive')

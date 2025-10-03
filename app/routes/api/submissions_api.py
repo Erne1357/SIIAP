@@ -96,6 +96,8 @@ def upload_submission():
         file_path=rel,
         period=getPeriod(),
         semester=0,
+        uploaded_by=current_user.id,
+        uploaded_by_role=current_user.role.name,
         status='pending'
     )
 

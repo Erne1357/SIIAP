@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 class Config:
+    STATIC_VERSION = "1.0.41111111268"
     BASE_DIR = Path(__file__).resolve().parent.parent
     INSTANCE_DIR = BASE_DIR / 'instance'
 
@@ -16,15 +17,15 @@ class Config:
     # ---- límites y tipos permitidos -------------------------------------------
     #ALLOWED_IMAGE_EXT = {'png', 'jpg', 'jpeg', 'webp'}
     ALLOWED_DOC_EXT   = {'pdf'} #, 'doc', 'docx', 'xlsx'}
-    MAX_CONTENT_LENGTH = 10 * 1024 * 1024         # 10 MB
+    MAX_CONTENT_LENGTH = 3 * 1024 * 1024         # 3 MB
 
     # Secret key for sessions
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'clave-secreta'
     # SQLAlchemy database URI: using PostgreSQL; 'db' is the Docker service name
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'postgresql://postgres:password@db:5432/SIIAPEC'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'postgresql://postgres:password@db:5432/SIIAP'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    SESSION_COOKIE_NAME = "siiapec_session"
+    SESSION_COOKIE_NAME = "siiap_session"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"   # o "Strict" si no haces POST cross-site
     SESSION_COOKIE_SECURE = False     # True en producción con HTTPS

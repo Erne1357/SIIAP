@@ -16,13 +16,18 @@ class Submission(db.Model):
     program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id') , nullable = False)
     period = db.Column(db.String(50), nullable=True)
     semester = db.Column(db.Integer, nullable=True)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    uploaded_by_role = db.Column(db.String(20))  # 'student' | 'coordinator'
+    deadline_at = db.Column(db.DateTime)         # fecha límite efectiva (si hay prórroga)
+    is_in_extension = db.Column(db.Boolean, default=False, nullable=False)
 
     user          = db.relationship('User',foreign_keys=[user_id],back_populates='submissions')
     reviewer      = db.relationship('User',foreign_keys=[reviewer_id],back_populates='reviews')
     archive       = db.relationship('Archive',back_populates='submissions')
     program_step  = db.relationship('ProgramStep',back_populates='submissions')
+    uploader = db.relationship('User', foreign_keys=[uploaded_by], viewonly=True)
 
-    def __init__(self, file_path, status, user_id, archive_id, program_step_id, period, semester, review_date=None, reviewer_id=None, reviewer_comment=None):
+    def __init__(self, file_path, status, user_id, archive_id, program_step_id, period, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
         self.file_path = file_path
         self.status = status
         self.user_id = user_id
@@ -33,3 +38,7 @@ class Submission(db.Model):
         self.semester = semester
         self.reviewer_id = reviewer_id
         self.reviewer_comment = reviewer_comment
+        self.uploaded_by = uploaded_by
+        self.uploaded_by_role = uploaded_by_role
+        self.deadline_at = deadline_at
+        self.is_in_extension = is_in_extension
