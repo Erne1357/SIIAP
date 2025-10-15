@@ -37,7 +37,7 @@ services:
       - web
     volumes:
       - ../app/static:/usr/share/nginx/html/static:ro
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   pgdata:
