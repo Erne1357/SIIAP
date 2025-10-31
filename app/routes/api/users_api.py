@@ -4,6 +4,8 @@ from flask_login import login_required, current_user
 from app import db
 from datetime import datetime
 
+from app.models.user_history import UserHistory
+
 api_users = Blueprint("api_users", __name__, url_prefix="/api/v1/users")
 
 def _sanitize(s: str | None) -> str | None:
@@ -177,4 +179,19 @@ def update_me():
         }},
         "flash": [{"level": "success", "message": "Perfil actualizado correctamente."}],
         "error": None, "meta": {}
+    }), 200
+
+@api_users.get("/me/history")
+@login_required
+def user_history():
+    """
+    Obtiene el historial de cambios del usuario.
+    """
+    history = UserHistory.query.filter_by(user_id=current_user.id).all()
+    return jsonify({
+        "data": {
+            "history": [entry.to_dict() for entry in history]
+        },
+        "error": None,
+        "meta": {}
     }), 200
