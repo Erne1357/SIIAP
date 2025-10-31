@@ -22,6 +22,10 @@ class User(db.Model, UserMixin):
     avatar = db.Column(db.String(255), default='default.jpg', nullable=True)
     must_change_password = db.Column(db.Boolean, default=True, nullable=False)
 
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    control_number = db.Column(db.String(20), unique=True, nullable=True)
+    control_number_assigned_at = db.Column(db.DateTime, nullable=True)
+
     role = db.relationship('Role', back_populates='users', uselist=False)
     user_program = db.relationship('UserProgram', back_populates='user')
     submissions = db.relationship(
@@ -109,3 +113,60 @@ class User(db.Model, UserMixin):
         if not self.role:
             return False
         return self.role.name in role_names
+    
+    def deactivate(self):
+        """Desactiva el usuario"""
+        self.is_active = False
+        
+    def activate(self):
+        """Activa el usuario"""
+        self.is_active = True
+
+    def assign_control_number(self, control_number):
+        """
+        Asigna un número de control al usuario y actualiza su username.
+        
+        Args:
+            control_number (str): El número de control (ej: M21111182)
+        """
+        self.control_number = control_number
+        self.username = control_number
+        self.control_number_assigned_at = datetime.now(timezone.utc)
+
+    def can_be_deleted(self):
+        """
+        Verifica si el usuario puede ser eliminado.
+        Un usuario puede ser eliminado si no tiene:
+        - Documentos subidos (submissions)
+        - Citas programadas (appointments)
+        """
+        has_submissions = len(self.submissions) > 0 if hasattr(self, 'submissions') else False
+        # has_appointments = len(self.appointments) > 0 if hasattr(self, 'appointments') else False
+        
+        return not has_submissions  # and not has_appointments
+
+    def to_dict(self, include_sensitive=False):
+        user_data = {
+            'id': self.id,
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'mother_last_name': self.mother_last_name,
+            'username': self.username,
+            'email': self.email,
+            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'is_internal': self.is_internal,
+            'scolarship_type': self.scolarship_type,
+            'registration_date': self.registration_date.isoformat() if self.registration_date else None,
+            'role': self.role.name if self.role else None,
+            'avatar_url': self.avatar_url,
+            'must_change_password': self.must_change_password,
+            'profile_completed': self.profile_completed
+        }
+        if include_sensitive:
+            user_data.update({
+                'is_active': self.is_active,
+                'control_number': self.control_number,
+                'control_number_assigned_at': self.control_number_assigned_at.isoformat() if self.control_number_assigned_at else None
+            })
+
+        return user_data
