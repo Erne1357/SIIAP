@@ -485,102 +485,7 @@ body.modal-open #wrapper {
   margin-bottom: 0.75rem;
 }
 
-/* === FLASH CONTAINER (TOP-RIGHT ANIMATED) === */
-.flash-container {
-  position: fixed;
-  top: calc(var(--header-h) + 1rem);
-  right: 1rem;
-  left: auto;
-  transform: none;
-  z-index: 9999 !important;
-  width: auto;
-  max-width: 400px;
-  min-width: 300px;
-  pointer-events: none;
-}
 
-.flash-container .alert {
-  pointer-events: all;
-  margin-bottom: 0.75rem;
-  animation: slideInRight 0.4s ease-out;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  border-radius: 0.5rem;
-  border-left: 4px solid;
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  position: relative;
-  z-index: 10000 !important;
-  background-color: #fff !important;
-}
-
-/* Colores de borde y contenido para flash */
-.flash-container .alert-success {
-  border-left-color: #28a745;
-  background-color: #d4edda !important;
-  color: #155724 !important;
-}
-
-.flash-container .alert-danger {
-  border-left-color: #dc3545;
-  background-color: #f8d7da !important;
-  color: #721c24 !important;
-}
-
-.flash-container .alert-warning {
-  border-left-color: #ffc107;
-  background-color: #fff3cd !important;
-  color: #856404 !important;
-}
-
-.flash-container .alert-info {
-  border-left-color: #17a2b8;
-  background-color: #d1ecf1 !important;
-  color: #0c5460 !important;
-}
-
-/* Asegurar que el texto y botones sean visibles */
-.flash-container .alert strong,
-.flash-container .alert i {
-  color: inherit !important;
-}
-
-.flash-container .alert .btn-close {
-  position: relative;
-  z-index: 10001 !important;
-  opacity: 0.8;
-}
-
-.flash-container .alert .btn-close:hover {
-  opacity: 1;
-}
-
-/* === ANIMACIÓN DESDE LA DERECHA === */
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.flash-container .alert.fade-out {
-  animation: slideOutRight 0.5s ease-out forwards;
-}
-
-@keyframes slideOutRight {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-}
 
 /* === RESPONSIVE === */
 @media (min-width: 576px) {
@@ -611,24 +516,7 @@ body.modal-open #wrapper {
   }
 }
 
-@media (max-width: 991.98px) {
-  .flash-container {
-    top: calc(var(--header-h) + 0.75rem);
-    right: 0.75rem;
-    max-width: 350px;
-    min-width: 280px;
-  }
-}
-
 @media (max-width: 575.98px) {
-  .flash-container {
-    top: calc(var(--header-h) + 0.5rem);
-    right: 0.5rem;
-    left: 0.5rem;
-    max-width: none;
-    min-width: auto;
-  }
-  
   .modal-dialog {
     margin: 0.5rem;
   }

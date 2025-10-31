@@ -42,48 +42,48 @@
     .dropdown-menu-container {
       position: relative;
     }
-    
+
     .dropdown-toggle-custom {
       cursor: pointer;
       display: flex;
       align-items: center;
       transition: all 0.2s ease;
     }
-    
+
     .dropdown-arrow {
       font-size: 0.75rem;
       transition: transform 0.2s ease;
     }
-    
+
     .dropdown-toggle-custom.expanded .dropdown-arrow {
       transform: rotate(90deg);
     }
-    
+
     .dropdown-submenu {
       display: none;
       padding-left: 1rem;
       margin-top: 0.25rem;
       margin-bottom: 0.25rem;
-      border-left: 2px solid rgba(0,0,0,0.1);
-      background: rgba(0,0,0,0.02);
+      border-left: 2px solid rgba(0, 0, 0, 0.1);
+      background: rgba(0, 0, 0, 0.02);
       border-radius: 0 4px 4px 0;
     }
-    
+
     .dropdown-submenu.show {
       display: block;
       animation: slideDown 0.2s ease;
     }
-    
+
     .submenu-item {
       padding: 0.5rem 0.75rem;
       font-size: 0.9rem;
     }
-    
+
     .submenu-item:hover {
-      background: rgba(0,0,0,0.05);
+      background: rgba(0, 0, 0, 0.05);
       border-radius: 4px;
     }
-    
+
     /* Animación */
     @keyframes slideDown {
       from {
@@ -92,6 +92,7 @@
         padding-top: 0;
         padding-bottom: 0;
       }
+
       to {
         opacity: 1;
         max-height: 200px;
@@ -99,10 +100,10 @@
         padding-bottom: 0.25rem;
       }
     }
-    
+
     /* Estilos específicos para móvil */
     .dropdown-menu-container.mobile .dropdown-submenu {
-      background: rgba(0,0,0,0.05);
+      background: rgba(0, 0, 0, 0.05);
       margin-left: 0.5rem;
       margin-right: 0.5rem;
     }
@@ -195,11 +196,12 @@
           <i class="fas fa-clipboard-list me-2"></i>Admisión
         </a>
         {% endif %}
-        
+
         <!-- Menú desplegable de Eventos -->
         <div class="dropdown-menu-container">
-          <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}" 
-             data-dropdown="events-menu">
+          <a href="#"
+            class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
+            data-dropdown="events-menu">
             <i class="fas fa-calendar-check me-2"></i>Eventos
             <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
           </a>
@@ -232,13 +234,14 @@
           <i class="fas fa-file-alt me-2"></i>Documentos
         </a>
         {% endif %}
-        
+
         <!-- Menú desplegable de Configuración -->
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
         <hr class="mx-3">
         <div class="dropdown-menu-container">
-          <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}" 
-             data-dropdown="config-menu">
+          <a href="#"
+            class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+            data-dropdown="config-menu">
             <i class="fas fa-cog me-2"></i>Configuración
             <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
           </a>
@@ -246,6 +249,10 @@
             <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
               href="{{ url_for('pages_admin.pages_settings.index') }}">
               <i class="fas fa-folder me-2"></i>Archivos
+            </a>
+            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_settings.users') }}">
+              <i class="fas fa-user-cog me-2"></i>Usuarios
             </a>
           </div>
         </div>
@@ -287,11 +294,12 @@
             data-bs-dismiss="offcanvas">
             <i class="fas fa-clipboard-list me-2"></i>Admisión</a>
           {% endif %}
-          
+
           <!-- Menú desplegable móvil de Eventos -->
           <div class="dropdown-menu-container mobile">
-            <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}" 
-               data-dropdown="mobile-events-menu">
+            <a href="#"
+              class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
+              data-dropdown="mobile-events-menu">
               <i class="fas fa-calendar-check me-2"></i>Eventos
               <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
             </a>
@@ -322,13 +330,14 @@
             <i class="fas fa-file-alt me-2"></i>Documentos
           </a>
           {% endif %}
-          
+
           <!-- Menú desplegable móvil de Configuración -->
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
           <hr>
           <div class="dropdown-menu-container mobile">
-            <a href="#" class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}" 
-               data-dropdown="mobile-config-menu">
+            <a href="#"
+              class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+              data-dropdown="mobile-config-menu">
               <i class="fas fa-cog me-2"></i>Configuración
               <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
             </a>
@@ -336,6 +345,10 @@
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
                 href="{{ url_for('pages_admin.pages_settings.index') }}" data-bs-dismiss="offcanvas">
                 <i class="fas fa-folder me-2"></i>Archivos
+              </a>
+              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+                href="{{ url_for('pages_admin.pages_settings.users') }}" data-bs-dismiss="offcanvas">
+                <i class="fas fa-user-cog me-2"></i>Usuarios
               </a>
             </div>
           </div>
@@ -362,6 +375,99 @@
 
   <div id="modal-portal">
     {% block modals %}{% endblock %}
+
+    <div class="modal fade" id="forcePasswordChangeModal" tabindex="-1" aria-labelledby="forcePasswordChangeModalLabel"
+      aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title" id="forcePasswordChangeModalLabel">
+              <i class="bi bi-shield-lock me-2"></i>
+              Cambio de Contraseña Requerido
+            </h5>
+            <!-- No hay botón de cerrar, es obligatorio -->
+          </div>
+
+          <div class="modal-body">
+            <div class="alert alert-warning mb-3">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              <strong>Atención:</strong> Estás usando la contraseña por defecto del sistema.
+              Por seguridad, debes cambiarla antes de continuar.
+            </div>
+
+            <form id="forcePasswordChangeForm">
+              <!-- Contraseña Actual -->
+              <div class="mb-3">
+                <label for="current_password" class="form-label">
+                  Contraseña Actual
+                  <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                  <input type="password" class="form-control" id="current_password" name="current_password"
+                    placeholder="tecno#2K" required autocomplete="current-password">
+                  <button class="btn btn-outline-secondary" type="button"
+                    onclick="togglePasswordVisibility('current_password')">
+                    <i class="bi bi-eye" id="current_password_icon"></i>
+                  </button>
+                </div>
+              </div>
+
+              <hr class="my-3">
+
+              <!-- Nueva Contraseña -->
+              <div class="mb-3">
+                <label for="new_password" class="form-label">
+                  Nueva Contraseña
+                  <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                  <input type="password" class="form-control" id="new_password" name="new_password"
+                    placeholder="Ingresa tu nueva contraseña" required autocomplete="new-password">
+                  <button class="btn btn-outline-secondary" type="button"
+                    onclick="togglePasswordVisibility('new_password')">
+                    <i class="bi bi-eye" id="new_password_icon"></i>
+                  </button>
+                </div>
+                <div id="password_strength_feedback" class="mt-2">
+                  <!-- Se llena dinámicamente con JS -->
+                </div>
+              </div>
+
+              <!-- Confirmar Nueva Contraseña -->
+              <div class="mb-3">
+                <label for="confirm_password" class="form-label">
+                  Confirmar Nueva Contraseña
+                  <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                  <input type="password" class="form-control" id="confirm_password" name="confirm_password"
+                    placeholder="Confirma tu nueva contraseña" required autocomplete="new-password">
+                  <button class="btn btn-outline-secondary" type="button"
+                    onclick="togglePasswordVisibility('confirm_password')">
+                    <i class="bi bi-eye" id="confirm_password_icon"></i>
+                  </button>
+                </div>
+                <div id="password_match_feedback" class="mt-1">
+                  <!-- Se llena dinámicamente con JS -->
+                </div>
+              </div>
+
+              <div class="alert alert-info small mb-0">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Importante:</strong> Recuerda tu nueva contraseña.
+                No podrás usar la contraseña por defecto nuevamente.
+              </div>
+            </form>
+          </div>
+
+          <div class="modal-footer">
+            <button id="btnChangePassword" type="submit" class="btn btn-primary w-100" form="forcePasswordChangeForm">
+              Cambiar Contraseña
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   <!-- Modal sesión -->
   <div id="sessionModal" class="session-modal" style="display: none;">
@@ -392,6 +498,7 @@
   <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/swup.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/flash.js') }}?v={{ static_version }}"></script>
+  <script src="{{ url_for('static', filename='js/force_password_change.js') }}?v={{ static_version }}"></script>
 
   <script>
     (function () {
@@ -456,17 +563,17 @@
         const newTrigger = trigger.cloneNode(true);
         trigger.parentNode.replaceChild(newTrigger, trigger);
 
-        newTrigger.addEventListener('click', function(e) {
+        newTrigger.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
-          
+
           const targetId = this.getAttribute('data-dropdown');
           const submenu = document.getElementById(targetId);
           const arrow = this.querySelector('.dropdown-arrow');
-          
+
           if (submenu) {
             const isShowing = submenu.classList.contains('show');
-            
+
             // Cerrar todos los otros submenús
             document.querySelectorAll('.dropdown-submenu.show').forEach(menu => {
               if (menu !== submenu) {
@@ -478,7 +585,7 @@
                 toggle.classList.remove('expanded');
               }
             });
-            
+
             // Toggle el submenu actual
             if (isShowing) {
               submenu.classList.remove('show');
@@ -557,7 +664,7 @@
     }
 
     // Cerrar dropdowns al hacer click fuera
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
       if (!e.target.closest('.dropdown-menu-container')) {
         document.querySelectorAll('.dropdown-submenu.show').forEach(menu => {
           menu.classList.remove('show');
