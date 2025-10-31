@@ -12,7 +12,7 @@ VALUES (
     4,
     'profile.jpg'
 );
-INSERT INTO "user" (first_name, last_name, mother_last_name, username, password, email, registration_date, is_internal, role_id, avatar)
+INSERT INTO "user" (first_name, last_name, mother_last_name, username, password, email, registration_date, is_internal, role_id)
 VALUES (
     'Jorge Adolfo', 
     'Pinto', 
