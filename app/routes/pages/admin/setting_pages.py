@@ -15,3 +15,9 @@ def index():
 @roles_required('postgraduate_admin','program_admin')
 def retention():
     return render_template('admin/settings/retention.html')
+
+@pages_settings.route('/users', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin','program_admin')
+def users():
+    return render_template('admin/settings/users.html')

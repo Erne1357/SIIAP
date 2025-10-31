@@ -20,6 +20,7 @@ class User(db.Model, UserMixin):
     registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
     avatar = db.Column(db.String(255), default='default.jpg', nullable=True)
+    must_change_password = db.Column(db.Boolean, default=True, nullable=False)
 
     role = db.relationship('Role', back_populates='users', uselist=False)
     user_program = db.relationship('UserProgram', back_populates='user')
@@ -34,7 +35,6 @@ class User(db.Model, UserMixin):
         foreign_keys='Submission.reviewer_id',
         back_populates='reviewer'
     )
-
 
     phone = db.Column(db.String(20))
     mobile_phone = db.Column(db.String(20))
@@ -67,6 +67,7 @@ class User(db.Model, UserMixin):
         self.is_internal = is_internal
         self.role_id = role_id
         self.avatar = avatar
+        self.must_change_password = True
     
     def is_profile_complete(self):
         """

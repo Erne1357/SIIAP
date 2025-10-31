@@ -1,4 +1,4 @@
-from flask import Flask, session, flash, redirect, url_for, render_template
+from flask import Flask, jsonify, session, flash, redirect, url_for, render_template
 from flask import request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
@@ -103,6 +103,65 @@ def create_app(test_config=None):
                
                # Actualizar la última actividad
                session['last_activity'] = now_ts
+
+     @app.before_request
+     def check_password_change_required():
+          """
+          Middleware que verifica si el usuario debe cambiar su contraseña.
+          Si must_change_password=True, solo permite acceso a:
+          - Endpoints de cambio de contraseña
+          - Endpoint de logout
+          - Archivos estáticos
+          - Páginas de autenticación (login, registro)
+
+          Cualquier otra ruta será bloqueada con 403.
+          """
+          # Ignorar si no está autenticado
+          if not current_user.is_authenticated:
+               return None
+
+          # Verificar si debe cambiar contraseña
+          if not hasattr(current_user, 'must_change_password'):
+               return None
+
+          if not current_user.must_change_password:
+               return None
+
+          # Lista de rutas permitidas cuando debe cambiar contraseña
+          allowed_paths = [
+               '/api/v1/auth/change-password',
+               '/api/v1/auth/logout',
+               '/api/v1/auth/me',
+               '/api/v1/auth/keepalive',
+               '/auth/logout',
+               '/static/',  # Archivos estáticos
+          ]
+
+          # Verificar si la ruta actual está permitida
+          current_path = request.path
+
+          for allowed in allowed_paths:
+               if current_path.startswith(allowed):
+                    return None
+
+          # Si es una petición AJAX (JSON), retornar error JSON
+          if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+               return jsonify({
+                    "data": None,
+                    "flash": [{
+                         "level": "warning",
+                         "message": "Debes cambiar tu contraseña antes de continuar"
+                    }],
+                    "error": {
+                         "code": "PASSWORD_CHANGE_REQUIRED",
+                         "message": "Cambio de contraseña obligatorio",
+                         "must_change_password": True
+                    },
+                    "meta": {}
+               }), 403
+
+          # Si es una petición normal, no hacemos nada (el modal se encargará)
+          return None
 
      @app.context_processor
      def inject_tokens_and_version():

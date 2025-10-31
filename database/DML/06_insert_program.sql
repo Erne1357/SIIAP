@@ -3,7 +3,7 @@
 INSERT INTO program (name, description, coordinator_id, slug) VALUES
 ('Maestría en Ingeniería Industrial',
  'Programa de maestría orientado a la optimización de sistemas industriales y productividad',
- (Select id from "user" where username = 'gquiroz') ,'MII'),
+ (Select id from "user" where username = 'izapata'), 'MII'),
 ('Maestría en Administración de Negocios Internacionales',
  'Programa de maestría enfocado en la gestión y estrategia de negocios globales',
  (Select id from "user" where username = 'mbarajas'), 'MANI'),
