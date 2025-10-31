@@ -1,94 +1,136 @@
-/* === CONTENEDOR DE FLASH MESSAGES === 
+/* === VARIABLES PARA FLASH === */
+:root {
+  --header-h: 80px;
+}
+
+/* === FLASH CONTAINER (TOP-RIGHT ANIMATED) === */
 .flash-container {
   position: fixed;
-  top: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1060;
-  width: calc(100% - 2rem);
-  max-width: 600px;
+  top: calc(var(--header-h) + 1rem);
+  right: 1rem;
+  left: auto;
+  transform: none;
+  z-index: 9999 !important;
+  width: auto;
+  max-width: 400px;
+  min-width: 300px;
   pointer-events: none;
 }
 
 .flash-container .alert {
   pointer-events: all;
   margin-bottom: 0.75rem;
-  animation: slideInDown 0.4s ease-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideInRight 0.4s ease-out;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
   border-radius: 0.5rem;
   border-left: 4px solid;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: relative;
+  z-index: 10000 !important;
+  background-color: #fff !important;
 }
 
-/* === COLORES DE BORDES POR TIPO === 
+/* === COLORES DE BORDES Y FONDOS POR TIPO === */
 .flash-container .alert-success {
   border-left-color: #28a745;
+  background-color: #d4edda !important;
+  color: #155724 !important;
 }
 
 .flash-container .alert-danger {
   border-left-color: #dc3545;
+  background-color: #f8d7da !important;
+  color: #721c24 !important;
 }
 
 .flash-container .alert-warning {
   border-left-color: #ffc107;
+  background-color: #fff3cd !important;
+  color: #856404 !important;
 }
 
 .flash-container .alert-info {
   border-left-color: #17a2b8;
+  background-color: #d1ecf1 !important;
+  color: #0c5460 !important;
 }
 
-/* === ANIMACIONES === 
-@keyframes slideInDown {
+/* === ASEGURAR VISIBILIDAD DEL CONTENIDO === */
+.flash-container .alert strong,
+.flash-container .alert i {
+  color: inherit !important;
+}
+
+.flash-container .alert .btn-close {
+  position: relative;
+  z-index: 100001 !important;
+  opacity: 0.8;
+}
+
+.flash-container .alert .btn-close:hover {
+  opacity: 1;
+}
+
+/* === ANIMACIONES DESDE LA DERECHA === */
+@keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateX(100%);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
 
 .flash-container .alert.fade-out {
-  animation: fadeOut 0.5s ease-out forwards;
+  animation: slideOutRight 0.5s ease-out forwards;
 }
 
-@keyframes fadeOut {
+@keyframes slideOutRight {
   from {
     opacity: 1;
-    transform: scale(1);
+    transform: translateX(0);
   }
   to {
     opacity: 0;
-    transform: scale(0.95);
+    transform: translateX(100%);
   }
 }
 
-/* === BOTÓN DE CERRAR === 
-.flash-container .btn-close {
-  filter: brightness(0.8);
-}
-
-.flash-container .btn-close:hover {
-  filter: brightness(0.6);
-}
-
-/* === RESPONSIVE === 
-@media (max-width: 767.98px) {
-  .flash-container {
-    width: calc(100% - 1rem);
-    max-width: none;
+/* === RESPONSIVE === */
+@media (max-width: 991.98px) {
+  :root {
+    --header-h: 72px;
   }
   
-  .flash-container .alert {
-    font-size: 0.9rem;
-    padding: 0.75rem 1rem;
+  .flash-container {
+    top: calc(var(--header-h) + 0.75rem);
+    right: 0.75rem;
+    max-width: 350px;
+    min-width: 280px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  :root {
+    --header-h: 70px;
   }
 }
 
 @media (max-width: 575.98px) {
+  :root {
+    --header-h: 64px;
+  }
+  
   .flash-container {
-    top: 0.5rem;
-    width: calc(100% - 0.5rem);
+    top: calc(var(--header-h) + 0.5rem);
+    right: 0.5rem;
+    left: 0.5rem;
+    max-width: none;
+    min-width: auto;
   }
   
   .flash-container .alert {
@@ -96,4 +138,4 @@
     padding: 0.65rem 0.85rem;
     margin-bottom: 0.5rem;
   }
-}*/
+}
