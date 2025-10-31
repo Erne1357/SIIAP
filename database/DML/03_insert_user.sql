@@ -22,8 +22,7 @@ VALUES (
     'jefatura_depi@cdjuarez.tecnm.mx', 
     CURRENT_TIMESTAMP, 
     false, 
-    4,
-    'profile.jpg'
+    4
 );
 
 --Usuario de prueba con el mínimo de privilegios
