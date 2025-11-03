@@ -375,7 +375,7 @@ def assign_control_number(user_id):
     old_username = user.username
     user.username = control_number
     user.control_number = control_number
-    user.control_number_assigned_at = datetime.now(timezone.utc)
+    user.control_number_assigned_at = datetime.now()
     
     # Registrar
     _log_action(

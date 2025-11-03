@@ -194,17 +194,7 @@
                                 <span class="d-sm-none">Notif.</span>
                             </button>
                         </li>
-                        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link text-danger" id="admin-tab" data-bs-toggle="tab"
-                                data-bs-target="#admin-tab-pane" type="button" role="tab" aria-controls="admin-tab-pane"
-                                aria-selected="false">
-                                <i class="bi bi-shield me-1 me-md-2"></i>
-                                <span class="d-none d-sm-inline">Admin</span>
-                                <span class="d-sm-none">Adm</span>
-                            </button>
-                        </li>
-                        {% endif %}
+                        
                     </ul>
                 </div>
             </div>
@@ -238,12 +228,6 @@
                     aria-labelledby="notifications-tab" tabindex="0">
                     {% include 'user/profile/_profile_notifications.html' %}
                 </div>
-                <!-- Panel de Administración -->
-                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-                <div class="tab-pane fade" id="admin-tab-pane" role="tabpanel" aria-labelledby="admin-tab" tabindex="0">
-                    {% include 'user/profile/_profile_admin.html' %}
-                </div>
-                {% endif %}
             </div>
         </main>
     </div>

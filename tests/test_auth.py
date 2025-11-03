@@ -81,7 +81,7 @@ class AuthTestCase(unittest.TestCase):
         # Modificar manualmente la marca de tiempo de la sesión para simular inactividad
         with self.client.session_transaction() as sess:
             # Simula que la última actividad fue hace 16 minutos (más de los 15 permitidos)
-            sess['last_activity'] = (datetime.now(timezone.utc) - timedelta(minutes=16)).timestamp()
+            sess['last_activity'] = (datetime.now() - timedelta(minutes=16)).timestamp()
         # Hacer una petición para que se active el before_request y se verifique la expiración
         response = self.client.get('/', follow_redirects=True)
         self.assertEqual(response.status_code, 200)

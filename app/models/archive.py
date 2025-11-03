@@ -1,4 +1,5 @@
 from app import db
+from app.utils.datetime_utils import now_local
 
 class Archive(db.Model):
     __tablename__ = 'archive'
@@ -12,6 +13,8 @@ class Archive(db.Model):
     step_id = db.Column(db.Integer, db.ForeignKey('step.id'), nullable=False)
     allow_coordinator_upload = db.Column(db.Boolean,default=False,nullable=False)
     allow_extension_request = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=now_local, nullable=False)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     step = db.relationship("Step", back_populates="archives")
     submissions = db.relationship('Submission', back_populates='archive')

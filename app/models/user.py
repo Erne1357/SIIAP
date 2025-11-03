@@ -2,6 +2,7 @@ from app import db
 from flask import url_for
 from flask_login import UserMixin
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 from werkzeug.security import generate_password_hash
 
 class User(db.Model, UserMixin):
@@ -14,10 +15,10 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)  # Aseguramos la longitud para el hash
     email = db.Column(db.String(100), unique=True, nullable=False)
-    last_login = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
+    last_login = db.Column(db.DateTime, default=now_local, nullable=False)
     is_internal = db.Column(db.Boolean, default=False)
     scolarship_type = db.Column(db.String(50), nullable=True)
-    registration_date = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
+    registration_date = db.Column(db.DateTime, default=now_local, nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
     avatar = db.Column(db.String(255), default='default.jpg', nullable=True)
     must_change_password = db.Column(db.Boolean, default=True, nullable=False)
@@ -25,6 +26,7 @@ class User(db.Model, UserMixin):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     control_number = db.Column(db.String(20), unique=True, nullable=True)
     control_number_assigned_at = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     role = db.relationship('Role', back_populates='users', uselist=False)
     user_program = db.relationship('UserProgram', back_populates='user')
@@ -66,8 +68,8 @@ class User(db.Model, UserMixin):
         self.username = username
         self.password = generate_password_hash(password)
         self.email = email
-        self.registration_date = datetime.now(timezone.utc)
-        self.last_login = datetime.now(timezone.utc)
+        self.registration_date = now_local()
+        self.last_login = now_local()
         self.is_internal = is_internal
         self.role_id = role_id
         self.avatar = avatar
@@ -131,7 +133,7 @@ class User(db.Model, UserMixin):
         """
         self.control_number = control_number
         self.username = control_number
-        self.control_number_assigned_at = datetime.now(timezone.utc)
+        self.control_number_assigned_at = now_local()
 
     def can_be_deleted(self):
         """

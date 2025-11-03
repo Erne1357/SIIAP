@@ -5,6 +5,7 @@ from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
 from flask_bootstrap import Bootstrap
 from datetime import datetime, timezone, timedelta
+from app.utils.datetime_utils import now_local
 from app.config import Config
 from app.utils.auth import roles_required
 from app.utils.csrf import generate_csrf_token, validate_csrf_for_api
@@ -87,7 +88,7 @@ def create_app(test_config=None):
 
           # Hacer la sesión permanente
           session.permanent = True
-          now_ts = datetime.now(timezone.utc).timestamp()
+          now_ts = now_local().timestamp()
           last_activity = session.get('last_activity')
 
           # Solo validar expiración si el usuario está autenticado

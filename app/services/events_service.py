@@ -3,6 +3,7 @@ from app import db
 from app.models.event import Event, EventWindow, EventSlot,EventAttendance
 from sqlalchemy import and_
 from datetime import timezone
+from app.utils.datetime_utils import now_local
 
 class EventsService:
     
@@ -331,7 +332,7 @@ class EventsService:
             attendance.attended_at = None
         elif attended:
             attendance.status = 'attended'
-            attendance.attended_at = datetime.now(timezone.utc)
+            attendance.attended_at = now_local()
         else:
             attendance.status = 'no_show'
             attendance.attended_at = None
@@ -457,7 +458,7 @@ class EventsService:
             raise ValueError("Esta invitación ya fue respondida")
         
         invitation.status = 'accepted' if accept else 'rejected'
-        invitation.responded_at = datetime.now(timezone.utc)
+        invitation.responded_at = now_local()
         
         # Si acepta, crear registro automáticamente
         if accept:

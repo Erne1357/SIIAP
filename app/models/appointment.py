@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 
 class Appointment(db.Model):
     __tablename__ = 'appointment'
@@ -11,7 +12,8 @@ class Appointment(db.Model):
     assigned_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL', onupdate='CASCADE'))
     status = db.Column(db.String(20), nullable=False, default='scheduled')  # scheduled|done|no_show|cancelled
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, nullable=False, default=now_local)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     # Nota: si quieres acceder a slot/event como objetos, puedes definir relaciones viewonly aquí.
 
@@ -27,5 +29,5 @@ class AppointmentChangeRequest(db.Model):
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending|accepted|rejected|cancelled
     decided_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL', onupdate='CASCADE'))
     decided_at = db.Column(db.DateTime)
-
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, nullable=False, default=now_local)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
