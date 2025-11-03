@@ -13,6 +13,8 @@ services:
       - db
     env_file:
       - .env.prod
+    environment:
+      - TZ=America/Ciudad_Juarez
     volumes:
       # Solo montamos instance para uploads persistentes
       - /home/cuaderno/SIIAP/instance:/app/instance
@@ -32,6 +34,8 @@ services:
       dockerfile: docker/Dockerfile.db
     env_file:
       - .env.prod
+    environment:
+      - TZ=America/Ciudad_Juarez
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -40,6 +44,8 @@ services:
     image: nginx:stable-alpine
     depends_on:
       - web
+    environment:
+      - TZ=America/Ciudad_Juarez
     volumes:
       - ../app/static:/usr/share/nginx/html/static:ro
       - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro

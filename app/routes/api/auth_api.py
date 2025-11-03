@@ -63,8 +63,8 @@ def api_login():
         }), 401
 
     login_user(user)
-    session['last_activity'] = datetime.now(timezone.utc).timestamp()
-    user.last_login = datetime.now(timezone.utc)
+    session['last_activity'] = datetime.now().timestamp()
+    user.last_login = datetime.now()
     db.session.commit()
 
     # NUEVO: Verificar si debe cambiar contraseña
@@ -267,7 +267,7 @@ def api_me():
 @login_required
 def api_keepalive():
     """Mantiene la sesión activa"""
-    session['last_activity'] = datetime.now(timezone.utc).timestamp()
+    session['last_activity'] = datetime.now().timestamp()
     return jsonify({
         "data": "OK", 
         "error": None, 

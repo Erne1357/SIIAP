@@ -8,6 +8,7 @@ from app.models import Step, ProgramStep, Phase, Submission, ExtensionRequest
 from app.models.event import Event, EventSlot, EventAttendance, EventWindow
 from datetime import datetime, timezone
 import logging,json
+from app.utils.datetime_utils import now_local, to_local_timezone
 
 def get_admission_state(user_id: int, program_id: int, up) -> dict:
     """
@@ -57,7 +58,8 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     }
 
     # 3) Map extensiones activas del usuario (solo para archivos que cuentan para progreso)
-    now = datetime.now(timezone.utc)
+    # Usar hora local de Ciudad Juárez
+    now = now_local()
     all_extensions = {
         e.archive_id: e
         for e in ExtensionRequest.query
@@ -71,11 +73,8 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     active_extensions = {}
     for aid, ext in all_extensions.items():
         if ext.status == 'granted' and ext.granted_until:
-            # Asegurar que granted_until tenga zona horaria
-            granted_until = ext.granted_until
-            if granted_until.tzinfo is None:
-                # Si no tiene zona horaria, asumir UTC
-                granted_until = granted_until.replace(tzinfo=timezone.utc)
+            # Convertir a zona horaria local usando la utilidad
+            granted_until = to_local_timezone(ext.granted_until)
             
             if granted_until > now:
                 active_extensions[aid] = ext

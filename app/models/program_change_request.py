@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 
 class ProgramChangeRequest(db.Model):
     __tablename__ = 'program_change_request'
@@ -14,4 +15,5 @@ class ProgramChangeRequest(db.Model):
     decided_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL', onupdate='CASCADE'))
     decided_at = db.Column(db.DateTime)
 
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, nullable=False, default=now_local)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
