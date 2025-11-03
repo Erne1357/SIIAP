@@ -116,7 +116,7 @@ def execute_transfer():
         # Auto-aprobar el request
         change_request.status = 'approved'
         change_request.decided_by = current_user.id
-        change_request.decided_at = datetime.now(timezone.utc)
+        change_request.decided_at = datetime.now()
         db.session.commit()
         
         return jsonify({

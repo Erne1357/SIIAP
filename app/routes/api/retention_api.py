@@ -15,7 +15,7 @@ api_retention = Blueprint('api_retention', __name__, url_prefix='/api/v1/retenti
 @login_required
 @roles_required('postgraduate_admin','program_admin')
 def candidates():
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     items = RetentionService.compute_candidates(now)
     payload = [{"id": s.id, "archive_id": s.archive_id, "upload_date": s.upload_date.isoformat() if s.upload_date else None} for s in items]
     return jsonify({"ok": True, "count": len(items), "items": payload}), 200

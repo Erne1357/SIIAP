@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 
 class Event(db.Model):
     __tablename__ = 'event'
@@ -12,7 +13,8 @@ class Event(db.Model):
     location = db.Column(db.String(200))
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
     visible_to_students = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, nullable=False, default=now_local)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
     
     capacity_type = db.Column(db.String(20), nullable=False, default='single')  # single|multiple|unlimited
     max_capacity = db.Column(db.Integer, nullable=True)  # null para unlimited
@@ -36,7 +38,8 @@ class EventWindow(db.Model):
     end_time = db.Column(db.Time, nullable=False)
     slot_minutes = db.Column(db.Integer, nullable=False)
     timezone = db.Column(db.String(50), default='America/Ciudad_Juarez')
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, nullable=False, default=now_local)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
     
     # ========== NUEVOS CAMPOS ==========
     slots_generated = db.Column(db.Boolean, nullable=False, default=False)
@@ -56,7 +59,8 @@ class EventSlot(db.Model):
     status = db.Column(db.String(20), nullable=False, default='free')
     held_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL', onupdate='CASCADE'))
     hold_expires_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, nullable=False, default=now_local)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     window = db.relationship('EventWindow', back_populates='slots')
 
@@ -69,7 +73,7 @@ class EventAttendance(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='registered')  # registered|attended|no_show
-    registered_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    registered_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now())
     attended_at = db.Column(db.DateTime, nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
@@ -86,7 +90,7 @@ class EventInvitation(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     invited_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending|accepted|rejected
-    invited_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    invited_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now())
     responded_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
     

@@ -1,6 +1,7 @@
 # app/models/extension_request.py - Modelo actualizado
 from app import db
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 
 class ExtensionRequest(db.Model):
     __tablename__ = 'extension_request'
@@ -24,8 +25,8 @@ class ExtensionRequest(db.Model):
     condition_text = db.Column(db.Text)  # Condiciones específicas de la prórroga
     
     # Auditoría
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, nullable=False, default=now_local)
+    updated_at = db.Column(db.DateTime, nullable=False, default=now_local, onupdate=now_local)
     
     # Relaciones
     user = db.relationship('User', foreign_keys=[user_id], backref='extension_requests')
@@ -43,5 +44,5 @@ class ExtensionRequest(db.Model):
         self.requested_until = requested_until
         self.role = role
         self.status = 'pending'
-        self.created_at = datetime.now(timezone.utc)
-        self.updated_at = datetime.now(timezone.utc)
+        self.created_at = now_local()
+        self.updated_at = now_local()

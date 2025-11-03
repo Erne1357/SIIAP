@@ -1,5 +1,6 @@
 # app/services/extensions_service.py - Actualizado
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 from sqlalchemy.exc import IntegrityError
 from app import db
 from app.models.extension_request import ExtensionRequest
@@ -85,8 +86,8 @@ class ExtensionsService:
 
         er.status = status
         er.decided_by = decided_by
-        er.decided_at = datetime.now(timezone.utc)
-        er.updated_at = datetime.now(timezone.utc)
+        er.decided_at = now_local()
+        er.updated_at = now_local()
         er.granted_until = granted_until
         er.condition_text = condition_text
 

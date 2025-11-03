@@ -97,18 +97,6 @@
                     </div>
                 </div>
 
-                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-                <div class="d-flex">
-                    <div class="bg-danger bg-opacity-10 p-2 rounded-circle me-3">
-                        <i class="bi bi-shield-check text-danger"></i>
-                    </div>
-                    <div>
-                        <p class="mb-0 fw-medium">Acción administrativa: Revisión de solicitudes</p>
-                        <small class="text-muted">Hace 3 días</small>
-                    </div>
-                </div>
-                {% endif %}
-
                 <a href="#" class="btn btn-link text-decoration-none mt-3">
                     Ver toda la actividad →
                 </a>
@@ -137,26 +125,6 @@
                     </div>
                     <div>
                         <p class="mb-0 fw-medium">Examen de admisión</p>
-                        <small class="text-muted">22 de Junio, 2025</small>
-                    </div>
-                </div>
-                {% elif current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-                <div class="d-flex mb-3">
-                    <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                        <i class="bi bi-calendar text-primary"></i>
-                    </div>
-                    <div>
-                        <p class="mb-0 fw-medium">Revisión de solicitudes</p>
-                        <small class="text-muted">15 de Junio, 2025</small>
-                    </div>
-                </div>
-
-                <div class="d-flex mb-3">
-                    <div class="bg-success bg-opacity-10 p-2 rounded-circle me-3">
-                        <i class="bi bi-calendar text-success"></i>
-                    </div>
-                    <div>
-                        <p class="mb-0 fw-medium">Reunión de comité académico</p>
                         <small class="text-muted">22 de Junio, 2025</small>
                     </div>
                 </div>

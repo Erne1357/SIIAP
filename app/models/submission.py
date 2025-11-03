@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime,timezone
+from app.utils.datetime_utils import now_local
 
 class Submission(db.Model):
     __tablename__ = 'submission'
@@ -7,9 +8,10 @@ class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     file_path = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(50), nullable=False)
-    upload_date = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    upload_date = db.Column(db.DateTime, default=now_local)
     review_date = db.Column(db.DateTime)
     reviewer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
     reviewer_comment = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     archive_id = db.Column(db.Integer,db.ForeignKey('archive.id') , nullable = False)
