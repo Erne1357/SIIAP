@@ -5,6 +5,12 @@
 FROM postgres:16-alpine
 # Postgres 16 estará soportado hasta nov-2028
 
+# Configura la zona horaria de Ciudad Juárez
+ENV TZ=America/Ciudad_Juarez
+RUN apk add --no-cache tzdata && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
+
 # Copia de todos los scripts de inicialización numerados
 COPY database/DDL/0*.sql  /docker-entrypoint-initdb.d/
 COPY database/DML/0*.sql  /docker-entrypoint-initdb.d/
