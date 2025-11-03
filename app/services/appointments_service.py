@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from app import db
@@ -34,7 +35,7 @@ class AppointmentsService:
             assigned_by=assigned_by,
             status='scheduled',
             notes=notes,
-            created_at=datetime.now(timezone.utc)
+            created_at=now_local()
         )
         db.session.add(appt)
         try:
@@ -72,7 +73,7 @@ class AppointmentsService:
             reason=reason,
             suggestions=suggestions,
             status='pending',
-            created_at=datetime.now(timezone.utc)
+            created_at=now_local()
         )
         db.session.add(acr)
         db.session.commit()
@@ -93,7 +94,7 @@ class AppointmentsService:
 
         acr.status = status
         acr.decided_by = decided_by
-        acr.decided_at = datetime.now(timezone.utc)
+        acr.decided_at = now_local()
 
         if status == 'accepted':
             if not new_slot_id:

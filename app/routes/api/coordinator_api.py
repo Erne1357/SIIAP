@@ -293,7 +293,7 @@ def upload_for_student():
         submission = Submission(
             file_path=file_relative_path,  # Usar la ruta que devolvió tu función
             status='approved',  # Coordinador aprueba directamente
-            review_date=datetime.now(timezone.utc),
+            review_date=datetime.now(),
             reviewer_comment="[Coordinador] Documento subido y aprobado",
             user_id=student_id,
             archive_id=archive_id,

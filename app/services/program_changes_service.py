@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 from app import db
 from app.models.program_change_request import ProgramChangeRequest
 from app.models.document_mapping import DocumentMapping
@@ -16,7 +17,7 @@ class ProgramChangesService:
             to_program_id=to_program_id,
             reason=reason,
             status='pending',
-            created_at=datetime.now(timezone.utc)
+            created_at=now_local()
         )
         db.session.add(req)
         db.session.commit()
@@ -33,7 +34,7 @@ class ProgramChangesService:
 
         req.status = status
         req.decided_by = decided_by
-        req.decided_at = datetime.now(timezone.utc)
+        req.decided_at = now_local()
 
         if status == 'approved':
             ProgramChangesService._apply_change(req)

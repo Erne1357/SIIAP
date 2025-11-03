@@ -1,144 +1,34 @@
-<div class="row">
-    <div class="col-md-12 mb-4">
-        <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Mis Documentos</h5>
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadDocumentModal">
-                    <i class="bi bi-upload me-2"></i>Subir documento
-                </button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Nombre del documento</th>
-                                <th>Tipo</th>
-                                <th>Fecha de subida</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Curriculum Vitae</td>
-                                <td>PDF</td>
-                                <td>10/05/2025</td>
-                                <td><span class="badge bg-success">Aprobado</span></td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-success me-1">
-                                        <i class="bi bi-download"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>Carta de motivos</td>
-                                <td>PDF</td>
-                                <td>12/05/2025</td>
-                                <td><span class="badge bg-success">Aprobado</span></td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-success me-1">
-                                        <i class="bi bi-download"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>Certificado de estudios</td>
-                                <td>PDF</td>
-                                <td>15/05/2025</td>
-                                <td><span class="badge bg-warning text-dark">En revisión</span></td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-success me-1">
-                                        <i class="bi bi-download"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-file-earmark-text me-2"></i>
+            Documentos
+        </h5>
+        <button class="btn btn-sm btn-outline-secondary" disabled>
+            <i class="bi bi-upload me-1"></i>
+            Subir documento
+        </button>
     </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Próximamente:</strong> El sistema de gestión de documentos estará disponible en una futura actualización.
+            Aquí podrás gestionar todos tus documentos académicos y administrativos.
+        </div>
 
-    {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-    <div class="col-md-12 mb-4">
-        <div class="card shadow-sm border-danger">
-            <div class="card-header bg-danger bg-opacity-10">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Documentos Pendientes de Revisión</h5>
-                    <span class="badge bg-danger">Solo Admin</span>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Usuario</th>
-                                <th>Documento</th>
-                                <th>Tipo</th>
-                                <th>Fecha de subida</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Ana García</td>
-                                <td>Certificado de estudios</td>
-                                <td>PDF</td>
-                                <td>18/05/2025</td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-success me-1">
-                                        <i class="bi bi-check-lg"></i> Aprobar
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-x-lg"></i> Rechazar
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>Miguel López</td>
-                                <td>Carta de recomendación</td>
-                                <td>PDF</td>
-                                <td>17/05/2025</td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-success me-1">
-                                        <i class="bi bi-check-lg"></i> Aprobar
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-x-lg"></i> Rechazar
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <div id="documentsPlaceholder" class="text-center py-5">
+            <i class="bi bi-file-earmark-plus fs-1 text-muted"></i>
+            <p class="mt-3 text-muted">Sistema de documentos en desarrollo</p>
+            <small class="text-muted">
+                En esta sección podrás:
+                <ul class="list-unstyled mt-2">
+                    <li>• Subir y descargar documentos</li>
+                    <li>• Ver el estado de revisión</li>
+                    <li>• Recibir comentarios del coordinador</li>
+                    <li>• Gestionar versiones de archivos</li>
+                    <li>• Acceder al historial de documentos</li>
+                </ul>
+            </small>
         </div>
     </div>
-    {% endif %}
 </div>

@@ -1,5 +1,6 @@
 # app/services/program_transfer_service.py
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 from typing import Dict, List, Tuple
 from app import db
 from app.models.user_program import UserProgram
@@ -208,7 +209,7 @@ class ProgramTransferService:
             
             if user_program:
                 user_program.program_id = to_program_id
-                user_program.enrollment_date = datetime.now(timezone.utc)
+                user_program.enrollment_date = now_local()
                 user_program.status = 'active'
             
             db.session.commit()

@@ -1,6 +1,7 @@
 # app/models/user_history.py
 from app import db
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 
 class UserHistory(db.Model):
     """
@@ -13,7 +14,7 @@ class UserHistory(db.Model):
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
     action = db.Column(db.String(50), nullable=False)
     details = db.Column(db.Text, nullable=True)
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    timestamp = db.Column(db.DateTime, default=now_local, nullable=False)
     
     # Relaciones
     user = db.relationship('User', foreign_keys=[user_id], backref='history_entries')
