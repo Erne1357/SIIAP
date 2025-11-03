@@ -15,6 +15,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/SIIAP
       - SECRET_KEY=super-secret-key
+      - TZ=America/Ciudad_Juarez
     volumes:
       - ../instance:/app/instance
       - ../:/app
@@ -24,6 +25,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.db
+    environment:
+      - TZ=America/Ciudad_Juarez
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -35,6 +38,8 @@ services:
       - "80:80"                   # expone el puerto HTTP
     depends_on:
       - web
+    environment:
+      - TZ=America/Ciudad_Juarez
     volumes:
       - ../app/static:/usr/share/nginx/html/static:ro
       - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
