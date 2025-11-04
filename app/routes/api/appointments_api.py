@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.appointments_service import AppointmentsService
+from app.services.user_history_service import UserHistoryService
 from app.models.appointment import Appointment
 from app import db
 
@@ -20,6 +21,27 @@ def assign():
             assigned_by=current_user.id,
             notes=data.get('notes')
         )
+        
+        # Registrar en el historial
+        try:
+            from app.models.event import Event, EventSlot, EventWindow
+            slot = EventSlot.query.get(int(data['slot_id']))
+            if slot:
+                window = EventWindow.query.get(slot.event_window_id)
+                if window:
+                    event = Event.query.get(window.event_id)
+                    if event:
+                        UserHistoryService.log_appointment_assignment(
+                            user_id=int(data['applicant_id']),
+                            event_title=event.title,
+                            appointment_datetime=slot.starts_at.isoformat(),
+                            assigned_by_admin=current_user.id
+                        )
+                        db.session.commit()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error al registrar asignación de cita en historial: {e}")
+        
         return jsonify({"ok": True, "id": appt.id}), 201
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -41,7 +63,35 @@ def my_appointments():
 @login_required
 def cancel(appointment_id:int):
     try:
+        # Obtener información antes de cancelar
+        appt = Appointment.query.get(appointment_id)
+        event_title = "Desconocido"
+        if appt:
+            from app.models.event import Event, EventSlot, EventWindow
+            slot = EventSlot.query.get(appt.slot_id)
+            if slot:
+                window = EventWindow.query.get(slot.event_window_id)
+                if window:
+                    event = Event.query.get(window.event_id)
+                    if event:
+                        event_title = event.title
+        
         appt = AppointmentsService.cancel_appointment(appointment_id, reason=request.args.get('reason'))
+        
+        # Registrar en el historial
+        try:
+            UserHistoryService.log_appointment_cancellation(
+                user_id=appt.applicant_id,
+                event_title=event_title,
+                reason=request.args.get('reason', 'Cancelada por el usuario'),
+                cancelled_by_admin=(current_user.id != appt.applicant_id),
+                admin_id=current_user.id if current_user.id != appt.applicant_id else None
+            )
+            db.session.commit()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error al registrar cancelación de cita en historial: {e}")
+        
         return jsonify({"ok": True, "id": appt.id, "status": appt.status}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400

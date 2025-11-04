@@ -4,6 +4,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.models.user import User
+from app.services.user_history_service import UserHistoryService
 from app import db
 import re
 
@@ -200,6 +201,17 @@ def change_password():
     current_user.password = generate_password_hash(new_password)
     current_user.must_change_password = False  # Ya cambió su contraseña
     db.session.commit()
+    
+    # Registrar en el historial
+    try:
+        UserHistoryService.log_password_change(
+            user_id=current_user.id,
+            changed_by_user=True
+        )
+        db.session.commit()
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Error al registrar cambio de contraseña en historial: {e}")
     
     return jsonify({
         "data": {

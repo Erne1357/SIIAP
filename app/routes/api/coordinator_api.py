@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from app import db
 from app.utils.auth import roles_required
 from app.utils.files import save_user_doc  # Importar tu función de archivos
+from app.services.user_history_service import UserHistoryService
+from app.utils.history_formatter import HistoryFormatter
 from app.models.user import User
 from app.models.program import Program
 from app.models.user_program import UserProgram
@@ -310,6 +312,19 @@ def upload_for_student():
         db.session.add(submission)
         db.session.commit()
         
+        # Registrar en el historial
+        try:
+            UserHistoryService.log_document_upload(
+                user_id=student_id,
+                archive_name=archive.name,
+                program_name=user_program.program.name,
+                uploaded_by_admin=True,
+                admin_id=current_user.id
+            )
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"Error al registrar subida por coordinador en historial: {e}")
+        
         return jsonify({
             "ok": True, 
             "submission_id": submission.id,
@@ -597,6 +612,91 @@ def _determine_overall_status(admission_state):
         return "approved"
     
     return "pending"
+
+
+@api_coordinator.route('/students/<int:student_id>/history', methods=['GET'])
+@login_required
+@roles_required('program_admin', 'postgraduate_admin')
+def get_student_history(student_id):
+    """
+    Obtiene el historial formateado de un estudiante específico.
+    Solo coordinadores y administradores pueden ver el historial de estudiantes.
+    """
+    try:
+        # Verificar que el estudiante existe y el coordinador tiene acceso
+        student = User.query.filter_by(id=student_id).first()
+        if not student or student.role.name != 'applicant':
+            return jsonify({
+                'success': False,
+                'message': 'Estudiante no encontrado'
+            }), 404
+        
+        # Verificar permisos según el rol
+        if current_user.role.name == 'program_admin':
+            # Los program_admin solo pueden ver estudiantes de sus programas
+            user_programs = UserProgram.query.filter_by(user_id=student_id).all()
+            managed_programs = [p.id for p in Program.query.filter_by(coordinator_id=current_user.id).all()]
+            
+            if not any(up.program_id in managed_programs for up in user_programs):
+                return jsonify({
+                    'success': False,
+                    'message': 'No tienes permisos para ver el historial de este estudiante'
+                }), 403
+        
+        # Parámetros de consulta
+        format_type = request.args.get('format', 'formatted')
+        limit = min(int(request.args.get('limit', 50)), 100)
+        
+        # Obtener el historial del estudiante
+        history_entries = UserHistoryService.get_user_history(
+            user_id=student_id,
+            limit=limit,
+            order_by='desc'
+        )
+        
+        # Formatear las entradas si se solicita
+        formatted_history = []
+        formatter = HistoryFormatter()
+        
+        for entry in history_entries:
+            entry_dict = entry.to_dict()
+            
+            # Agregar información del coordinador que realizó la acción
+            if entry.performed_by_id:
+                entry_dict['performed_by_name'] = f"{entry.performed_by.first_name} {entry.performed_by.last_name}"
+                entry_dict['performed_by_role'] = entry.performed_by.role.name if entry.performed_by.role else None
+            
+            # Agregar descripción formateada si se solicita
+            if format_type == 'formatted':
+                entry_dict['formatted_description'] = formatter.format_history_entry(entry)
+            
+            formatted_history.append(entry_dict)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'student': {
+                    'id': student.id,
+                    'name': f"{student.first_name} {student.last_name}",
+                    'control_number': student.control_number,
+                    'email': student.email
+                },
+                'history': formatted_history,
+                'total_count': len(history_entries),
+                'format_type': format_type
+            },
+            'meta': {
+                'viewed_by': current_user.id,
+                'ordered_by': 'timestamp_desc',
+                'limit_applied': limit
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error al obtener historial del estudiante: {str(e)}'
+        }), 500
 
 def _check_ready_for_interview(admission_state):
     """Verifica si el estudiante está listo para entrevista"""

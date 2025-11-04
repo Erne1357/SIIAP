@@ -200,6 +200,7 @@ def register_blueprints(app):
      from app.routes.api.invitations_api import api_invitations
      from app.routes.api.interviews_api import api_interviews
      from app.routes.api.admin.users import api_admin_users
+     from app.routes.api.admin.history_api import api_admin_history
      
      app.register_blueprint(api_auth_bp)
      app.register_blueprint(api_programs)
@@ -219,6 +220,7 @@ def register_blueprints(app):
      app.register_blueprint(api_invitations)
      app.register_blueprint(api_interviews)
      app.register_blueprint(api_admin_users)
+     app.register_blueprint(api_admin_history)
 
 
      # Registrar páginas

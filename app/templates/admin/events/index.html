@@ -819,29 +819,8 @@
 {% endblock %}
 
 {% block styles %}
-<style>
-    .student-card {
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .student-card:hover {
-        background-color: #f8f9fa;
-    }
-
-    .student-card.selected {
-        background-color: #e3f2fd;
-        border-left: 3px solid #1976d2;
-    }
-
-    #slotsTable tbody tr.slot-free {
-        background-color: #f8fff8;
-    }
-
-    #slotsTable tbody tr.slot-booked {
-        background-color: #fff3cd;
-    }
-</style>
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/events/events.css') }}?v={{ static_version }}">
 {% endblock %}
 
 {% block scripts %}

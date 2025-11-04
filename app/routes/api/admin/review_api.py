@@ -5,6 +5,7 @@ from sqlalchemy.orm import joinedload
 from app import db
 from app.utils.auth import roles_required
 from app.models import Submission, ProgramStep, User, Program
+from app.services.user_history_service import UserHistoryService
 
 api_review = Blueprint("api_review", __name__, url_prefix="/api/v1/admin/review")
 
@@ -102,6 +103,21 @@ def decide_submission(sub_id: int):
     sub.reviewer_comment = comment
 
     db.session.commit()
+
+    # Registrar en el historial
+    try:
+        archive_name = sub.archive.name if sub.archive else f"Documento ID {sub.archive_id}"
+        UserHistoryService.log_document_review(
+            user_id=sub.user_id,
+            archive_name=archive_name,
+            status=sub.status,
+            reviewer_comment=comment,
+            admin_id=current_user.id
+        )
+        db.session.commit()
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Error al registrar revisión de documento en historial: {e}")
 
     return jsonify({
         "data": {"submission": _sub_to_dict(sub)},
