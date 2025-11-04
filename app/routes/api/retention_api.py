@@ -1,12 +1,14 @@
 from __future__ import annotations
 from flask import Blueprint, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from sqlalchemy import select
 from app import db
 from app.utils.auth import roles_required
 from app.models.retention_policy import RetentionPolicy
 from app.models.archive import Archive
+from app.models.submission import Submission
 from app.services.retention_service import RetentionService
+from app.services.user_history_service import UserHistoryService
 from datetime import datetime, timezone
 
 api_retention = Blueprint('api_retention', __name__, url_prefix='/api/v1/retention')
@@ -26,7 +28,44 @@ def candidates():
 def purge():
     data = request.get_json() or {}
     submission_ids = data.get('submission_ids', [])
+    
+    # Obtener información de los documentos antes de eliminar para el historial
+    submissions_info = []
+    if submission_ids:
+        submissions = db.session.execute(
+            select(Submission, Archive).join(Archive, Submission.archive_id == Archive.id)
+            .where(Submission.id.in_(submission_ids))
+        ).all()
+        
+        for submission, archive in submissions:
+            submissions_info.append({
+                'user_id': submission.user_id,
+                'archive_name': archive.name,
+                'submission_id': submission.id
+            })
+    
     deleted = RetentionService.purge_submissions(submission_ids)
+    
+    # Registrar en el historial para cada usuario afectado
+    for info in submissions_info:
+        try:
+            UserHistoryService.log_document_purged(
+                user_id=info['user_id'],
+                archive_name=info['archive_name'],
+                reason=f"Eliminación por política de retención (ID: {info['submission_id']})",
+                admin_id=current_user.id
+            )
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error al registrar eliminación de documento en historial: {e}")
+    
+    # Commit del historial
+    try:
+        db.session.commit()
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Error al guardar historial de eliminaciones: {e}")
+    
     return jsonify({"ok": True, "deleted": deleted}), 200
 
 @api_retention.route("/policies", methods=["GET"])

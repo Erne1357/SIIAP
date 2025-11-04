@@ -5,6 +5,8 @@ from app import db
 from datetime import datetime
 
 from app.models.user_history import UserHistory
+from app.services.user_history_service import UserHistoryService
+from app.utils.history_formatter import HistoryFormatter
 
 api_users = Blueprint("api_users", __name__, url_prefix="/api/v1/users")
 
@@ -77,6 +79,15 @@ def complete_profile():
     is_complete_now = current_user.update_profile_completion_status()
     
     db.session.commit()
+    
+    # Registrar en el historial si completó el perfil por primera vez
+    if not was_complete_before and is_complete_now:
+        try:
+            UserHistoryService.log_profile_completion(user_id=current_user.id)
+            db.session.commit()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error al registrar completado de perfil en historial: {e}")
     
     # Mensaje diferente si acaba de completar el perfil
     if not was_complete_before and is_complete_now:
@@ -185,13 +196,44 @@ def update_me():
 @login_required
 def user_history():
     """
-    Obtiene el historial de cambios del usuario.
+    Obtiene el historial de cambios del usuario con formato legible.
+    Parámetros de query:
+    - format: 'formatted' para descripción legible o 'raw' para datos originales (default: formatted)
+    - limit: número de registros a retornar (default: 50, max: 100)
     """
-    history = UserHistory.query.filter_by(user_id=current_user.id).all()
+    format_type = request.args.get('format', 'formatted')
+    limit = min(int(request.args.get('limit', 50)), 100)
+    
+    # Obtener el historial del usuario
+    history_entries = UserHistoryService.get_user_history(
+        user_id=current_user.id,
+        limit=limit,
+        order_by='desc'
+    )
+    
+    # Formatear las entradas si se solicita
+    formatted_history = []
+    formatter = HistoryFormatter()
+    
+    for entry in history_entries:
+        entry_dict = entry.to_dict()
+        
+        # Agregar descripción formateada si se solicita
+        if format_type == 'formatted':
+            entry_dict['formatted_description'] = formatter.format_history_entry(entry)
+        
+        formatted_history.append(entry_dict)
+    
     return jsonify({
         "data": {
-            "history": [entry.to_dict() for entry in history]
+            "history": formatted_history,
+            "total_count": len(history_entries),
+            "format_type": format_type
         },
         "error": None,
-        "meta": {}
+        "meta": {
+            "user_id": current_user.id,
+            "ordered_by": "timestamp_desc",
+            "limit_applied": limit
+        }
     }), 200

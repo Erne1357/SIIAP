@@ -2,7 +2,9 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.program_changes_service import ProgramChangesService
+from app.services.user_history_service import UserHistoryService
 from app.models.program_change_request import ProgramChangeRequest
+from app.models.program import Program
 from app import db
 from datetime import datetime, timezone
 
@@ -12,12 +14,32 @@ api_program_changes = Blueprint('api_program_changes', __name__, url_prefix='/ap
 @login_required
 def create_request():
     data = request.get_json() or {}
+    from_program_id = int(data['from_program_id'])
+    to_program_id = int(data['to_program_id'])
+    
     req = ProgramChangesService.create_request(
         applicant_id=current_user.id,
-        from_program_id=int(data['from_program_id']),
-        to_program_id=int(data['to_program_id']),
+        from_program_id=from_program_id,
+        to_program_id=to_program_id,
         reason=data.get('reason')
     )
+    
+    # Registrar en el historial
+    try:
+        from_program = Program.query.get(from_program_id)
+        to_program = Program.query.get(to_program_id)
+        
+        UserHistoryService.log_program_transfer_request(
+            user_id=current_user.id,
+            from_program=from_program.name if from_program else f"ID {from_program_id}",
+            to_program=to_program.name if to_program else f"ID {to_program_id}",
+            reason=data.get('reason', '')
+        )
+        db.session.commit()
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Error al registrar solicitud de cambio en historial: {e}")
+    
     return jsonify({"ok": True, "id": req.id}), 201
 
 @api_program_changes.route('/requests', methods=['GET'])
@@ -118,6 +140,23 @@ def execute_transfer():
         change_request.decided_by = current_user.id
         change_request.decided_at = datetime.now()
         db.session.commit()
+        
+        # Registrar transferencia ejecutada en el historial
+        try:
+            from_program = Program.query.get(from_id)
+            to_program = Program.query.get(to_id)
+            
+            UserHistoryService.log_program_transfer_execution(
+                user_id=current_user.id,
+                from_program=from_program.name if from_program else f"ID {from_id}",
+                to_program=to_program.name if to_program else f"ID {to_id}",
+                documents_moved=result.get('updated_documents', 0),
+                documents_lost=result.get('deleted_documents', 0)
+            )
+            db.session.commit()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error al registrar transferencia ejecutada en historial: {e}")
         
         return jsonify({
             "ok": True,

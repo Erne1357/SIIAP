@@ -6,6 +6,7 @@ from app.models import Program, Archive, Submission, UserProgram, ProgramStep
 from app.utils.files import save_user_doc
 from app.utils.utils import getPeriod
 from app.services.admission_service import get_admission_state
+from app.services.user_history_service import UserHistoryService
 import logging
 
 api_submissions = Blueprint("api_submissions", __name__, url_prefix="/api/v1/submissions")
@@ -110,6 +111,18 @@ def upload_submission():
     db.session.add(sub)
     db.session.commit()
 
+    # Registrar en el historial
+    try:
+        UserHistoryService.log_document_upload(
+            user_id=current_user.id,
+            archive_name=archive.name,
+            program_name=program.name,
+            uploaded_by_admin=False
+        )
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error al registrar subida de documento en historial: {e}")
+
     return jsonify({
         "data": {
             "submission": {
@@ -135,8 +148,27 @@ def delete_submission(sub_id: int):
     if sub.user_id != current_user.id:
         return jsonify({"data": None, "error": {"code": "FORBIDDEN", "message": "No puedes borrar este recurso"}, "meta": {}}), 403
 
+    # Obtener información antes de eliminar
+    archive_name = sub.archive.name if sub.archive else "Desconocido"
+    program_name = "Desconocido"
+    if sub.program_step and sub.program_step.program:
+        program_name = sub.program_step.program.name
+
     db.session.delete(sub)
     db.session.commit()
+
+    # Registrar en el historial
+    try:
+        UserHistoryService.log_document_deletion(
+            user_id=current_user.id,
+            archive_name=archive_name,
+            program_name=program_name,
+            deleted_by_admin=False
+        )
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error al registrar eliminación de documento en historial: {e}")
+
     return jsonify({
         "data": True,
         "flash": [{"level": "success", "message": "Archivo eliminado."}],

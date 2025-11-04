@@ -244,46 +244,8 @@
 {% endblock %}
 
 {% block styles %}
-<style>
-  #tblArchives td,
-  #tblArchives th {
-    vertical-align: middle;
-  }
-
-  .toggle-cell {
-    text-align: center;
-  }
-
-  .template-link {
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: inline-block;
-  }
-
-  .student-card {
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .student-card:hover {
-    background-color: #f8f9fa;
-  }
-
-  .student-card.selected {
-    background-color: #e3f2fd;
-    border-left: 3px solid #1976d2;
-  }
-
-  #slotsTable tbody tr.slot-free {
-    background-color: #f8fff8;
-  }
-
-  #slotsTable tbody tr.slot-booked {
-    background-color: #fff3cd;
-  }
-</style>
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/archives.css') }}?v={{ static_version }}">
 {% endblock %}
 
 {% block scripts %}

@@ -3,7 +3,8 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.extensions_service import ExtensionsService
-from app.models import ExtensionRequest,ProgramStep, User
+from app.services.user_history_service import UserHistoryService
+from app.models import ExtensionRequest,ProgramStep, User, Archive
 from app import db
 from datetime import datetime
 
@@ -61,6 +62,23 @@ def create_extension_request():
             requested_until=requested_until_dt,
             role=role
         )
+        
+        # Registrar en el historial
+        try:
+            archive = Archive.query.get(archive_id)
+            archive_name = archive.name if archive else f"ID {archive_id}"
+            
+            UserHistoryService.log_extension_request(
+                user_id=current_user.id,
+                archive_name=archive_name,
+                requested_until=requested_until,
+                reason=reason,
+                requested_by_admin=(role == 'coordinator')
+            )
+            db.session.commit()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error al registrar solicitud de prórroga en historial: {e}")
         
         return jsonify({
             "ok": True, 
@@ -173,6 +191,23 @@ def decide_extension_request(req_id: int):
             granted_until=granted_until_dt,
             condition_text=condition_text
         )
+        
+        # Registrar en el historial
+        try:
+            archive_name = er.archive.name if er.archive else f"ID {er.archive_id}"
+            
+            UserHistoryService.log_extension_decision(
+                user_id=er.user_id,
+                archive_name=archive_name,
+                decision=status,
+                granted_until=granted_until if status == 'granted' else None,
+                condition_text=condition_text,
+                admin_id=current_user.id
+            )
+            db.session.commit()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error al registrar decisión de prórroga en historial: {e}")
         
         return jsonify({
             "ok": True, 

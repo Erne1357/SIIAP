@@ -34,17 +34,6 @@ class UserHistory(db.Model):
     
     def get_action_label(self):
         """Retorna etiqueta legible del tipo de acción"""
-        labels = {
-            'password_reset': 'Contraseña restablecida',
-            'password_changed': 'Contraseña cambiada',
-            'deactivated': 'Usuario desactivado',
-            'activated': 'Usuario activado',
-            'control_number_assigned': 'Número de control asignado',
-            'role_changed': 'Rol modificado',
-            'profile_updated': 'Perfil actualizado',
-            'deleted': 'Usuario eliminado',
-            'created': 'Usuario creado',
-            'basic_info_updated': 'Información básica actualizada',
-            'profile_completed': 'Perfil completado'
-        }
-        return labels.get(self.action, self.action)
+        # Importar aquí para evitar dependencias circulares
+        from app.services.user_history_service import UserHistoryService
+        return UserHistoryService.get_action_label(self.action)

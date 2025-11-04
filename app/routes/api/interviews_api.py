@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import select
 from app.utils.auth import roles_required
 from app.services.interview_service import InterviewEligibilityService
+from app.services.user_history_service import UserHistoryService
 
 api_interviews = Blueprint('api_interviews', __name__, url_prefix='/api/v1/interviews')
 
@@ -138,6 +139,13 @@ def mark_profile_complete(user_id: int):
     try:
         success = InterviewEligibilityService.mark_profile_complete(user_id)
         if success:
+            # Registrar en el historial
+            try:
+                UserHistoryService.log_profile_completion(user_id=user_id)
+                db.session.commit()
+            except Exception as e:
+                current_app.logger.error(f"Error al registrar completado de perfil en historial: {e}")
+            
             return jsonify({
                 "ok": True,
                 "message": "Perfil marcado como completo"
