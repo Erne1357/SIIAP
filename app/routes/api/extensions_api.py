@@ -192,22 +192,33 @@ def decide_extension_request(req_id: int):
             condition_text=condition_text
         )
         
-        # Registrar en el historial
+        # Primero hacer commit de la decisión de prórroga
+        db.session.commit()
+        
+        # Luego registrar en el historial (con sus notificaciones)
         try:
             archive_name = er.archive.name if er.archive else f"ID {er.archive_id}"
+            
+            # Formatear la fecha para mostrarla al usuario de manera legible
+            formatted_date = None
+            if status == 'granted' and granted_until_dt:
+                formatted_date = granted_until_dt.strftime('%d/%m/%Y')
             
             UserHistoryService.log_extension_decision(
                 user_id=er.user_id,
                 archive_name=archive_name,
                 decision=status,
-                granted_until=granted_until if status == 'granted' else None,
+                granted_until=formatted_date,
                 condition_text=condition_text,
                 admin_id=current_user.id
             )
+            # Commit del historial y notificaciones
             db.session.commit()
         except Exception as e:
             from flask import current_app
             current_app.logger.error(f"Error al registrar decisión de prórroga en historial: {e}")
+            # No fallar la operación por un error de log
+            pass
         
         return jsonify({
             "ok": True, 

@@ -23,7 +23,7 @@
   <link href="{{ url_for('static', filename='css/menu_colors.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/swup.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/flash.css') }}?v={{ static_version }}" rel="stylesheet">
-
+  <link href="{{ url_for('static', filename='css/notifications.css') }}?v={{ static_version }}" rel="stylesheet">
   <!-- Favicon -->
   <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
 
@@ -70,6 +70,34 @@
 
         <!-- Logos derecha -->
         <div class="header-logos header-logos-right d-none d-md-flex align-items-center gap-2 gap-lg-3">
+          <!-- NUEVO: Notificaciones -->
+          <div class="position-relative">
+            <button class="notification-bell-btn" id="notificationBell" type="button" aria-label="Notificaciones">
+              <i class="bi bi-bell fs-4 text-dark"></i>
+              <span id="notificationBadge" class="notification-badge d-none">0</span>
+            </button>
+
+            <!-- Dropdown de notificaciones -->
+            <div id="notificationDropdown" class="notification-dropdown">
+              <div class="notification-dropdown-header">
+                <h6>Notificaciones</h6>
+                <button class="btn btn-sm btn-link" id="markAllReadBtn">
+                  <i class="bi bi-check-all"></i>
+                </button>
+              </div>
+
+              <div class="notification-list" id="notificationsList">
+                <!-- Se llena dinámicamente -->
+              </div>
+
+              <div class="notification-dropdown-footer">
+                <a href="{{ url_for('pages_user.profile') }}?tab=notifications">
+                  Ver todas las notificaciones
+                </a>
+              </div>
+            </div>
+          </div>
+
           <img
             src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}"
             alt="ITCJ" class="header-logo logo-itcj">
@@ -182,6 +210,9 @@
               href="{{ url_for('pages_admin.pages_settings.users') }}">
               <i class="fas fa-user-cog me-2"></i>Usuarios
             </a>
+            <a class="nav-link submenu-item" href="{{ url_for('pages_emails.email_config') }}">
+              <i class="fas fa-envelope me-2"></i>Correos
+            </a>
           </div>
         </div>
         {% endif %}
@@ -278,6 +309,10 @@
                 href="{{ url_for('pages_admin.pages_settings.users') }}" data-bs-dismiss="offcanvas">
                 <i class="fas fa-user-cog me-2"></i>Usuarios
               </a>
+              <a class="nav-link submenu-item" href="{{ url_for('pages_emails.email_config') }}"
+                data-bs-dismiss="offcanvas">
+                <i class="fas fa-envelope me-2"></i>Correos
+              </a>
             </div>
           </div>
           {% endif %}
@@ -300,6 +335,12 @@
   <footer>
     <small>&copy; 2025 SIIAP. Todos los derechos reservados.</small>
   </footer>
+
+  <!-- FAB de notificaciones móvil -->
+  <button class="notification-fab" id="notificationFab" type="button" aria-label="Notificaciones">
+    <i class="bi bi-bell"></i>
+    <span id="notificationBadgeMobile" class="notification-badge d-none">0</span>
+  </button>
 
   <div id="modal-portal">
     {% block modals %}{% endblock %}
@@ -427,7 +468,7 @@
   <script src="{{ url_for('static', filename='js/swup.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/flash.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/force_password_change.js') }}?v={{ static_version }}"></script>
-
+  <script src="{{ url_for('static', filename='js/notifications.js') }}?v={{ static_version }}"></script>
   <script>
     (function () {
       const getCsrf = () => {

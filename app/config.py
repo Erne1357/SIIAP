@@ -3,7 +3,7 @@ from pathlib import Path
 
 class Config:
     # Versión estática (actualízala cuando cambies CSS/JS)
-    STATIC_VERSION = os.environ.get('STATIC_VERSION', '1.0.41111111277')
+    STATIC_VERSION = os.environ.get('STATIC_VERSION', '1.0.41111111287')
     
     # Directorios base
     BASE_DIR = Path(__file__).resolve().parent.parent
@@ -14,6 +14,11 @@ class Config:
     UPLOAD_FOLDER = Path(os.environ.get('UPLOAD_FOLDER', str(INSTANCE_DIR / 'uploads')))
     TEMPLATE_STORE = INSTANCE_DIR / 'templates_sys'
 
+    # Directorio para tokens de correo
+    MAIL_DIR = INSTANCE_DIR / 'mail'
+    MAIL_CACHE_PATH = str(MAIL_DIR / 'msal_cache.json')
+    MAIL_ACCOUNT_PATH = str(MAIL_DIR / 'msal_account.json')
+
     # Sub-rutas útiles
     AVATAR_FOLDER = UPLOAD_FOLDER / 'avatars'
     USER_DOCS_FOLDER = UPLOAD_FOLDER / 'documents'
@@ -23,7 +28,6 @@ class Config:
     MAX_CONTENT_LENGTH = 3 * 1024 * 1024  # 3 MB
 
     # ===== SEGURIDAD =====
-    # Secret key - DEBE ser diferente en producción
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-CHANGE-IN-PRODUCTION')
     
     # ===== BASE DE DATOS =====
@@ -33,11 +37,16 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # ===== MICROSOFT GRAPH (CORREOS) =====
+    MS_TENANT_ID = os.environ.get('MS_TENANT_ID', '')
+    MS_CLIENT_ID = os.environ.get('MS_CLIENT_ID', '')
+    MS_CLIENT_SECRET = os.environ.get('MS_CLIENT_SECRET', '')
+    MS_REDIRECT_URI = os.environ.get('MS_REDIRECT_URI', 'http://localhost/admin/emails/callback')
+    
     # ===== SESIONES Y COOKIES =====
     SESSION_COOKIE_NAME = "siiap_session"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    # En producción con HTTPS detrás de proxy, esto debe ser True
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
     
     REMEMBER_COOKIE_HTTPONLY = True
@@ -48,7 +57,5 @@ class Config:
     FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
     DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
 
-    # ===== GUNICORN (solo para referencia) =====
-    # Estas variables se usarán directamente en el comando gunicorn
     GUNICORN_WORKERS = int(os.environ.get('GUNICORN_WORKERS', '4'))
     GUNICORN_TIMEOUT = int(os.environ.get('GUNICORN_TIMEOUT', '120'))

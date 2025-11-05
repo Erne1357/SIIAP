@@ -251,6 +251,74 @@ class HistoryFormatter:
             return f"Número de control asignado: {details}"
     
     @staticmethod
+    def _format_archive_created(details: Dict[str, Any]) -> str:
+        """Formato: 'Creó el archivo [Nombre] en el paso [Paso]'"""
+        archive_name = details.get('archive_name', 'archivo desconocido')
+        step_name = details.get('step_name', 'paso desconocido')
+        return f"Creó el archivo '{archive_name}' en el paso {step_name}"
+    
+    @staticmethod
+    def _format_archive_updated(details: Dict[str, Any]) -> str:
+        """Formato: 'Modificó el archivo [Nombre] en el paso [Paso] - cambios: [lista]'"""
+        archive_name = details.get('archive_name', 'archivo desconocido')
+        step_name = details.get('step_name', 'paso desconocido')
+        changes = details.get('changes', {})
+        
+        message = f"Modificó el archivo '{archive_name}' en el paso {step_name}"
+        
+        # Mostrar qué se cambió específicamente
+        if changes and isinstance(changes, dict):
+            change_list = []
+            field_translations = {
+                'name': 'nombre',
+                'description': 'descripción',
+                'coordinator_can_upload': 'permisos de coordinador',
+                'allow_extensions': 'permisos de prórroga',
+                'required': 'obligatoriedad'
+            }
+            
+            for field, value in changes.items():
+                if field in field_translations:
+                    change_list.append(field_translations[field])
+                else:
+                    change_list.append(field)
+            
+            if change_list:
+                if len(change_list) == 1:
+                    message += f" (cambió: {change_list[0]})"
+                else:
+                    message += f" (cambió: {', '.join(change_list)})"
+        
+        return message
+    
+    @staticmethod
+    def _format_archive_deleted(details: Dict[str, Any]) -> str:
+        """Formato: 'Eliminó el archivo [Nombre]'"""
+        archive_name = details.get('archive_name', 'archivo desconocido')
+        archive_description = details.get('archive_description', '')
+        force_used = details.get('force_used', False)
+        
+        message = f"Eliminó el archivo '{archive_name}'"
+        
+        if archive_description:
+            message += f" ({archive_description})"
+        
+        if force_used:
+            message += " (eliminación forzada)"
+        
+        return message
+    
+    @staticmethod
+    def _format_template_uploaded(details: Dict[str, Any]) -> str:
+        """Formato: 'Subió plantilla [archivo.ext] para el archivo [Nombre]'"""
+        archive_name = details.get('archive_name', 'archivo desconocido')
+        template_filename = details.get('template_filename', 'plantilla')
+        was_replacement = details.get('was_replacement', False)
+        
+        action = "Reemplazó" if was_replacement else "Subió"
+        return f"{action} la plantilla '{template_filename}' para el archivo '{archive_name}'"
+    
+    @staticmethod
     def _format_role_changed(details: Dict[str, Any]) -> str:
         """Formato: 'Rol cambiado de [Anterior] a [Nuevo]'"""
         old_role = details.get('old_role', 'rol anterior')

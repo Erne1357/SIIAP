@@ -1,0 +1,47 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+    <p>Hola <strong>{{ user_name }}</strong>,</p>
+    
+    <p>¡Felicidades! Se te ha asignado tu número de control oficial.</p>
+    
+    <div class="notification-card" style="border-left-color: #17a2b8;">
+        <h2>🎓 Número de Control Asignado</h2>
+        
+        <p style="text-align: center; margin: 20px 0;">
+            <span style="font-size: 14px; color: #666;">Tu número de control es:</span>
+        </p>
+        
+        <p style="font-size: 36px; font-weight: bold; color: #17a2b8; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0; font-family: 'Courier New', monospace; border: 3px solid #17a2b8;">
+            {{ control_number }}
+        </p>
+        
+        <div class="divider"></div>
+        
+        <p style="background: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 4px; margin: 15px 0;">
+            <strong>📝 Importante:</strong> Este será tu identificador oficial en el instituto. 
+            A partir de ahora, deberás usar este número como tu nombre de usuario para iniciar sesión.
+        </p>
+        
+        <p style="color: #666;">
+            Guarda este número en un lugar seguro, ya que lo necesitarás para todas tus gestiones académicas.
+        </p>
+        
+        <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin: 15px 0; font-size: 14px;">
+            <strong>💡 Próximos pasos:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Usa tu número de control para iniciar sesión</li>
+                <li>Actualiza tu perfil si es necesario</li>
+                <li>Revisa tu estado académico</li>
+            </ul>
+        </div>
+    </div>
+    
+    <a href="{{ dashboard_url }}" class="btn" style="background: #17a2b8;">
+        Acceder a Mi Perfil
+    </a>
+    
+    <p style="font-size: 14px; color: #666; margin-top: 30px;">
+        <strong>🎉 ¡Bienvenido oficialmente!</strong> Tu proceso de registro está completo.
+    </p>
+{% endblock %}
