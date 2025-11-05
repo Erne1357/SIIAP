@@ -438,6 +438,47 @@ class EventsService:
             results['invited'].append(user_id)
         
         db.session.commit()
+        
+        # NUEVO: Enviar notificaciones y registrar en historial después del commit
+        try:
+            from app.services.user_history_service import UserHistoryService
+            from app.services.notification_service import NotificationService
+            
+            for user_id in results['invited']:
+                # Obtener la invitación recién creada
+                invitation = EventInvitation.query.filter_by(
+                    event_id=event_id,
+                    user_id=user_id,
+                    invited_by=invited_by
+                ).first()
+                
+                if invitation:
+                    # Registrar en historial del admin
+                    UserHistoryService.log_event_invitation(
+                        user_id=user_id,
+                        event_title=event.title,
+                        event_id=event_id,
+                        invitation_id=invitation.id,
+                        event_date=event.event_date.strftime('%d/%m/%Y') if event.event_date else 'Por definir',
+                        invited_by=invited_by
+                    )
+                    
+                    # Enviar notificación al estudiante
+                    NotificationService.notify_event_invitation(
+                        user_id=user_id,
+                        event_title=event.title,
+                        event_id=event_id,
+                        invitation_id=invitation.id,
+                        event_date=event.event_date.strftime('%d/%m/%Y') if event.event_date else 'Por definir',
+                        description=event.description
+                    )
+                    
+            db.session.commit()
+            
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error(f"Error enviando notificaciones de invitación: {e}")
+        
         return results
     
     @staticmethod

@@ -60,7 +60,7 @@
         </div>
       </div>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-success w-100">Registrarme</button>
+      <button type="submit" class="btn btn-success w-100">Registrarme</button>
     </form>
 
     <div class="mt-3 text-center">
@@ -84,7 +84,7 @@
   };
   
   const form = document.getElementById('registerForm');
-  const submitBtn = form.querySelector('button[type="submit"]');
+  const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('button');
   
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -132,29 +132,44 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: {
-          'X-CSRF-Token': csrf
+          'X-CSRF-Token': csrf,
+          'X-Requested-With': 'XMLHttpRequest'
         },
         body: formData
       });
       
-      const json = await response.json().catch(() => ({}));
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      console.log('Response Content-Type:', response.headers.get('Content-Type'));
       
-      if (!response.ok) {
-        const errorMsg = json?.error || json?.message || 'Error al registrar usuario';
-        flash(errorMsg, 'danger');
-        return;
-      }
+      const contentType = response.headers.get('Content-Type');
       
-      if (json.ok) {
-        flash('Registro exitoso. Redirigiendo al inicio de sesión...', 'success');
+      if (contentType && contentType.includes('application/json')) {
+        const json = await response.json();
+        console.log('Registro respuesta JSON:', json);
         
-        // Redirigir al login después de mostrar el mensaje
-        setTimeout(() => {
-          window.location.href = "{{ url_for('pages_auth.login_page') }}";
-        }, 150);
+        if (!response.ok) {
+          const errorMsg = json?.error || json?.message || 'Error al registrar usuario';
+          flash(errorMsg, 'danger');
+          return;
+        }
+        
+        if (json.ok) {
+          flash('Registro exitoso. Redirigiendo al inicio de sesión...', 'success');
+          
+          // Redirigir al login después de mostrar el mensaje
+          setTimeout(() => {
+            window.location.href = "{{ url_for('pages_auth.login_page') }}";
+          }, 150);
+        } else {
+          const errorMsg = json?.error || 'Error al registrar usuario';
+          flash(errorMsg, 'danger');
+        }
       } else {
-        const errorMsg = json?.error || 'Error al registrar usuario';
-        flash(errorMsg, 'danger');
+        // La respuesta es HTML, no JSON
+        const htmlText = await response.text();
+        console.log('Registro respuesta HTML (primeros 500 chars):', htmlText.substring(0, 500));
+        flash('Error del servidor: respuesta inesperada', 'danger');
       }
       
     } catch (err) {

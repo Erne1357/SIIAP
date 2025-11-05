@@ -5,6 +5,7 @@ from app.models.user_history import UserHistory
 from app.models.user import User
 from flask_login import current_user
 from typing import Optional, Dict, Any, List
+from app.services.notification_service import NotificationService
 import json
 
 
@@ -12,6 +13,24 @@ class UserHistoryService:
     """
     Servicio para gestionar el historial de acciones administrativas sobre usuarios.
     Centraliza toda la lógica relacionada con el registro y consulta del historial.
+    
+    REGLAS FUNDAMENTALES:
+    =====================
+    
+    1. HISTORIAL SE GUARDA EN QUIEN HACE LA ACCIÓN:
+       - Si un usuario sube un documento → historial en el usuario
+       - Si un admin revisa un documento → historial en el admin
+       - Si un admin asigna una cita → historial en el admin
+    
+    2. NOTIFICACIONES SE ENVÍAN A QUIEN SE AFECTA:
+       - Si admin revisa documento de Juan → notificación a Juan
+       - Si admin asigna cita a María → notificación a María
+       - Si admin resetea password de Pedro → notificación a Pedro
+    
+    3. PARA VER ACCIONES SOBRE UN USUARIO:
+       - get_user_history(user_id) → acciones que HIZO el usuario
+       - get_actions_on_user(user_id) → acciones que se HICIERON SOBRE el usuario
+       - get_admin_activity(admin_id) → acciones que HIZO el administrador
     """
 
     @staticmethod
@@ -66,7 +85,11 @@ class UserHistoryService:
 
     @staticmethod
     def log_password_reset(user_id: int, admin_id: Optional[int] = None) -> UserHistory:
-        """Registra un reset de contraseña"""
+        """Registra un reset de contraseña - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        # Obtener información del usuario afectado
+        user = User.query.get(user_id)
+        user_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+        
         admin_name = "Sistema"
         if admin_id:
             admin = User.query.get(admin_id)
@@ -74,13 +97,27 @@ class UserHistoryService:
                 admin_name = f"{admin.first_name} {admin.last_name}"
         elif current_user.is_authenticated:
             admin_name = f"{current_user.first_name} {current_user.last_name}"
+            admin_id = current_user.id
         
-        return UserHistoryService.log_action(
-            user_id=user_id,
+        details = {
+            'affected_user_id': user_id,
+            'affected_user_name': user_name,
+            'reset_by': admin_name,
+            'action_type': 'password_reset'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        history = UserHistoryService.log_action(
+            user_id=admin_id or 1,  # Historial del ADMIN (o admin sistema si no hay admin_id)
             action='password_reset',
-            details=f"Contraseña reseteada por {admin_name}",
-            admin_id=admin_id
+            details=details,
+            admin_id=None  # Es su propia acción
         )
+        
+        # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el usuario)
+        NotificationService.notify_password_reset(user_id)
+        
+        return history
 
     @staticmethod
     def log_password_change(user_id: int, changed_by_user: bool = True) -> UserHistory:
@@ -96,7 +133,11 @@ class UserHistoryService:
 
     @staticmethod
     def log_user_activation(user_id: int, is_active: bool, admin_id: Optional[int] = None) -> UserHistory:
-        """Registra activación/desactivación de usuario"""
+        """Registra activación/desactivación de usuario - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        # Obtener información del usuario afectado
+        user = User.query.get(user_id)
+        user_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+        
         admin_name = "Sistema"
         if admin_id:
             admin = User.query.get(admin_id)
@@ -104,16 +145,32 @@ class UserHistoryService:
                 admin_name = f"{admin.first_name} {admin.last_name}"
         elif current_user.is_authenticated:
             admin_name = f"{current_user.first_name} {current_user.last_name}"
+            admin_id = current_user.id
         
         action = 'activated' if is_active else 'deactivated'
         status = 'activado' if is_active else 'desactivado'
         
-        return UserHistoryService.log_action(
-            user_id=user_id,
+        details = {
+            'affected_user_id': user_id,
+            'affected_user_name': user_name,
+            'action_performed': status,
+            'performed_by': admin_name,
+            'action_type': 'user_activation'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        history = UserHistoryService.log_action(
+            user_id=admin_id or 1,  # Historial del ADMIN (o admin sistema si no hay admin_id)
             action=action,
-            details=f"Usuario {status} por {admin_name}",
-            admin_id=admin_id
+            details=details,
+            admin_id=None  # Es su propia acción
         )
+        
+        # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el usuario)
+        if not is_active:
+            NotificationService.notify_account_deactivated(user_id)
+        
+        return history
 
     @staticmethod
     def log_control_number_assignment(
@@ -123,29 +180,62 @@ class UserHistoryService:
         program_name: str, 
         admin_id: Optional[int] = None
     ) -> UserHistory:
-        """Registra asignación de número de control"""
+        """Registra asignación de número de control - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        # Obtener información del usuario afectado
+        user = User.query.get(user_id)
+        user_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+        
         details = {
+            'affected_user_id': user_id,
+            'affected_user_name': user_name,
             'control_number': control_number,
             'old_username': old_username,
-            'program': program_name
+            'program': program_name,
+            'action_type': 'control_number_assignment'
         }
         
-        return UserHistoryService.log_action(
-            user_id=user_id,
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        history = UserHistoryService.log_action(
+            user_id=admin_id or current_user.id,  # Historial del ADMIN
             action='control_number_assigned',
             details=details,
-            admin_id=admin_id
+            admin_id=None  # Es su propia acción
         )
+        
+        # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el usuario)
+        NotificationService.notify_control_number_assigned(user_id, control_number)
+        
+        return history
 
     @staticmethod
     def log_basic_info_update(user_id: int, changed_fields: Dict[str, Dict[str, str]], admin_id: Optional[int] = None) -> UserHistory:
         """Registra actualización de información básica"""
-        return UserHistoryService.log_action(
-            user_id=user_id,
-            action='basic_info_updated',
-            details=changed_fields,
-            admin_id=admin_id
-        )
+        if admin_id:
+            # ✅ Si un admin actualiza info de otro usuario, el historial se guarda en el admin
+            user = User.query.get(user_id)
+            user_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+            
+            details = {
+                'affected_user_id': user_id,
+                'affected_user_name': user_name,
+                'changed_fields': changed_fields,
+                'action_type': 'basic_info_update'
+            }
+            
+            return UserHistoryService.log_action(
+                user_id=admin_id,  # Historial del ADMIN
+                action='basic_info_updated',
+                details=details,
+                admin_id=None  # Es su propia acción
+            )
+        else:
+            # ✅ Si el usuario actualiza su propia info, el historial se guarda en él
+            return UserHistoryService.log_action(
+                user_id=user_id,  # Historial del USUARIO
+                action='basic_info_updated',
+                details=changed_fields,
+                admin_id=None  # Acción del usuario
+            )
 
     @staticmethod
     def log_profile_completion(user_id: int) -> UserHistory:
@@ -159,17 +249,25 @@ class UserHistoryService:
 
     @staticmethod
     def log_role_change(user_id: int, old_role: str, new_role: str, admin_id: Optional[int] = None) -> UserHistory:
-        """Registra cambio de rol"""
+        """Registra cambio de rol - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        # Obtener información del usuario afectado
+        user = User.query.get(user_id)
+        user_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+        
         details = {
+            'affected_user_id': user_id,
+            'affected_user_name': user_name,
             'old_role': old_role,
-            'new_role': new_role
+            'new_role': new_role,
+            'action_type': 'role_change'
         }
         
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
         return UserHistoryService.log_action(
-            user_id=user_id,
+            user_id=admin_id or current_user.id,  # Historial del ADMIN
             action='role_changed',
             details=details,
-            admin_id=admin_id
+            admin_id=None  # Es su propia acción
         )
 
     @staticmethod
@@ -186,7 +284,7 @@ class UserHistoryService:
 
     @staticmethod
     def log_user_deletion(user_id: int, user_name: str, admin_id: Optional[int] = None) -> UserHistory:
-        """Registra eliminación de usuario (se debe llamar ANTES de eliminar)"""
+        """Registra eliminación de usuario - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR (se debe llamar ANTES de eliminar)"""
         admin_name = "Sistema"
         if admin_id:
             admin = User.query.get(admin_id)
@@ -194,12 +292,21 @@ class UserHistoryService:
                 admin_name = f"{admin.first_name} {admin.last_name}"
         elif current_user.is_authenticated:
             admin_name = f"{current_user.first_name} {current_user.last_name}"
+            admin_id = current_user.id
         
+        details = {
+            'deleted_user_id': user_id,
+            'deleted_user_name': user_name,
+            'deleted_by': admin_name,
+            'action_type': 'user_deletion'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
         return UserHistoryService.log_action(
-            user_id=user_id,
+            user_id=admin_id or 1,  # Historial del ADMIN (o admin sistema si no hay admin_id)
             action='deleted',
-            details=f"Usuario {user_name} eliminado por {admin_name}",
-            admin_id=admin_id
+            details=details,
+            admin_id=None  # Es su propia acción
         )
 
     @staticmethod
@@ -221,11 +328,11 @@ class UserHistoryService:
             Lista de entradas del historial ordenadas por fecha (más reciente primero)
         """
         query = UserHistory.query.filter_by(user_id=user_id)
-        
-        if order_by.lower() == 'desc':
-            query = query.order_by(UserHistory.timestamp.desc())
-        else:
-            query = query.order_by(UserHistory.timestamp.asc())
+        if order_by:
+            if order_by.lower() == 'desc':
+                query = query.order_by(UserHistory.timestamp.desc())
+            else:
+                query = query.order_by(UserHistory.timestamp.asc())
 
         if action_filter:
             query = query.filter(UserHistory.action == action_filter)
@@ -262,7 +369,38 @@ class UserHistoryService:
         Returns:
             Lista de entradas del historial ordenadas por fecha (más reciente primero)
         """
-        query = UserHistory.query.filter_by(admin_id=admin_id).order_by(UserHistory.timestamp.desc())
+        query = UserHistory.query.filter_by(user_id=admin_id).order_by(UserHistory.timestamp.desc())
+        
+        if limit:
+            query = query.limit(limit)
+        
+        return query.all()
+
+    @staticmethod
+    def get_actions_on_user(target_user_id: int, limit: Optional[int] = None) -> List[UserHistory]:
+        """
+        Obtiene todas las acciones administrativas realizadas SOBRE un usuario específico.
+        Útil para que los administradores vean qué acciones se han realizado sobre un estudiante.
+        
+        Args:
+            target_user_id: ID del usuario sobre el cual se realizaron acciones
+            limit: Número máximo de entradas a retornar
+            
+        Returns:
+            Lista de entradas del historial donde se menciona al usuario en los details
+        """
+        from sqlalchemy import or_, and_
+        
+        # Buscar en los detalles JSON donde se mencione al usuario
+        query = UserHistory.query.filter(
+            or_(
+                UserHistory.details.like(f'%"student_id": {target_user_id}%'),
+                UserHistory.details.like(f'%"affected_user_id": {target_user_id}%'),
+                UserHistory.details.like(f'%"deleted_user_id": {target_user_id}%'),
+                # También incluir acciones directas del usuario (para contexto completo)
+                UserHistory.user_id == target_user_id
+            )
+        ).order_by(UserHistory.timestamp.desc())
         
         if limit:
             query = query.limit(limit)
@@ -312,17 +450,23 @@ class UserHistoryService:
             'documents_lost': documents_lost,
             'action_type': 'transfer_executed'
         }
-        return UserHistoryService.log_action(
+        history = UserHistoryService.log_action(
             user_id=user_id,
             action='program_transferred',
             details=details,
             admin_id=None
         )
+        
+        # NUEVO: Crear notificación
+        NotificationService.notify_program_changed(user_id, from_program, to_program)
+        
+        return history
 
     # ==================== DOCUMENTOS ====================
     @staticmethod
     def log_document_upload(user_id: int, archive_name: str, program_name: str, 
-                          uploaded_by_admin: bool = False, admin_id: int = None) -> 'UserHistory':
+                          uploaded_by_admin: bool = False, admin_id: int = None, 
+                          coordinator_name: str = None, submission_id: int = None) -> 'UserHistory':
         """Registra subida de documento"""
         details = {
             'archive_name': archive_name,
@@ -330,12 +474,35 @@ class UserHistoryService:
             'uploaded_by_admin': uploaded_by_admin,
             'action_type': 'document_upload'
         }
-        return UserHistoryService.log_action(
-            user_id=user_id,
-            action='document_uploaded',
-            details=details,
-            admin_id=admin_id if uploaded_by_admin else None
-        )
+        
+        if uploaded_by_admin:
+            # ✅ CORRECTO: Si lo sube un admin, el historial se guarda en el admin
+            student = User.query.get(user_id)
+            student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
+            
+            details['student_id'] = user_id
+            details['student_name'] = student_name
+            
+            history = UserHistoryService.log_action(
+                user_id=admin_id or current_user.id,  # Historial del ADMIN
+                action='document_uploaded',
+                details=details,
+                admin_id=None  # Es su propia acción
+            )
+            
+            # ✅ CORRECTO: Notificar al estudiante que el coordinador subió su documento
+            if coordinator_name and submission_id:
+                NotificationService.notify_coordinator_uploaded(user_id, archive_name, submission_id, coordinator_name)
+        else:
+            # ✅ CORRECTO: Si lo sube el usuario, el historial se guarda en el usuario
+            history = UserHistoryService.log_action(
+                user_id=user_id,  # Historial del USUARIO
+                action='document_uploaded',
+                details=details,
+                admin_id=None  # Acción del usuario
+            )
+        
+        return history
 
     @staticmethod
     def log_document_deletion(user_id: int, archive_name: str, program_name: str, 
@@ -347,29 +514,62 @@ class UserHistoryService:
             'deleted_by_admin': deleted_by_admin,
             'action_type': 'document_deletion'
         }
-        return UserHistoryService.log_action(
-            user_id=user_id,
-            action='document_deleted',
-            details=details,
-            admin_id=admin_id if deleted_by_admin else None
-        )
+        
+        if deleted_by_admin:
+            # ✅ CORRECTO: Si lo elimina un admin, el historial se guarda en el admin
+            student = User.query.get(user_id)
+            student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
+            
+            details['student_id'] = user_id
+            details['student_name'] = student_name
+            
+            return UserHistoryService.log_action(
+                user_id=admin_id or current_user.id,  # Historial del ADMIN
+                action='document_deleted',
+                details=details,
+                admin_id=None  # Es su propia acción
+            )
+        else:
+            # ✅ CORRECTO: Si lo elimina el usuario, el historial se guarda en el usuario
+            return UserHistoryService.log_action(
+                user_id=user_id,  # Historial del USUARIO
+                action='document_deleted',
+                details=details,
+                admin_id=None  # Acción del usuario
+            )
 
     @staticmethod
     def log_document_review(user_id: int, archive_name: str, status: str, 
-                          reviewer_comment: str = None, admin_id: int = None) -> 'UserHistory':
-        """Registra revisión de documento (aprobar/rechazar)"""
+                          reviewer_comment: str = None, admin_id: int = None, submission_id: int = None) -> 'UserHistory':
+        """Registra revisión de documento (aprobar/rechazar) - SE GUARDA EN EL HISTORIAL DEL REVISOR"""
+        # Obtener información del estudiante afectado
+        student = User.query.get(user_id)
+        student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
+        
         details = {
+            'student_id': user_id,
+            'student_name': student_name,
             'archive_name': archive_name,
             'review_status': status,
             'reviewer_comment': reviewer_comment,
             'action_type': 'document_review'
         }
-        return UserHistoryService.log_action(
-            user_id=user_id,
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el revisor/admin)
+        history = UserHistoryService.log_action(
+            user_id=admin_id or current_user.id,  # Historial del REVISOR
             action='document_reviewed',
             details=details,
-            admin_id=admin_id
+            admin_id=None  # Es su propia acción
         )
+        
+        # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el estudiante)
+        if status == 'approved':
+            NotificationService.notify_document_approved(user_id, archive_name, submission_id)
+        elif status == 'rejected':
+            NotificationService.notify_document_rejected(user_id, archive_name, submission_id, reviewer_comment)
+        
+        return history
 
     # ==================== PRÓRROGAS ====================
     @staticmethod
@@ -393,20 +593,50 @@ class UserHistoryService:
     @staticmethod
     def log_extension_decision(user_id: int, archive_name: str, decision: str, 
                              granted_until: str = None, condition_text: str = None, admin_id: int = None) -> 'UserHistory':
-        """Registra decisión sobre prórroga"""
+        """Registra decisión sobre prórroga - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        # Obtener información del estudiante afectado
+        student = User.query.get(user_id)
+        student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
+        
         details = {
+            'student_id': user_id,
+            'student_name': student_name,
             'archive_name': archive_name,
             'decision': decision,
             'granted_until': granted_until,
             'condition_text': condition_text,
             'action_type': 'extension_decision'
         }
-        return UserHistoryService.log_action(
-            user_id=user_id,
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        history = UserHistoryService.log_action(
+            user_id=admin_id or current_user.id,  # Historial del ADMIN
             action='extension_decided',
             details=details,
-            admin_id=admin_id
+            admin_id=None  # Es su propia acción
         )
+        
+        # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el estudiante)
+        if decision == 'granted':  # ✅ CORREGIDO: usar 'granted' no 'approved'
+            try:
+                from flask import current_app
+                current_app.logger.info(f"Enviando notificación de prórroga aprobada a usuario {user_id} para {archive_name}")
+                NotificationService.notify_extension_approved(user_id, archive_name, granted_until)
+            except Exception as e:
+                # Log del error pero no fallar la operación
+                from flask import current_app
+                current_app.logger.error(f"Error al enviar notificación de prórroga aprobada: {e}")
+        elif decision == 'rejected':
+            try:
+                from flask import current_app
+                current_app.logger.info(f"Enviando notificación de prórroga rechazada a usuario {user_id} para {archive_name}")
+                NotificationService.notify_extension_rejected(user_id, archive_name, condition_text)
+            except Exception as e:
+                # Log del error pero no fallar la operación
+                from flask import current_app
+                current_app.logger.error(f"Error al enviar notificación de prórroga rechazada: {e}")
+        
+        return history
 
     # ==================== EVENTOS Y CITAS ====================
     @staticmethod
@@ -426,18 +656,29 @@ class UserHistoryService:
 
     @staticmethod
     def log_appointment_assignment(user_id: int, event_title: str, appointment_datetime: str, 
-                                 assigned_by_admin: int = None) -> 'UserHistory':
-        """Registra asignación de cita"""
+                                 assigned_by_admin: int = None, appointment_id: int = None, 
+                                 event_id: int = None) -> 'UserHistory':
+        """Registra asignación de cita - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        # Obtener información del estudiante afectado
+        student = User.query.get(user_id)
+        student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
+        
         details = {
+            'student_id': user_id,
+            'student_name': student_name,
             'event_title': event_title,
             'appointment_datetime': appointment_datetime,
+            'appointment_id': appointment_id,
+            'event_id': event_id,
             'action_type': 'appointment_assignment'
         }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
         return UserHistoryService.log_action(
-            user_id=user_id,
+            user_id=assigned_by_admin or current_user.id,  # Historial del ADMIN
             action='appointment_assigned',
             details=details,
-            admin_id=assigned_by_admin
+            admin_id=None  # Es su propia acción
         )
 
     @staticmethod
@@ -450,11 +691,136 @@ class UserHistoryService:
             'cancelled_by_admin': cancelled_by_admin,
             'action_type': 'appointment_cancellation'
         }
+        
+        if cancelled_by_admin:
+            # ✅ CORRECTO: Si lo cancela un admin, el historial se guarda en el admin
+            student = User.query.get(user_id)
+            student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
+            
+            details['student_id'] = user_id
+            details['student_name'] = student_name
+            
+            history = UserHistoryService.log_action(
+                user_id=admin_id or current_user.id,  # Historial del ADMIN
+                action='appointment_cancelled',
+                details=details,
+                admin_id=None  # Es su propia acción
+            )
+        else:
+            # ✅ CORRECTO: Si lo cancela el usuario, el historial se guarda en el usuario
+            history = UserHistoryService.log_action(
+                user_id=user_id,  # Historial del USUARIO
+                action='appointment_cancelled',
+                details=details,
+                admin_id=None  # Acción del usuario
+            )
+        
+        # ✅ CORRECTO: La notificación se envía apropiadamente
+        if cancelled_by_admin:
+            # Si lo canceló un admin, notificar al estudiante
+            NotificationService.notify_appointment_cancelled(user_id, event_title, reason)
+        # Si lo canceló el usuario, no hay necesidad de notificación (él ya sabe)
+        
+        return history
+
+    # NUEVO método para invitaciones a eventos
+    @staticmethod
+    def log_event_invitation(user_id: int, event_title: str, event_id: int, 
+                            invitation_id: int, event_date: str, invited_by: int = None) -> 'UserHistory':
+        """Registra invitación a evento - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        # Obtener información del usuario afectado
+        student = User.query.get(user_id)
+        student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
+        
+        details = {
+            'student_id': user_id,
+            'student_name': student_name,
+            'event_title': event_title,
+            'event_id': event_id,
+            'invitation_id': invitation_id,
+            'event_date': event_date,
+            'action_type': 'event_invitation'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
         return UserHistoryService.log_action(
-            user_id=user_id,
-            action='appointment_cancelled',
+            user_id=invited_by or current_user.id,  # Historial del ADMIN
+            action='event_invited',
             details=details,
-            admin_id=admin_id if cancelled_by_admin else None
+            admin_id=None  # Es su propia acción
+        )
+
+    # ==================== GESTIÓN DE ARCHIVOS (ARCHIVES) ====================
+    
+    @staticmethod
+    def log_archive_created(admin_id: int, archive_name: str, step_name: str) -> 'UserHistory':
+        """Registra creación de un nuevo archivo/documento - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        details = {
+            'archive_name': archive_name,
+            'step_name': step_name,
+            'action_type': 'archive_creation'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        return UserHistoryService.log_action(
+            user_id=admin_id,  # Historial del ADMIN
+            action='archive_created',
+            details=details,
+            admin_id=None  # Es su propia acción
+        )
+
+    @staticmethod
+    def log_archive_updated(admin_id: int, archive_name: str, step_name: str, changes: dict) -> 'UserHistory':
+        """Registra actualización de archivo/documento - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        details = {
+            'archive_name': archive_name,
+            'step_name': step_name,
+            'changes': changes,
+            'action_type': 'archive_update'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        return UserHistoryService.log_action(
+            user_id=admin_id,  # Historial del ADMIN
+            action='archive_updated',
+            details=details,
+            admin_id=None  # Es su propia acción
+        )
+
+    @staticmethod
+    def log_archive_deleted(admin_id: int, archive_name: str, archive_description: str, force_used: bool) -> 'UserHistory':
+        """Registra eliminación de archivo/documento - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        details = {
+            'archive_name': archive_name,
+            'archive_description': archive_description,
+            'force_used': force_used,
+            'action_type': 'archive_deletion'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        return UserHistoryService.log_action(
+            user_id=admin_id,  # Historial del ADMIN
+            action='archive_deleted',
+            details=details,
+            admin_id=None  # Es su propia acción
+        )
+
+    @staticmethod
+    def log_template_uploaded(admin_id: int, archive_name: str, template_filename: str, was_replacement: bool) -> 'UserHistory':
+        """Registra subida de plantilla para archivo - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+        details = {
+            'archive_name': archive_name,
+            'template_filename': template_filename,
+            'was_replacement': was_replacement,
+            'action_type': 'template_upload'
+        }
+        
+        # ✅ CORRECTO: El historial se guarda en quien HACE la acción (el administrador)
+        return UserHistoryService.log_action(
+            user_id=admin_id,  # Historial del ADMIN
+            action='template_uploaded',
+            details=details,
+            admin_id=None  # Es su propia acción
         )
 
     # ==================== RETENCIÓN Y LIMPIEZA ====================
@@ -503,7 +869,11 @@ class UserHistoryService:
         'document_uploaded',      # Historial de documentación
         'document_deleted',       # Eliminaciones de documentos
         'appointment_assigned',   # Asignaciones de citas importantes
-        'program_transfer_requested'  # Solicitudes de cambio
+        'program_transfer_requested',  # Solicitudes de cambio
+        'archive_created',        # Creación de archivos del sistema
+        'archive_updated',        # Modificaciones de configuración
+        'archive_deleted',        # Eliminaciones de archivos del sistema
+        'template_uploaded'       # Subida de plantillas
     }
     
     # Acciones de importancia media (limpieza normal)
@@ -518,38 +888,47 @@ class UserHistoryService:
 
     # Constantes para los tipos de acciones válidas
     ACTIONS = {
-        # Acciones originales
-        'password_reset': 'Contraseña restablecida',
+        # Acciones originales (USER ACTIONS - se guardan en el historial del usuario)
         'password_changed': 'Contraseña cambiada',
-        'deactivated': 'Usuario desactivado',
-        'activated': 'Usuario activado',
-        'control_number_assigned': 'Número de control asignado',
-        'role_changed': 'Rol modificado',
         'profile_updated': 'Perfil actualizado',
-        'deleted': 'Usuario eliminado',
         'created': 'Usuario creado',
-        'basic_info_updated': 'Información básica actualizada',
         'profile_completed': 'Perfil completado',
         
-        # Nuevas acciones - Programas
+        # Acciones del Usuario - Programas (se guardan en el historial del usuario)
         'program_enrolled': 'Postulado a programa',
         'program_transfer_requested': 'Solicitud de cambio de programa',
         'program_transferred': 'Cambio de programa ejecutado',
         
-        # Nuevas acciones - Documentos
-        'document_uploaded': 'Documento subido',
-        'document_deleted': 'Documento eliminado',
-        'document_reviewed': 'Documento revisado',
-        'document_purged': 'Documento eliminado por retención',
+        # Acciones del Usuario - Documentos (se guardan en el historial del usuario)
+        'document_uploaded': 'Documento subido (por usuario)',
+        'document_deleted': 'Documento eliminado (por usuario)',
         
-        # Nuevas acciones - Prórrogas
+        # Acciones del Usuario - Prórrogas (se guardan en el historial del usuario)
         'extension_requested': 'Prórroga solicitada',
-        'extension_decided': 'Prórroga decidida',
         
-        # Nuevas acciones - Eventos y Citas
+        # Acciones del Usuario - Eventos (se guardan en el historial del usuario)
         'event_registered': 'Registrado a evento',
-        'appointment_assigned': 'Cita asignada',
-        'appointment_cancelled': 'Cita cancelada',
+        'appointment_cancelled': 'Cita cancelada (por usuario)',
+        
+        # ACCIONES ADMINISTRATIVAS (se guardan en el historial del administrador)
+        'password_reset': 'Reseteó contraseña de usuario',
+        'deactivated': 'Desactivó usuario',
+        'activated': 'Activó usuario',
+        'control_number_assigned': 'Asignó número de control',
+        'role_changed': 'Cambió rol de usuario',
+        'deleted': 'Eliminó usuario',
+        'basic_info_updated': 'Actualizó información de usuario',
+        'document_reviewed': 'Revisó documento de estudiante',
+        'extension_decided': 'Decidió sobre prórroga',
+        'appointment_assigned': 'Asignó cita a estudiante',
+        'event_invited': 'Invitó estudiante a evento',
+        'document_purged': 'Eliminó documento por retención',
+        
+        # ACCIONES ADMINISTRATIVAS - Gestión de Archivos (se guardan en el historial del administrador)
+        'archive_created': 'Creó nuevo archivo/documento',
+        'archive_updated': 'Modificó configuración de archivo',
+        'archive_deleted': 'Eliminó archivo/documento',
+        'template_uploaded': 'Subió plantilla para archivo',
     }
 
     @staticmethod

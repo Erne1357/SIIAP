@@ -61,7 +61,7 @@ class User(db.Model, UserMixin):
     profile_completed = db.Column(db.Boolean, default=False, nullable=False)
 
 
-    def __init__(self, first_name, last_name, mother_last_name, username, password, email, is_internal, role_id, avatar):
+    def __init__(self, first_name, last_name, mother_last_name, username, password, email, is_internal, role_id, avatar='default.jpg', must_change_password=True):
         self.first_name = first_name
         self.last_name = last_name
         self.mother_last_name = mother_last_name
@@ -73,7 +73,7 @@ class User(db.Model, UserMixin):
         self.is_internal = is_internal
         self.role_id = role_id
         self.avatar = avatar
-        self.must_change_password = True
+        self.must_change_password = must_change_password
     
     def is_profile_complete(self):
         """

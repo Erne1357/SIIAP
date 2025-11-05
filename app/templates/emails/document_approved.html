@@ -1,0 +1,22 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#28a745' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>¡Tenemos buenas noticias! Tu documento ha sido aprobado.</p>
+
+<div class="notification-card">
+    <h2>✅ Documento Aprobado</h2>
+    <p><strong>{{ archive_name }}</strong></p>
+    <p style="margin-top: 10px; color: #28a745;">
+        Tu documento ha sido revisado y aprobado exitosamente.
+    </p>
+</div>
+
+<p>Puedes revisar el estado de todos tus documentos en tu panel de admisión.</p>
+
+<a href="{{ dashboard_url }}" class="btn">Ver Mi Panel</a>
+
+<p>¡Sigue así! 🎉</p>
+{% endblock %}

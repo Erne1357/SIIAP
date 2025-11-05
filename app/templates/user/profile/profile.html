@@ -432,4 +432,5 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/user/profile.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/user/profile_notifications.js') }}?v={{ static_version }}"></script>
 {% endblock %}
