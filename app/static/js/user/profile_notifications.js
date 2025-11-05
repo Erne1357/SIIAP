@@ -94,7 +94,8 @@ class ProfileNotificationsManager {
             const unreadOnly = this.currentFilter === 'unread';
             const offset = (this.currentPage - 1) * this.limit;
             
-            const res = await fetch(`/api/v1/notifications?unread_only=${unreadOnly}&limit=${this.limit}&offset=${offset}`);
+            // Usar ApiClient para construir URL segura
+            const res = await window.apiClient.get(`/api/v1/notifications?unread_only=${unreadOnly}&limit=${this.limit}&offset=${offset}`);
             const json = await res.json();
             
             const notifications = json.data.notifications;
@@ -338,10 +339,7 @@ class ProfileNotificationsManager {
 
     async markAsRead(id) {
         try {
-            const res = await fetch(`/api/v1/notifications/${id}/read`, {
-                method: 'PATCH',
-                headers: { 'X-CSRF-Token': this.getCsrf() }
-            });
+            const res = await window.apiClient.patch(`/api/v1/notifications/${id}/read`);
 
             if (res.ok) {
                 await this.loadNotifications();
@@ -357,10 +355,7 @@ class ProfileNotificationsManager {
 
     async deleteNotification(id) {
         try {
-            const res = await fetch(`/api/v1/notifications/${id}`, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-Token': this.getCsrf() }
-            });
+            const res = await window.apiClient.delete(`/api/v1/notifications/${id}`);
 
             const json = await res.json();
             if (json.flash) {
@@ -377,10 +372,7 @@ class ProfileNotificationsManager {
 
     async markAllAsRead() {
         try {
-            const res = await fetch('/api/v1/notifications/mark-all-read', {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': this.getCsrf() }
-            });
+            const res = await window.apiClient.post(`/api/v1/notifications/mark-all-read`);
 
             const json = await res.json();
             if (json.flash) {
@@ -404,10 +396,7 @@ class ProfileNotificationsManager {
         }
 
         try {
-            const res = await fetch('/api/v1/notifications/clear-read', {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': this.getCsrf() }
-            });
+            const res = await window.apiClient.post(`/api/v1/notifications/clear-read`);
 
             const json = await res.json();
             if (json.flash) {
@@ -424,14 +413,7 @@ class ProfileNotificationsManager {
 
     async respondInvitation(notificationId, response) {
         try {
-            const res = await fetch(`/api/v1/notifications/${notificationId}/respond-invitation`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': this.getCsrf()
-                },
-                body: JSON.stringify({ response })
-            });
+            const res = await window.apiClient.post(`/api/v1/notifications/${notificationId}/respond-invitation`, { response });
 
             const json = await res.json();
             if (json.flash) {
@@ -485,10 +467,7 @@ class ProfileNotificationsManager {
         return colors[type] || 'info';
     }
 
-    getCsrf() {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
-    }
+
 
     escapeHtml(text) {
         const div = document.createElement('div');
