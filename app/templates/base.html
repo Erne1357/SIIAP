@@ -464,6 +464,11 @@
     const userLoggedIn = "{{ 'true' if current_user.is_authenticated else 'false' }}";
   </script>
 
+  <!-- API Client (debe cargarse primero) -->
+  <script src="{{ url_for('static', filename='js/utils/api.js') }}?v={{ static_version }}"></script>
+  
+  <!-- API Client - debe cargarse primero -->
+  <script src="{{ url_for('static', filename='js/utils/api.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/swup.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/flash.js') }}?v={{ static_version }}"></script>

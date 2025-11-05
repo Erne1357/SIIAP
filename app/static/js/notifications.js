@@ -84,7 +84,7 @@ class NotificationManager {
 
     async updateBadge() {
         try {
-            const res = await fetch('/api/v1/notifications/unread-count');
+            const res = await window.apiClient.get('/api/v1/notifications/unread-count');
             const json = await res.json();
             const count = json.data.count;
 
@@ -121,7 +121,7 @@ class NotificationManager {
         container.innerHTML = '<div class="notification-loading"><div class="spinner-border spinner-border-sm"></div></div>';
 
         try {
-            const res = await fetch('/api/v1/notifications?unread_only=true&limit=5');
+            const res = await window.apiClient.get('/api/v1/notifications?unread_only=true&limit=5');
             const json = await res.json();
             const notifications = json.data.notifications;
 
@@ -286,12 +286,7 @@ class NotificationManager {
 
     async markAsRead(notificationId) {
         try {
-            const res = await fetch(`/api/v1/notifications/${notificationId}/read`, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRF-Token': this.getCsrf()
-                }
-            });
+            const res = await window.apiClient.patch(`/api/v1/notifications/${notificationId}/read`);
 
             if (res.ok) {
                 await this.updateBadge();
@@ -304,12 +299,7 @@ class NotificationManager {
 
     async markAllAsRead() {
         try {
-            const res = await fetch('/api/v1/notifications/mark-all-read', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-Token': this.getCsrf()
-                }
-            });
+            const res = await window.apiClient.post('/api/v1/notifications/mark-all-read');
 
             if (res.ok) {
                 const json = await res.json();
@@ -326,14 +316,7 @@ class NotificationManager {
 
     async respondInvitation(notificationId, response) {
         try {
-            const res = await fetch(`/api/v1/notifications/${notificationId}/respond-invitation`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': this.getCsrf()
-                },
-                body: JSON.stringify({ response })
-            });
+            const res = await window.apiClient.post(`/api/v1/notifications/${notificationId}/respond-invitation`, { response });
 
             const json = await res.json();
 
@@ -361,11 +344,6 @@ class NotificationManager {
             clearInterval(this.pollTimer);
             this.pollTimer = null;
         }
-    }
-
-    getCsrf() {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
     }
 
     escapeHtml(text) {
