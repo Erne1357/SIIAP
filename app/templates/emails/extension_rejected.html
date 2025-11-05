@@ -1,0 +1,35 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+    <p>Hola <strong>{{ user_name }}</strong>,</p>
+    
+    <p>Tu solicitud de prórroga no ha sido aprobada.</p>
+    
+    <div class="notification-card" style="border-left-color: #dc3545;">
+        <h2>⚠️ Prórroga No Aprobada</h2>
+        <p><strong>Documento:</strong> {{ archive_name }}</p>
+        
+        <div class="divider"></div>
+        
+        <p><strong>Motivo:</strong></p>
+        <p style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin: 10px 0;">
+            {{ reason }}
+        </p>
+        
+        <p style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin: 15px 0;">
+            <strong>⏰ Importante:</strong> Debes subir tu documento antes de la fecha límite original.
+        </p>
+        
+        <p style="color: #666;">
+            Si tienes dudas sobre los requisitos del documento, contacta al coordinador del programa.
+        </p>
+    </div>
+    
+    <a href="{{ dashboard_url }}" class="btn" style="background: #dc3545;">
+        Subir Documento Ahora
+    </a>
+    
+    <p style="font-size: 14px; color: #666; margin-top: 30px;">
+        <strong>💡 Sugerencia:</strong> Revisa cuidadosamente los requisitos antes de subir tu documento.
+    </p>
+{% endblock %}

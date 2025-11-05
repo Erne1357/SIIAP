@@ -1,0 +1,24 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#6f42c1' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Has sido invitado a un evento importante.</p>
+
+<div class="notification-card">
+    <h2>🎉 Invitación a Evento</h2>
+    <p><strong>{{ event_title }}</strong></p>
+    <div class="divider"></div>
+    <p><strong>Fecha:</strong> {{ event_date }}</p>
+    {% if description %}
+    <p style="margin-top: 10px;">{{ description }}</p>
+    {% endif %}
+</div>
+
+<p>Por favor confirma tu asistencia lo antes posible.</p>
+
+<a href="{{ event_url }}" class="btn" style="background: #6f42c1;">Responder Invitación</a>
+
+<p>¡Esperamos contar con tu presencia!</p>
+{% endblock %}

@@ -8,7 +8,7 @@ pages_settings = Blueprint('pages_settings', __name__, url_prefix='/settings')
 @login_required
 @roles_required('postgraduate_admin','program_admin')
 def index():
-    return render_template('admin/settings/index.html')
+    return render_template('admin/settings/archives.html')
 
 @pages_settings.route('/retention', methods=['GET'])
 @login_required
@@ -21,3 +21,9 @@ def retention():
 @roles_required('postgraduate_admin','program_admin')
 def users():
     return render_template('admin/settings/users.html')
+
+@pages_settings.route('/mails', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin','program_admin')
+def mails():
+    return render_template('admin/settings/mails.html')

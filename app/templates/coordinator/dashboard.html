@@ -3,12 +3,7 @@
 
 {% block styles %}
 {{ super() }}
-<style>
-  .student-avatar { width: 32px; height: 32px; }
-  .progress { height: 8px; }
-  .table-secondary { opacity: 0.6; }
-  .btn-group-sm .btn { padding: 0.25rem 0.5rem; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/coordinator/dashboard.css') }}?v={{ static_version }}">
 {% endblock %}
 
 {% block content %}

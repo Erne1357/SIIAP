@@ -23,41 +23,6 @@
     </div>
 </div>
 
-<style>
-.timeline {
-    position: relative;
-    padding-left: 30px;
-}
-
-.timeline-item {
-    position: relative;
-    padding-bottom: 20px;
-    border-left: 2px solid #dee2e6;
-}
-
-.timeline-item:last-child {
-    border-left: 2px solid transparent;
-}
-
-.timeline-marker {
-    position: absolute;
-    left: -8px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #0d6efd;
-    border: 2px solid #fff;
-}
-
-.timeline-content {
-    padding-left: 25px;
-}
-
-.timeline-date {
-    font-size: 0.875rem;
-    color: #6c757d;
-}
-</style>
 
 <script>
 (function() {
@@ -73,6 +38,8 @@
             const res = await fetch('/api/v1/users/me/history');
             const json = await res.json();
             
+            console.log("Historial" , json);
+
             if (!res.ok) throw new Error('Error al cargar historial');
             
             const history = json.data.history || [];
@@ -93,7 +60,7 @@
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
                                     <strong>${entry.action_label}</strong>
-                                    ${entry.details ? `<p class="mb-1 small text-muted">${entry.details}</p>` : ''}
+                                    ${entry.formatted_description ? `<p class="mb-1 small text-muted">${entry.formatted_description}</p>` : ''}
                                 </div>
                                 <span class="badge bg-secondary timeline-date">
                                     ${formatDate(entry.timestamp)}

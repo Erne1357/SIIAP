@@ -6,9 +6,10 @@ from app.models.user import User
 from app.models.user_history import UserHistory
 from app.models.program import Program
 from app.models.user_program import UserProgram
+from app.services.user_history_service import UserHistoryService
 from app.utils.auth import roles_required
 from werkzeug.security import generate_password_hash
-from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 import json
 import re
 
@@ -20,19 +21,6 @@ def _sanitize(s: str | None) -> str | None:
         return None
     s = s.strip()
     return s or None
-
-def _log_action(user_id, action, details=None, admin_id=None):
-    """Registra una acción en el historial del usuario"""
-    if isinstance(details, dict):
-        details = json.dumps(details, ensure_ascii=False)
-    
-    history_entry = UserHistory(
-        user_id=user_id,
-        admin_id=admin_id or (current_user.id if current_user.is_authenticated else None),
-        action=action,
-        details=details
-    )
-    db.session.add(history_entry)
 
 
 @api_admin_users.get("/")
@@ -122,9 +110,7 @@ def get_user(user_id):
         }), 404
     
     # Obtener historial
-    history_entries = UserHistory.query.filter_by(user_id=user_id).order_by(
-        UserHistory.timestamp.desc()
-    ).limit(50).all()
+    history_entries = UserHistoryService.get_user_history(user_id=user_id, limit=50)
     
     # Obtener programa
     user_program = UserProgram.query.filter_by(user_id=user_id).first()
@@ -196,7 +182,7 @@ def update_user(user_id):
     
     # Registrar cambios
     if changed_fields:
-        _log_action(user_id=user_id, action='basic_info_updated', details=changed_fields)
+        UserHistoryService.log_basic_info_update(user_id=user_id, changed_fields=changed_fields)
     
     db.session.commit()
     
@@ -237,11 +223,7 @@ def reset_password(user_id):
     user.must_change_password = True
     
     # Registrar en historial
-    _log_action(
-        user_id=user_id,
-        action='password_reset',
-        details=f"Contraseña reseteada por {current_user.first_name} {current_user.last_name}"
-    )
+    UserHistoryService.log_password_reset(user_id=user_id)
     
     db.session.commit()
     
@@ -282,11 +264,7 @@ def toggle_active(user_id):
     message = f"Usuario {user.first_name} {user.last_name} {'activado' if user.is_active else 'desactivado'}."
     
     # Registrar en historial
-    _log_action(
-        user_id=user_id,
-        action=action,
-        details=f"Usuario {'activado' if user.is_active else 'desactivado'} por {current_user.first_name} {current_user.last_name}"
-    )
+    UserHistoryService.log_user_activation(user_id=user_id, is_active=user.is_active)
     
     db.session.commit()
     
@@ -375,17 +353,14 @@ def assign_control_number(user_id):
     old_username = user.username
     user.username = control_number
     user.control_number = control_number
-    user.control_number_assigned_at = datetime.now()
+    user.control_number_assigned_at = now_local()
     
     # Registrar
-    _log_action(
+    UserHistoryService.log_control_number_assignment(
         user_id=user_id,
-        action='control_number_assigned',
-        details={
-            'control_number': control_number,
-            'old_username': old_username,
-            'program': user_program.program.name
-        }
+        control_number=control_number,
+        old_username=old_username,
+        program_name=user_program.program.name
     )
     
     db.session.commit()
@@ -437,11 +412,7 @@ def delete_user(user_id):
     
     # Registrar eliminación
     user_name = f"{user.first_name} {user.last_name}"
-    _log_action(
-        user_id=user_id,
-        action='deleted',
-        details=f"Usuario {user_name} eliminado por {current_user.first_name} {current_user.last_name}"
-    )
+    UserHistoryService.log_user_deletion(user_id=user_id, user_name=user_name)
     
     db.session.commit()
     
@@ -471,9 +442,7 @@ def user_history(user_id):
             "meta": {}
         }), 404
     
-    history_entries = UserHistory.query.filter_by(user_id=user_id).order_by(
-        UserHistory.timestamp.desc()
-    ).all()
+    history_entries = UserHistoryService.get_user_history(user_id=user_id)
     
     return jsonify({
         "data": {
