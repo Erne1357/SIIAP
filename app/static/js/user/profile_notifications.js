@@ -90,12 +90,21 @@ class ProfileNotificationsManager {
 
         container.innerHTML = '<div class="notification-loading"><div class="spinner-border"></div><p class="mt-2">Cargando notificaciones...</p></div>';
 
+        // Debug: verificar que apiClient esté disponible
+        if (!window.apiClient) {
+            console.error('ERROR: window.apiClient no está disponible');
+            container.innerHTML = '<div class="alert alert-danger">Error: API Client no cargado</div>';
+            return;
+        }
+
         try {
             const unreadOnly = this.currentFilter === 'unread';
             const offset = (this.currentPage - 1) * this.limit;
             
             // Usar ApiClient para construir URL segura
-            const res = await window.apiClient.get(`/api/v1/notifications?unread_only=${unreadOnly}&limit=${this.limit}&offset=${offset}`);
+            const url = `/api/v1/notifications?unread_only=${unreadOnly}&limit=${this.limit}&offset=${offset}`;
+            console.log('DEBUG: Usando URL:', window.apiClient.url(url));
+            const res = await window.apiClient.get(url);
             const json = await res.json();
             
             const notifications = json.data.notifications;
