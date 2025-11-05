@@ -3,7 +3,7 @@ from pathlib import Path
 
 class Config:
     # Versión estática (actualízala cuando cambies CSS/JS)
-    STATIC_VERSION = os.environ.get('STATIC_VERSION', '1.0.41111111287')
+    STATIC_VERSION = os.environ.get('STATIC_VERSION', '1.0.41111111288')
     
     # Directorios base
     BASE_DIR = Path(__file__).resolve().parent.parent
@@ -57,5 +57,8 @@ class Config:
     FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
     DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
 
+    # ===== PROXY REVERSO (para HTTPS en producción) =====
+    PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', 'http')
+    
     GUNICORN_WORKERS = int(os.environ.get('GUNICORN_WORKERS', '4'))
     GUNICORN_TIMEOUT = int(os.environ.get('GUNICORN_TIMEOUT', '120'))

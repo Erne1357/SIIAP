@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
 from flask_bootstrap import Bootstrap
+from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, timezone, timedelta
 from app.utils.datetime_utils import now_local
 from app.config import Config
@@ -21,6 +22,10 @@ def create_app(test_config=None):
           app.config.from_object(Config)
      else:
           app.config.update(test_config)
+     
+     # Configurar ProxyFix para manejar headers de proxy reverso (HTTPS)
+     if app.config.get('FLASK_ENV') == 'production':
+          app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
      
      db.init_app(app)
      register_blueprints(app)

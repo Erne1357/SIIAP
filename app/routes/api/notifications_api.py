@@ -8,7 +8,7 @@ from app import db
 api_notifications = Blueprint('api_notifications', __name__, url_prefix='/api/v1/notifications')
 
 
-@api_notifications.get('/')
+@api_notifications.get('')
 @login_required
 def get_notifications():
     """
