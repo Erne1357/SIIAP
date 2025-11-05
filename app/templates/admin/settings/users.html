@@ -4,25 +4,7 @@
 
 {% block styles %}
 {{ super() }}
-<style>
-    .user-row:hover {
-        background-color: #f8f9fa;
-        cursor: pointer;
-    }
-    .user-avatar-sm {
-        width: 40px;
-        height: 40px;
-        object-fit: cover;
-    }
-    .badge-status {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-    }
-    .control-number-badge {
-        font-family: monospace;
-        font-size: 0.85rem;
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/users.css') }}?v={{ static_version }}">
 {% endblock %}
 
 {% block content %}

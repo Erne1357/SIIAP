@@ -1,0 +1,24 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#007bff' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Se te ha asignado una cita importante.</p>
+
+<div class="notification-card">
+    <h2>📅 Cita Asignada</h2>
+    <p><strong>{{ event_title }}</strong></p>
+    <div class="divider"></div>
+    <p><strong>Fecha y hora:</strong> {{ slot_datetime }}</p>
+    {% if location %}
+    <p><strong>Lugar:</strong> {{ location }}</p>
+    {% endif %}
+</div>
+
+<p><strong>⚠️ Importante:</strong> Por favor asegúrate de asistir puntualmente a tu cita.</p>
+
+<a href="{{ dashboard_url }}" class="btn">Ver Detalles de la Cita</a>
+
+<p>¡Te esperamos!</p>
+{% endblock %}

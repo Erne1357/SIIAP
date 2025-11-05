@@ -1,0 +1,16 @@
+.student-avatar {
+    width: 32px;
+    height: 32px;
+}
+
+.progress {
+    height: 8px;
+}
+
+.table-secondary {
+    opacity: 0.6;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+}

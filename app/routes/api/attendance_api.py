@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify,current_app
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services.events_service import EventsService
+from app.services.user_history_service import UserHistoryService
 from app.models.event import Event
 from app.models.program import Program
 from app import db
@@ -24,6 +25,20 @@ def register_to_event(event_id: int):
             notes=data.get('notes')
         )
         current_app.logger.warning(f"Usuario {current_user.id} se registró a evento {event_id}")
+        
+        # Registrar en el historial
+        try:
+            event = Event.query.get(event_id)
+            if event:
+                UserHistoryService.log_event_registration(
+                    user_id=current_user.id,
+                    event_title=event.title,
+                    event_type=event.type
+                )
+                db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"Error al registrar registro de evento en historial: {e}")
+        
         return jsonify({
             "ok": True,
             "id": attendance.id,

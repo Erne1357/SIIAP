@@ -1,13 +1,23 @@
 # app/routes/pages/auth.py
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import current_user, login_required
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timezone
 from app.models.user import User
 from app.models.role import Role
 from app import db
 
 pages_auth = Blueprint("pages_auth", __name__)
+
+#helpers
+
+def check_default_password(password: str) -> bool:
+    """
+    Verifica si el usuario está usando la contraseña por defecto.
+    La contraseña por defecto es 'tecno#2K' hasheada.
+    """
+    return check_password_hash(password, "tecno#2K")
+
 
 @pages_auth.route("/login", methods=["GET"])
 def login_page():
@@ -22,6 +32,11 @@ def register_page():
         return redirect(url_for("pages_user.dashboard"))
 
     if request.method == "POST":
+        # Verificar si es una petición AJAX
+        is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 
+                  request.content_type == 'application/json' or
+                  'application/json' in request.headers.get('Accept', ''))
+        
         first_name = (request.form.get("first_name") or "").strip()
         last_name  = (request.form.get("last_name") or "").strip()
         mother_last_name = (request.form.get("mother_last_name") or "").strip() or None
@@ -33,44 +48,70 @@ def register_page():
 
         # Validaciones básicas
         if not first_name or not last_name or not username or not email or not password:
-            flash("Faltan campos obligatorios.", "danger")
+            error_msg = "Faltan campos obligatorios."
+            if is_ajax:
+                return jsonify({"ok": False, "error": error_msg}), 400
+            flash(error_msg, "danger")
             return render_template("auth/register.html")
+            
         if password != confirm:
-            flash("Las contraseñas no coinciden.", "danger")
+            error_msg = "Las contraseñas no coinciden."
+            if is_ajax:
+                return jsonify({"ok": False, "error": error_msg}), 400
+            flash(error_msg, "danger")
             return render_template("auth/register.html")
+            
         if User.query.filter_by(username=username).first():
-            flash("El nombre de usuario ya existe.", "danger")
+            error_msg = "El nombre de usuario ya existe."
+            if is_ajax:
+                return jsonify({"ok": False, "error": error_msg}), 400
+            flash(error_msg, "danger")
             return render_template("auth/register.html")
+            
         if User.query.filter_by(email=email).first():
-            flash("El correo electrónico ya está registrado.", "danger")
+            error_msg = "El correo electrónico ya está registrado."
+            if is_ajax:
+                return jsonify({"ok": False, "error": error_msg}), 400
+            flash(error_msg, "danger")
             return render_template("auth/register.html")
 
         applicant_role = Role.query.filter_by(name="applicant").first()
         if not applicant_role:
-            flash("No se encontró el rol 'applicant'. Contacta al administrador.", "danger")
+            error_msg = "No se encontró el rol 'applicant'. Contacta al administrador."
+            if is_ajax:
+                return jsonify({"ok": False, "error": error_msg}), 500
+            flash(error_msg, "danger")
             return render_template("auth/register.html")
 
-
-        new_user = User(
-            first_name,
-            last_name,
-            mother_last_name,
-            username,
-            password, 
-            email,
-            is_internal,
-            applicant_role.id,
-            avatar="default.jpg"
-        )
-        db.session.add(new_user)
         try:
+            new_user = User(
+                first_name=first_name,
+                last_name=last_name,
+                mother_last_name=mother_last_name,
+                username=username,
+                password=password,
+                email=email,
+                is_internal=is_internal,
+                role_id=applicant_role.id,
+                must_change_password=check_default_password(password)
+            )
+            db.session.add(new_user)
+
             db.session.commit()
-        except Exception:
+            
+            success_msg = "Registro exitoso. Ahora inicia sesión."
+            if is_ajax:
+                return jsonify({"ok": True, "message": success_msg})
+            
+            flash(success_msg, "success")
+            return redirect(url_for("pages_auth.login_page"))
+            
+        except Exception as e:
             db.session.rollback()
+            error_msg = f"Error al registrar el usuario: {str(e)}"
+            if is_ajax:
+                return jsonify({"ok": False, "error": "Error al registrar el usuario."}), 500
             flash("Error al registrar el usuario.", "danger")
             return render_template("auth/register.html")
-
-        flash("Registro exitoso. Ahora inicia sesión.", "success")
-        return redirect(url_for("pages_auth.login_page"))
 
     return render_template("auth/register.html")

@@ -145,10 +145,13 @@
                 ${myReg && myReg.status === 'attended' ?
                         '<br><span class="badge bg-success mt-1">Asististe</span>' : ''}
               </div>
+              ${myReg && myReg.status === 'attended' ? '' : `
               <button class="btn btn-outline-danger btn-sm w-100 btn-unregister" 
                       data-event-id="${event.id}">
                 Cancelar Registro
               </button>
+              `}
+
             ` : isFull ? `
               <button class="btn btn-secondary btn-sm w-100" disabled>
                 <i class="fas fa-ban me-1"></i> Cupo lleno

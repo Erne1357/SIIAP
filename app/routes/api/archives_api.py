@@ -18,6 +18,7 @@ from app.models.phase import Phase
 from app.models.program import Program
 from app.models.program_step import ProgramStep
 from app.models.submission import Submission
+from app.services.user_history_service import UserHistoryService
 
 import shutil
 api_archives = Blueprint("api_archives", __name__, url_prefix="/api/v1/archives")
@@ -236,6 +237,21 @@ def create_archive():
 
     db.session.add(a)
     db.session.commit()
+    
+    # Registrar en el historial
+    try:
+        step = db.session.get(Step, step_id)
+        step_name = step.name if step else f"Step ID {step_id}"
+        
+        UserHistoryService.log_archive_created(
+            current_user.id,
+            name,
+            step_name
+        )
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error al registrar creación de archivo en historial: {e}")
+    
     return jsonify({"ok": True, "id": a.id}), 201
 
 # =========================
@@ -260,25 +276,73 @@ def update_archive(archive_id: int):
             return jsonify({"ok": False, "error": "No puedes mover a ese step"}), 403
 
     try:
+        # Capturar cambios para el historial
+        changes = {}
+        original_name = a.name
+        
         # meta
         if "name" in data and data["name"].strip():
-            a.name = data["name"].strip()
+            new_name = data["name"].strip()
+            if new_name != a.name:
+                changes['name'] = {'old': a.name, 'new': new_name}
+            a.name = new_name
         if "description" in data:
+            if data["description"] != a.description:
+                changes['description'] = {'old': a.description, 'new': data["description"]}
             a.description = data["description"]
         if "step_id" in data and data["step_id"]:
-            a.step_id = int(data["step_id"])
+            new_step_id = int(data["step_id"])
+            if new_step_id != a.step_id:
+                old_step = db.session.get(Step, a.step_id)
+                new_step = db.session.get(Step, new_step_id)
+                changes['step'] = {
+                    'old': old_step.name if old_step else f"Step {a.step_id}",
+                    'new': new_step.name if new_step else f"Step {new_step_id}"
+                }
+            a.step_id = new_step_id
 
         # toggles
         if "is_uploadable" in data:
-            a.is_uploadable = bool(data["is_uploadable"])
+            new_value = bool(data["is_uploadable"])
+            if new_value != a.is_uploadable:
+                changes['is_uploadable'] = {'old': a.is_uploadable, 'new': new_value}
+            a.is_uploadable = new_value
         if "is_downloadable" in data:
-            a.is_downloadable = bool(data["is_downloadable"])
+            new_value = bool(data["is_downloadable"])
+            if new_value != a.is_downloadable:
+                changes['is_downloadable'] = {'old': a.is_downloadable, 'new': new_value}
+            a.is_downloadable = new_value
         if "allow_coordinator_upload" in data and hasattr(Archive, "allow_coordinator_upload"):
-            a.allow_coordinator_upload = bool(data["allow_coordinator_upload"])
+            new_value = bool(data["allow_coordinator_upload"])
+            old_value = getattr(a, 'allow_coordinator_upload', False)
+            if new_value != old_value:
+                changes['allow_coordinator_upload'] = {'old': old_value, 'new': new_value}
+            a.allow_coordinator_upload = new_value
         if "allow_extension_request" in data and hasattr(Archive, "allow_extension_request"):
-            setattr(a, "allow_extension_request", bool(data["allow_extension_request"]))
+            new_value = bool(data["allow_extension_request"])
+            old_value = getattr(a, 'allow_extension_request', False)
+            if new_value != old_value:
+                changes['allow_extension_request'] = {'old': old_value, 'new': new_value}
+            setattr(a, "allow_extension_request", new_value)
 
         db.session.commit()
+        
+        # Registrar en el historial solo si hubo cambios
+        if changes:
+            try:
+                step = db.session.get(Step, a.step_id)
+                step_name = step.name if step else f"Step ID {a.step_id}"
+                
+                UserHistoryService.log_archive_updated(
+                    current_user.id,
+                    a.name,
+                    step_name,
+                    changes
+                )
+                db.session.commit()
+            except Exception as e:
+                current_app.logger.error(f"Error al registrar actualización de archivo en historial: {e}")
+        
         return jsonify({"ok": True, "id": a.id}), 200
     except Exception as e:
         db.session.rollback()
@@ -287,7 +351,7 @@ def update_archive(archive_id: int):
 # =========================
 # Borrar archivo (con seguridad)
 # =========================
-api_archives.route("/<int:archive_id>", methods=["DELETE"])
+@api_archives.route("/<int:archive_id>", methods=["DELETE"])
 @login_required
 @roles_required("postgraduate_admin", "program_admin")
 def delete_archive(archive_id: int):
@@ -306,6 +370,10 @@ def delete_archive(archive_id: int):
         return jsonify({"ok": False, "requires_force": True, "message": f"Hay {cnt} submissions relacionados. Usa ?force=true para eliminar."}), 409
 
     try:
+        # Guardar información para el historial antes del borrado
+        archive_name = a.name
+        archive_description = a.description
+        
         # --- INICIO DE LA LÓGICA DE BORRADO DE ARCHIVOS ---
         
         # Llama a la función de borrado ANTES de hacer commit a la DB.
@@ -317,6 +385,15 @@ def delete_archive(archive_id: int):
         # El borrado en cascada de la DB se encargará de los registros de submission
         db.session.delete(a)
         db.session.commit()
+        
+        # Registrar en el historial después del commit exitoso
+        UserHistoryService.log_archive_deleted(
+            current_user.id,
+            archive_name,
+            archive_description,
+            force
+        )
+        
         return jsonify({"ok": True, "deleted": archive_id}), 200
     except Exception as e:
         db.session.rollback()
@@ -339,9 +416,21 @@ def upload_template(archive_id: int):
     if not fs or not fs.filename:
         return jsonify({"ok": False, "error": "Nombre de archivo inválido"}), 400
     try:
+        # Verificar si tenía plantilla previa
+        had_previous_template = bool(a.file_path)
+        
         rel_path, fname = _store_template(a, fs)
         a.file_path = rel_path
         db.session.commit()
+        
+        # Registrar en el historial después del commit exitoso
+        UserHistoryService.log_template_uploaded(
+            current_user.id,
+            a.name,
+            fname,
+            had_previous_template
+        )
+        
         return jsonify({"ok": True, "id": a.id, "template_url": f"/api/v1/archives/{a.id}/template", "template_name": fname}), 200
     except Exception as e:
         db.session.rollback()
