@@ -4,7 +4,7 @@
 
 document.addEventListener('DOMContentLoaded', function() {
   // Debug: Verificar que los elementos AOS existen
-  console.log('Elementos con data-aos encontrados:', document.querySelectorAll('[data-aos]').length);
+  .length);
   
   // Obtener el contenedor principal scrolleable
   // Implementar AOS personalizado para contenedor con scroll
@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       
       if (animatedCount > 0) {
-        console.log(`Animando ${animatedCount} elementos`);
+        
       }
     }
     

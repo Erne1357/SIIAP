@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateProfileCompletionUI(completion);
 
     } catch (err) {
-      console.log('No se pudo cargar el estado de completitud del perfil');
+      
     }
   }
 
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Mostrar campos faltantes en consola para debug
     if (completion.missing_fields.length > 0) {
-      console.log('Campos faltantes para completar perfil:', completion.missing_fields);
+      
     }
   }
 
