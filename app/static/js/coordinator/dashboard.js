@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('No se pudieron cargar los estudiantes');
 
       const data = await res.json();
-      console.log('Loaded students:', data);
+      
       studentsData = data.students || [];
 
       updateTables();

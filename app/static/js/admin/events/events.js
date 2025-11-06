@@ -496,7 +496,7 @@
         const capacityType = document.getElementById('eventCapacityType').value;
         const maxCapacity = document.getElementById('eventMaxCapacity').value;
         const programId = document.getElementById('eventProgram').value;
-        console.log(capacityType, maxCapacity, programId);
+        
         // Validar capacidad máxima si es requerida
         if (capacityType === 'multiple' && (!maxCapacity || parseInt(maxCapacity) < 1)) {
             flash('Debes especificar una capacidad máxima válida para eventos de capacidad múltiple', 'warning');
@@ -516,7 +516,7 @@
             visible_to_students: document.getElementById('eventVisibleToStudents').checked,
             status: document.getElementById('eventStatus').value
         };
-        console.log(payload);
+        
         // CAMBIAR: Ya no requerir programa
         if (!payload.title) {
             flash('El título es requerido', 'warning');
@@ -743,8 +743,8 @@
             multipleContent.style.display = 'none';
             document.getElementById('windowEventId').value = eventId;
             rightPanel.style.display = 'block';
-            console.log("rightPanel", rightPanel);
-            console.log("display", rightPanel.style.display);
+            
+            
             loadWindows(eventId);
             loadSlots(eventId);
         } else {

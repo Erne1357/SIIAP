@@ -60,15 +60,15 @@
       
       const json = await res.json();
       const programs = json.data || [];
-      console.log('Available programs:', programs);
+      
       const container = document.getElementById('availableProgramsList');
       container.innerHTML = '';
       
       programs.forEach(prog => {
-        console.log(prog);
+        
         // No mostrar el programa actual
         if (prog.id === currentFromProgram.id) return;
-        console.log('Adding program:', prog);
+        
         const card = document.createElement('div');
         card.className = 'program-option card mb-2';
         card.innerHTML = `

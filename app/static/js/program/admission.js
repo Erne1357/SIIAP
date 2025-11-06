@@ -61,11 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
       existingInfo.style.display = 'none';
 
       // DEBUG: Mostrar todos los valores para diagnosticar
-      console.log('=== DEBUG MODAL UPLOAD ===');
-      console.log('hasExisting:', hasExisting);
-      console.log('existingFilename:', existingFilename);
-      console.log('existingDate:', existingDate);
-      console.log('archiveName:', archiveName);
+      
+      
+      
+      
+      
 
       // Solo mostrar información de archivo existente si realmente hay uno Y tiene datos válidos
       const shouldShow = hasExisting === true 
@@ -76,10 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
         && typeof existingDate === 'string' 
         && existingDate.trim() !== '';
       
-      console.log('shouldShow:', shouldShow);
+      
       
       if (shouldShow) {
-        console.log('MOSTRANDO archivo existente');
+        
         document.getElementById('existingArchiveName').textContent = archiveName || '';
         document.getElementById('existingFilename').textContent = existingFilename;
         document.getElementById('existingDate').textContent = existingDate;
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadBtnText.textContent = 'Reemplazar';
         uploadSubmitBtn.className = 'btn btn-warning';
       } else {
-        console.log('OCULTANDO archivo existente');
+        
         existingInfo.style.display = 'none';
         existingInfo.classList.add('d-none');
         uploadBtnText.textContent = 'Subir';
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     uploadModal.addEventListener('hidden.bs.modal', () => {
       const fileInput = uploadModal.querySelector('input[type="file"]');
-      console.log('Limpiando input file', fileInput);
+      
       if (fileInput) fileInput.value = '';
       
       // Siempre ocultar la información de archivo existente al cerrar
@@ -406,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (err) {
-      console.log('No se pudo cargar información de citas');
+      
     }
   }
 

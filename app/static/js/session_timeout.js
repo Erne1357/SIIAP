@@ -3,7 +3,7 @@
   'use strict';
 
   if (typeof userLoggedIn === 'undefined' || userLoggedIn !== 'true') {
-    console.log('[session] sin usuario, no se inicia temporizador.');
+    
     return;
   }
 
@@ -121,6 +121,6 @@
   ACTIVITY_EVENTS.forEach(evt => window.addEventListener(evt, onActivity, { passive: true }));
   window.addEventListener('focus', onActivity);
 
-  console.log('[session] usuario autenticado, temporizador iniciado.');
+  
   scheduleWarning();
 })();
