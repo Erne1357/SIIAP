@@ -76,7 +76,7 @@ class NotificationService:
             data={
                 'submission_id': submission_id,
                 'archive_name': archive_name,
-                'url': '/admission/documents'
+                'url': '/user/dashboard'
             }
         )
         
@@ -119,7 +119,7 @@ class NotificationService:
                 'submission_id': submission_id,
                 'archive_name': archive_name,
                 'reason': reason,
-                'url': '/admission/documents'
+                'url': '/user/dashboard'
             }
         )
         
@@ -158,7 +158,7 @@ class NotificationService:
             data={
                 'submission_id': submission_id,
                 'archive_name': archive_name,
-                'url': '/admission/documents'
+                'url': '/user/dashboard'
             }
         )
         
@@ -199,7 +199,7 @@ class NotificationService:
             data={
                 'archive_name': archive_name,
                 'granted_until': granted_until,
-                'url': '/admission/documents'
+                'url': '/user/dashboard'
             }
         )
         
@@ -242,7 +242,7 @@ class NotificationService:
             data={
                 'archive_name': archive_name,
                 'reason': reason,
-                'url': '/admission/documents'
+                'url': '/user/dashboard'
             }
         )
         
@@ -286,7 +286,7 @@ class NotificationService:
                 'event_id': event_id,
                 'event_title': event_title,
                 'slot_datetime': slot_datetime,
-                'url': '/events'
+                'url': '/events/'
             }
         )
         
@@ -297,7 +297,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('users.dashboard', _external=True)
+                dashboard_url = url_for('pages_user.dashboard', _external=True)
                 subject, html = EmailTemplates.appointment_assigned(
                     user_name=f"{user.first_name} {user.last_name}",
                     event_title=event_title,
@@ -324,7 +324,7 @@ class NotificationService:
             data={
                 'event_title': event_title,
                 'reason': reason,
-                'url': '/events'
+                'url': '/events/'
             }
         )
         
@@ -335,7 +335,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('users.dashboard', _external=True)
+                dashboard_url = url_for('pages_user.dashboard', _external=True)
                 subject, html = EmailTemplates.appointment_cancelled(
                     user_name=f"{user.first_name} {user.last_name}",
                     event_title=event_title,
@@ -364,7 +364,7 @@ class NotificationService:
                 'invitation_id': invitation_id,
                 'event_title': event_title,
                 'event_date': event_date,
-                'url': f'/events/{event_id}'
+                'url': '/events/'
             },
             related_invitation_id=invitation_id
         )
@@ -376,7 +376,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                event_url = url_for('events.event_detail', event_id=event_id, _external=True)
+                event_url = url_for('pages_events_public.view_event', event_id=event_id, _external=True)
                 subject, html = EmailTemplates.event_invitation(
                     user_name=f"{user.first_name} {user.last_name}",
                     event_title=event_title,
@@ -402,7 +402,7 @@ class NotificationService:
             title='Contraseña reseteada',
             message='Tu contraseña ha sido reseteada a "tecno#2K". Debes cambiarla en tu próximo inicio de sesión.',
             priority='critical',
-            data={'url': '/profile'}
+            data={'url': '/user/profile'}
         )
         
         # NUEVO: Enviar correo
@@ -412,7 +412,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('auth.login', _external=True)
+                dashboard_url = url_for('pages_auth.login_page', _external=True)
                 subject, html = EmailTemplates.password_reset(
                     user_name=f"{user.first_name} {user.last_name}",
                     dashboard_url=dashboard_url
@@ -435,7 +435,7 @@ class NotificationService:
             priority='high',
             data={
                 'control_number': control_number,
-                'url': '/profile'
+                'url': '/user/profile'
             }
         )
         
@@ -446,7 +446,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('users.profile', _external=True)
+                dashboard_url = url_for('pages_user.profile', _external=True)
                 subject, html = EmailTemplates.control_number_assigned(
                     user_name=f"{user.first_name} {user.last_name}",
                     control_number=control_number,
@@ -482,7 +482,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                dashboard_url = url_for('auth.login', _external=True)
+                dashboard_url = url_for('pages_auth.login_page', _external=True)
                 subject, html = EmailTemplates.account_deactivated(
                     user_name=f"{user.first_name} {user.last_name}",
                     reason=reason or "No especificado",
@@ -507,7 +507,7 @@ class NotificationService:
             data={
                 'from_program': from_program,
                 'to_program': to_program,
-                'url': '/profile'
+                'url': '/user/profile'
             }
         )
         
