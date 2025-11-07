@@ -35,6 +35,9 @@
             
             if (!res.ok) throw new Error(json.error?.message || 'Error al cargar usuarios');
             
+            console.log("JSON DATA en load users:", json);
+
+
             const { users, pagination } = json.data;
             
             loadingIndicator.style.display = 'none';
@@ -78,7 +81,10 @@
                     </span>
                 </td>
                 <td>
-                    <small class="text-muted">Sin asignar</small>
+                    ${user.program 
+                        ? `<span class="badge bg-secondary">${user.program.name}</span>` 
+                        : '<small class="text-muted">Sin asignar</small>'
+                    }
                 </td>
                 <td>
                     ${user.control_number 
@@ -184,9 +190,12 @@
             const json = await res.json();
             
             if (!res.ok) throw new Error(json.error?.message);
-            
+
+            console.log("JSON DATA en showUserDetail:", json);
+
+
             const user = json.data.user;
-            const program = json.data.program;
+            const program = json.data.user.program;
             const history = json.data.history || [];
             
             content.innerHTML = `
@@ -372,7 +381,7 @@
             if (!res.ok) throw new Error(json.error?.message);
             
             const user = json.data.user;
-            const program = json.data.program;
+            const program = json.data.user.program;
             
             if (!program) {
                 showFlash('warning', 'El usuario debe tener un programa asignado primero.');

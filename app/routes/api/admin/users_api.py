@@ -75,9 +75,9 @@ def list_users():
         per_page=per_page, 
         error_out=False
     )
-    
-    users_data = [user.to_dict() for user in pagination.items]
-    
+
+    users_data = [user.to_dict(include_sensitive=True) for user in pagination.items]
+
     return jsonify({
         "data": {
             "users": users_data,
@@ -187,7 +187,7 @@ def update_user(user_id):
     db.session.commit()
     
     return jsonify({
-        "data": {"user": user.to_dict()},
+        "data": {"user": user.to_dict(include_sensitive=True)},
         "flash": [{"level": "success", "message": "Usuario actualizado correctamente."}],
         "error": None,
         "meta": {"changed_fields": list(changed_fields.keys())}

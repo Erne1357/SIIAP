@@ -41,6 +41,12 @@ class User(db.Model, UserMixin):
         foreign_keys='Submission.reviewer_id',
         back_populates='reviewer'
     )
+    histories = db.relationship(
+        'UserHistory', 
+        foreign_keys='UserHistory.user_id',
+        back_populates='user', 
+        cascade='all, delete-orphan'
+    )
 
     phone = db.Column(db.String(20))
     mobile_phone = db.Column(db.String(20))
@@ -168,7 +174,13 @@ class User(db.Model, UserMixin):
             user_data.update({
                 'is_active': self.is_active,
                 'control_number': self.control_number,
-                'control_number_assigned_at': self.control_number_assigned_at.isoformat() if self.control_number_assigned_at else None
+                'control_number_assigned_at': self.control_number_assigned_at.isoformat() if self.control_number_assigned_at else None,
+                'program' : {
+                    'id': self.user_program[0].program.id,
+                    'name': self.user_program[0].program.name,
+                    'slug': self.user_program[0].program.slug
+                } if self.user_program else None,
+                'histories': [h.to_dict() for h in (self.histories or [])]
             })
 
         return user_data

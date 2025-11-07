@@ -3,7 +3,7 @@ from pathlib import Path
 
 class Config:
     # Versión estática (actualízala cuando cambies CSS/JS)
-    STATIC_VERSION = '1.0.41111111289'
+    STATIC_VERSION = '1.0.41111111292'
     
     # Directorios base
     BASE_DIR = Path(__file__).resolve().parent.parent
