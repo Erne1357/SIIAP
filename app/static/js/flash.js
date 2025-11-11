@@ -16,7 +16,7 @@ function showFlash(level, message) {
     'warning': 'warning',
     'info': 'info'
   };
-
+ 
   const iconTypes = {
     'success': 'fa-check-circle',
     'danger': 'fa-exclamation-circle',

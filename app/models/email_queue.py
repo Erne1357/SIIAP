@@ -31,11 +31,16 @@ class EmailQueue(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
+            'user_id': self.user_id,
+            'notification_id': self.notification_id,
             'recipient_email': self.recipient_email,
             'subject': self.subject,
+            'html_content': self.html_content,
             'status': self.status,
             'attempts': self.attempts,
+            'max_attempts': self.max_attempts,
+            'error_message': self.error_message,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'sent_at': self.sent_at.isoformat() if self.sent_at else None,
-            'error_message': self.error_message
+            'next_retry_at': self.next_retry_at.isoformat() if self.next_retry_at else None
         }

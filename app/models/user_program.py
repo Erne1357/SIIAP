@@ -15,3 +15,14 @@ class UserProgram(db.Model):
 
     user = db.relationship('User', back_populates='user_program')
     program = db.relationship('Program', back_populates='user_program')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'program_id': self.program_id,
+            'enrollment_date': self.enrollment_date.isoformat() if self.enrollment_date else None,
+            'current_semester': self.current_semester,
+            'status': self.status,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

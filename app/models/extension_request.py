@@ -46,3 +46,22 @@ class ExtensionRequest(db.Model):
         self.status = 'pending'
         self.created_at = now_local()
         self.updated_at = now_local()
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'archive_id': self.archive_id,
+            'program_step_id': self.program_step_id,
+            'requested_by': self.requested_by,
+            'role': self.role,
+            'reason': self.reason,
+            'requested_until': self.requested_until.isoformat() if self.requested_until else None,
+            'status': self.status,
+            'decided_by': self.decided_by,
+            'decided_at': self.decided_at.isoformat() if self.decided_at else None,
+            'granted_until': self.granted_until.isoformat() if self.granted_until else None,
+            'condition_text': self.condition_text,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
