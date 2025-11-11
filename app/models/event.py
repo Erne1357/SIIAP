@@ -26,6 +26,27 @@ class Event(db.Model):
     event_end_date = db.Column(db.DateTime, nullable=True)  # Para eventos de varios días
 
     windows = db.relationship('EventWindow', back_populates='event', cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'program_id': self.program_id,
+            'type': self.type,
+            'title': self.title,
+            'description': self.description,
+            'location': self.location,
+            'created_by': self.created_by,
+            'visible_to_students': self.visible_to_students,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'capacity_type': self.capacity_type,
+            'max_capacity': self.max_capacity,
+            'requires_registration': self.requires_registration,
+            'allows_attendance_tracking': self.allows_attendance_tracking,
+            'status': self.status,
+            'event_date': self.event_date.isoformat() if self.event_date else None,
+            'event_end_date': self.event_end_date.isoformat() if self.event_end_date else None
+        }
 
 
 class EventWindow(db.Model):
@@ -47,6 +68,21 @@ class EventWindow(db.Model):
 
     event = db.relationship('Event', back_populates='windows')
     slots = db.relationship('EventSlot', back_populates='window', cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'date': self.date.isoformat() if self.date else None,
+            'start_time': self.start_time.isoformat() if self.start_time else None,
+            'end_time': self.end_time.isoformat() if self.end_time else None,
+            'slot_minutes': self.slot_minutes,
+            'timezone': self.timezone,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'slots_generated': self.slots_generated,
+            'current_capacity': self.current_capacity
+        }
 
 
 class EventSlot(db.Model):
@@ -63,6 +99,19 @@ class EventSlot(db.Model):
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     window = db.relationship('EventWindow', back_populates='slots')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'event_window_id': self.event_window_id,
+            'starts_at': self.starts_at.isoformat() if self.starts_at else None,
+            'ends_at': self.ends_at.isoformat() if self.ends_at else None,
+            'status': self.status,
+            'held_by': self.held_by,
+            'hold_expires_at': self.hold_expires_at.isoformat() if self.hold_expires_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 
 class EventAttendance(db.Model):
@@ -80,6 +129,17 @@ class EventAttendance(db.Model):
     # Relaciones
     event = db.relationship('Event')
     user = db.relationship('User')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'user_id': self.user_id,
+            'status': self.status,
+            'registered_at': self.registered_at.isoformat() if self.registered_at else None,
+            'attended_at': self.attended_at.isoformat() if self.attended_at else None,
+            'notes': self.notes
+        }
 
 class EventInvitation(db.Model):
     """Invitaciones a eventos para estudiantes específicos"""
@@ -98,3 +158,15 @@ class EventInvitation(db.Model):
     event = db.relationship('Event', foreign_keys=[event_id])
     user = db.relationship('User', foreign_keys=[user_id])
     inviter = db.relationship('User', foreign_keys=[invited_by])
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'user_id': self.user_id,
+            'invited_by': self.invited_by,
+            'status': self.status,
+            'invited_at': self.invited_at.isoformat() if self.invited_at else None,
+            'responded_at': self.responded_at.isoformat() if self.responded_at else None,
+            'notes': self.notes
+        }

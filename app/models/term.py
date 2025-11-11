@@ -8,3 +8,12 @@ class Term(db.Model):
     start_at = db.Column(db.Date, nullable=False)
     end_at = db.Column(db.Date, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='open')  # open|closed
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'start_at': self.start_at.isoformat() if self.start_at else None,
+            'end_at': self.end_at.isoformat() if self.end_at else None,
+            'status': self.status
+        }
