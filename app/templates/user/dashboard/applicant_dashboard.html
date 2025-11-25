@@ -1,0 +1,324 @@
+{% if not program %}
+<!-- Usuario NO registrado en ningún programa -->
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-6">
+        <div class="card shadow border-0">
+            <div class="card-body text-center py-5">
+                <div class="mb-4">
+                    <i class="bi bi-folder-x text-muted" style="font-size: 5rem;"></i>
+                </div>
+                <h3 class="mb-3">No estás registrado en ningún programa</h3>
+                <p class="text-muted mb-4 lead">
+                    Actualmente no tienes una solicitud de admisión activa.<br>
+                    Explora nuestros programas de posgrado y comienza tu proceso de admisión.
+                </p>
+                <a href="{{ url_for('program.list_programs') }}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-search me-2"></i>Explorar Programas Disponibles
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Usuario SÍ está registrado en un programa -->
+
+<!-- Acciones Rápidas -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h5 class="mb-3 fw-bold text-secondary">
+            <i class="bi bi-lightning-charge-fill me-2"></i>Acciones Rápidas
+        </h5>
+        <div class="row g-3">
+            <!-- Subir Documentos -->
+            <div class="col-md-3 col-sm-6">
+                <a href="{{ url_for('program.admission.admission_dashboard', slug=program.slug) }}"
+                   class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm quick-action-card">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h6 class="mb-1 fw-bold">Subir Documentos</h6>
+                            <small class="text-muted">Envía tus requisitos</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Ver Programa -->
+            <div class="col-md-3 col-sm-6">
+                <a href="{{ url_for('program.view_program', slug=program.slug) }}"
+                   class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm quick-action-card">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="bi bi-book text-success" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h6 class="mb-1 fw-bold">Ver Programa</h6>
+                            <small class="text-muted">Detalles del programa</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Mi Perfil -->
+            <div class="col-md-3 col-sm-6">
+                <a href="{{ url_for('pages_user.profile') }}"
+                   class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm quick-action-card">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="bi bi-person-circle text-info" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h6 class="mb-1 fw-bold">Mi Perfil</h6>
+                            <small class="text-muted">Información personal</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Explorar Programas -->
+            <div class="col-md-3 col-sm-6">
+                <a href="{{ url_for('program.list_programs') }}"
+                   class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm quick-action-card">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="bi bi-mortarboard text-warning" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h6 class="mb-1 fw-bold">Otros Programas</h6>
+                            <small class="text-muted">Explorar catálogo</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Panel Principal: Estado y Progreso -->
+<div class="row">
+    <!-- Columna Izquierda: Estado de Solicitud -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-0 shadow h-100">
+            <div class="card-header bg-white border-0 pt-4 pb-3">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-graph-up text-primary fs-4 me-2"></i>
+                    <h5 class="mb-0 fw-bold">Estado de Solicitud</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Nombre del Programa -->
+                <div class="mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #e7f1ff 0%, #f8f9fa 100%); border-left: 4px solid #0d6efd;">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <i class="bi bi-mortarboard-fill text-primary" style="font-size: 2rem;"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="mb-0 fw-bold text-primary">{{ program.name }}</h5>
+                            <small class="text-muted">Programa de Posgrado</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leyenda de colores -->
+                <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                    <small class="d-flex align-items-center">
+                        <span class="legend-dot bg-success me-1"></span>Aprobados
+                    </small>
+                    <small class="d-flex align-items-center">
+                        <span class="legend-dot bg-danger me-1"></span>Rechazados
+                    </small>
+                    <small class="d-flex align-items-center">
+                        <span class="legend-dot bg-warning me-1"></span>En revisión
+                    </small>
+                    <small class="d-flex align-items-center">
+                        <span class="legend-dot bg-secondary me-1"></span>Pendientes
+                    </small>
+                </div>
+
+                <!-- Barra de progreso -->
+                <div class="progress mb-3" style="height: 25px; border-radius: 8px;">
+                    {% if progress_segments %}
+                        {% for seg in progress_segments %}
+                        <div class="progress-bar bg-{{ seg.class }} {% if seg.class == 'warning' %}text-dark{% endif %}"
+                            style="width: {{ seg.pct }}%" role="progressbar">
+                            {% if seg.pct > 10 %}{{ seg.pct|int }}%{% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="progress-bar bg-secondary" style="width: 100%" role="progressbar">
+                            Sin documentos
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Estadísticas -->
+                <div class="d-flex justify-content-between text-center mb-4">
+                    <div>
+                        <h4 class="mb-0 text-success fw-bold">{{ status_count.approved }}</h4>
+                        <small class="text-muted">Aprobados</small>
+                    </div>
+                    <div>
+                        <h4 class="mb-0 text-warning fw-bold">{{ status_count.review }}</h4>
+                        <small class="text-muted">En revisión</small>
+                    </div>
+                    <div>
+                        <h4 class="mb-0 text-secondary fw-bold">{{ status_count.pending }}</h4>
+                        <small class="text-muted">Pendientes</small>
+                    </div>
+                    <div>
+                        <h4 class="mb-0 text-danger fw-bold">{{ status_count.rejected }}</h4>
+                        <small class="text-muted">Rechazados</small>
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <p class="text-muted mb-0">
+                        <strong>{{ status_count.approved }}</strong> de <strong>{{ total_docs }}</strong> documentos aprobados
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Columna Derecha: Timeline del Proceso -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-0 shadow h-100">
+            <div class="card-header bg-white border-0 pt-4 pb-3">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-clock-history text-primary fs-4 me-2"></i>
+                    <h5 class="mb-0 fw-bold">Proceso de Admisión</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Timeline mejorado -->
+                <div class="timeline-modern">
+                    {% for ev in timeline %}
+                    <div class="timeline-item-modern {% if ev.state == 'done' %}timeline-done{% elif ev.state == 'inprogress' %}timeline-inprogress{% elif ev.state == 'rejected' %}timeline-rejected{% else %}timeline-pending{% endif %}">
+                        <div class="timeline-marker-modern">
+                            {% if ev.state == 'done' %}
+                                <i class="bi bi-check-lg"></i>
+                            {% elif ev.state == 'inprogress' %}
+                                <i class="bi bi-arrow-right"></i>
+                            {% elif ev.state == 'rejected' %}
+                                <i class="bi bi-x-lg"></i>
+                            {% else %}
+                                <i class="bi bi-clock"></i>
+                            {% endif %}
+                        </div>
+                        <div class="timeline-content-modern">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1 fw-bold">
+                                        <i class="bi {{ ev.icon }} me-2"></i>{{ ev.label }}
+                                    </h6>
+                                    <p class="text-muted small mb-0">
+                                        {% if ev.date %}
+                                            {{ ev.date }}
+                                        {% elif ev.state == 'done' %}
+                                            Completado
+                                        {% elif ev.state == 'inprogress' %}
+                                            En progreso...
+                                        {% else %}
+                                            Pendiente
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                {% if ev.state == 'done' %}
+                                    <span class="badge bg-success rounded-pill">✓</span>
+                                {% elif ev.state == 'inprogress' %}
+                                    <span class="badge bg-primary rounded-pill">
+                                        <span class="spinner-grow spinner-grow-sm" role="status"></span>
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Requisitos Pendientes -->
+{% if pending_items %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow">
+            <div class="card-header bg-white border-0 pt-4 pb-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle text-warning fs-4 me-2"></i>
+                        <h5 class="mb-0 fw-bold">Requisitos Pendientes</h5>
+                    </div>
+                    <span class="badge bg-warning text-dark rounded-pill px-3 py-2">
+                        {{ pending_items|length }} pendiente{% if pending_items|length != 1 %}s{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for item in pending_items %}
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center p-3 border rounded {% if item.status == 'rejected' %}border-danger bg-danger bg-opacity-10{% else %}border-warning bg-warning bg-opacity-10{% endif %}">
+                            <div class="flex-shrink-0 me-3">
+                                {% if item.status == 'rejected' %}
+                                    <i class="bi bi-x-circle-fill text-danger fs-3"></i>
+                                {% else %}
+                                    <i class="bi bi-clock-fill text-warning fs-3"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-0">{{ item.name }}</h6>
+                                <small class="text-muted">
+                                    {% if item.status == 'rejected' %}
+                                        Rechazado - Requiere reenvío
+                                    {% else %}
+                                        Pendiente de envío
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-4 text-center">
+                    <a class="btn btn-primary btn-lg" href="{{ url_for('program.admission.admission_dashboard', slug=program.slug) }}">
+                        <i class="bi bi-upload me-2"></i>Subir Documentos Pendientes
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Mensaje de éxito cuando no hay pendientes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow bg-success bg-opacity-10">
+            <div class="card-body text-center py-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <h5 class="mt-3 mb-2 text-success fw-bold">¡Excelente!</h5>
+                <p class="text-muted mb-0">No tienes documentos pendientes. Tu solicitud está en revisión.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Estilos CSS adicionales para las tarjetas de acciones rápidas -->
+<style>
+.quick-action-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.quick-action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+</style>
+{% endif %}

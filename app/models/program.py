@@ -15,6 +15,8 @@ class Program(db.Model):
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
     
+    coordinator = db.relationship("User", back_populates="coordinated_programs")
+
     user_program = db.relationship(
         "UserProgram",
         back_populates="program",
@@ -49,6 +51,11 @@ class Program(db.Model):
             'name': self.name,
             'description': self.description,
             'coordinator_id': self.coordinator_id,
+            'coordinator': {
+                'id': self.coordinator.id,
+                'name': f"{self.coordinator.first_name} {self.coordinator.last_name}",
+                'email': self.coordinator.email
+            } if self.coordinator else None,
             'slug': self.slug,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

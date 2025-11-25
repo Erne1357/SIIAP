@@ -30,6 +30,9 @@ class User(db.Model, UserMixin):
 
     role = db.relationship('Role', back_populates='users', uselist=False)
     user_program = db.relationship('UserProgram', back_populates='user')
+
+    coordinated_programs = db.relationship('Program', back_populates='coordinator')
+    
     submissions = db.relationship(
         'Submission',
         foreign_keys='Submission.user_id',
