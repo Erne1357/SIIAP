@@ -6,5 +6,8 @@
 <div class="mt-5">
   <h1>Dashboard</h1>
   <p>Bienvenido al Dashboard. Aquí se mostrarán las opciones según tu rol.</p>
+  {% if current_user.role.name == 'student' %}
+    {% include 'user/dashboard/student_dashboard.html' %}
+  {% endif %}
 </div>
 {% endblock %}
