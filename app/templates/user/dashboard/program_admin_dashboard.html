@@ -1,0 +1,364 @@
+{% if not coordinated_programs or coordinated_programs|length == 0 %}
+<!-- Program admin sin programa asignado -->
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow border-0">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 5rem;"></i>
+                <h3 class="mt-3 mb-3">No tienes un programa asignado</h3>
+                <p class="text-muted mb-0">
+                    Contacta al administrador de posgrado para que te asigne un programa.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Dashboard para Program Admin -->
+
+<!-- Selector de Programa (solo si hay múltiples programas) -->
+{% if show_program_selector %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h4 class="mb-0 fw-bold text-primary">
+                <i class="bi bi-mortarboard-fill me-2"></i>Dashboard de Coordinación
+                {% if show_all_programs %}
+                <small class="text-muted">(Todos los programas)</small>
+                {% elif program %}
+                <small class="text-muted">({{ program.name }})</small>
+                {% endif %}
+            </h4>
+            <div class="d-flex align-items-center">
+                <label for="programSelector" class="form-label me-2 mb-0 fw-bold text-secondary">Programa:</label>
+                <select id="programSelector" class="form-select" style="width: auto; min-width: 250px;" onchange="switchProgram()">
+                    {% for prog in coordinated_programs %}
+                    <option value="{{ prog.id }}" {% if prog.id == selected_program_id and not show_all_programs %}selected{% endif %}>
+                        {{ prog.name }}
+                    </option>
+                    {% endfor %}
+                    <option value="all" {% if show_all_programs %}selected{% endif %}>Ver todos los programas</option>
+                </select>
+            </div>
+        </div>
+        <hr class="mt-3">
+    </div>
+</div>
+{% endif %}
+
+<!-- Acciones Rápidas -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h5 class="mb-3 fw-bold text-secondary">
+            <i class="bi bi-lightning-charge-fill me-2"></i>Acciones Rápidas
+        </h5>
+        <div class="row g-3">
+            <!-- Revisar Solicitudes -->
+            <div class="col-md-3 col-sm-6">
+                {% if show_all_programs %}
+                <div class="card h-100 border-0 shadow-sm" style="opacity: 0.6; cursor: not-allowed;">
+                    <div class="card-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="bi bi-clipboard-check text-muted" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <h6 class="mb-1 fw-bold text-muted">Revisar Solicitudes</h6>
+                        <small class="text-muted">Selecciona un programa</small>
+                    </div>
+                </div>
+                {% elif program %}
+                <a href="{{ url_for('pages_admin.pages_review.submissions', program_id=program.id, status='review') }}"
+                   class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm quick-action-card">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="bi bi-clipboard-check text-primary" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h6 class="mb-1 fw-bold">Revisar Solicitudes</h6>
+                            <small class="text-muted">Aprobar documentos</small>
+                            {% if metrics and metrics.pending_reviews > 0 %}
+                            <span class="badge bg-warning text-dark mt-2">{{ metrics.pending_reviews }} pendientes</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+                {% else %}
+                <div class="card h-100 border-0 shadow-sm" style="opacity: 0.6; cursor: not-allowed;">
+                    <div class="card-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="bi bi-clipboard-check text-muted" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <h6 class="mb-1 fw-bold text-muted">Revisar Solicitudes</h6>
+                        <small class="text-muted">Sin programas</small>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Ver Estudiantes -->
+            <div class="col-md-3 col-sm-6">
+                <a href="{{ url_for('pages_admin.pages_settings.users') }}"
+                   class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm quick-action-card">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="bi bi-people text-success" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h6 class="mb-1 fw-bold">Ver Estudiantes</h6>
+                            <small class="text-muted">Gestionar usuarios</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Gestionar Programa -->
+            <div class="col-md-3 col-sm-6">
+                <div class="card h-100 border-0 shadow-sm quick-action-card" style="opacity: 0.6; cursor: not-allowed;">
+                    <div class="card-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="bi bi-gear text-info" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <h6 class="mb-1 fw-bold">Gestionar Programa</h6>
+                        <small class="text-muted">Próximamente</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Programar Entrevistas -->
+            <div class="col-md-3 col-sm-6">
+                <a href="{{ url_for('pages_admin.pages_events.index') }}"
+                   class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm quick-action-card">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="bi bi-calendar-event text-warning" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h6 class="mb-1 fw-bold">Eventos</h6>
+                            <small class="text-muted">Entrevistas y defensas</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPIs Principales -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #e7f1ff 0%, #f8f9fa 100%); border-left: 4px solid #0d6efd;">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0 me-3">
+                    <i class="bi bi-mortarboard-fill text-primary" style="font-size: 2rem;"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="mb-0 fw-bold text-primary">
+                        {% if selected_program_id == "all" %}
+                            Todos los Programas
+                        {% elif selected_program %}
+                            {{ selected_program.name }}
+                        {% elif program %}
+                            {{ program.name }}
+                        {% else %}
+                            Mis Programas
+                        {% endif %}
+                    </h5>
+                    <small class="text-muted">Panel de Administración</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    <i class="bi bi-person-lines-fill text-primary" style="font-size: 2.5rem;"></i>
+                </div>
+                <h2 class="mb-0 fw-bold text-primary">{{ metrics.total_applicants if metrics else 0 }}</h2>
+                <p class="text-muted mb-0 small">Solicitantes Totales</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    <i class="bi bi-hourglass-split text-warning" style="font-size: 2.5rem;"></i>
+                </div>
+                <h2 class="mb-0 fw-bold text-warning">{{ metrics.pending_reviews if metrics else 0 }}</h2>
+                <p class="text-muted mb-0 small">Documentos por Revisar</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 2.5rem;"></i>
+                </div>
+                <h2 class="mb-0 fw-bold text-success">{{ metrics.approved_applications if metrics else 0 }}</h2>
+                <p class="text-muted mb-0 small">Solicitudes Aprobadas</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    <i class="bi bi-calendar2-check text-info" style="font-size: 2.5rem;"></i>
+                </div>
+                <h2 class="mb-0 fw-bold text-info">{{ metrics.interviews_scheduled if metrics else 0 }}</h2>
+                <p class="text-muted mb-0 small">Entrevistas Programadas</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas Adicionales y Actividad Reciente -->
+<div class="row">
+    <!-- Gráfico de Estado de Solicitudes -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-0 shadow h-100">
+            <div class="card-header bg-white border-0 pt-4 pb-3">
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-pie-chart text-primary me-2"></i>Estado de Solicitudes
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-around text-center mb-4">
+                    <div>
+                        <h3 class="mb-0 text-success fw-bold">{{ metrics.approved_applications if metrics else 0 }}</h3>
+                        <small class="text-muted">Aprobadas</small>
+                    </div>
+                    <div>
+                        <h3 class="mb-0 text-secondary fw-bold">{{ metrics.in_process if metrics else 0 }}</h3>
+                        <small class="text-muted">En Proceso</small>
+                    </div>
+                    <div>
+                        <h3 class="mb-0 text-danger fw-bold">{{ metrics.rejected_applications if metrics else 0 }}</h3>
+                        <small class="text-muted">Rechazadas</small>
+                    </div>
+                </div>
+
+                <!-- Barra de progreso visual -->
+                <div class="progress" style="height: 30px; border-radius: 8px;">
+                    {% set total = metrics.total_applicants if metrics else 0 %}
+                    {% if metrics and total > 0 %}
+                        <div class="progress-bar bg-success" style="width: {{ (metrics.approved_applications / total * 100)|round }}%">
+                            {{ (metrics.approved_applications / total * 100)|round|int }}%
+                        </div>
+                        <div class="progress-bar bg-secondary" style="width: {{ (metrics.in_process / total * 100)|round }}%">
+                            {{ (metrics.in_process / total * 100)|round|int }}%
+                        </div>
+                        <div class="progress-bar bg-danger" style="width: {{ (metrics.rejected_applications / total * 100)|round }}%">
+                            {{ (metrics.rejected_applications / total * 100)|round|int }}%
+                        </div>
+                    {% else %}
+                        <div class="progress-bar bg-secondary" style="width: 100%">
+                            Sin solicitudes
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mt-4 text-center">
+                    <p class="text-muted mb-0">
+                        <strong>{{ metrics.total_submissions if metrics else 0 }}</strong> documentos subidos en total
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actividad Reciente -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-0 shadow h-100">
+            <div class="card-header bg-white border-0 pt-4 pb-3">
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-clock-history text-primary me-2"></i>Actividad Reciente
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_submissions %}
+                <div class="list-group list-group-flush">
+                    {% for submission in recent_submissions %}
+                    <div class="list-group-item border-0 px-0">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ submission.user_name }}</h6>
+                                <p class="mb-1 small text-muted">
+                                    {{ submission.archive_name }}
+                                    {% if show_all_programs and submission.program_name %}
+                                        <span class="text-primary">- {{ submission.program_name }}</span>
+                                    {% endif %}
+                                </p>
+                                <small class="text-muted">{{ submission.upload_date }}</small>
+                            </div>
+                            <div class="flex-shrink-0">
+                                {% if submission.status == 'review' %}
+                                    <span class="badge bg-warning text-dark">Revisar</span>
+                                {% elif submission.status == 'approved' %}
+                                    <span class="badge bg-success">Aprobado</span>
+                                {% elif submission.status == 'rejected' %}
+                                    <span class="badge bg-danger">Rechazado</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Pendiente</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3 text-center">
+                    {% if show_all_programs %}
+                        <p class="text-muted">Selecciona un programa específico para ver todas las solicitudes</p>
+                    {% elif program %}
+                        <a href="{{ url_for('pages_admin.pages_review.submissions', program_id=program.id) }}" class="btn btn-outline-primary btn-sm">
+                            Ver todas las solicitudes <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-3 mb-0">No hay actividad reciente</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estilos adicionales -->
+<style>
+.quick-action-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.quick-action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+</style>
+
+<!-- JavaScript para el selector de programas -->
+<script>
+function switchProgram() {
+    const selector = document.getElementById('programSelector');
+    const selectedValue = selector.value;
+    
+    // Construir la URL con el parámetro del programa
+    const currentUrl = new URL(window.location);
+    
+    // Establecer el parámetro program_id
+    currentUrl.searchParams.set('program_id', selectedValue);
+    
+    // Recargar la página con el nuevo parámetro
+    window.location.href = currentUrl.toString();
+}
+</script>
+{% endif %}

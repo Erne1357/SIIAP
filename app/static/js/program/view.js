@@ -3,9 +3,7 @@
 // ────────────────────────────────────────────────────────────── 
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Debug: Verificar que los elementos AOS existen
-  .length);
-  
+  // Debug: Verificar que los elementos AOS existen  
   // Obtener el contenedor principal scrolleable
   // Implementar AOS personalizado para contenedor con scroll
   function initCustomAOS() {

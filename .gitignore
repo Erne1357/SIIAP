@@ -78,3 +78,6 @@ tests/prueba.py
 .env
 docker/.env.prod
 docker/.env.dev
+
+#claude local
+.claude/
