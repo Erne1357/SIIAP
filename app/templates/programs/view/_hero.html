@@ -7,16 +7,29 @@
             <div class="d-flex flex-column flex-sm-row gap-3">
                 <a href="#admision" class="btn btn-primary">Proceso de Admisión</a>
                 <a href="#plan-estudios" class="btn btn-outline-primary">Plan de Estudios</a>
+                {% if current_user.role.name == 'postgraduate_admin' or (current_user.role.name == 'program_admin' and program.coordinator_id == current_user.id) %}
+                <a href="{{ url_for('pages_admin.pages_settings.config_program', slug=program.slug) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-cog me-1"></i>Configurar
+                </a>
+                {% endif %}
             </div>
         </div>
         <div class="col-lg-6" data-aos="fade-left">
-            <div class="program-image-container " >
-                <img src="{{ url_for('static', filename='assets/images/' ~ program.name ~ '.webp') }}?v={{ static_version }}" alt="{{ program.name }}" max-heigh="400px"
-                    class="img-fluid rounded-3 shadow-sm">
+            <div class="program-image-container">
+                {% if program.image_filename %}
+                <img src="{{ url_for('static', filename='assets/images/' ~ program.image_filename) }}?v={{ static_version }}"
+                     alt="{{ program.name }}" max-heigh="400px"
+                     class="img-fluid rounded-3 shadow-sm">
+                {% else %}
+                <img src="{{ url_for('static', filename='assets/images/default-program.webp') }}?v={{ static_version }}"
+                     alt="{{ program.name }}" max-heigh="400px"
+                     class="img-fluid rounded-3 shadow-sm">
+                {% endif %}
             </div>
         </div>
     </div>
 
+    {% if program.show_hero_cards %}
     <div class="row mt-4" data-aos="fade-up" data-aos-delay="200">
         <div class="col-md-4 mb-3 mb-md-0">
             <div class="card h-100 shadow-sm hover-card">
@@ -45,4 +58,5 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </section>

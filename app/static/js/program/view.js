@@ -221,38 +221,24 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Hacer que los botones flotantes aparezcan con animación
-   // Hacer que los botones flotantes aparezcan con animación
   const floatingBackButton = document.querySelector('.floating-back-button');
   const floatingInscriptionButton = document.querySelector('.floating-inscription-button');
   const mainContent = document.getElementById('main-content');
-  
+
   if (floatingBackButton && floatingInscriptionButton) {
     // Añadir clase para animación después de un breve retraso
     setTimeout(() => {
       floatingBackButton.classList.add('visible');
       floatingInscriptionButton.classList.add('visible');
     }, 500);
-    
-    // Ocultar botón de inscripción al hacer scroll hacia abajo y mostrarlo al subir
-    let lastScrollTop = 0;
+
+    // El botón de postulación ahora siempre será visible (más llamativo y prominente)
+    // Solo activar animaciones en scroll
     mainContent.addEventListener('scroll', function() {
-      const st = mainContent.scrollTop;
-      
       // Activar animaciones personalizadas en cada scroll
       if (typeof activateAnimations === 'function') {
         activateAnimations();
       }
-      
-      if (st > lastScrollTop && st > 300) {
-        // Scroll hacia abajo
-        floatingInscriptionButton.style.opacity = '0';
-        floatingInscriptionButton.style.transform = 'translateY(20px)';
-      } else {
-        // Scroll hacia arriba
-        floatingInscriptionButton.style.opacity = '1';
-        floatingInscriptionButton.style.transform = 'translateY(0)';
-      }
-      lastScrollTop = st;
     });
   }
   // Ejecutar después de que las imágenes se hayan cargado

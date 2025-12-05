@@ -4,16 +4,7 @@
     <h2 class="h3 fw-bold mb-3">Acerca del Programa</h2>
     <div class="divider-center mb-3"></div>
     <p class="lead mx-auto" style="max-width: 800px;">
-      {% if program.id == 1 %}
-      Formar profesionistas con un alto conocimiento y sentido innovador en la aplicación de la Ingeniería Industrial que de acuerdo a la problemática regional, nacional y global y a las tendencias de investigación de frontera, desarrollen sus capacidades para afrontar los retos de las empresas modernas plantean.
-      {% elif program.id == 2 %}
-      En México una parte significativa de su crecimiento económico depende de los negocios internacionales, específicamente del comercio exterior acompañado de la inversión extranjera.
-      La Maestría en Administración de Negocios Internacionales tiene como uno de sus objetivos formar el capital humano que requiere esta dinámica de los negocios internacionales, la cual ya es una práctica común en la economía mexicana.
-      {% elif program.id == 3 %}
-      La Ingeniería Administrativa da un amplio conocimiento técnico con un énfasis especial sobre productividad, costos, calidad, administración y el factor humano en los sistemas de producción y operacionales, además conjunta conocimientos y habilidades especializadas de ciencias matemáticas, físicas y sociales con los principios y métodos de diseño y análisis de ingeniería para especificar, predecir y evaluar sistemas productivos de bienes o servicios.
-      {% elif program.id == 4%}
-      El DCI tiene como objetivos el formar a investigadores de alto nivel con las competencias científicas y tecnológicas para generar nuevos conocimientos, y desarrollar proyectos de innovación, adaptación, mejoramiento y optimización de procesos de ingeniería. Las líneas de generación y aplicación del conocimiento (LGAC) a desarrollar son: a) Optimización de Productos y Procesos (OPP) b) Modelación y Simulación de Procesos (MSP)
-      {% endif %}
+      {{ program.introduction_text or program.description }}
     </p>
   </div>
 
@@ -24,15 +15,7 @@
           <i class="fas fa-book text-primary"></i>
         </div>
         <h3 class="h5 fw-bold">Duración</h3>
-        <p class="mb-0">
-          {% if program.id >= 1 and program.id <= 3 %}
-          2 años (4 semestres)
-          {% elif program.id == 4 %}
-          3 años (6 semestres)
-          {% else %}
-          Duración variable
-          {% endif %}
-        </p>
+        <p class="mb-0">{{ program.duration_display }}</p>
       </div>
     </div>
     <div class="col-md-3" data-aos="fade-up" data-aos-delay="200">
@@ -41,7 +24,7 @@
           <i class="fas fa-award text-primary"></i>
         </div>
         <h3 class="h5 fw-bold">Reconocimiento</h3>
-        <p class="mb-0">Programa reconocido por su excelencia académica</p>
+        <p class="mb-0">{{ program.recognition_text or 'Programa reconocido por su excelencia académica' }}</p>
       </div>
     </div>
     <div class="col-md-3" data-aos="fade-up" data-aos-delay="300">
@@ -50,7 +33,7 @@
           <i class="fas fa-clock text-primary"></i>
         </div>
         <h3 class="h5 fw-bold">Modalidad</h3>
-        <p class="mb-0">Presencial con recursos digitales</p>
+        <p class="mb-0">{{ program.modality or 'Presencial' }}{% if program.schedule_info %}<br><small>{{ program.schedule_info }}</small>{% endif %}</p>
       </div>
     </div>
     <div class="col-md-3" data-aos="fade-up" data-aos-delay="400">
@@ -59,35 +42,21 @@
           <i class="fas fa-users text-primary"></i>
         </div>
         <h3 class="h5 fw-bold">Becas</h3>
-        <p class="mb-0">Posibilidad de becas para estudiantes</p>
+        <p class="mb-0">{{ program.scholarship_info or 'Posibilidad de becas para estudiantes' }}</p>
       </div>
     </div>
   </div>
 
+  {% if program.show_objectives and program.objectives %}
   <div class="bg-white p-4 rounded shadow-sm mt-4" data-aos="fade-up">
     <h3 class="h4 fw-bold mb-3">Objetivos del Programa</h3>
     <ul class="list-unstyled mb-0">
-      {% if program.id == 1 %}
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar especialistas en ciencias de la computación con sólidos conocimientos teóricos y prácticos.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar habilidades para el análisis y solución de problemas computacionales complejos.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la investigación aplicada en el campo de la computación.</li>
-      <li><i class="fas fa-check-circle text-primary me-2"></i> Preparar profesionales con capacidad de liderazgo en proyectos tecnológicos.</li>
-      {% elif program.id == 2 %}
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar especialistas en inteligencia artificial con conocimientos avanzados.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar habilidades para implementar soluciones basadas en IA.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la investigación en áreas emergentes de la inteligencia artificial.</li>
-      <li><i class="fas fa-check-circle text-primary me-2"></i> Preparar profesionales capaces de liderar la transformación digital mediante IA.</li>
-      {% elif program.id == 4 %}
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar investigadores de alto nivel en ciencias de la computación.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar capacidades para generar conocimiento original en el campo.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la colaboración interdisciplinaria en proyectos de investigación.</li>
-      <li><i class="fas fa-check-circle text-primary me-2"></i> Contribuir al avance científico y tecnológico mediante investigación de frontera.</li>
-      {% else %}
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar profesionales especializados en el área.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar habilidades para la resolución de problemas complejos.</li>
-      <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Fomentar la investigación y el desarrollo tecnológico.</li>
-      <li><i class="fas fa-check-circle text-primary me-2"></i> Preparar líderes con compromiso ético en su campo.</li>
-      {% endif %}
+      {% for objective in program.objectives %}
+      <li {% if not loop.last %}class="mb-2"{% endif %}>
+        <i class="fas fa-check-circle text-primary me-2"></i> {{ objective }}
+      </li>
+      {% endfor %}
     </ul>
   </div>
+  {% endif %}
 </section>
