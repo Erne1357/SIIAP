@@ -1,5 +1,5 @@
 # app/routes/api/programs_api.py
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, abort
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services import programs_service as svc
@@ -74,3 +74,63 @@ def api_enroll(program_id):
             "error": {"code": "NOT_FOUND", "message": "Programa no encontrado"},
             "meta": {}
         }), 404
+
+
+@api_programs.patch('/<string:slug>')
+@login_required
+@roles_required('program_admin', 'postgraduate_admin')
+def api_update_program(slug):
+    """
+    Actualizar configuración del programa.
+    - postgraduate_admin: puede editar todos los programas
+    - program_admin: solo puede editar los programas que coordina
+    """
+    try:
+        program = svc.get_program_by_slug(slug)
+    except svc.ProgramNotFound:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Programa no encontrado."}],
+            "error": {"code": "NOT_FOUND", "message": "Programa no encontrado"},
+            "meta": {}
+        }), 404
+
+    # Verificar permisos
+    if current_user.role.name == 'program_admin':
+        if program.coordinator_id != current_user.id:
+            return jsonify({
+                "data": None,
+                "flash": [{"level": "danger", "message": "No tienes permiso para editar este programa."}],
+                "error": {"code": "FORBIDDEN", "message": "No autorizado"},
+                "meta": {}
+            }), 403
+
+    # Obtener datos del request
+    data = request.get_json()
+    if not data:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Datos inválidos."}],
+            "error": {"code": "INVALID_DATA", "message": "Datos inválidos"},
+            "meta": {}
+        }), 400
+
+    try:
+        # Actualizar programa
+        updated_program = svc.update_program_config(program.id, data)
+
+        return jsonify({
+            "data": {"program": updated_program.to_dict()},
+            "flash": [{"level": "success", "message": "Programa actualizado correctamente."}],
+            "error": None,
+            "meta": {}
+        }), 200
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Error al actualizar programa: {e}")
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al actualizar el programa."}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500

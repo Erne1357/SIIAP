@@ -18,18 +18,24 @@
           <div class="card program-card">
             <!-- Imagen con overlay y badge -->
             <div class="position-relative overflow-hidden">
-              <img 
-                src="{{ url_for('static', filename='assets/images/' ~ p.name ~ '.webp') }}?v={{ static_version }}" 
+              {% if p.image_filename %}
+              <img
+                src="{{ url_for('static', filename='assets/images/' ~ p.image_filename) }}?v={{ static_version }}"
                 alt="{{ p.name }}"
-                
                 class="program-image w-100">
-              
-              {% if 'Maestría' in p.name %}
-                <span class="program-badge badge-maestria">Maestría</span>
-              {% elif 'Doctorado' in p.name %}
-                <span class="program-badge badge-doctorado">Doctorado</span>
               {% else %}
-                <span class="program-badge badge-especialidad">Especialidad</span>
+              <img
+                src="{{ url_for('static', filename='assets/images/default-program.webp') }}?v={{ static_version }}"
+                alt="{{ p.name }}"
+                class="program-image w-100">
+              {% endif %}
+
+              {% if 'Doctorado' in p.name or (p.program_level and 'Doctorado' in p.program_level) %}
+                <span class="program-badge badge-doctorado">{{ p.program_level or 'Doctorado' }}</span>
+              {% elif 'Maestría' in p.name or (p.program_level and 'Maestría' in p.program_level) %}
+                <span class="program-badge badge-maestria">{{ p.program_level or 'Maestría' }}</span>
+              {% else %}
+                <span class="program-badge badge-especialidad">{{ p.program_level or 'Especialidad' }}</span>
               {% endif %}
             </div>
             
@@ -38,38 +44,34 @@
               
               <div class="program-meta">
                 <i class="fas fa-calendar-alt program-icon"></i>
-                <span>
-                  {% if 'Doctorado' in p.name %}
-                    3 años (6 semestres)
-                  {% else %}
-                    2 años (4 semestres)
-                  {% endif %}
-                </span>
+                <span>{{ p.duration_display }}</span>
               </div>
               
               <div class="program-meta">
                 <i class="fas fa-graduation-cap program-icon"></i>
-                <span>
-                  {% if 'Doctorado' in p.name %}
-                    Doctorado en Ciencias
-                  {% elif 'Maestría' in p.name %}
-                    Grado de Maestría
-                  {% else %}
-                    Especialidad
-                  {% endif %}
-                </span>
+                <span>{{ p.program_level or 'Posgrado' }}</span>
               </div>
               
               <p class="card-text flex-grow-1">
                 {{ p.description[:120] }}{% if p.description|length > 120 %}...{% endif %}
               </p>
-              
-              <a 
-                href="{{ url_for('program.view_program', slug = p.slug) }}"
-                class="btn btn-primary btn-ver-mas"
-                data-swup-animation="zoom-card">
-                Ver detalles <i class="fas fa-arrow-right ms-1"></i>
-              </a>
+
+              <div class="d-flex gap-2">
+                <a
+                  href="{{ url_for('program.view_program', slug = p.slug) }}"
+                  class="btn btn-primary btn-ver-mas flex-grow-1"
+                  data-swup-animation="zoom-card">
+                  Ver detalles <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+                {% if current_user.role.name == 'postgraduate_admin' or (current_user.role.name == 'program_admin' and p.coordinator_id == current_user.id) %}
+                <a
+                  href="{{ url_for('pages_admin.pages_settings.config_program', slug=p.slug) }}"
+                  class="btn btn-outline-secondary"
+                  title="Configurar programa">
+                  <i class="fas fa-cog"></i>
+                </a>
+                {% endif %}
+              </div>
             </div>
           </div>
         </div>

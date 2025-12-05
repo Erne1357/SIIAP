@@ -71,31 +71,11 @@
         <!-- Logos derecha -->
         <div class="header-logos header-logos-right d-none d-md-flex align-items-center gap-2 gap-lg-3">
           <!-- NUEVO: Notificaciones -->
-          <div class="position-relative">
+          <div class="position-relative" id="notificationBellContainer">
             <button class="notification-bell-btn" id="notificationBell" type="button" aria-label="Notificaciones">
               <i class="bi bi-bell fs-4 text-dark"></i>
               <span id="notificationBadge" class="notification-badge d-none">0</span>
             </button>
-
-            <!-- Dropdown de notificaciones -->
-            <div id="notificationDropdown" class="notification-dropdown">
-              <div class="notification-dropdown-header">
-                <h6>Notificaciones</h6>
-                <button class="btn btn-sm btn-link" id="markAllReadBtn">
-                  <i class="bi bi-check-all"></i>
-                </button>
-              </div>
-
-              <div class="notification-list" id="notificationsList">
-                <!-- Se llena dinámicamente -->
-              </div>
-
-              <div class="notification-dropdown-footer">
-                <a href="{{ url_for('pages_user.profile') }}?tab=notifications">
-                  Ver todas las notificaciones
-                </a>
-              </div>
-            </div>
           </div>
 
           <img
@@ -213,6 +193,17 @@
             <a class="nav-link submenu-item" href="{{ url_for('pages_admin.pages_emails.email_config') }}">
               <i class="fas fa-envelope me-2"></i>Correos
             </a>
+            {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}">
+              <i class="fas fa-graduation-cap me-2"></i>Programa
+            </a>
+            {% elif current_user.role.name == 'postgraduate_admin' %}
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
+              href="{{ url_for('program.list_programs') }}">
+              <i class="fas fa-graduation-cap me-2"></i>Programas
+            </a>
+            {% endif %}
           </div>
         </div>
         {% endif %}
@@ -229,28 +220,40 @@
         <h5 class="offcanvas-title" id="mobileSidebarLabel">Menú</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
       </div>
-      <div class="offcanvas-body">
-        <div class="user-card d-flex align-items-center gap-2 mb-3 p-2">
+
+      <!-- User card fijo arriba -->
+      <div class="mobile-user-section">
+        <div class="user-card d-flex align-items-center gap-2 p-2">
           <img src="{{ current_user.avatar_url }}" alt="avatar" width="40" height="40"
             class="rounded-circle flex-shrink-0">
           <div class="flex-grow-1">
             <div class="fw-semibold small">{{ current_user.first_name }} {{ current_user.last_name }}</div>
+            {% if current_user.role.name == 'social_service' %}
+            <span class="badge bg-warning text-dark text-uppercase small">Servicio Social</span>
+            {% elif current_user.role.name == 'program_admin' %}
+            <span class="badge bg-success text-uppercase small">Admin. Programa</span>
+            {% elif current_user.role.name == 'postgraduate_admin' %}
+            <span class="badge bg-danger text-uppercase small">Admin. Posgrado</span>
+            {% endif %}
           </div>
         </div>
+      </div>
+
+      <!-- Body scrollable solo para navegación -->
+      <div class="offcanvas-body">
         <nav class="nav flex-column">
           <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}"
-            href="{{ url_for('pages_user.profile') }}" data-bs-dismiss="offcanvas">
+            href="{{ url_for('pages_user.profile') }}" data-no-swup>
             <i class="fas fa-user me-2"></i>Perfil</a>
           <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
-            href="{{ url_for('pages_user.dashboard') }}" data-bs-dismiss="offcanvas">
+            href="{{ url_for('pages_user.dashboard') }}" data-no-swup>
             <i class="fas fa-th-large me-2"></i>Dashboard</a>
           <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
-            href="{{ url_for('program.list_programs') }}" data-bs-dismiss="offcanvas">
+            href="{{ url_for('program.list_programs') }}" data-no-swup>
             <i class="fas fa-clipboard me-2"></i>Programas</a>
           {% if up %}
           <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %}"
-            href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}"
-            data-bs-dismiss="offcanvas">
+            href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}" data-no-swup>
             <i class="fas fa-clipboard-list me-2"></i>Admisión</a>
           {% endif %}
 
@@ -264,12 +267,12 @@
             </a>
             <div class="dropdown-submenu" id="mobile-events-menu">
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
-                href="{{ url_for('pages_events_public.list_events') }}" data-bs-dismiss="offcanvas">
+                href="{{ url_for('pages_events_public.list_events') }}" data-no-swup>
                 <i class="fas fa-calendar me-2"></i>Eventos Públicos
               </a>
               {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_events.index') }}" data-bs-dismiss="offcanvas">
+                href="{{ url_for('pages_admin.pages_events.index') }}" data-no-swup>
                 <i class="fas fa-calendar-plus me-2"></i>Gestión de Eventos
               </a>
               {% endif %}
@@ -278,21 +281,21 @@
 
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
           <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.dashboard') }}" data-bs-dismiss="offcanvas">
+            href="{{ url_for('pages_coordinator.dashboard') }}" data-no-swup>
             <i class="fas fa-users me-2"></i>Coordinación</a>
           {% endif %}
-          <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}" data-bs-dismiss="offcanvas">
+          <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}" data-no-swup>
             <i class="fas fa-calendar-alt me-2"></i>Permanencia</a>
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
           <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_review.index') }}" data-bs-dismiss="offcanvas">
+            href="{{ url_for('pages_admin.pages_review.index') }}" data-no-swup>
             <i class="fas fa-file-alt me-2"></i>Documentos
           </a>
           {% endif %}
 
           <!-- Menú desplegable móvil de Configuración -->
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-          <hr>
+          <hr class="my-2">
           <div class="dropdown-menu-container mobile">
             <a href="#"
               class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
@@ -302,25 +305,39 @@
             </a>
             <div class="dropdown-submenu" id="mobile-config-menu">
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.index') }}" data-bs-dismiss="offcanvas">
+                href="{{ url_for('pages_admin.pages_settings.index') }}" data-no-swup>
                 <i class="fas fa-folder me-2"></i>Archivos
               </a>
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.users') }}" data-bs-dismiss="offcanvas">
+                href="{{ url_for('pages_admin.pages_settings.users') }}" data-no-swup>
                 <i class="fas fa-user-cog me-2"></i>Usuarios
               </a>
               <a class="nav-link submenu-item" href="{{ url_for('pages_admin.pages_emails.email_config') }}"
-                data-bs-dismiss="offcanvas">
+                data-no-swup>
                 <i class="fas fa-envelope me-2"></i>Correos
               </a>
+              {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
+              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
+                href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}" data-no-swup>
+                <i class="fas fa-graduation-cap me-2"></i>Programa
+              </a>
+              {% elif current_user.role.name == 'postgraduate_admin' %}
+              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
+                href="{{ url_for('program.list_programs') }}" data-no-swup>
+                <i class="fas fa-graduation-cap me-2"></i>Programas
+              </a>
+              {% endif %}
             </div>
           </div>
           {% endif %}
-          <hr>
-          <a href="#" class="nav-link text-danger js-api-logout" data-bs-dismiss="offcanvas" data-no-swup>
-            <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
-          </a>
         </nav>
+      </div>
+
+      <!-- Footer fijo con botón de cerrar sesión -->
+      <div class="offcanvas-footer">
+        <a href="#" class="nav-link text-danger js-api-logout" data-no-swup>
+          <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+        </a>
       </div>
     </div>
     {% endblock %}
@@ -335,6 +352,26 @@
   <footer>
     <small>&copy; 2025 SIIAP. Todos los derechos reservados.</small>
   </footer>
+
+  <!-- Dropdown de notificaciones (compartido entre header y FAB) -->
+  <div id="notificationDropdown" class="notification-dropdown">
+    <div class="notification-dropdown-header">
+      <h6>Notificaciones</h6>
+      <button class="btn btn-sm btn-link" id="markAllReadBtn">
+        <i class="bi bi-check-all"></i>
+      </button>
+    </div>
+
+    <div class="notification-list" id="notificationsList">
+      <!-- Se llena dinámicamente -->
+    </div>
+
+    <div class="notification-dropdown-footer">
+      <a href="{{ url_for('pages_user.profile') }}?tab=notifications">
+        Ver todas las notificaciones
+      </a>
+    </div>
+  </div>
 
   <!-- FAB de notificaciones móvil -->
   <button class="notification-fab" id="notificationFab" type="button" aria-label="Notificaciones">
@@ -574,52 +611,49 @@
       const offcanvasElement = document.getElementById('mobileSidebar');
       if (!offcanvasElement) return;
 
-      // Enlaces normales (no dropdowns)
-      const offcanvasLinks = offcanvasElement.querySelectorAll('.nav-link:not(.js-api-logout):not(.dropdown-toggle-custom)');
+      // Los enlaces ahora tienen data-no-swup y funcionan nativamente
+      // Solo necesitamos cerrar el offcanvas cuando se hace click en un enlace válido
+      const allLinks = offcanvasElement.querySelectorAll('a[href]:not(.dropdown-toggle-custom):not(.js-api-logout)');
 
-      offcanvasLinks.forEach(link => {
-        // Remover listeners previos para evitar duplicados
-        const newLink = link.cloneNode(true);
-        link.parentNode.replaceChild(newLink, link);
-
-        newLink.addEventListener('click', function (e) {
+      allLinks.forEach(link => {
+        // Usar 'once' para que se ejecute solo una vez y luego se reinicialice
+        link.addEventListener('click', function(e) {
           const href = this.getAttribute('href');
-          // Si el enlace tiene href válido y no es #, cerrar el offcanvas
+          // Si el enlace tiene href válido y no es #, permitir navegación y cerrar offcanvas
           if (href && href !== '#' && href !== '') {
-            setTimeout(() => {
-              const bsOffcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
-              if (bsOffcanvas) {
-                bsOffcanvas.hide();
-              }
-            }, 100);
+            // Cerrar el offcanvas inmediatamente para mejor UX
+            const bsOffcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
+            if (bsOffcanvas) {
+              bsOffcanvas.hide();
+            }
+            // El navegador manejará la navegación naturalmente
           }
         });
       });
+    }
 
-      // Enlaces dentro de submenús (cerrar offcanvas después del click)
-      const submenuLinks = offcanvasElement.querySelectorAll('.submenu-item');
-      submenuLinks.forEach(link => {
-        const newLink = link.cloneNode(true);
-        link.parentNode.replaceChild(newLink, link);
+    // Manejar el z-index del footer cuando el offcanvas se abre/cierra
+    function initOffcanvasFooterFix() {
+      const offcanvasElement = document.getElementById('mobileSidebar');
+      const footer = document.querySelector('footer');
 
-        newLink.addEventListener('click', function (e) {
-          const href = this.getAttribute('href');
-          if (href && href !== '#' && href !== '') {
-            // Dar tiempo para que se procese la navegación
-            setTimeout(() => {
-              const bsOffcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
-              if (bsOffcanvas) {
-                bsOffcanvas.hide();
-              }
-            }, 100);
-          }
-        });
+      if (!offcanvasElement || !footer) return;
+
+      // Cuando el offcanvas se muestra - ocultar el footer
+      offcanvasElement.addEventListener('show.bs.offcanvas', function () {
+        footer.style.display = 'none';
+      });
+
+      // Cuando el offcanvas se oculta - mostrar el footer nuevamente
+      offcanvasElement.addEventListener('hidden.bs.offcanvas', function () {
+        footer.style.display = 'flex';
       });
     }
 
     function initAllMenus() {
       initDropdownMenus();
       initOffcanvasLinks();
+      initOffcanvasFooterFix();
     }
 
     // Inicializar cuando el DOM esté listo

@@ -271,19 +271,105 @@ footer {
 /* === OFFCANVAS MÓVIL === */
 .offcanvas {
   width: 280px !important;
+  display: flex;
+  flex-direction: column;
+  z-index: 1055 !important; /* Mayor que el footer (1020) para superponerse */
+  height: 100vh !important; /* Ocupar toda la altura de la pantalla */
+  max-height: 100vh !important;
+  max-height: 100dvh !important; /* Usar dynamic viewport height en navegadores compatibles */
 }
 
+/* Cuando el offcanvas está abierto, asegurar que se superponga */
+.offcanvas.show,
+.offcanvas.showing {
+  z-index: 1055 !important;
+}
+
+/* Backdrop del offcanvas también debe estar sobre el footer */
+.offcanvas-backdrop {
+  z-index: 1050 !important;
+}
+
+.offcanvas-backdrop.show {
+  z-index: 1050 !important;
+}
+
+.offcanvas.offcanvas-start {
+  top: 0 !important;
+  bottom: 0 !important;
+}
+
+/* Asegurar que el footer esté debajo del offcanvas cuando este está abierto */
+body.offcanvas-open footer {
+  z-index: 1020;
+}
+
+/* Header del offcanvas (título y botón cerrar) */
+.offcanvas-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid #dee2e6;
+  min-height: 56px; /* Altura fija para cálculos */
+}
+
+/* Sección de usuario fija arriba */
+.mobile-user-section {
+  flex-shrink: 0;
+  padding: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  min-height: 80px; /* Altura mínima estimada */
+}
+
+.mobile-user-section .user-card {
+  margin-bottom: 0;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+}
+
+/* Body scrollable solo para navegación */
 .offcanvas-body {
+  flex: 1 1 auto;
+  min-height: 0; /* Importante para que el flex funcione correctamente */
+  max-height: calc(100vh - 220px); /* Restar header(56) + user(80) + footer(84) */
+  max-height: calc(100dvh - 220px); /* Versión con dynamic viewport */
   overflow-y: auto;
   overflow-x: hidden;
+  padding: 0.5rem 0;
 }
 
 .offcanvas-body .nav-link {
-  margin: 0.125rem 0;
+  margin: 0.125rem 0.75rem;
+}
+
+/* Footer fijo abajo con botón de cerrar sesión */
+.offcanvas-footer {
+  flex-shrink: 0;
+  flex-grow: 0;
+  padding: 0.75rem;
+  border-top: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  position: relative;
+  z-index: 10;
+  min-height: 70px; /* Altura mínima para asegurar visibilidad */
+}
+
+.offcanvas-footer .nav-link {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
+}
+
+.offcanvas-footer .nav-link:hover {
+  background-color: rgba(220, 53, 69, 0.1);
 }
 
 /* Fix para que los enlaces funcionen en el offcanvas */
-.offcanvas-body a {
+.offcanvas-body a,
+.offcanvas-footer a {
   cursor: pointer;
   pointer-events: all;
 }
