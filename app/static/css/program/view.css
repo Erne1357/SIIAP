@@ -508,3 +508,120 @@
   transform: translateY(20px);
   pointer-events: none;
 }
+
+/* ────────────────────────────────────────────────────────────── */
+/* Estilos para Plan de Estudios (Curriculum) */
+/* ────────────────────────────────────────────────────────────── */
+
+#plan-estudios .accordion-item {
+  border: 1px solid #dee2e6;
+  transition: all 0.3s ease;
+}
+
+#plan-estudios .accordion-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+#plan-estudios .accordion-button {
+  font-size: 1.1rem;
+  padding: 1rem 1.25rem;
+  transition: all 0.3s ease;
+}
+
+#plan-estudios .accordion-button:not(.collapsed) {
+  background-color: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(13, 110, 253, 0.25);
+}
+
+#plan-estudios .accordion-button:focus {
+  box-shadow: none;
+  border-color: var(--primary);
+}
+
+#plan-estudios .accordion-button .badge {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+#plan-estudios .table {
+  margin-bottom: 0;
+}
+
+#plan-estudios .table thead th {
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.75rem;
+  border-bottom: 2px solid #dee2e6;
+}
+
+#plan-estudios .table tbody td {
+  padding: 0.875rem 0.75rem;
+  vertical-align: middle;
+}
+
+#plan-estudios .table-hover tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+#plan-estudios .font-monospace {
+  font-size: 0.875rem;
+  letter-spacing: 0.5px;
+}
+
+#plan-estudios .badge {
+  font-size: 0.8rem;
+  padding: 0.35em 0.65em;
+  font-weight: 500;
+}
+
+/* Resumen de créditos */
+#plan-estudios .alert-success {
+  border-left: 4px solid var(--success);
+  background-color: #d1e7dd;
+  color: #0f5132;
+  font-size: 1.1rem;
+}
+
+/* Líneas de investigación */
+#plan-estudios .hover-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+#plan-estudios .hover-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+#plan-estudios .hover-card .card-body {
+  padding: 1.5rem;
+}
+
+#plan-estudios .hover-card h4 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+  color: var(--primary);
+}
+
+#plan-estudios .hover-card .card-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #6c757d;
+}
+
+/* Estado vacío */
+#plan-estudios .empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+}
+
+#plan-estudios .empty-state i {
+  font-size: 3rem;
+  opacity: 0.5;
+  margin-bottom: 1rem;
+}

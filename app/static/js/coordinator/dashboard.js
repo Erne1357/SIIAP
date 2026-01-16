@@ -30,7 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await res.json();
       
+
       studentsData = data.students || [];
+      
+      console.log('Loaded students:', studentsData);
 
       updateTables();
       updateCounts();

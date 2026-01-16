@@ -35,6 +35,24 @@ def create_app(test_config=None):
      login_manager.login_view = 'pages_auth.login_page'
      login_manager.login_message = "Por favor, inicia sesión para acceder a esta página."
      login_manager.login_message_category = "warning"
+     
+     # Manejador personalizado para usuarios no autenticados
+     @login_manager.unauthorized_handler
+     def unauthorized():
+          """Maneja el acceso no autorizado sin duplicar mensajes"""
+          # Si es una petición API, devolver JSON sin flash
+          if request.path.startswith('/api/'):
+               return jsonify({
+                    "data": None,
+                    "error": {"code": "UNAUTHORIZED", "message": "No autenticado"},
+                    "meta": {}
+               }), 401
+          
+          # Si NO estamos ya en la página de login, mostrar mensaje
+          if request.endpoint != 'pages_auth.login_page':
+               flash(login_manager.login_message, login_manager.login_message_category)
+          
+          return redirect(url_for(login_manager.login_view))
 
      migrate = Migrate(app, db)
      
@@ -75,6 +93,7 @@ def create_app(test_config=None):
      @app.before_request
      def _csrf_guard_api():
           """Valida CSRF y gestiona la expiración de sesión"""
+          # Validar CSRF primero (con excepciones internas para login/register)
           validate_csrf_for_api()
           
           # Endpoints que NO requieren validación de sesión
@@ -104,7 +123,19 @@ def create_app(test_config=None):
                          # Limpiar la sesión completamente
                          session.clear()
                          logout_user()
-                         flash("Tu sesión ha expirado por inactividad.", "warning")
+                         
+                         # No mostrar flash si ya estamos en login o es una petición API
+                         if request.endpoint != 'pages_auth.login_page' and not request.path.startswith('/api/'):
+                              flash("Tu sesión ha expirado por inactividad.", "warning")
+                         
+                         # Si es petición API, devolver JSON
+                         if request.path.startswith('/api/'):
+                              return jsonify({
+                                   "data": None,
+                                   "error": {"code": "SESSION_EXPIRED", "message": "Sesión expirada"},
+                                   "meta": {}
+                              }), 401
+                         
                          return redirect(url_for('pages_auth.login_page'))
                
                # Actualizar la última actividad

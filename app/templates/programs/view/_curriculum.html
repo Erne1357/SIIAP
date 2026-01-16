@@ -10,38 +10,90 @@
   </div>
 
   <div class="row">
-    <div class="col-lg-10 mx-auto">
-      {% if program.curriculum_structure %}
-        <!-- Mapa Curricular Dinámico -->
-        <div class="table-responsive" data-aos="fade-up">
-          <table class="table table-bordered curriculum-table">
-            {% for semester_pair in program.curriculum_structure %}
-              <thead>
-                <tr>
-                  {% for semester in semester_pair.semesters %}
-                  <th class="text-center bg-primary text-white">{{ semester.name }}</th>
-                  {% endfor %}
-                </tr>
-              </thead>
-              <tbody>
-                {% if semester_pair.semesters %}
-                  {% set max_courses = semester_pair.semesters | map(attribute='courses') | map('length') | max | default(0) %}
-                  {% if max_courses > 0 %}
-                    {% for i in range(max_courses) %}
-                    <tr>
-                      {% for semester in semester_pair.semesters %}
-                      <td>{{ semester.courses[i] if i < semester.courses|length else '' }}</td>
+    <div class="col-lg-11 mx-auto">
+      {% if program.curriculum_structure and program.curriculum_structure.semesters %}
+        <!-- Mapa Curricular por Semestres -->
+        <div class="accordion accordion-flush" id="curriculumAccordion" data-aos="fade-up">
+          {% for semester in program.curriculum_structure.semesters %}
+          <div class="accordion-item mb-3 border rounded overflow-hidden shadow-sm">
+            <h2 class="accordion-header" id="heading-semester-{{ semester.semester }}">
+              <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold bg-primary text-white" 
+                      type="button" 
+                      data-bs-toggle="collapse" 
+                      data-bs-target="#collapse-semester-{{ semester.semester }}">
+                <i class="bi bi-calendar-check me-2"></i>
+                Semestre {{ semester.semester }}
+                <span class="badge bg-light text-dark ms-2">{{ semester.courses | length }} materia{{ 's' if semester.courses | length != 1 else '' }}</span>
+              </button>
+            </h2>
+            <div id="collapse-semester-{{ semester.semester }}" 
+                 class="accordion-collapse collapse {% if loop.index == 1 %}show{% endif %}" 
+                 data-bs-parent="#curriculumAccordion">
+              <div class="accordion-body p-0">
+                {% if semester.courses %}
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width: 15%">Código</th>
+                        <th style="width: 55%">Materia</th>
+                        <th style="width: 15%" class="text-center">Créditos</th>
+                        <th style="width: 15%" class="text-center">Tipo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for course in semester.courses %}
+                      <tr>
+                        <td class="font-monospace text-muted">{{ course.code or 'N/A' }}</td>
+                        <td class="fw-semibold">{{ course.name }}</td>
+                        <td class="text-center">
+                          <span class="badge bg-info">{{ course.credits or '0' }}</span>
+                        </td>
+                        <td class="text-center">
+                          {% if course.type == 'obligatoria' %}
+                            <span class="badge bg-primary">Obligatoria</span>
+                          {% elif course.type == 'optativa' %}
+                            <span class="badge bg-warning text-dark">Optativa</span>
+                          {% elif course.type == 'electiva' %}
+                            <span class="badge bg-secondary">Electiva</span>
+                          {% else %}
+                            <span class="badge bg-secondary">{{ course.type }}</span>
+                          {% endif %}
+                        </td>
+                      </tr>
                       {% endfor %}
-                    </tr>
-                    {% endfor %}
-                  {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center text-muted">
+                  <i class="bi bi-inbox fs-1"></i>
+                  <p class="mb-0 mt-2">No hay materias en este semestre</p>
+                </div>
                 {% endif %}
-              </tbody>
-            {% endfor %}
-          </table>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
         </div>
+
+        <!-- Resumen de Créditos -->
+        {% set total_credits = namespace(value=0) %}
+        {% for semester in program.curriculum_structure.semesters %}
+          {% for course in semester.courses %}
+            {% set total_credits.value = total_credits.value + (course.credits | int if course.credits else 0) %}
+          {% endfor %}
+        {% endfor %}
+        
+        {% if total_credits.value > 0 %}
+        <div class="alert alert-success mt-4 text-center" data-aos="fade-up">
+          <i class="bi bi-award-fill me-2"></i>
+          <strong>Total de Créditos del Programa:</strong> {{ total_credits.value }} créditos
+        </div>
+        {% endif %}
       {% else %}
         <div class="alert alert-info text-center">
+          <i class="bi bi-info-circle me-2"></i>
           El plan de estudios para este programa aún no está disponible.
         </div>
       {% endif %}

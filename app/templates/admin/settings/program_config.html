@@ -4,58 +4,7 @@
 {% block title %}Configurar {{ program.name }}{% endblock %}
 
 {% block styles %}
-<style>
-  .config-preview {
-    background: #f8f9fa;
-    border: 2px dashed #dee2e6;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-top: 1rem;
-  }
-
-  .config-preview h6 {
-    color: #6c757d;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    margin-bottom: 0.5rem;
-  }
-
-  .json-editor {
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-  }
-
-  .form-section {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    margin-bottom: 1.5rem;
-  }
-
-  .form-section h5 {
-    color: var(--bg--tecnm);
-    border-bottom: 2px solid var(--bg--tecnm);
-    padding-bottom: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .list-editor {
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    padding: 0.5rem;
-  }
-
-  .list-item {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .list-item input {
-    flex: 1;
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/program_config.css') }}?v={{static_version}}">
 {% endblock %}
 
 {% block content %}
@@ -70,7 +19,7 @@
     </a>
   </div>
 
-  <form id="programConfigForm">
+  <form id="programConfigForm" data-program-slug="{{ program.slug }}">
     <!-- Tabs de navegación -->
     <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
       <li class="nav-item" role="presentation">
@@ -332,14 +281,12 @@
 
           <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>Formato JSON:</strong> Edita el mapa curricular en formato JSON.
-            Asegúrate de mantener la estructura correcta.
+            <strong>Editor Visual:</strong> Organiza tu plan de estudios por semestres y materias.
+            Los cambios se guardarán automáticamente en el formato correcto.
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">Estructura del Mapa Curricular (JSON)</label>
-            <textarea class="form-control json-editor" name="curriculum_structure" rows="15"
-                      placeholder='{"type": "semestral", "semesters": [...]}'>{{ program.curriculum_structure | tojson(indent=2) if program.curriculum_structure else '' }}</textarea>
+          <div id="curriculumEditorContainer" class="mb-3">
+            <!-- El editor se renderiza aquí dinámicamente -->
           </div>
 
           <div class="mb-3">
@@ -360,14 +307,12 @@
 
           <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>Formato JSON:</strong> Edita las líneas de investigación en formato JSON.
-            Cada línea debe tener "name" y "description".
+            <strong>Editor Visual:</strong> Agrega y edita las líneas de investigación de forma intuitiva.
+            Cada línea incluye nombre y descripción.
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">Líneas de Investigación (JSON)</label>
-            <textarea class="form-control json-editor" name="research_lines" rows="10"
-                      placeholder='[{"name": "...", "description": "..."}]'>{{ program.research_lines | tojson(indent=2) if program.research_lines else '' }}</textarea>
+          <div id="researchEditorContainer" class="mb-3">
+            <!-- El editor se renderiza aquí dinámicamente -->
           </div>
         </div>
       </div>
@@ -535,175 +480,17 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/admin/settings/program_config.js') }}?v={{static_version}}"></script>
 <script>
-  // Funciones para listas dinámicas
-  function addObjective() {
-    const container = document.getElementById('objectivesList');
-    const count = container.children.length + 1;
-    const div = document.createElement('div');
-    div.className = 'list-item';
-    div.innerHTML = `
-      <input type="text" class="form-control" placeholder="Objetivo ${count}">
-      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="fas fa-trash"></i>
-      </button>
-    `;
-    container.appendChild(div);
-    updateObjectivesPreview();
-  }
-
-  function addCompetency() {
-    const container = document.getElementById('competenciesList');
-    const count = container.children.length + 1;
-    const div = document.createElement('div');
-    div.className = 'list-item';
-    div.innerHTML = `
-      <input type="text" class="form-control" placeholder="Competencia ${count}">
-      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="fas fa-trash"></i>
-      </button>
-    `;
-    container.appendChild(div);
-    updateProfilePreview();
-  }
-
-  function removeListItem(button) {
-    button.parentElement.remove();
-    updateObjectivesPreview();
-    updateProfilePreview();
-  }
-
-  // Actualizar vistas previas
-  function updateObjectivesPreview() {
-    const inputs = document.querySelectorAll('#objectivesList input');
-    const preview = document.getElementById('objectivesPreview');
-    preview.innerHTML = '';
-    inputs.forEach(input => {
-      if (input.value.trim()) {
-        const li = document.createElement('li');
-        li.textContent = input.value;
-        preview.appendChild(li);
-      }
-    });
-  }
-
-  function updateProfilePreview() {
-    const intro = document.querySelector('[name="graduate_profile_intro"]').value;
-    const inputs = document.querySelectorAll('#competenciesList input');
-    const introPreview = document.getElementById('profileIntroPreview');
-    const preview = document.getElementById('competenciesPreview');
-
-    introPreview.textContent = intro || 'El egresado de este programa será capaz de:';
-    preview.innerHTML = '';
-    inputs.forEach(input => {
-      if (input.value.trim()) {
-        const li = document.createElement('li');
-        li.textContent = input.value;
-        preview.appendChild(li);
-      }
-    });
-  }
-
-  // Event listeners
-  document.querySelectorAll('#objectivesList input').forEach(input => {
-    input.addEventListener('input', updateObjectivesPreview);
-  });
-
-  document.querySelectorAll('#competenciesList input').forEach(input => {
-    input.addEventListener('input', updateProfilePreview);
-  });
-
-  document.querySelector('[name="graduate_profile_intro"]')?.addEventListener('input', updateProfilePreview);
-
-  // Inicializar vistas previas
-  updateObjectivesPreview();
-  updateProfilePreview();
-
-  // Submit del formulario
-  document.getElementById('programConfigForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const formData = new FormData(this);
-    const data = {};
-
-    // Campos simples
-    for (let [key, value] of formData.entries()) {
-      if (key === 'is_active' || key === 'show_curriculum' || key === 'show_hero_cards' ||
-          key === 'show_objectives' || key === 'show_graduate_profile' ||
-          key === 'show_research_lines' || key === 'show_contact_section' ||
-          key === 'show_contact_form') {
-        data[key] = true;
-      } else {
-        data[key] = value || null;
-      }
-    }
-
-    // Campos booleanos no marcados
-    ['is_active', 'show_curriculum', 'show_hero_cards', 'show_objectives',
-     'show_graduate_profile', 'show_research_lines', 'show_contact_section',
-     'show_contact_form'].forEach(field => {
-      if (!(field in data)) {
-        data[field] = false;
-      }
-    });
-
-    // Convertir números
-    if (data.duration_semesters) data.duration_semesters = parseInt(data.duration_semesters);
-    if (data.duration_years) data.duration_years = parseFloat(data.duration_years);
-
-    // Recopilar objetivos
-    const objectives = [];
-    document.querySelectorAll('#objectivesList input').forEach(input => {
-      if (input.value.trim()) objectives.push(input.value.trim());
-    });
-    data.objectives = objectives.length > 0 ? objectives : null;
-
-    // Recopilar competencias
-    const competencies = [];
-    document.querySelectorAll('#competenciesList input').forEach(input => {
-      if (input.value.trim()) competencies.push(input.value.trim());
-    });
-    data.graduate_competencies = competencies.length > 0 ? competencies : null;
-
-    // Parsear JSON fields
-    try {
-      if (data.curriculum_structure) {
-        data.curriculum_structure = JSON.parse(data.curriculum_structure);
-      }
-    } catch (e) {
-      alert('Error en el formato JSON del mapa curricular: ' + e.message);
-      return;
-    }
-
-    try {
-      if (data.research_lines) {
-        data.research_lines = JSON.parse(data.research_lines);
-      }
-    } catch (e) {
-      alert('Error en el formato JSON de líneas de investigación: ' + e.message);
-      return;
-    }
-
-    // Enviar datos
-    try {
-      const response = await window.apiClient.patch(`/api/v1/programs/{{ program.slug }}`, data);
-      const json = await response.json();
-
-      if (json.flash) {
-        json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
-      }
-
-      if (response.ok) {
-        // Redirigir a la vista del programa
-        setTimeout(() => {
-          window.location.href = "{{ url_for('program.view_program', slug=program.slug) }}";
-        }, 1500);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      window.dispatchEvent(new CustomEvent('flash', {
-        detail: { level: 'danger', message: 'Error al guardar los cambios.' }
-      }));
+  // Inicializar editores con los datos del programa
+  document.addEventListener('DOMContentLoaded', function() {
+    const programData = {
+      curriculum_structure: {{ program.curriculum_structure | tojson | safe if program.curriculum_structure else 'null' }},
+      research_lines: {{ program.research_lines | tojson | safe if program.research_lines else 'null' }}
+    };
+    
+    if (window.initializeProgramConfigEditors) {
+      window.initializeProgramConfigEditors(programData);
     }
   });
 </script>
