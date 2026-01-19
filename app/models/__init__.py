@@ -15,3 +15,4 @@ from .extension_request import ExtensionRequest
 from .program_change_request import ProgramChangeRequest
 from .retention_policy import RetentionPolicy
 from .term import Term
+from .academic_period import AcademicPeriod

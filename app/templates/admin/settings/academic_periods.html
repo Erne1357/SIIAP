@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}{{ super() }} - Periodos Academicos{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/academic_periods.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+          <i class="bi bi-calendar3 me-2"></i>
+          Periodos Academicos
+        </h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalPeriod">
+          <i class="bi bi-plus-lg me-1"></i> Nuevo Periodo
+        </button>
+      </div>
+
+      <div class="alert alert-info d-none" id="alertNoPeriods">
+        <i class="bi bi-info-circle me-2"></i>
+        No hay periodos academicos configurados. Crea el primero usando el boton "Nuevo Periodo".
+      </div>
+
+      <div id="periodsContainer">
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+          </div>
+          <p class="text-muted mt-2">Cargando periodos...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Template para tarjeta de periodo -->
+<template id="templatePeriodCard">
+  <div class="card mb-3 period-card" data-period-id="">
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="period-indicator"></span>
+            <h5 class="card-title mb-0">
+              <span class="period-code fw-bold"></span> - <span class="period-name"></span>
+            </h5>
+            <span class="badge period-status-badge"></span>
+          </div>
+          <div class="text-muted small">
+            <div class="mb-1">
+              <i class="bi bi-calendar-event me-1"></i>
+              <strong>Admision:</strong> <span class="admission-dates"></span>
+            </div>
+            <div>
+              <i class="bi bi-calendar-check me-1"></i>
+              <strong>Clases:</strong> <span class="class-dates"></span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+          <div class="btn-group-vertical btn-group-sm d-md-none w-100">
+            <button type="button" class="btn btn-outline-success btn-activate d-none">Activar</button>
+            <button type="button" class="btn btn-outline-secondary btn-edit">Editar</button>
+            <button type="button" class="btn btn-outline-danger btn-delete">Eliminar</button>
+          </div>
+          <div class="d-none d-md-block">
+            <button type="button" class="btn btn-outline-success btn-sm btn-activate d-none">Activar</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-edit">Editar</button>
+            <button type="button" class="btn btn-outline-danger btn-sm btn-delete">Eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal para crear/editar periodo -->
+<div class="modal fade" id="modalPeriod" tabindex="-1" aria-labelledby="modalPeriodLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalPeriodLabel">Nuevo Periodo Academico</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="formPeriod" autocomplete="off">
+        <div class="modal-body">
+          <input type="hidden" id="periodId">
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="periodCode" class="form-label">Codigo <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="periodCode" placeholder="Ej: 20253" maxlength="5" required>
+              <div class="form-text">Formato: YYYYN (Ej: 20253 = Ago-Dic 2025)</div>
+            </div>
+            <div class="col-md-8">
+              <label for="periodName" class="form-label">Nombre <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="periodName" placeholder="Ej: Agosto-Diciembre 2025" required>
+            </div>
+          </div>
+
+          <hr class="my-4">
+          <h6 class="text-muted mb-3">Fechas del Periodo de Clases</h6>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="startDate" class="form-label">Inicio de Clases <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="startDate" required>
+            </div>
+            <div class="col-md-6">
+              <label for="endDate" class="form-label">Fin de Clases <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="endDate" required>
+            </div>
+          </div>
+
+          <hr class="my-4">
+          <h6 class="text-muted mb-3">Fechas del Periodo de Admision</h6>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="admissionStartDate" class="form-label">Inicio de Admisiones <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="admissionStartDate" required>
+            </div>
+            <div class="col-md-6">
+              <label for="admissionEndDate" class="form-label">Fin de Admisiones <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="admissionEndDate" required>
+            </div>
+          </div>
+
+          <div class="alert alert-warning mt-3 mb-0">
+            <i class="bi bi-info-circle me-1"></i> Las fechas de admision deben ser anteriores al inicio de clases.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSavePeriod">Guardar Periodo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmacion para eliminar -->
+<div class="modal fade" id="modalDelete" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirmar Eliminacion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Estas seguro de eliminar el periodo <strong id="deletePeriodCode"></strong>?</p>
+        <p class="text-muted small mb-0">Esta accion no se puede deshacer.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger btn-sm" id="btnConfirmDelete">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/admin/settings/academic_periods.js') }}?v={{ static_version }}"></script>
+{% endblock %}

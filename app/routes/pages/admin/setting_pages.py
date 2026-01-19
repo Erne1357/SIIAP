@@ -51,3 +51,11 @@ def config_program(slug):
 
     # postgraduate_admin puede editar cualquier programa
     return render_template('admin/settings/program_config.html', program=program)
+
+
+@pages_settings.route('/academic-periods', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin')
+def academic_periods():
+    """Gestión de periodos académicos."""
+    return render_template('admin/settings/academic_periods.html')

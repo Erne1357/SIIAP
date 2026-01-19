@@ -239,7 +239,8 @@ def register_blueprints(app):
      from app.routes.api.admin.history_api import api_admin_history
      from app.routes.api.notifications_api import api_notifications
      from app.routes.api.emails_api import api_emails
-     
+     from app.routes.api.academic_period_api import api_academic_periods
+
      app.register_blueprint(api_auth_bp)
      app.register_blueprint(api_programs)
      app.register_blueprint(api_admission)
@@ -261,6 +262,7 @@ def register_blueprints(app):
      app.register_blueprint(api_admin_history)
      app.register_blueprint(api_notifications)
      app.register_blueprint(api_emails)
+     app.register_blueprint(api_academic_periods)
 
 
      # Registrar páginas

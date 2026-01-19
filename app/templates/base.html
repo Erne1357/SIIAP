@@ -203,6 +203,10 @@
               href="{{ url_for('program.list_programs') }}">
               <i class="fas fa-graduation-cap me-2"></i>Programas
             </a>
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.academic_periods' %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">
+              <i class="fas fa-calendar-alt me-2"></i>Periodos Academicos
+            </a>
             {% endif %}
           </div>
         </div>
@@ -325,6 +329,10 @@
               <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
                 href="{{ url_for('program.list_programs') }}" data-no-swup>
                 <i class="fas fa-graduation-cap me-2"></i>Programas
+              </a>
+              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.academic_periods' %}active{% endif %}"
+                href="{{ url_for('pages_admin.pages_settings.academic_periods') }}" data-no-swup>
+                <i class="fas fa-calendar-alt me-2"></i>Periodos Academicos
               </a>
               {% endif %}
             </div>
