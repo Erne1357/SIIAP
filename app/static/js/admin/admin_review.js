@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
           credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': csrf
+            'X-CSRFToken': csrf
           },
           body: JSON.stringify({ action: pendingAction, comment })
         });
@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrf
+          'X-CSRFToken': csrf
         },
         body: JSON.stringify(payload)
       });

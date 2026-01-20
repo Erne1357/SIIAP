@@ -72,13 +72,25 @@
         <div class="col-md-2">
           <label class="form-label">Orden</label>
           <select name="sort" class="form-select">
+            <option value="asc" {% if filters.sort=='asc' %}selected{% endif %}>Más antiguos (FIFO)</option>
             <option value="desc" {% if filters.sort=='desc' %}selected{% endif %}>Más recientes</option>
-            <option value="asc" {% if filters.sort=='asc' %}selected{% endif %}>Más antiguos</option>
           </select>
         </div>
         <div class="col-md-2 align-self-end">
           <button type="submit" class="btn btn-primary w-100">Filtrar</button>
         </div>
+        {% if is_program_admin %}
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="show_all" value="true" 
+                   id="showAllPrograms" {% if filters.show_all %}checked{% endif %}
+                   onchange="this.form.submit()">
+            <label class="form-check-label" for="showAllPrograms">
+              <i class="fas fa-eye me-1"></i>Ver documentos de otros programas (solo consulta)
+            </label>
+          </div>
+        </div>
+        {% endif %}
       </form>
 
       <!-- Tabla de submissions -->
@@ -97,10 +109,16 @@
           </thead>
           <tbody>
             {% for sub in submissions %}
-            <tr>
+            {% set is_own_program = not is_program_admin or sub.program_step.program.id in managed_program_ids %}
+            <tr class="{% if not is_own_program %}table-secondary{% endif %}">
               <td>{{ sub.id }}</td>
               <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
-              <td>{{ sub.program_step.program.name }}</td>
+              <td>
+                {{ sub.program_step.program.name }}
+                {% if not is_own_program %}
+                <i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>
+                {% endif %}
+              </td>
               <td>{{ sub.archive.name }}</td>
               <td>{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') }}</td>
               <td>
@@ -120,7 +138,7 @@
               <td>
                 <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
                   class="btn btn-sm btn-outline-primary">
-                  <i class="fas fa-eye me-1"></i>Revisar
+                  <i class="fas fa-eye me-1"></i>{% if is_own_program %}Revisar{% else %}Ver{% endif %}
                 </a>
               </td>
             </tr>

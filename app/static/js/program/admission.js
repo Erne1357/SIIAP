@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrf
+          'X-CSRFToken': csrf
         },
         body: JSON.stringify(payload)
       });
@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch('/api/v1/submissions', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'X-CSRF-Token': csrf },
+          headers: { 'X-CSRFToken': csrf },
           body: fd
         });
         const json = await res.json().catch(() => ({}));
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch(`/api/v1/submissions/${subId}`, {
           method: 'DELETE',
           credentials: 'same-origin',
-          headers: { 'X-CSRF-Token': csrf }
+          headers: { 'X-CSRFToken': csrf }
         });
         const json = await res.json().catch(() => ({}));
 
@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrf
+          'X-CSRFToken': csrf
         },
         body: JSON.stringify(payload)
       });

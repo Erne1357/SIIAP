@@ -43,7 +43,8 @@ def list_users():
     
     # Filtro por rol
     if role_filter:
-        query = query.join(User.role).filter(db.func.lower(User.role.has(name=role_filter)))
+        from app.models.role import Role
+        query = query.join(User.role).filter(Role.name == role_filter)
     
     # Filtro por programa
     if program_filter:

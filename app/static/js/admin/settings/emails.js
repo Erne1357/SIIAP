@@ -52,7 +52,7 @@ class EmailConfigManager {
             const res = await fetch('/admin/emails/logout', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-Token': this.getCsrf()
+                    'X-CSRFToken': this.getCsrf()
                 }
             });
 
@@ -77,7 +77,7 @@ class EmailConfigManager {
             const res = await fetch('/admin/emails/process-queue', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-Token': this.getCsrf()
+                    'X-CSRFToken': this.getCsrf()
                 }
             });
 
@@ -110,7 +110,7 @@ class EmailConfigManager {
             const res = await fetch('/admin/emails/retry-failed', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-Token': this.getCsrf()
+                    'X-CSRFToken': this.getCsrf()
                 }
             });
 

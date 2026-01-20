@@ -48,9 +48,9 @@ def list_students():
     # Programas que puede gestionar el coordinador
     managed_programs = []
     if current_user.role.name == 'program_admin':
-        managed_programs = db.session.execute(
+        managed_programs = list(db.session.execute(
             select(Program.id).where(Program.coordinator_id == current_user.id)
-        ).scalars().all()
+        ).scalars().all())
         
         if not show_other:
             # Solo sus programas
@@ -87,10 +87,12 @@ def list_students():
             continue
         
         # Puede gestionar este estudiante?
-        can_manage = (
-            current_user.role.name in ('postgraduate_admin', 'program_admin') or
-            (current_user.role.name == 'program_admin' and program.id in managed_programs)
-        )
+        # postgraduate_admin puede gestionar todos
+        # program_admin solo los de sus programas
+        if current_user.role.name == 'postgraduate_admin':
+            can_manage = True
+        else:
+            can_manage = program.id in managed_programs
         
         # Calcular métricas
         student_data = {
@@ -380,8 +382,14 @@ def get_student_details(student_id: int):
     
     program = db.session.get(Program, user_program.program_id)
     
-    # Los coordinadores pueden ver detalles de cualquier estudiante (solo lectura)
-    # Las restricciones de modificación se aplicarán en endpoints específicos de escritura
+    # Determinar si el coordinador puede gestionar este estudiante
+    if current_user.role.name == 'postgraduate_admin':
+        can_manage = True
+    else:
+        managed_programs = list(db.session.execute(
+            select(Program.id).where(Program.coordinator_id == current_user.id)
+        ).scalars().all())
+        can_manage = program.id in managed_programs
     
     # 3. Obtener estado de admisión completo
     admission_state = get_admission_state(student_id, program.id, user_program)
@@ -493,7 +501,8 @@ def get_student_details(student_id: int):
             "in_review": admission_state['status_count'].get('review', 0),
             "progress_percentage": admission_state['progress_pct']
         },
-        "missing_documents": _get_missing_documents(documents_by_step)
+        "missing_documents": _get_missing_documents(documents_by_step),
+        "can_manage": can_manage
     }), 200
 
 def _format_archive_status(archive, subs, all_extensions):

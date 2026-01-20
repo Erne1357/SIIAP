@@ -156,7 +156,7 @@
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': getCsrf()
+          'X-CSRFToken': getCsrf()
         },
         body: JSON.stringify({
           from_program_id: currentFromProgram.id,
@@ -384,7 +384,7 @@
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': getCsrf()
+          'X-CSRFToken': getCsrf()
         },
         body: JSON.stringify({
           from_program_id: currentFromProgram.id,

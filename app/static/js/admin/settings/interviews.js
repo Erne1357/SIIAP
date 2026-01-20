@@ -47,7 +47,7 @@
       credentials: "same-origin",
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-Token': getCsrfToken(),
+        'X-CSRFToken': getCsrfToken(),
         ...options.headers
       }
     };

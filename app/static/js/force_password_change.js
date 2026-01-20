@@ -42,11 +42,20 @@
                     method: 'GET',
                     credentials: 'same-origin',
                     headers: {
-                        'X-CSRF-Token': getCsrf()
+                        'X-CSRFToken': getCsrf()
                     }
                 });
 
                 const json = await response.json();
+                
+                // Sincronizar token CSRF si el servidor devuelve uno diferente
+                if (json.data && json.data.csrf_token) {
+                    const metaTag = document.querySelector('meta[name="csrf-token"]');
+                    if (metaTag && metaTag.getAttribute('content') !== json.data.csrf_token) {
+                        metaTag.setAttribute('content', json.data.csrf_token);
+                        console.log('Token CSRF actualizado desde /me');
+                    }
+                }
                 
                 if (json.data && json.data.must_change_password === true) {
                     this.showModal();
@@ -190,7 +199,7 @@
                     credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-Token': getCsrf()
+                        'X-CSRFToken': getCsrf()
                     },
                     body: JSON.stringify(data)
                 });

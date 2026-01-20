@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.models.user import User
 from app.services.user_history_service import UserHistoryService
+from app.utils.csrf import generate_csrf_token
 from app import db
 import re
 
@@ -65,6 +66,10 @@ def api_login():
 
     login_user(user)
     session['last_activity'] = datetime.now().timestamp()
+    
+    # Generar token CSRF para la nueva sesión
+    new_csrf_token = generate_csrf_token(force_new=True)
+    
     user.last_login = datetime.now()
     db.session.commit()
 
@@ -73,7 +78,8 @@ def api_login():
         "id": user.id, 
         "username": user.username, 
         "role": getattr(getattr(user, "role", None), "name", None),
-        "must_change_password": user.must_change_password  # Flag importante
+        "must_change_password": user.must_change_password,  # Flag importante
+        "csrf_token": new_csrf_token  # Token para actualizar en cliente
     }
 
     return jsonify({
@@ -266,6 +272,10 @@ def api_me():
     Incluye el flag must_change_password.
     """
     u = current_user
+    # Obtener el token CSRF actual de la sesión
+    from flask import session
+    csrf_token = session.get("_csrf_token", "")
+    
     return jsonify({
         "data": {
             "id": u.id, 
@@ -274,7 +284,8 @@ def api_me():
             "first_name": u.first_name, 
             "last_name": u.last_name,
             "role": getattr(getattr(u, "role", None), "name", None),
-            "must_change_password": u.must_change_password
+            "must_change_password": u.must_change_password,
+            "csrf_token": csrf_token  # Para que el cliente pueda actualizar si es necesario
         }, 
         "error": None, 
         "meta": {}

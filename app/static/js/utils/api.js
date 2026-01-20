@@ -35,7 +35,7 @@ class ApiClient {
      */
     getDefaultHeaders() {
         return {
-            'X-CSRF-Token': this.getCsrf(),
+            'X-CSRFToken': this.getCsrf(),
             'X-Requested-With': 'XMLHttpRequest'
         };
     }

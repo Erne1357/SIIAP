@@ -50,7 +50,7 @@
       const res = await fetch(sessionLogoutUrl, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'X-CSRF-Token': csrf }
+        headers: { 'X-CSRFToken': csrf }
       });
       let json = null;
       try { json = await res.json(); } catch (_) {}
@@ -75,7 +75,7 @@
         credentials: 'same-origin',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-Token': csrf
+          'X-CSRFToken': csrf
         }
       });
       const json = await res.json().catch(() => ({}));

@@ -300,7 +300,7 @@
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 },
                 body: JSON.stringify(data)
             });
@@ -331,7 +331,7 @@
             const res = await fetch(`${API_BASE}/${userId}/reset-password`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 }
             });
             
@@ -354,7 +354,7 @@
             const res = await fetch(`${API_BASE}/${userId}/toggle-active`, {
                 method: 'PATCH',
                 headers: {
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 }
             });
             
@@ -421,7 +421,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 },
                 body: JSON.stringify({ control_number: controlNumber })
             });

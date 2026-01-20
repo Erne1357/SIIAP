@@ -70,7 +70,7 @@
   // Función helper para hacer peticiones con manejo de errores mejorado
   async function apiRequest(url, options = {}) {
     const defaultHeaders = {
-      'X-CSRF-Token': getCsrfToken()
+      'X-CSRFToken': getCsrfToken()
     };
 
     // Solo agregar Content-Type para JSON, no para FormData
@@ -399,7 +399,7 @@
         method: "DELETE",
         credentials: "same-origin",
         headers: {
-          'X-CSRF-Token': getCsrfToken()
+          'X-CSRFToken': getCsrfToken()
         }
       });
 

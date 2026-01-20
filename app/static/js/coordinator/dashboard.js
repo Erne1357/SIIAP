@@ -15,8 +15,30 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentFilters = {};
 
   // ==================== INICIALIZACIÓN ====================
+  loadPrograms();  // Cargar programas primero
   loadStudents();
   setupEventListeners();
+
+  // ==================== CARGA DE PROGRAMAS ====================
+  async function loadPrograms() {
+    try {
+      const res = await fetch('/api/v1/coordinator/programs', {
+        credentials: 'same-origin'
+      });
+
+      if (!res.ok) throw new Error('No se pudieron cargar los programas');
+
+      const data = await res.json();
+      const programFilter = document.getElementById('programFilter');
+      
+      if (programFilter && data.programs) {
+        programFilter.innerHTML = '<option value="">Todos los programas</option>' +
+          data.programs.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      }
+    } catch (err) {
+      console.error('Error loading programs:', err);
+    }
+  }
 
   // ==================== CARGA DE DATOS ====================
   async function loadStudents() {
@@ -53,7 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateAdmissionTable() {
     const tbody = document.querySelector('#admissionTable tbody');
-    const admissionStudents = studentsData.filter(s => s.current_phase === 'admission');
+    // Ordenar por progreso ascendente (menor progreso primero = necesita más atención)
+    const admissionStudents = studentsData
+      .filter(s => s.current_phase === 'admission')
+      .sort((a, b) => a.progress_percentage - b.progress_percentage);
 
     tbody.innerHTML = admissionStudents.map(student => `
       <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}" 
@@ -70,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-primary">${student.program_name}</span>
+          ${!student.can_manage ? '<i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <div class="progress">
@@ -107,10 +133,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updatePermanenceTable() {
     const tbody = document.querySelector('#permanenceTable tbody');
-    const permanenceStudents = studentsData.filter(s => s.current_phase === 'permanence');
+    // Ordenar por progreso ascendente (menor progreso primero = necesita más atención)
+    const permanenceStudents = studentsData
+      .filter(s => s.current_phase === 'permanence')
+      .sort((a, b) => a.academic_progress - b.academic_progress);
 
     tbody.innerHTML = permanenceStudents.map(student => `
-      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}">
+      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}"
+          title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
           <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
                alt="Avatar" class="rounded-circle student-avatar">
@@ -123,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-info">${student.program_name}</span>
+          ${!student.can_manage ? '<i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <span class="badge bg-light text-dark">${student.current_semester || 'N/A'}</span>
@@ -151,10 +182,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateConclusionTable() {
     const tbody = document.querySelector('#conclusionTable tbody');
-    const conclusionStudents = studentsData.filter(s => s.current_phase === 'conclusion');
+    // Ordenar por progreso ascendente (menor progreso primero = necesita más atención)
+    const conclusionStudents = studentsData
+      .filter(s => s.current_phase === 'conclusion')
+      .sort((a, b) => a.conclusion_progress - b.conclusion_progress);
 
     tbody.innerHTML = conclusionStudents.map(student => `
-      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}">
+      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}"
+          title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
           <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
                alt="Avatar" class="rounded-circle student-avatar">
@@ -167,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-success">${student.program_name}</span>
+          ${!student.can_manage ? '<i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <span class="badge bg-light text-dark">${student.conclusion_stage || 'Inicial'}</span>
@@ -305,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error desconocido');
 
-      renderStudentDetails(data.student, data.documents, data.interview, data.metrics, data.missing_documents);
+      renderStudentDetails(data.student, data.documents, data.interview, data.metrics, data.missing_documents, data.can_manage);
 
     } catch (err) {
       console.error('Error loading student details:', err);
@@ -317,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     }
   }
-  function renderStudentDetails(student, documents, interview, metrics, missing) {
+  function renderStudentDetails(student, documents, interview, metrics, missing, canManage) {
     // Header
     document.getElementById('modalStudentName').textContent = student.full_name;
     document.getElementById('modalStudentEmail').textContent = student.email;
@@ -328,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGeneralTab(student, metrics, missing);
 
     // Tab Documentos
-    renderDocumentsTab(documents, student.id);
+    renderDocumentsTab(documents, student.id, canManage);
 
     // Tab Entrevista
     renderInterviewTab(interview, student);
@@ -453,10 +489,18 @@ document.addEventListener('DOMContentLoaded', () => {
   `;
   }
 
-  function renderDocumentsTab(documents, studentId) {
+  function renderDocumentsTab(documents, studentId, canManage) {
     const docsContent = document.getElementById('documentsTabContent');
 
-    docsContent.innerHTML = documents.map(step => `
+    // Si es solo lectura, mostrar advertencia
+    const readOnlyWarning = !canManage ? `
+      <div class="alert alert-info mb-3">
+        <i class="fas fa-eye me-2"></i>
+        <strong>Modo solo lectura:</strong> Este estudiante pertenece a un programa de otro coordinador.
+      </div>
+    ` : '';
+
+    docsContent.innerHTML = readOnlyWarning + documents.map(step => `
     <div class="card mb-3">
       <div class="card-header bg-light">
         <h6 class="mb-0">
@@ -501,7 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
                           <i class="fas fa-eye"></i>
                         </a>
                       ` : ''}
-                      ${arch.allow_coordinator_upload ? `
+                      ${canManage && arch.allow_coordinator_upload ? `
                         <button class="btn btn-outline-success btn-upload-for-modal" 
                                 data-student-id="${studentId}" data-archive-id="${arch.id}" 
                                 title="Subir documento">
@@ -699,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch('/api/v1/coordinator/upload-for-student', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'X-CSRF-Token': csrf },
+          headers: { 'X-CSRFToken': csrf },
           body: formData
         });
 
