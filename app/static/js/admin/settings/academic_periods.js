@@ -222,8 +222,12 @@ class AcademicPeriodsManager {
             admission_end_date: document.getElementById('admissionEndDate').value
         };
 
+        console.log('Saving period data:', data);
+
         const url = periodId ? `${this.API_BASE}/${periodId}` : this.API_BASE;
         const method = periodId ? 'PATCH' : 'POST';
+        
+        console.log(`Sending ${method} request to ${url} with data:`, data);
 
         try {
             const response = await fetch(url, {

@@ -3,16 +3,15 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app.utils.auth import roles_required
 from app.services import academic_period_service as svc
+import logging
 
 api_academic_periods = Blueprint(
     'api_academic_periods',
     __name__,
     url_prefix='/api/v1/academic-periods'
 )
-api_academic_periods.strict_slashes = False
 
-
-@api_academic_periods.route('/', methods=['GET'])
+@api_academic_periods.route('', methods=['GET'])
 @login_required
 @roles_required('postgraduate_admin')
 def api_list_periods():
@@ -27,49 +26,7 @@ def api_list_periods():
         "meta": {"count": len(data)}
     }), 200
 
-
-@api_academic_periods.get('/active')
-@login_required
-def api_get_active_period():
-    """Obtiene el periodo académico activo actual."""
-    period = svc.get_active_period()
-
-    if not period:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NOT_FOUND", "message": "No hay un periodo activo actualmente"},
-            "meta": {}
-        }), 404
-
-    return jsonify({
-        "data": period.to_dict(),
-        "error": None,
-        "meta": {}
-    }), 200
-
-
-@api_academic_periods.get('/<int:period_id>')
-@login_required
-@roles_required('postgraduate_admin')
-def api_get_period(period_id):
-    """Obtiene un periodo académico por ID."""
-    try:
-        period = svc.get_academic_period_by_id(period_id)
-    except svc.AcademicPeriodNotFound:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NOT_FOUND", "message": "Periodo académico no encontrado"},
-            "meta": {}
-        }), 404
-
-    return jsonify({
-        "data": period.to_dict(),
-        "error": None,
-        "meta": {}
-    }), 200
-
-
-@api_academic_periods.route('/', methods=['POST'])
+@api_academic_periods.route('', methods=['POST'])
 @login_required
 @roles_required('postgraduate_admin')
 def api_create_period():
@@ -140,6 +97,48 @@ def api_create_period():
             "error": {"code": "SERVER_ERROR", "message": str(e)},
             "meta": {}
         }), 500
+
+
+@api_academic_periods.get('/active')
+@login_required
+def api_get_active_period():
+    """Obtiene el periodo académico activo actual."""
+    period = svc.get_active_period()
+
+    if not period:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": "No hay un periodo activo actualmente"},
+            "meta": {}
+        }), 404
+
+    return jsonify({
+        "data": period.to_dict(),
+        "error": None,
+        "meta": {}
+    }), 200
+
+
+@api_academic_periods.get('/<int:period_id>')
+@login_required
+@roles_required('postgraduate_admin')
+def api_get_period(period_id):
+    """Obtiene un periodo académico por ID."""
+    try:
+        period = svc.get_academic_period_by_id(period_id)
+    except svc.AcademicPeriodNotFound:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": "Periodo académico no encontrado"},
+            "meta": {}
+        }), 404
+
+    return jsonify({
+        "data": period.to_dict(),
+        "error": None,
+        "meta": {}
+    }), 200
+
 
 
 @api_academic_periods.patch('/<int:period_id>')

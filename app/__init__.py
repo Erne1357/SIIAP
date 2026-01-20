@@ -76,6 +76,15 @@ def create_app(test_config=None):
 
      @app.errorhandler(403)
      def forbidden(e):
+          # Si es una petición API, devolver JSON
+          if request.path.startswith('/api/') or request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+               return jsonify({
+                    "data": None,
+                    "flash": [{"level": "danger", "message": "No tienes permiso para acceder a este recurso."}],
+                    "error": {"code": "FORBIDDEN", "message": "No tienes permiso para acceder a este recurso."},
+                    "meta": {}
+               }), 403
+          
           flash("No tienes permiso para acceder a esta página.", "danger")
           back = request.referrer
           if not back or back == request.url:
@@ -85,6 +94,15 @@ def create_app(test_config=None):
      
      @app.errorhandler(400)
      def bad_request(e):
+          # Si es una petición API, devolver JSON
+          if request.path.startswith('/api/') or request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+               return jsonify({
+                    "data": None,
+                    "flash": [{"level": "danger", "message": e.description}],
+                    "error": {"code": "BAD_REQUEST", "message": e.description},
+                    "meta": {}
+               }), 400
+          
           flash(e.description, "danger")
           back = request.referrer
           code = 303 if request.method == 'POST' else 302

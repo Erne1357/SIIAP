@@ -542,7 +542,7 @@
               const res = await fetch("{{ url_for('api_auth.api_logout') }}", {
                 method: "POST",
                 credentials: "same-origin",
-                headers: { "X-CSRF-Token": getCsrf() }
+                headers: { "X-CSRFToken": getCsrf() }
               });
               const json = await res.json().catch(() => ({}));
               if (json.flash) {
