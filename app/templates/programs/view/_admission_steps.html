@@ -1,4 +1,26 @@
 {# app/templates/programs/_admission_steps.html #}
+
+{# Diccionario de traducción para nombres de fases #}
+{% set phase_translations = {
+  'admission': 'Admisión',
+  'permanence': 'Permanencia',
+  'conclusion': 'Conclusión'
+} %}
+
+{# Diccionario de descripciones para cada fase #}
+{% set phase_descriptions = {
+  'admission': 'Completa estos pasos para iniciar tu proceso de admisión al programa.',
+  'permanence': 'Requisitos y actividades durante tu estancia en el programa.',
+  'conclusion': 'Pasos finales para obtener tu grado académico.'
+} %}
+
+{# Diccionario de iconos para cada fase #}
+{% set phase_icons = {
+  'admission': 'fa-user-plus',
+  'permanence': 'fa-book-reader',
+  'conclusion': 'fa-graduation-cap'
+} %}
+
 <section id="admision" class="py-4 my-4">
   <div class="text-center mb-4" data-aos="fade-up">
     <h2 class="h3 fw-bold mb-3">Proceso de Inscripción</h2>
@@ -36,18 +58,15 @@
                 aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
           <div class="phase-icon-container">
             <div class="phase-icon">
-              {% if phase.name|lower == 'admisión' %}
-                <i class="fas fa-user-plus"></i>
-              {% elif phase.name|lower == 'permanencia' %}
-                <i class="fas fa-book-reader"></i>
-              {% elif phase.name|lower == 'conclusión' %}
-                <i class="fas fa-graduation-cap"></i>
+              {% set phase_key = phase.name|lower %}
+              {% if phase_key in phase_icons %}
+                <i class="fas {{ phase_icons[phase_key] }}"></i>
               {% else %}
                 <i class="fas fa-clipboard-list"></i>
               {% endif %}
             </div>
           </div>
-          <span class="phase-name">{{ phase.name|title }}</span>
+          <span class="phase-name">{{ phase_translations.get(phase.name|lower, phase.name|title) }}</span>
         </button>
       </li>
       {% endfor %}
@@ -64,17 +83,10 @@
         
         <div class="phase-content">
           <div class="phase-header mb-4">
-            <h3 class="h4 fw-bold text-primary">{{ phase.name|title }}</h3>
+            {% set phase_key = phase.name|lower %}
+            <h3 class="h4 fw-bold text-primary">{{ phase_translations.get(phase_key, phase.name|title) }}</h3>
             <p class="text-muted">
-              {% if phase.name|lower == 'admisión' %}
-                Completa estos pasos para iniciar tu proceso de admisión al programa.
-              {% elif phase.name|lower == 'permanencia' %}
-                Requisitos y actividades durante tu estancia en el programa.
-              {% elif phase.name|lower == 'conclusión' %}
-                Pasos finales para obtener tu grado académico.
-              {% else %}
-                Sigue estos pasos para completar esta fase del programa.
-              {% endif %}
+              {{ phase_descriptions.get(phase_key, 'Sigue estos pasos para completar esta fase del programa.') }}
             </p>
           </div>
           

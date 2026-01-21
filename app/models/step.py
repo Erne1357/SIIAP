@@ -16,3 +16,11 @@ class Step(db.Model):
         self.name = name
         self.description = description
         self.phase_id = phase_id
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'phase_id': self.phase_id
+        }

@@ -26,3 +26,18 @@ class Archive(db.Model):
         self.is_downloadable = is_downloadable
         self.step_id = step_id
         self.is_uploadable = is_uploadable
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'is_downloadable': self.is_downloadable,
+            'is_uploadable': self.is_uploadable,
+            'file_path': self.file_path,
+            'step_id': self.step_id,
+            'allow_coordinator_upload': self.allow_coordinator_upload,
+            'allow_extension_request': self.allow_extension_request,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

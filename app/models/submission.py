@@ -44,3 +44,24 @@ class Submission(db.Model):
         self.uploaded_by_role = uploaded_by_role
         self.deadline_at = deadline_at
         self.is_in_extension = is_in_extension
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'file_path': self.file_path,
+            'status': self.status,
+            'upload_date': self.upload_date.isoformat() if self.upload_date else None,
+            'review_date': self.review_date.isoformat() if self.review_date else None,
+            'reviewer_id': self.reviewer_id,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'reviewer_comment': self.reviewer_comment,
+            'user_id': self.user_id,
+            'archive_id': self.archive_id,
+            'program_step_id': self.program_step_id,
+            'period': self.period,
+            'semester': self.semester,
+            'uploaded_by': self.uploaded_by,
+            'uploaded_by_role': self.uploaded_by_role,
+            'deadline_at': self.deadline_at.isoformat() if self.deadline_at else None,
+            'is_in_extension': self.is_in_extension
+        }

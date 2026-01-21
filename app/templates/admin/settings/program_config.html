@@ -1,0 +1,497 @@
+{# app/templates/admin/settings/program_config.html #}
+{% extends "base.html" %}
+
+{% block title %}Configurar {{ program.name }}{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/program_config.css') }}?v={{static_version}}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1">Configurar Programa</h2>
+      <p class="text-muted mb-0">{{ program.name }}</p>
+    </div>
+    <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary">
+      <i class="fas fa-eye me-2"></i>Ver Programa
+    </a>
+  </div>
+
+  <form id="programConfigForm" data-program-slug="{{ program.slug }}">
+    <!-- Tabs de navegación -->
+    <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button">
+          <i class="fas fa-info-circle me-2"></i>General
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="academic-tab" data-bs-toggle="tab" data-bs-target="#academic" type="button">
+          <i class="fas fa-graduation-cap me-2"></i>Académico
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="objectives-tab" data-bs-toggle="tab" data-bs-target="#objectives" type="button">
+          <i class="fas fa-bullseye me-2"></i>Objetivos
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button">
+          <i class="fas fa-user-graduate me-2"></i>Perfil del Egresado
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="curriculum-tab" data-bs-toggle="tab" data-bs-target="#curriculum" type="button">
+          <i class="fas fa-book me-2"></i>Plan de Estudios
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="research-tab" data-bs-toggle="tab" data-bs-target="#research" type="button">
+          <i class="fas fa-flask me-2"></i>Investigación
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact" type="button">
+          <i class="fas fa-envelope me-2"></i>Contacto
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="visibility-tab" data-bs-toggle="tab" data-bs-target="#visibility" type="button">
+          <i class="fas fa-eye me-2"></i>Visibilidad
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="seo-tab" data-bs-toggle="tab" data-bs-target="#seo" type="button">
+          <i class="fas fa-search me-2"></i>SEO
+        </button>
+      </li>
+    </ul>
+
+    <!-- Contenido de los tabs -->
+    <div class="tab-content" id="configTabsContent">
+
+      <!-- TAB: GENERAL -->
+      <div class="tab-pane fade show active" id="general" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-info-circle me-2"></i>Información General</h5>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Nivel del Programa</label>
+              <select class="form-select" name="program_level">
+                <option value="">Seleccionar...</option>
+                <option value="Maestría" {{ 'selected' if program.program_level == 'Maestría' }}>Maestría</option>
+                <option value="Doctorado" {{ 'selected' if program.program_level == 'Doctorado' }}>Doctorado</option>
+                <option value="Especialidad" {{ 'selected' if program.program_level == 'Especialidad' }}>Especialidad</option>
+              </select>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Área Académica</label>
+              <select class="form-select" name="academic_area">
+                <option value="">Seleccionar...</option>
+                <option value="Ingeniería" {{ 'selected' if program.academic_area == 'Ingeniería' }}>Ingeniería</option>
+                <option value="Administración" {{ 'selected' if program.academic_area == 'Administración' }}>Administración</option>
+                <option value="Ciencias Sociales" {{ 'selected' if program.academic_area == 'Ciencias Sociales' }}>Ciencias Sociales</option>
+                <option value="Ciencias Exactas" {{ 'selected' if program.academic_area == 'Ciencias Exactas' }}>Ciencias Exactas</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Nombre de archivo de imagen</label>
+              <input type="text" class="form-control" name="image_filename"
+                     value="{{ program.image_filename or '' }}"
+                     placeholder="programa.webp">
+              <small class="text-muted">Ubicación: /static/assets/images/programs/</small>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Estado</label>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="is_active"
+                       {{ 'checked' if program.is_active }}>
+                <label class="form-check-label">Programa activo</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h5><i class="fas fa-clock me-2"></i>Duración y Modalidad</h5>
+
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Duración (Semestres)</label>
+              <input type="number" class="form-control" name="duration_semesters"
+                     value="{{ program.duration_semesters or '' }}" min="1" max="12">
+            </div>
+
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Duración (Años)</label>
+              <input type="number" class="form-control" name="duration_years"
+                     value="{{ program.duration_years or '' }}" step="0.5" min="0.5" max="6">
+            </div>
+
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Modalidad</label>
+              <select class="form-select" name="modality">
+                <option value="">Seleccionar...</option>
+                <option value="Presencial" {{ 'selected' if program.modality == 'Presencial' }}>Presencial</option>
+                <option value="Virtual" {{ 'selected' if program.modality == 'Virtual' }}>Virtual</option>
+                <option value="Híbrido" {{ 'selected' if program.modality == 'Híbrido' }}>Híbrido</option>
+                <option value="Presencial con recursos digitales" {{ 'selected' if program.modality == 'Presencial con recursos digitales' }}>Presencial con recursos digitales</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Información de Horarios</label>
+            <textarea class="form-control" name="schedule_info" rows="2"
+                      placeholder="Clases de lunes a viernes de 18:00 a 21:00 hrs">{{ program.schedule_info or '' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: ACADÉMICO -->
+      <div class="tab-pane fade" id="academic" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-graduation-cap me-2"></i>Información Académica</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Texto de Introducción</label>
+            <textarea class="form-control" name="introduction_text" rows="4"
+                      placeholder="Descripción general del programa...">{{ program.introduction_text or '' }}</textarea>
+            <small class="text-muted">Este texto aparecerá en la sección "Acerca del Programa"</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Reconocimientos</label>
+            <textarea class="form-control" name="recognition_text" rows="2"
+                      placeholder="Programa reconocido por CONACYT...">{{ program.recognition_text or '' }}</textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Información de Becas</label>
+            <textarea class="form-control" name="scholarship_info" rows="2"
+                      placeholder="Posibilidad de becas CONACYT...">{{ program.scholarship_info or '' }}</textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Requisitos de Admisión</label>
+            <textarea class="form-control" name="admission_requirements" rows="3"
+                      placeholder="Título de licenciatura, TOEFL 550 puntos...">{{ program.admission_requirements or '' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: OBJETIVOS -->
+      <div class="tab-pane fade" id="objectives" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-bullseye me-2"></i>Objetivos del Programa</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Lista de Objetivos</label>
+            <small class="text-muted d-block mb-2">Un objetivo por línea</small>
+            <div id="objectivesList">
+              {% if program.objectives %}
+                {% for objective in program.objectives %}
+                <div class="list-item">
+                  <input type="text" class="form-control" value="{{ objective }}" placeholder="Objetivo {{ loop.index }}">
+                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="list-item">
+                  <input type="text" class="form-control" placeholder="Objetivo 1">
+                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              {% endif %}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addObjective()">
+              <i class="fas fa-plus me-1"></i>Agregar Objetivo
+            </button>
+          </div>
+
+          <div class="config-preview">
+            <h6>Vista Previa:</h6>
+            <ul id="objectivesPreview" class="mb-0"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: PERFIL DEL EGRESADO -->
+      <div class="tab-pane fade" id="profile" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-user-graduate me-2"></i>Perfil del Egresado</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Introducción del Perfil</label>
+            <input type="text" class="form-control" name="graduate_profile_intro"
+                   value="{{ program.graduate_profile_intro or '' }}"
+                   placeholder="El egresado de este programa será capaz de:">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Competencias del Egresado</label>
+            <small class="text-muted d-block mb-2">Una competencia por línea</small>
+            <div id="competenciesList">
+              {% if program.graduate_competencies %}
+                {% for competency in program.graduate_competencies %}
+                <div class="list-item">
+                  <input type="text" class="form-control" value="{{ competency }}" placeholder="Competencia {{ loop.index }}">
+                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="list-item">
+                  <input type="text" class="form-control" placeholder="Competencia 1">
+                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              {% endif %}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addCompetency()">
+              <i class="fas fa-plus me-1"></i>Agregar Competencia
+            </button>
+          </div>
+
+          <div class="config-preview">
+            <h6>Vista Previa:</h6>
+            <p id="profileIntroPreview" class="mb-2"></p>
+            <ul id="competenciesPreview" class="mb-0"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: PLAN DE ESTUDIOS -->
+      <div class="tab-pane fade" id="curriculum" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-book me-2"></i>Mapa Curricular</h5>
+
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Editor Visual:</strong> Organiza tu plan de estudios por semestres y materias.
+            Los cambios se guardarán automáticamente en el formato correcto.
+          </div>
+
+          <div id="curriculumEditorContainer" class="mb-3">
+            <!-- El editor se renderiza aquí dinámicamente -->
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Mostrar Mapa Curricular</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="show_curriculum"
+                     {{ 'checked' if program.show_curriculum }}>
+              <label class="form-check-label">Visible en la página del programa</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: INVESTIGACIÓN -->
+      <div class="tab-pane fade" id="research" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-flask me-2"></i>Líneas de Investigación</h5>
+
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Editor Visual:</strong> Agrega y edita las líneas de investigación de forma intuitiva.
+            Cada línea incluye nombre y descripción.
+          </div>
+
+          <div id="researchEditorContainer" class="mb-3">
+            <!-- El editor se renderiza aquí dinámicamente -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: CONTACTO -->
+      <div class="tab-pane fade" id="contact" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-envelope me-2"></i>Información de Contacto</h5>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Correo Electrónico Principal</label>
+              <input type="email" class="form-control" name="contact_email"
+                     value="{{ program.contact_email or '' }}" placeholder="programa@universidad.edu">
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Correo Electrónico Secundario</label>
+              <input type="email" class="form-control" name="contact_email_secondary"
+                     value="{{ program.contact_email_secondary or '' }}" placeholder="admisiones@universidad.edu">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Teléfono Principal</label>
+              <input type="tel" class="form-control" name="contact_phone"
+                     value="{{ program.contact_phone or '' }}" placeholder="+52 (656) 123-4567">
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Teléfono Secundario</label>
+              <input type="tel" class="form-control" name="contact_phone_secondary"
+                     value="{{ program.contact_phone_secondary or '' }}" placeholder="+52 (656) 123-4568">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Dirección</label>
+            <textarea class="form-control" name="contact_address" rows="2"
+                      placeholder="Av. Tecnológico 1340, Ciudad Juárez...">{{ program.contact_address or '' }}</textarea>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Oficina</label>
+              <input type="text" class="form-control" name="contact_office"
+                     value="{{ program.contact_office or '' }}" placeholder="Edificio K, Planta Baja, Oficina 105">
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Horario de Atención</label>
+              <input type="text" class="form-control" name="contact_hours"
+                     value="{{ program.contact_hours or '' }}" placeholder="Lunes a Viernes de 9:00 a 17:00 hrs">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: VISIBILIDAD -->
+      <div class="tab-pane fade" id="visibility" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-eye me-2"></i>Configuración de Visibilidad</h5>
+          <p class="text-muted">Controla qué secciones se muestran en la página del programa</p>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="show_hero_cards"
+                       {{ 'checked' if program.show_hero_cards }}>
+                <label class="form-check-label">Mostrar tarjetas del hero (Admisión, Permanencia, Conclusión)</label>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="show_objectives"
+                       {{ 'checked' if program.show_objectives }}>
+                <label class="form-check-label">Mostrar sección de objetivos</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="show_graduate_profile"
+                       {{ 'checked' if program.show_graduate_profile }}>
+                <label class="form-check-label">Mostrar perfil del egresado</label>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="show_research_lines"
+                       {{ 'checked' if program.show_research_lines }}>
+                <label class="form-check-label">Mostrar líneas de investigación</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="show_contact_section"
+                       {{ 'checked' if program.show_contact_section }}>
+                <label class="form-check-label">Mostrar sección de contacto</label>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="show_contact_form"
+                       {{ 'checked' if program.show_contact_form }}>
+                <label class="form-check-label">Mostrar formulario de contacto</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: SEO -->
+      <div class="tab-pane fade" id="seo" role="tabpanel">
+        <div class="form-section">
+          <h5><i class="fas fa-search me-2"></i>SEO y Metadatos</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Título SEO</label>
+            <input type="text" class="form-control" name="meta_title"
+                   value="{{ program.meta_title or '' }}"
+                   placeholder="{{ program.name }}">
+            <small class="text-muted">Deja vacío para usar el nombre del programa</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Descripción SEO</label>
+            <textarea class="form-control" name="meta_description" rows="3"
+                      placeholder="Descripción para motores de búsqueda...">{{ program.meta_description or '' }}</textarea>
+            <small class="text-muted">Máximo 160 caracteres recomendado</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Palabras Clave</label>
+            <input type="text" class="form-control" name="meta_keywords"
+                   value="{{ program.meta_keywords or '' }}"
+                   placeholder="maestría, computación, posgrado">
+            <small class="text-muted">Separadas por comas</small>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="d-flex justify-content-between mt-4">
+      <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary">
+        <i class="fas fa-times me-2"></i>Cancelar
+      </a>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-save me-2"></i>Guardar Cambios
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin/settings/program_config.js') }}?v={{static_version}}"></script>
+<script>
+  // Inicializar editores con los datos del programa
+  document.addEventListener('DOMContentLoaded', function() {
+    const programData = {
+      curriculum_structure: {{ program.curriculum_structure | tojson | safe if program.curriculum_structure else 'null' }},
+      research_lines: {{ program.research_lines | tojson | safe if program.research_lines else 'null' }}
+    };
+    
+    if (window.initializeProgramConfigEditors) {
+      window.initializeProgramConfigEditors(programData);
+    }
+  });
+</script>
+{% endblock %}

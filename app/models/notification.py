@@ -33,14 +33,17 @@ class Notification(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
+            'user_id': self.user_id,
             'type': self.type,
             'title': self.title,
             'message': self.message,
             'priority': self.priority,
             'data': self.data or {},
             'is_read': self.is_read,
+            'is_deleted': self.is_deleted,
             'is_actionable': self.is_actionable,
             'related_invitation_id': self.related_invitation_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'read_at': self.read_at.isoformat() if self.read_at else None
+            'read_at': self.read_at.isoformat() if self.read_at else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None
         }

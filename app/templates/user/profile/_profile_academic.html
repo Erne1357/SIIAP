@@ -87,22 +87,47 @@
                     {{ status_count.pending }} pendientes
                 </small>
 
-                <!-- Timeline ------------------------------------------------ -->
-                <div class="timeline mt-4">
+                <!-- Timeline mejorado ------------------------------------------------ -->
+                <div class="timeline-modern mt-4">
                     {% for ev in timeline %}
-                    <div class="timeline-item">
-                        {% if ev.state == 'done' %}
-                        <div class="timeline-dot bg-success"><i class="bi bi-check-lg"></i></div>
-                        {% elif ev.state == 'inprogress' %}
-                        <div class="timeline-dot bg-primary"><i class="bi bi-arrow-right"></i></div>
-                        {% else %}
-                        <div class="timeline-dot bg-secondary"><i class="bi bi-clock"></i></div>
-                        {% endif %}
-                        <div class="timeline-content">
-                            <h6 class="mb-1">{{ ev.label }}</h6>
-                            <p class="text-muted small mb-0">
-                                {{ ev.date or 'Pendiente' }}
-                            </p>
+                    <div class="timeline-item-modern {% if ev.state == 'done' %}timeline-done{% elif ev.state == 'inprogress' %}timeline-inprogress{% elif ev.state == 'rejected' %}timeline-rejected{% else %}timeline-pending{% endif %}">
+                        <div class="timeline-marker-modern">
+                            {% if ev.state == 'done' %}
+                                <i class="bi bi-check-lg"></i>
+                            {% elif ev.state == 'inprogress' %}
+                                <i class="bi bi-arrow-right"></i>
+                            {% elif ev.state == 'rejected' %}
+                                <i class="bi bi-x-lg"></i>
+                            {% else %}
+                                <i class="bi bi-clock"></i>
+                            {% endif %}
+                        </div>
+                        <div class="timeline-content-modern">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1 fw-bold">
+                                        <i class="bi {{ ev.icon }} me-2"></i>{{ ev.label }}
+                                    </h6>
+                                    <p class="text-muted small mb-0">
+                                        {% if ev.date %}
+                                            {{ ev.date }}
+                                        {% elif ev.state == 'done' %}
+                                            Completado
+                                        {% elif ev.state == 'inprogress' %}
+                                            En progreso...
+                                        {% else %}
+                                            Pendiente
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                {% if ev.state == 'done' %}
+                                    <span class="badge bg-success rounded-pill">✓</span>
+                                {% elif ev.state == 'inprogress' %}
+                                    <span class="badge bg-primary rounded-pill">
+                                        <span class="spinner-grow spinner-grow-sm" role="status"></span>
+                                    </span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}

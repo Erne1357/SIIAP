@@ -39,3 +39,51 @@ def enroll_user_once(program_id: int, user_id: int):
     db.session.add(UserProgram(user_id=user_id, program_id=program.id))
     db.session.commit()
     return program
+
+
+def update_program_config(program_id: int, data: dict):
+    """
+    Actualiza la configuración extendida de un programa.
+
+    Args:
+        program_id: ID del programa
+        data: Diccionario con los campos a actualizar
+
+    Returns:
+        Program: Programa actualizado
+    """
+    program = Program.query.get(program_id)
+    if not program:
+        raise ProgramNotFound()
+
+    # Lista de campos permitidos para actualizar
+    allowed_fields = [
+        # Información general
+        'program_level', 'academic_area', 'image_filename', 'is_active',
+        # Duración y modalidad
+        'duration_semesters', 'duration_years', 'modality', 'schedule_info',
+        # Información académica
+        'introduction_text', 'recognition_text', 'scholarship_info', 'admission_requirements',
+        # Objetivos y perfil (JSON)
+        'objectives', 'graduate_profile_intro', 'graduate_competencies',
+        # Líneas de investigación (JSON)
+        'research_lines',
+        # Mapa curricular (JSON)
+        'curriculum_structure', 'show_curriculum',
+        # Contacto
+        'contact_email', 'contact_email_secondary', 'contact_phone', 'contact_phone_secondary',
+        'contact_address', 'contact_office', 'contact_hours',
+        # Configuración de visualización
+        'show_hero_cards', 'show_objectives', 'show_graduate_profile',
+        'show_research_lines', 'show_contact_section', 'show_contact_form',
+        # SEO
+        'meta_title', 'meta_description', 'meta_keywords'
+    ]
+
+    # Actualizar solo los campos permitidos que vengan en data
+    for field in allowed_fields:
+        if field in data:
+            setattr(program, field, data[field])
+
+    db.session.commit()
+    return program

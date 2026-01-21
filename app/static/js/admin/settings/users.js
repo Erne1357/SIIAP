@@ -2,7 +2,8 @@
 (function() {
     'use strict';
     
-    const API_BASE = '/api/v1/admin/users';
+    // Usar el origen actual para evitar problemas de mixed content en HTTPS
+    const API_BASE = `${window.location.origin}/api/v1/admin/users`;
     let currentPage = 1;
     let currentFilters = {};
     

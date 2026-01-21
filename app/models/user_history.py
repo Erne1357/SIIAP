@@ -17,7 +17,7 @@ class UserHistory(db.Model):
     timestamp = db.Column(db.DateTime, default=now_local, nullable=False)
     
     # Relaciones
-    user = db.relationship('User', foreign_keys=[user_id], backref='history_entries')
+    user = db.relationship('User', foreign_keys=[user_id], overlaps="histories")
     admin = db.relationship('User', foreign_keys=[admin_id])
     
     def to_dict(self):

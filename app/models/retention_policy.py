@@ -9,3 +9,12 @@ class RetentionPolicy(db.Model):
     keep_years = db.Column(db.Integer)                 # ej. 4
     keep_forever = db.Column(db.Boolean, default=False, nullable=False)
     apply_after = db.Column(db.String(20), default='graduated')  # graduated|dropped|enrollment
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'archive_id': self.archive_id,
+            'keep_years': self.keep_years,
+            'keep_forever': self.keep_forever,
+            'apply_after': self.apply_after
+        }

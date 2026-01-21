@@ -245,26 +245,81 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                     'status': (subs[arch.id].status if arch.id in subs else 'pending')
                 })
 
-    # 8) Timeline
+    # 8) Timeline mejorado con detección correcta de estados
+    # Calcular estados del timeline basado en submissions reales
+    has_any_submission = len(subs) > 0
+    all_docs_reviewed = (status_count['approved'] + status_count['rejected']) >= total if total > 0 else False
+    all_docs_approved = status_count['approved'] >= total if total > 0 else False
+    has_docs_in_review = status_count['review'] > 0
+
+    # Estado de "Documentos enviados"
+    if has_any_submission:
+        docs_sent_state = 'done'
+        docs_sent_date = min(sub.upload_date for sub in subs.values()).strftime('%d/%m/%Y')
+    else:
+        docs_sent_state = 'pending'
+        docs_sent_date = None
+
+    # Estado de "Revisión de documentos"
+    if not has_any_submission:
+        review_state = 'pending'
+    elif all_docs_reviewed:
+        review_state = 'done'
+    elif has_docs_in_review or has_any_submission:
+        review_state = 'inprogress'
+    else:
+        review_state = 'pending'
+
+    # Estado de "Entrevista" - verificar si tiene entrevista asignada
+    if has_interview:
+        interview_state = 'done'
+    elif all_docs_approved:
+        interview_state = 'inprogress'
+    else:
+        interview_state = 'pending'
+
+    # Estado de "Decisión final"
+    decision_status = getattr(up, 'decision_status', None)
+    if decision_status == 'accepted':
+        decision_state = 'done'
+    elif decision_status == 'rejected':
+        decision_state = 'rejected'
+    elif has_interview:
+        decision_state = 'inprogress'
+    else:
+        decision_state = 'pending'
+
     timeline = [
-        {'label':'Registro completado',
-         'date': up.enrollment_date.strftime('%d/%m/%Y'),
-         'state':'done'},
-        {'label':'Documentos enviados',
-         'date': (
-             subs[next(iter(subs))].upload_date.strftime('%d/%m/%Y')
-             if subs else None
-         ),
-         'state':'done' if subs else 'pending'},
-        {'label':'Revisión de documentos',
-         'date':None,
-         'state':'inprogress' if status_count['approved']<total else 'done'},
-        {'label':'Entrevista',
-         'date':getattr(up,'interview_date',None),
-         'state':'pending'},
-        {'label':'Decisión final',
-         'date':getattr(up,'decision_date',None),
-         'state':getattr(up,'decision_status','pending')}
+        {
+            'label': 'Registro completado',
+            'date': up.enrollment_date.strftime('%d/%m/%Y') if up.enrollment_date else None,
+            'state': 'done',
+            'icon': 'bi-check-circle-fill'
+        },
+        {
+            'label': 'Documentos enviados',
+            'date': docs_sent_date,
+            'state': docs_sent_state,
+            'icon': 'bi-file-earmark-arrow-up-fill'
+        },
+        {
+            'label': 'Revisión de documentos',
+            'date': None,
+            'state': review_state,
+            'icon': 'bi-search'
+        },
+        {
+            'label': 'Entrevista',
+            'date': getattr(up, 'interview_date', None),
+            'state': interview_state,
+            'icon': 'bi-people-fill'
+        },
+        {
+            'label': 'Decisión final',
+            'date': getattr(up, 'decision_date', None),
+            'state': decision_state,
+            'icon': 'bi-trophy-fill'
+        }
     ]
 
     processed_steps = []
@@ -339,5 +394,6 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         'progress_pct': progress_pct,
         'pending_items': pending_items,
         'timeline': timeline,
-        'extended_docs': status_count.get('extended', 0)  # NUEVO: conteo de archivos con extensión
+        'extended_docs': status_count.get('extended', 0),  # NUEVO: conteo de archivos con extensión
+        'total_docs': total  # Total de documentos para el progreso
     }

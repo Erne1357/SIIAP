@@ -13,3 +13,13 @@ class DocumentMapping(db.Model):
     to_archive_id   = db.Column(db.Integer, db.ForeignKey('archive.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
 
     mapping_rule = db.Column(db.String(20), nullable=False, default='equivalent')  # equivalent|needs_update|incompatible
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'from_program_id': self.from_program_id,
+            'to_program_id': self.to_program_id,
+            'from_archive_id': self.from_archive_id,
+            'to_archive_id': self.to_archive_id,
+            'mapping_rule': self.mapping_rule
+        }

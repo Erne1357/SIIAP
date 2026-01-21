@@ -467,3 +467,120 @@
     font-size: 0.875rem;
     color: #ffffff;
 }
+
+/* ========== TIMELINE MODERNO (NUEVO DISEÑO) ========== */
+.timeline-modern {
+    position: relative;
+    padding: 0;
+}
+
+.timeline-item-modern {
+    display: flex;
+    position: relative;
+    padding-bottom: 2rem;
+    padding-left: 3rem;
+}
+
+.timeline-item-modern:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-item-modern::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 30px;
+    height: calc(100% - 10px);
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item-modern:last-child::before {
+    display: none;
+}
+
+.timeline-marker-modern {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    z-index: 2;
+    border: 3px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.timeline-done .timeline-marker-modern {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+}
+
+.timeline-inprogress .timeline-marker-modern {
+    background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+    animation: pulse 2s infinite;
+}
+
+.timeline-pending .timeline-marker-modern {
+    background: #6c757d;
+}
+
+.timeline-rejected .timeline-marker-modern {
+    background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+.timeline-content-modern {
+    flex: 1;
+    background: #f8f9fa;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    border-left: 3px solid #dee2e6;
+}
+
+.timeline-done .timeline-content-modern {
+    border-left-color: #198754;
+}
+
+.timeline-inprogress .timeline-content-modern {
+    border-left-color: #0d6efd;
+    background: linear-gradient(90deg, rgba(13, 110, 253, 0.05) 0%, #f8f9fa 100%);
+}
+
+.timeline-rejected .timeline-content-modern {
+    border-left-color: #dc3545;
+}
+
+/* Timeline moderno responsivo */
+@media (max-width: 767.98px) {
+    .timeline-item-modern {
+        padding-left: 2.5rem;
+    }
+
+    .timeline-marker-modern {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+
+    .timeline-item-modern::before {
+        left: 13px;
+    }
+
+    .timeline-content-modern {
+        padding: 0.75rem 1rem;
+    }
+}

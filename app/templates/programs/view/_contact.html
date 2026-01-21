@@ -1,4 +1,5 @@
 {# app/templates/programs/_contact.html #}
+{% if program.show_contact_section %}
 <section id="contacto" class="py-4 bg-light rounded-3 my-4">
   <div class="text-center mb-4" data-aos="fade-up">
     <h2 class="h3 fw-bold mb-3">Contacto</h2>
@@ -9,6 +10,7 @@
   </div>
 
   <div class="row g-4">
+    {% if program.show_contact_form %}
     <div class="col-lg-6" data-aos="fade-right">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body p-4">
@@ -39,11 +41,13 @@
         </div>
       </div>
     </div>
-    <div class="col-lg-6" data-aos="fade-left">
+    {% endif %}
+    <div class="col-lg-{% if program.show_contact_form %}6{% else %}12{% endif %}" data-aos="fade-left">
       <div class="card border-0 shadow-sm mb-3">
         <div class="card-body p-4">
           <h3 class="h4 fw-bold mb-3">Información de Contacto</h3>
           <ul class="list-unstyled mb-0">
+            {% if program.contact_email or program.contact_email_secondary %}
             <li class="d-flex mb-3">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="fas fa-envelope text-primary"></i>
@@ -51,59 +55,69 @@
               <div>
                 <h4 class="h6 fw-bold">Correo Electrónico</h4>
                 <p class="mb-0">
-                  {% if program.id == 1 %}
-                  maestria.cc@universidad.edu<br>
-                  {% elif program.id == 2 %}
-                  maestria.ia@universidad.edu<br>
-                  {% elif program.id == 4 %}
-                  doctorado.cc@universidad.edu<br>
-                  {% else %}
-                  posgrado@universidad.edu<br>
-                  {% endif %}
-                  admisiones@universidad.edu
+                  {% if program.contact_email %}{{ program.contact_email }}{% endif %}
+                  {% if program.contact_email and program.contact_email_secondary %}<br>{% endif %}
+                  {% if program.contact_email_secondary %}{{ program.contact_email_secondary }}{% endif %}
                 </p>
               </div>
             </li>
+            {% endif %}
+
+            {% if program.contact_phone or program.contact_phone_secondary %}
             <li class="d-flex mb-3">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="fas fa-phone text-primary"></i>
               </div>
               <div>
                 <h4 class="h6 fw-bold">Teléfono</h4>
-                <p class="mb-0">+52 (123) 456-7890<br>+52 (123) 456-7891</p>
+                <p class="mb-0">
+                  {% if program.contact_phone %}{{ program.contact_phone }}{% endif %}
+                  {% if program.contact_phone and program.contact_phone_secondary %}<br>{% endif %}
+                  {% if program.contact_phone_secondary %}{{ program.contact_phone_secondary }}{% endif %}
+                </p>
               </div>
             </li>
-            <li class="d-flex">
+            {% endif %}
+
+            {% if program.contact_address %}
+            <li class="d-flex mb-3">
               <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
                 <i class="fas fa-map-marker-alt text-primary"></i>
               </div>
               <div>
                 <h4 class="h6 fw-bold">Dirección</h4>
-                <p class="mb-0">Av. Universidad 3000, Ciudad Universitaria,<br>Coyoacán, 04510, Ciudad de México</p>
+                <p class="mb-0">{{ program.contact_address }}</p>
               </div>
             </li>
-          </ul>
-        </div>
-      </div>
-      <div class="card border-0 shadow-sm">
-        <div class="card-body p-4">
-          <h3 class="h4 fw-bold mb-3">Próximos Eventos</h3>
-          <ul class="list-unstyled mb-0">
-            <li class="border-start border-3 border-primary ps-3 mb-3">
-              <h4 class="h6 fw-bold">Sesión Informativa Virtual</h4>
-              <p class="mb-0">15 de Junio, 2025 - 18:00 hrs</p>
+            {% endif %}
+
+            {% if program.contact_office %}
+            <li class="d-flex mb-3">
+              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
+                <i class="fas fa-building text-primary"></i>
+              </div>
+              <div>
+                <h4 class="h6 fw-bold">Oficina</h4>
+                <p class="mb-0">{{ program.contact_office }}</p>
+              </div>
             </li>
-            <li class="border-start border-3 border-primary ps-3 mb-3">
-              <h4 class="h6 fw-bold">Jornada de Puertas Abiertas</h4>
-              <p class="mb-0">10 de Julio, 2025 - 10:00 a 14:00 hrs</p>
+            {% endif %}
+
+            {% if program.contact_hours %}
+            <li class="d-flex">
+              <div class="icon-circle bg-primary-light me-3 flex-shrink-0">
+                <i class="fas fa-clock text-primary"></i>
+              </div>
+              <div>
+                <h4 class="h6 fw-bold">Horario de Atención</h4>
+                <p class="mb-0">{{ program.contact_hours }}</p>
+              </div>
             </li>
-            <li class="border-start border-3 border-primary ps-3">
-              <h4 class="h6 fw-bold">Taller de Preparación para Admisión</h4>
-              <p class="mb-0">25 de Julio, 2025 - 16:00 hrs</p>
-            </li>
+            {% endif %}
           </ul>
         </div>
       </div>
     </div>
   </div>
 </section>
+{% endif %}
