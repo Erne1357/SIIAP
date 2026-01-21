@@ -21,5 +21,32 @@ def dashboard():
         current_app.logger.warning(f"Admin {current_user.id} accessing all programs")
         coordinator_programs = Program.query.all()
     
-    return render_template('coordinator/dashboard.html', 
+    return render_template('coordinator/dashboard.html',
                          coordinator_programs=coordinator_programs)
+
+
+@pages_coordinator.route('/deliberation')
+@pages_coordinator.route('/deliberation/<int:program_id>')
+@login_required
+@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+def deliberation(program_id=None):
+    """Vista de deliberación de aspirantes"""
+    # Obtener programas que puede gestionar
+    if current_user.role.name == 'program_admin':
+        coordinator_programs = Program.query.filter_by(coordinator_id=current_user.id).all()
+    else:
+        coordinator_programs = Program.query.all()
+
+    # Si se especifica un programa, validar que el usuario tenga acceso
+    selected_program = None
+    if program_id:
+        selected_program = Program.query.get_or_404(program_id)
+        if current_user.role.name == 'program_admin' and selected_program.coordinator_id != current_user.id:
+            from flask import abort
+            abort(403)
+    elif coordinator_programs:
+        selected_program = coordinator_programs[0]
+
+    return render_template('coordinator/deliberation.html',
+                         coordinator_programs=coordinator_programs,
+                         selected_program=selected_program)

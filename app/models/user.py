@@ -29,7 +29,11 @@ class User(db.Model, UserMixin):
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     role = db.relationship('Role', back_populates='users', uselist=False)
-    user_program = db.relationship('UserProgram', back_populates='user')
+    user_program = db.relationship(
+        'UserProgram',
+        foreign_keys='UserProgram.user_id',
+        back_populates='user'
+    )
 
     coordinated_programs = db.relationship('Program', back_populates='coordinator')
     

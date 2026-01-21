@@ -3,7 +3,7 @@ from pathlib import Path
 
 class Config:
     # Versión estática (actualízala cuando cambies CSS/JS)
-    STATIC_VERSION = '1.0.41111147'
+    STATIC_VERSION = '1.0.41111151'
     
     # Directorios base
     BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,7 +24,7 @@ class Config:
     USER_DOCS_FOLDER = UPLOAD_FOLDER / 'documents'
 
     # Límites y tipos permitidos
-    ALLOWED_DOC_EXT = {'pdf'}
+    ALLOWED_DOC_EXT = {'pdf', 'doc', 'docx'}
     MAX_CONTENT_LENGTH = 3 * 1024 * 1024  # 3 MB
 
     # ===== SEGURIDAD =====

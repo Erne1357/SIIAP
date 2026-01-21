@@ -129,7 +129,7 @@ class HistoryRetentionService:
             User.is_active,
             func.max(UserProgram.graduation_date).label('graduation_date'),
             func.count(UserProgram.id).label('program_count')
-        ).outerjoin(UserProgram).group_by(User.id, User.is_active).subquery()
+        ).outerjoin(UserProgram, User.id == UserProgram.user_id).group_by(User.id, User.is_active).subquery()
         
         results = db.session.query(subquery).all()
         

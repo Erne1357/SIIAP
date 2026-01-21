@@ -83,3 +83,7 @@ docker/.env.dev
 #claude local
 .claude/
 
+#Contrucción con datos reales
+docker/scripts/init-dev-real.sh
+docker/docker-compose.dev-real.yml
+docker/Dockerfile.db.dev-real

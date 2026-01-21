@@ -61,7 +61,7 @@ def submissions():
         applicants = (
             User.query
             .filter(User.role.has(name='applicant'))
-            .join(UserProgram)
+            .join(UserProgram, User.id == UserProgram.user_id)
             .filter(UserProgram.program_id.in_(managed_program_ids))
             .order_by(User.first_name)
             .all()

@@ -48,7 +48,7 @@ def list_users():
     
     # Filtro por programa
     if program_filter:
-        query = query.join(UserProgram).filter(UserProgram.program_id == program_filter)
+        query = query.join(UserProgram, User.id == UserProgram.user_id).filter(UserProgram.program_id == program_filter)
     
     # Filtro por estado activo
     if active_filter == 'true':

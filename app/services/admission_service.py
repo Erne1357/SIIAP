@@ -278,12 +278,18 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     else:
         interview_state = 'pending'
 
-    # Estado de "Decisión final"
-    decision_status = getattr(up, 'decision_status', None)
-    if decision_status == 'accepted':
+    # Estado de "Decisión final" - usar admission_status del UserProgram
+    admission_status = getattr(up, 'admission_status', 'in_progress')
+    if admission_status == 'accepted':
         decision_state = 'done'
-    elif decision_status == 'rejected':
+    elif admission_status == 'enrolled':
+        decision_state = 'done'
+    elif admission_status == 'rejected':
         decision_state = 'rejected'
+    elif admission_status == 'deliberation':
+        decision_state = 'inprogress'
+    elif admission_status == 'interview_completed':
+        decision_state = 'inprogress'
     elif has_interview:
         decision_state = 'inprogress'
     else:

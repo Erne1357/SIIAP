@@ -270,6 +270,84 @@ def get_appointment_by_slot(slot_id: int):
         }
     }), 200
 
+@api_appointments.route('/<int:appointment_id>/mark-status', methods=['POST'])
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def mark_appointment_status(appointment_id: int):
+    """
+    Marca el estado de una cita (done, no_show).
+    Si se marca como 'done' y es una entrevista, actualiza admission_status.
+    """
+    from app.models.program import Program
+    from app.models.event import EventSlot, EventWindow, Event
+    from app.models import UserProgram
+
+    data = request.get_json() or {}
+    new_status = data.get('status')
+    notes = data.get('notes')
+
+    if new_status not in ['done', 'no_show']:
+        return jsonify({
+            "ok": False,
+            "error": "Estado invalido. Usar 'done' o 'no_show'"
+        }), 400
+
+    try:
+        appt = db.session.get(Appointment, appointment_id)
+        if not appt:
+            return jsonify({"ok": False, "error": "Cita no encontrada"}), 404
+
+        # Verificar permisos
+        slot = db.session.get(EventSlot, appt.slot_id)
+        if not slot:
+            return jsonify({"ok": False, "error": "Slot no encontrado"}), 404
+
+        window = db.session.get(EventWindow, slot.event_window_id)
+        event = db.session.get(Event, window.event_id)
+
+        if current_user.role.name == 'program_admin':
+            if event.program_id:
+                program = db.session.get(Program, event.program_id)
+                if not program or program.coordinator_id != current_user.id:
+                    return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
+        # Actualizar estado de la cita
+        appt.status = new_status
+        if notes:
+            appt.notes = f"{appt.notes or ''}\n[{new_status.upper()}]: {notes}".strip()
+
+        # Si es entrevista y se marca como 'done', actualizar admission_status
+        if new_status == 'done' and event.type == 'interview' and event.program_id:
+            user_program = UserProgram.query.filter_by(
+                user_id=appt.applicant_id,
+                program_id=event.program_id
+            ).first()
+
+            if user_program and user_program.admission_status == 'in_progress':
+                user_program.admission_status = 'interview_completed'
+
+                # Registrar en historial
+                UserHistoryService.log_action(
+                    user_id=appt.applicant_id,
+                    admin_id=current_user.id,
+                    action='interview_completed',
+                    details=f'Entrevista completada: {event.title}'
+                )
+
+        db.session.commit()
+
+        return jsonify({
+            "ok": True,
+            "flash": [{"level": "success", "message": f"Cita marcada como {new_status}"}],
+            "id": appointment_id,
+            "status": new_status
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @api_appointments.route('/<int:appointment_id>/cancel', methods=['POST'])
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')

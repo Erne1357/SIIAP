@@ -307,8 +307,8 @@ class EventsService:
     @staticmethod
     def mark_attendance(event_id: int, user_id: int, attended: bool = True, notes: str = None, reset: bool = False):
         """
-        Marca la asistencia de un usuario a un evento
-        
+        Marca la asistencia de un usuario a un evento.
+
         Args:
             event_id: ID del evento
             user_id: ID del usuario
@@ -317,15 +317,15 @@ class EventsService:
             reset: Si True, resetea a 'registered'
         """
         from app.models.event import EventAttendance
-        
+
         attendance = EventAttendance.query.filter_by(
             event_id=event_id,
             user_id=user_id
         ).first()
-        
+
         if not attendance:
             raise ValueError("El usuario no está registrado en este evento")
-        
+
         if reset:
             # Resetear a estado registrado
             attendance.status = 'registered'
@@ -336,12 +336,12 @@ class EventsService:
         else:
             attendance.status = 'no_show'
             attendance.attended_at = None
-        
+
         if notes:
             attendance.notes = f"{attendance.notes or ''}\n{notes}".strip()
-        
+
         db.session.commit()
-        
+
         return attendance
     
     @staticmethod
