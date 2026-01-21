@@ -72,7 +72,7 @@ instance/
 tests/prueba.py
 
 #database
-#database/
+database/
 
 #Variables de entorno
 .env
