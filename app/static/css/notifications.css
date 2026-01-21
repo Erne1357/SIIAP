@@ -43,10 +43,7 @@
 
 /* ==================== DROPDOWN MINI ==================== */
 .notification-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 10px;
+    position: fixed;
     width: 400px;
     max-width: 90vw;
     background: white;
@@ -56,6 +53,14 @@
     display: none;
     max-height: 600px;
     overflow: hidden;
+}
+
+/* Posicionamiento para desktop (desde header) */
+@media (min-width: 768px) {
+    .notification-dropdown:not(.from-fab) {
+        top: 90px; /* Debajo del header */
+        right: 20px;
+    }
 }
 
 .notification-dropdown.show {
@@ -336,35 +341,35 @@
 }
 
 /* ==================== RESPONSIVO ==================== */
-@media (max-width: 768px) {
-    .notification-dropdown {
+@media (max-width: 767px) {
+    /* En móvil, por defecto ocupar toda la pantalla desde arriba */
+    .notification-dropdown:not(.from-fab) {
         width: 100vw;
         left: 0;
         right: 0;
-        margin-left: 0;
-        margin-right: 0;
+        top: var(--header-h, 70px);
         border-radius: 0;
-        max-height: 70vh;
+        max-height: calc(100vh - var(--header-h, 70px));
     }
-    
+
     .notification-list {
-        max-height: calc(70vh - 100px);
+        max-height: calc(100vh - var(--header-h, 70px) - 120px);
     }
-    
+
     .notification-item {
         padding: 10px 12px;
     }
-    
+
     .notification-icon {
         width: 32px;
         height: 32px;
         font-size: 1rem;
     }
-    
+
     .notification-filters {
         flex-direction: column;
     }
-    
+
     .notification-filters .form-select,
     .notification-filters .form-control {
         max-width: 100%;

@@ -1,0 +1,161 @@
+/* app/static/css/admin/settings/program_config.css */
+
+.config-preview {
+  background: #f8f9fa;
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.config-preview h6 {
+  color: #6c757d;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.json-editor {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+}
+
+.form-section {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin-bottom: 1.5rem;
+}
+
+.form-section h5 {
+  color: var(--bg--tecnm);
+  border-bottom: 2px solid var(--bg--tecnm);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.list-editor {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.list-item {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.list-item input {
+  flex: 1;
+}
+
+/* Estilos para el editor de curriculum */
+.semester-card {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #f8f9fa;
+}
+
+.semester-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.semester-card-header h6 {
+  margin: 0;
+  color: var(--bg--tecnm);
+  font-weight: 600;
+}
+
+.course-item {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.course-item input,
+.course-item select {
+  font-size: 0.875rem;
+}
+
+.drag-handle {
+  cursor: move;
+  color: #6c757d;
+  padding: 0.25rem;
+}
+
+.drag-handle:hover {
+  color: var(--bg--tecnm);
+}
+
+/* Estilos para el editor de líneas de investigación */
+.research-line-card {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: white;
+  transition: box-shadow 0.2s;
+}
+
+.research-line-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.research-line-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.research-line-content {
+  flex: 1;
+}
+
+.research-line-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.accordion-curriculum .accordion-item {
+  border: 1px solid #dee2e6;
+  margin-bottom: 0.5rem;
+}
+
+.accordion-curriculum .accordion-button {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: var(--bg--tecnm);
+}
+
+.accordion-curriculum .accordion-button:not(.collapsed) {
+  background-color: var(--bg--tecnm);
+  color: white;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+}
+
+.empty-state i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}

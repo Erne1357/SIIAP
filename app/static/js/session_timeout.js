@@ -12,9 +12,11 @@
     return el ? el.getAttribute('content') : '';
   };
   const csrf = getCsrf();
+  const getLoginUrl = () => {
+    return (typeof loginPageUrl !== 'undefined' && loginPageUrl) ? loginPageUrl : '/login';
+  };
   const toLogin = () => {
-    const url = (typeof loginPageUrl !== 'undefined' && loginPageUrl) ? loginPageUrl : '/login';
-    window.location.href = url;
+    window.location.href = getLoginUrl();
   };
 
   const WARNING_MS = 14 * 60 * 1000; // 14 min
@@ -52,13 +54,17 @@
       });
       let json = null;
       try { json = await res.json(); } catch (_) {}
-      if (json && json.flash) {
-        json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
-      }
+      // NO mostrar flash aquí - dejamos que el backend maneje los mensajes
     } catch (e) {
       console.warn('[session] fallo logout API, redirigiendo igual.', e);
     } finally {
-      toLogin();
+      // IMPORTANTE: Limpiar cualquier storage y forzar recarga completa
+      try {
+        sessionStorage.clear();
+      } catch (_) {}
+      
+      // Usar replace() para forzar recarga completa sin caché
+      window.location.replace(getLoginUrl());
     }
   }
 

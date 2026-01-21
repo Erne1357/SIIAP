@@ -46,6 +46,18 @@
   const form = document.getElementById('loginForm');
   const submitBtn = form.querySelector('button[type="submit"]');
   
+  // Limpiar cualquier mensaje de flash antiguo al cargar la página
+  document.addEventListener('DOMContentLoaded', () => {
+    // Esperar un momento para que se muestren los mensajes del servidor
+    // y luego limpiar el estado para evitar duplicados
+    setTimeout(() => {
+      // Limpiar sessionStorage de posibles estados antiguos
+      try {
+        sessionStorage.removeItem('pendingFlash');
+      } catch (_) {}
+    }, 100);
+  });
+  
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -79,7 +91,7 @@
       console.error('Login error:', err);
       const errorMsg = err?.message || 'Error de autenticación. Verifica tus credenciales.';
       flash(errorMsg, 'danger');
-    } finally {
+      
       // Restaurar botón
       submitBtn.innerHTML = originalText;
       submitBtn.disabled = false;

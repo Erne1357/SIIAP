@@ -24,6 +24,12 @@ def login_page():
     if current_user.is_authenticated:
         # si ya está logueado, llévalo a su dashboard
         return redirect(url_for("pages_user.dashboard"))
+    
+    # IMPORTANTE: Generar un nuevo token CSRF fresco para evitar problemas
+    # después de logout o sesiones expiradas
+    from app.utils.csrf import generate_csrf_token
+    generate_csrf_token(force_new=True)
+    
     return render_template("auth/login.html")
 
 @pages_auth.route("/register", methods=["GET", "POST"])

@@ -237,9 +237,15 @@ def api_logout():
     - GET: permite usar <a href="..."> para cerrar sesión y redirigir a /login
     - POST: usado por JS (session timeout) => responde JSON
     """
+    from app.utils.csrf import CSRF_SESSION_KEY
+    
     session.pop('_flashes', None)
     logout_user()
     session.pop('last_activity', None)
+    
+    # IMPORTANTE: Eliminar el token CSRF viejo para forzar regeneración
+    # Cuando se recargue /login, se generará un token fresco
+    session.pop(CSRF_SESSION_KEY, None)
 
     if request.method == 'GET':
         return redirect(url_for('pages_auth.login_page'))

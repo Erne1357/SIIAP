@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user/profile.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Encabezado principal -->
+  <div class="text-center mb-5">
+    <h1 class="display-4 fw-bold mb-2">Bienvenido, {{ current_user.first_name }} {{ current_user.last_name }}</h1>
+    <p class="lead text-muted">Panel de Control</p>
+  </div>
+
+  {% if current_user.role.name == 'applicant' %}
+    {% include 'user/dashboard/applicant_dashboard.html' %}
+  {% elif current_user.role.name == 'program_admin' %}
+    {% include 'user/dashboard/program_admin_dashboard.html' %}
+  {% elif current_user.role.name == 'postgraduate_admin' %}
+    {% include 'user/dashboard/postgraduate_admin_dashboard.html' %}
+  {% else %}
+    <!-- Mensaje para otros roles -->
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="alert alert-info text-center">
+          <i class="bi bi-info-circle fs-3 mb-3"></i>
+          <p class="mb-0">El dashboard para tu rol estará disponible próximamente.</p>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

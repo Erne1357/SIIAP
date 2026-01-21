@@ -16,6 +16,19 @@ class Appointment(db.Model):
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     # Nota: si quieres acceder a slot/event como objetos, puedes definir relaciones viewonly aquí.
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'slot_id': self.slot_id,
+            'applicant_id': self.applicant_id,
+            'assigned_by': self.assigned_by,
+            'status': self.status,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 
 class AppointmentChangeRequest(db.Model):
@@ -31,3 +44,17 @@ class AppointmentChangeRequest(db.Model):
     decided_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=now_local)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'appointment_id': self.appointment_id,
+            'requested_by': self.requested_by,
+            'reason': self.reason,
+            'suggestions': self.suggestions,
+            'status': self.status,
+            'decided_by': self.decided_by,
+            'decided_at': self.decided_at.isoformat() if self.decided_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

@@ -1,4 +1,5 @@
 {# app/templates/programs/_graduate_profile.html #}
+{% if program.show_graduate_profile %}
 <section id="perfil-egresado" class="py-4 my-4">
   <div class="text-center mb-4" data-aos="fade-up">
     <h2 class="h3 fw-bold mb-3">Perfil del Egresado</h2>
@@ -9,37 +10,17 @@
     <div class="col-lg-10">
       <div class="card border-0 shadow-sm" data-aos="fade-up">
         <div class="card-body p-4">
-          {% if program.id == 1 %}
-          <p class="lead mb-3">El egresado de la Maestría en Ciencias de la Computación será capaz de:</p>
+          {% if program.graduate_profile_intro %}
+          <p class="lead mb-3">{{ program.graduate_profile_intro }}</p>
+          {% endif %}
+
+          {% if program.graduate_competencies %}
           <ul class="list-unstyled mb-0">
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Diseñar e implementar soluciones computacionales avanzadas para problemas complejos.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Aplicar metodologías de investigación en el campo de las ciencias de la computación.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Liderar equipos de desarrollo tecnológico en entornos profesionales.</li>
-            <li><i class="fas fa-check-circle text-primary me-2"></i> Continuar estudios de doctorado en áreas afines a las ciencias computacionales.</li>
-          </ul>
-          {% elif program.id == 2 %}
-          <p class="lead mb-3">El egresado de la Maestría en Inteligencia Artificial será capaz de:</p>
-          <ul class="list-unstyled mb-0">
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Diseñar e implementar sistemas basados en inteligencia artificial para resolver problemas complejos.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Aplicar técnicas avanzadas de aprendizaje automático y procesamiento de datos.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Liderar proyectos de innovación tecnológica basados en IA.</li>
-            <li><i class="fas fa-check-circle text-primary me-2"></i> Continuar estudios de doctorado en áreas relacionadas con la inteligencia artificial.</li>
-          </ul>
-          {% elif program.id == 4 %}
-          <p class="lead mb-3">El egresado del Doctorado en Ciencias de la Computación será capaz de:</p>
-          <ul class="list-unstyled mb-0">
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Generar conocimiento original en el campo de las ciencias de la computación.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Dirigir proyectos de investigación de alto nivel en entornos académicos y profesionales.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Formar recursos humanos especializados en el área.</li>
-            <li><i class="fas fa-check-circle text-primary me-2"></i> Contribuir al avance científico y tecnológico mediante publicaciones de impacto internacional.</li>
-          </ul>
-          {% else %}
-          <p class="lead mb-3">El egresado de este programa será capaz de:</p>
-          <ul class="list-unstyled mb-0">
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Aplicar conocimientos especializados para la resolución de problemas en su área.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Desarrollar proyectos de investigación y desarrollo tecnológico.</li>
-            <li class="mb-2"><i class="fas fa-check-circle text-primary me-2"></i> Integrarse a equipos multidisciplinarios en entornos profesionales.</li>
-            <li><i class="fas fa-check-circle text-primary me-2"></i> Continuar su formación académica en niveles superiores.</li>
+            {% for competency in program.graduate_competencies %}
+            <li {% if not loop.last %}class="mb-2"{% endif %}>
+              <i class="fas fa-check-circle text-primary me-2"></i> {{ competency }}
+            </li>
+            {% endfor %}
           </ul>
           {% endif %}
         </div>
@@ -47,3 +28,4 @@
     </div>
   </div>
 </section>
+{% endif %}

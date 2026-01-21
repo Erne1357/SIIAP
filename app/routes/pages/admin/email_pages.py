@@ -7,7 +7,7 @@ from app.services.email_service import EmailService
 pages_emails = Blueprint('pages_emails', __name__)
 
 
-@pages_emails.route('/admin/emails')
+@pages_emails.route('/emails')
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')
 def email_config():
@@ -20,7 +20,7 @@ def email_config():
                          stats=stats)
 
 
-@pages_emails.route('/admin/emails/login')
+@pages_emails.route('/emails/login')
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')
 def ms_login():
@@ -29,7 +29,7 @@ def ms_login():
     return redirect(build_auth_url(state))
 
 
-@pages_emails.route('/admin/emails/callback')
+@pages_emails.route('/emails/callback')
 def ms_callback():
     """Callback de Microsoft después de autenticación"""
     code = request.args.get('code')
@@ -52,7 +52,7 @@ def ms_callback():
     return redirect(url_for('pages_emails.email_config'))
 
 
-@pages_emails.post('/admin/emails/logout')
+@pages_emails.post('/emails/logout')
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')
 def ms_logout():
@@ -61,7 +61,7 @@ def ms_logout():
     return jsonify({'ok': True})
 
 
-@pages_emails.post('/admin/emails/process-queue')
+@pages_emails.post('/emails/process-queue')
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')
 def process_email_queue():
@@ -79,7 +79,7 @@ def process_email_queue():
         }), 500
 
 
-@pages_emails.get('/admin/emails/queue')
+@pages_emails.get('/emails/queue')
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')
 def get_email_queue():
@@ -105,7 +105,7 @@ def get_email_queue():
         }), 500
 
 
-@pages_emails.post('/admin/emails/retry-failed')
+@pages_emails.post('/emails/retry-failed')
 @login_required
 @roles_required('postgraduate_admin', 'program_admin')
 def retry_failed_emails():
