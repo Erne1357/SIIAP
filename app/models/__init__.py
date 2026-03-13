@@ -16,3 +16,4 @@ from .program_change_request import ProgramChangeRequest
 from .retention_policy import RetentionPolicy
 from .term import Term
 from .academic_period import AcademicPeriod
+from .acceptance_document import AcceptanceDocument

@@ -28,7 +28,12 @@ def dashboard():
                 "timeline": []
             }
 
-        context = {"program": program, **adm_state}
+        context = {
+            "program": program,
+            **adm_state,
+            "admission_status": up.admission_status if up else None,
+            "user_program_id": up.id if up else None,
+        }
 
     # ── Dashboard para PROGRAM_ADMIN ─────────────────────────────
     elif current_user.role.name == 'program_admin':

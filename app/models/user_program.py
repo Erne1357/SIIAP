@@ -44,6 +44,7 @@ class UserProgram(db.Model):
     program = db.relationship('Program', back_populates='user_program')
     admission_period = db.relationship('AcademicPeriod', back_populates='user_programs')
     decision_maker = db.relationship('User', foreign_keys=[decision_by])
+    acceptance_documents = db.relationship('AcceptanceDocument', back_populates='user_program', lazy='dynamic')
     
     def to_dict(self, include_deliberation=False):
         data = {

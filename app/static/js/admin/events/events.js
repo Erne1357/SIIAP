@@ -340,10 +340,16 @@
 
     async function loadEligibleStudents(programId = null) {
         try {
-            const url = `${API}/interviews/eligible-students/${programId}`;
+            const url = programId
+                ? `${API}/interviews/eligible-students/${programId}`
+                : `${API}/interviews/eligible-students`;
 
             const { data } = await apiRequest(url);
-            eligibleStudentsList = data.eligible_students || data.students || [];
+            if (programId) {
+                eligibleStudentsList = data.eligible_students || [];
+            } else {
+                eligibleStudentsList = (data.programs || []).flatMap(p => p.eligible_students || []);
+            }
             renderEligibleStudents();
 
         } catch (err) {

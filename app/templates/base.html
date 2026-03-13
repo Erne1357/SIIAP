@@ -164,6 +164,10 @@
           href="{{ url_for('pages_coordinator.deliberation') }}">
           <i class="fas fa-gavel me-2"></i>Deliberación
         </a>
+        <a class="nav-link {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
+          href="{{ url_for('pages_coordinator.acceptance') }}">
+          <i class="fas fa-file-check me-2"></i>Aceptación
+        </a>
         {% endif %}
         <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}">
           <i class="fas fa-calendar-alt me-2"></i>Permanencia
@@ -294,6 +298,9 @@
           <a class="nav-link {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
             href="{{ url_for('pages_coordinator.deliberation') }}" data-no-swup>
             <i class="fas fa-gavel me-2"></i>Deliberación</a>
+          <a class="nav-link {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
+            href="{{ url_for('pages_coordinator.acceptance') }}" data-no-swup>
+            <i class="fas fa-file-check me-2"></i>Aceptación</a>
           {% endif %}
           <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}" data-no-swup>
             <i class="fas fa-calendar-alt me-2"></i>Permanencia</a>

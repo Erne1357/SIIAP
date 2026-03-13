@@ -51,7 +51,7 @@ def user_doc(user_id: int, phase: str, filename: str):
         abort(403)
 
     # Fases válidas
-    valid_phases = {'admission', 'permanence', 'conclusion'}
+    valid_phases = {'admission', 'permanence', 'conclusion', 'acceptance'}
     if phase not in valid_phases:
         abort(400)
 

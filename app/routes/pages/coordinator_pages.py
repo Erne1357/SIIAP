@@ -50,3 +50,28 @@ def deliberation(program_id=None):
     return render_template('coordinator/deliberation.html',
                          coordinator_programs=coordinator_programs,
                          selected_program=selected_program)
+
+
+@pages_coordinator.route('/acceptance')
+@pages_coordinator.route('/acceptance/<int:program_id>')
+@login_required
+@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+def acceptance(program_id=None):
+    """Vista de documentos de aceptacion e inscripcion."""
+    if current_user.role.name == 'program_admin':
+        coordinator_programs = Program.query.filter_by(coordinator_id=current_user.id).all()
+    else:
+        coordinator_programs = Program.query.all()
+
+    selected_program = None
+    if program_id:
+        selected_program = Program.query.get_or_404(program_id)
+        if current_user.role.name == 'program_admin' and selected_program.coordinator_id != current_user.id:
+            from flask import abort
+            abort(403)
+    elif coordinator_programs:
+        selected_program = coordinator_programs[0]
+
+    return render_template('coordinator/acceptance.html',
+                           coordinator_programs=coordinator_programs,
+                           selected_program=selected_program)
