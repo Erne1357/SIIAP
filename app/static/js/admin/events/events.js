@@ -22,6 +22,9 @@
     const confirmDeleteEventModal = confirmDeleteEventModalEl ? new bootstrap.Modal(confirmDeleteEventModalEl) : null;
     const confirmCancelAppointmentModal = confirmCancelAppointmentModalEl ? new bootstrap.Modal(confirmCancelAppointmentModalEl) : null;
 
+    const acceptChangeRequestModalEl = document.getElementById("acceptChangeRequestModal");
+    const acceptChangeRequestModal = acceptChangeRequestModalEl ? new bootstrap.Modal(acceptChangeRequestModalEl) : null;
+
     // Formularios
     const createEventForm = document.getElementById("createEventForm");
     const addWindowForm = document.getElementById("addWindowForm");
@@ -32,6 +35,7 @@
     let currentEvents = [];
     let currentSlots = [];
     let eligibleStudentsList = [];
+    let currentChangeRequests = [];
     let selectedEventId = null;
     let programs = [];
 
@@ -339,22 +343,25 @@
     }
 
     async function loadEligibleStudents(programId = null) {
-        try {
-            const url = programId
-                ? `${API}/interviews/eligible-students/${programId}`
-                : `${API}/interviews/eligible-students`;
-
-            const { data } = await apiRequest(url);
-            if (programId) {
-                eligibleStudentsList = data.eligible_students || [];
-            } else {
-                eligibleStudentsList = (data.programs || []).flatMap(p => p.eligible_students || []);
+        if (!programId) {
+            eligibleStudentsList = [];
+            if (eligibleStudents) {
+                eligibleStudents.innerHTML = '<div class="list-group-item text-center text-muted py-4"><i class="bi bi-info-circle me-1"></i>Selecciona un programa para ver aspirantes elegibles</div>';
             }
+            return;
+        }
+
+        try {
+            const url = `${API}/interviews/eligible-students/${programId}`;
+            const { data } = await apiRequest(url);
+            eligibleStudentsList = data.eligible_students || [];
             renderEligibleStudents();
 
         } catch (err) {
             console.error('Error loading eligible students:', err);
-            eligibleStudents.innerHTML = '<div class="list-group-item text-danger">Error cargando estudiantes</div>';
+            if (eligibleStudents) {
+                eligibleStudents.innerHTML = '<div class="list-group-item text-danger">Error cargando estudiantes</div>';
+            }
         }
     }
 
@@ -491,6 +498,24 @@
                 const button = e.target.closest('.btn-cancel-invitation');
                 const invitationId = parseInt(button.dataset.invitationId);
                 cancelInvitation(invitationId);
+            }
+        });
+
+        document.getElementById('confirmAcceptChangeBtn')?.addEventListener('click', acceptChangeRequest);
+
+        document.getElementById('changeRequestsTable')?.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-accept-change')) {
+                const btn = e.target.closest('.btn-accept-change');
+                openAcceptChangeModal(
+                    btn.dataset.reqId,
+                    btn.dataset.studentName,
+                    btn.dataset.currentSlot,
+                    btn.dataset.reason,
+                    btn.dataset.suggestions
+                );
+            } else if (e.target.closest('.btn-reject-change')) {
+                const btn = e.target.closest('.btn-reject-change');
+                rejectChangeRequest(btn.dataset.reqId);
             }
         });
 
@@ -749,10 +774,12 @@
             multipleContent.style.display = 'none';
             document.getElementById('windowEventId').value = eventId;
             rightPanel.style.display = 'block';
-            
-            
+
             loadWindows(eventId);
             loadSlots(eventId);
+            loadChangeRequests(eventId);
+            // Cargar aspirantes elegibles del programa del evento
+            loadEligibleStudents(event.program_id || null);
         } else {
             singleContent.style.display = 'none';
             multipleContent.style.display = 'block';
@@ -1495,6 +1522,148 @@
 
         } catch (err) {
             flash(`Error actualizando fechas: ${err.message}`, 'danger');
+        }
+    }
+
+    // ========== GESTIÓN DE SOLICITUDES DE CAMBIO ==========
+
+    async function loadChangeRequests(eventId) {
+        const tbody = document.querySelector('#changeRequestsTable tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Cargando...</td></tr>';
+
+        try {
+            const { data } = await apiRequest(`${API}/appointments/change-requests/by-event/${eventId}`);
+            currentChangeRequests = data.change_requests || [];
+            renderChangeRequestsTable();
+
+            const badge = document.getElementById('changeRequestsBadge');
+            if (badge) {
+                if (currentChangeRequests.length > 0) {
+                    badge.textContent = currentChangeRequests.length;
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        } catch (err) {
+            console.error('Error loading change requests:', err);
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">Error cargando solicitudes</td></tr>';
+        }
+    }
+
+    function renderChangeRequestsTable() {
+        const tbody = document.querySelector('#changeRequestsTable tbody');
+        if (!tbody) return;
+
+        if (currentChangeRequests.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No hay solicitudes de cambio pendientes</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = currentChangeRequests.map(req => {
+            const start = new Date(req.current_slot.starts_at);
+            const end = new Date(req.current_slot.ends_at);
+            const slotStr = `${start.toLocaleDateString('es-MX')} ${start.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+            const createdDate = new Date(req.created_at).toLocaleDateString('es-MX');
+            const reason = (req.reason || '').replace(/"/g, '&quot;');
+            const suggestions = (req.suggestions || '').replace(/"/g, '&quot;');
+
+            return `
+      <tr data-req-id="${req.id}">
+        <td>
+          <div class="fw-semibold small">${req.student.full_name}</div>
+          <div class="text-muted small">${req.student.email}</div>
+        </td>
+        <td><small>${slotStr}</small></td>
+        <td><small>${req.reason || '—'}</small></td>
+        <td><small>${req.suggestions || '—'}</small></td>
+        <td><small>${createdDate}</small></td>
+        <td class="text-end">
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-success btn-accept-change"
+                    data-req-id="${req.id}"
+                    data-student-name="${req.student.full_name}"
+                    data-current-slot="${slotStr}"
+                    data-reason="${reason}"
+                    data-suggestions="${suggestions}"
+                    title="Aprobar cambio">
+              <i class="fas fa-check"></i>
+            </button>
+            <button class="btn btn-outline-danger btn-reject-change"
+                    data-req-id="${req.id}"
+                    title="Rechazar cambio">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+        }).join('');
+    }
+
+    async function openAcceptChangeModal(reqId, studentName, currentSlot, reason, suggestions) {
+        document.getElementById('acceptChangeReqId').value = reqId;
+        document.getElementById('acceptChangeStudentName').textContent = studentName;
+        document.getElementById('acceptChangeCurrentSlot').textContent = currentSlot;
+        document.getElementById('acceptChangeReason').textContent = reason || '—';
+        document.getElementById('acceptChangeSuggestions').textContent = suggestions || '—';
+
+        const slotSelect = document.getElementById('acceptChangeNewSlot');
+        const freeSlots = currentSlots.filter(s => s.status === 'free');
+
+        if (freeSlots.length === 0) {
+            slotSelect.innerHTML = '<option value="">No hay horarios libres disponibles</option>';
+        } else {
+            slotSelect.innerHTML = '<option value="">Seleccionar nuevo horario...</option>' +
+                freeSlots.map(slot => {
+                    const s = new Date(slot.starts_at);
+                    const e = new Date(slot.ends_at);
+                    const label = `${s.toLocaleDateString('es-MX')} ${s.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} - ${e.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+                    return `<option value="${slot.id}">${label}</option>`;
+                }).join('');
+        }
+
+        if (acceptChangeRequestModal) acceptChangeRequestModal.show();
+    }
+
+    async function acceptChangeRequest() {
+        const reqId = document.getElementById('acceptChangeReqId').value;
+        const newSlotId = document.getElementById('acceptChangeNewSlot').value;
+
+        if (!newSlotId) {
+            flash('Debes seleccionar un nuevo horario', 'warning');
+            return;
+        }
+
+        try {
+            await apiRequest(`${API}/appointments/change-requests/${reqId}/decision`, {
+                method: 'PUT',
+                body: JSON.stringify({ status: 'accepted', new_slot_id: parseInt(newSlotId) })
+            });
+
+            flash('Cambio de horario aprobado correctamente', 'success');
+            if (acceptChangeRequestModal) acceptChangeRequestModal.hide();
+            await loadSlots(selectedEventId);
+            await loadChangeRequests(selectedEventId);
+        } catch (err) {
+            flash(`Error aprobando cambio: ${err.message}`, 'danger');
+        }
+    }
+
+    async function rejectChangeRequest(reqId) {
+        if (!confirm('¿Rechazar esta solicitud de cambio?')) return;
+
+        try {
+            await apiRequest(`${API}/appointments/change-requests/${reqId}/decision`, {
+                method: 'PUT',
+                body: JSON.stringify({ status: 'rejected' })
+            });
+
+            flash('Solicitud de cambio rechazada', 'success');
+            await loadChangeRequests(selectedEventId);
+        } catch (err) {
+            flash(`Error rechazando solicitud: ${err.message}`, 'danger');
         }
     }
 

@@ -1,7 +1,7 @@
 # app/routes/api/coordinator_api.py
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from datetime import datetime, timezone
 
 from app import db
@@ -531,8 +531,8 @@ def _format_archive_status(archive, subs, all_extensions):
 def _get_interview_status(student_id, program_id):
     """Obtiene el estado de entrevista del estudiante"""
     from app.models.event import Event, EventSlot, EventWindow
-    
-    # Buscar cita activa
+
+    # Buscar cita activa. Se incluyen eventos del programa y eventos globales (program_id=NULL)
     appointment = db.session.execute(
         select(Appointment)
         .join(EventSlot, Appointment.slot_id == EventSlot.id)
@@ -541,7 +541,7 @@ def _get_interview_status(student_id, program_id):
         .where(
             Appointment.applicant_id == student_id,
             Appointment.status == 'scheduled',
-            Event.program_id == program_id,
+            or_(Event.program_id == program_id, Event.program_id.is_(None)),
             Event.type == 'interview'
         )
     ).scalar_one_or_none()

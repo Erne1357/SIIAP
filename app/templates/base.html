@@ -21,9 +21,9 @@
   <link href="{{ url_for('static', filename='css/session.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/base.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/menu_colors.css') }}?v={{ static_version }}" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/swup.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/flash.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/notifications.css') }}?v={{ static_version }}" rel="stylesheet">
+
   <!-- Favicon -->
   <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
 
@@ -220,7 +220,7 @@
         </div>
         {% endif %}
         <hr class="mx-3">
-        <a href="#" class="nav-link text-danger js-api-logout" data-no-swup>
+        <a href="#" class="nav-link text-danger js-api-logout">
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
       </nav>
@@ -255,17 +255,17 @@
       <div class="offcanvas-body">
         <nav class="nav flex-column">
           <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}"
-            href="{{ url_for('pages_user.profile') }}" data-no-swup>
+            href="{{ url_for('pages_user.profile') }}">
             <i class="fas fa-user me-2"></i>Perfil</a>
           <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
-            href="{{ url_for('pages_user.dashboard') }}" data-no-swup>
+            href="{{ url_for('pages_user.dashboard') }}">
             <i class="fas fa-th-large me-2"></i>Dashboard</a>
           <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
-            href="{{ url_for('program.list_programs') }}" data-no-swup>
+            href="{{ url_for('program.list_programs') }}">
             <i class="fas fa-clipboard me-2"></i>Programas</a>
           {% if up %}
           <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %}"
-            href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}" data-no-swup>
+            href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}">
             <i class="fas fa-clipboard-list me-2"></i>Admisión</a>
           {% endif %}
 
@@ -279,12 +279,12 @@
             </a>
             <div class="dropdown-submenu" id="mobile-events-menu">
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
-                href="{{ url_for('pages_events_public.list_events') }}" data-no-swup>
+                href="{{ url_for('pages_events_public.list_events') }}">
                 <i class="fas fa-calendar me-2"></i>Eventos Públicos
               </a>
               {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_events.index') }}" data-no-swup>
+                href="{{ url_for('pages_admin.pages_events.index') }}">
                 <i class="fas fa-calendar-plus me-2"></i>Gestión de Eventos
               </a>
               {% endif %}
@@ -293,20 +293,20 @@
 
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
           <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.dashboard') }}" data-no-swup>
+            href="{{ url_for('pages_coordinator.dashboard') }}">
             <i class="fas fa-users me-2"></i>Coordinación</a>
           <a class="nav-link {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.deliberation') }}" data-no-swup>
+            href="{{ url_for('pages_coordinator.deliberation') }}">
             <i class="fas fa-gavel me-2"></i>Deliberación</a>
           <a class="nav-link {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.acceptance') }}" data-no-swup>
+            href="{{ url_for('pages_coordinator.acceptance') }}">
             <i class="fas fa-file-check me-2"></i>Aceptación</a>
           {% endif %}
-          <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}" data-no-swup>
+          <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}">
             <i class="fas fa-calendar-alt me-2"></i>Permanencia</a>
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
           <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_review.index') }}" data-no-swup>
+            href="{{ url_for('pages_admin.pages_review.index') }}">
             <i class="fas fa-file-alt me-2"></i>Documentos
           </a>
           {% endif %}
@@ -323,29 +323,29 @@
             </a>
             <div class="dropdown-submenu" id="mobile-config-menu">
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.index') }}" data-no-swup>
+                href="{{ url_for('pages_admin.pages_settings.index') }}">
                 <i class="fas fa-folder me-2"></i>Archivos
               </a>
               <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.users') }}" data-no-swup>
+                href="{{ url_for('pages_admin.pages_settings.users') }}">
                 <i class="fas fa-user-cog me-2"></i>Usuarios
               </a>
               <a class="nav-link submenu-item" href="{{ url_for('pages_admin.pages_emails.email_config') }}"
-                data-no-swup>
+               >
                 <i class="fas fa-envelope me-2"></i>Correos
               </a>
               {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
               <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}" data-no-swup>
+                href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}">
                 <i class="fas fa-graduation-cap me-2"></i>Programa
               </a>
               {% elif current_user.role.name == 'postgraduate_admin' %}
               <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
-                href="{{ url_for('program.list_programs') }}" data-no-swup>
+                href="{{ url_for('program.list_programs') }}">
                 <i class="fas fa-graduation-cap me-2"></i>Programas
               </a>
               <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.academic_periods' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.academic_periods') }}" data-no-swup>
+                href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">
                 <i class="fas fa-calendar-alt me-2"></i>Periodos Academicos
               </a>
               {% endif %}
@@ -357,7 +357,7 @@
 
       <!-- Footer fijo con botón de cerrar sesión -->
       <div class="offcanvas-footer">
-        <a href="#" class="nav-link text-danger js-api-logout" data-no-swup>
+        <a href="#" class="nav-link text-danger js-api-logout">
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
         </a>
       </div>
@@ -365,9 +365,10 @@
     {% endblock %}
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow-1 p-3 p-md-4 swup-transition" id="main-content">
+    <main class="flex-grow-1 p-3 p-md-4" id="main-content">
       {% block content %}{% endblock %}
     </main>
+    {% block scripts %}{% endblock %}
   </div>
 
   <!-- FOOTER -->
@@ -512,9 +513,6 @@
   <!-- Bootstrap JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- SWup-->
-  <script src="https://unpkg.com/swup@4"></script>
-
   <!-- Session Timeout -->
   <script>
     var sessionKeepaliveUrl = "{{ url_for('api_auth.api_keepalive') }}";
@@ -526,9 +524,12 @@
   <!-- API Client - debe cargarse primero -->
   <script src="{{ url_for('static', filename='js/utils/api.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v={{ static_version }}"></script>
-  <script src="{{ url_for('static', filename='js/swup.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/flash.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/force_password_change.js') }}?v={{ static_version }}"></script>
+  <!-- Socket.IO cliente v4 (CDN) — DEBE estar antes de socket-client.js -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <!-- Gestor global de WebSocket — conecta y re-emite eventos al window -->
+  <script src="{{ url_for('static', filename='js/socket-client.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/notifications.js') }}?v={{ static_version }}"></script>
   <script>
     (function () {
@@ -574,13 +575,6 @@
 
       // Wire logout buttons en ambos lugares
       wireLogout('.js-api-logout');
-
-      // Reiniciar los event listeners después de Swup si lo usas
-      if (typeof swup !== 'undefined') {
-        swup.on('contentReplaced', () => {
-          wireLogout('.js-api-logout');
-        });
-      }
     })();
   </script>
 
@@ -633,8 +627,7 @@
       const offcanvasElement = document.getElementById('mobileSidebar');
       if (!offcanvasElement) return;
 
-      // Los enlaces ahora tienen data-no-swup y funcionan nativamente
-      // Solo necesitamos cerrar el offcanvas cuando se hace click en un enlace válido
+      // Cerrar el offcanvas cuando se hace click en un enlace válido
       const allLinks = offcanvasElement.querySelectorAll('a[href]:not(.dropdown-toggle-custom):not(.js-api-logout)');
 
       allLinks.forEach(link => {
@@ -685,11 +678,6 @@
       initAllMenus();
     }
 
-    // Reinicializar después de Swup si lo usas
-    if (typeof swup !== 'undefined') {
-      swup.on('contentReplaced', initAllMenus);
-    }
-
     // Cerrar dropdowns al hacer click fuera
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.dropdown-menu-container')) {
@@ -703,7 +691,7 @@
     });
   </script>
 
-  {% block scripts %}{% endblock %}
+
 </body>
 
 </html>

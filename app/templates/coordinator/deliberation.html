@@ -2,8 +2,7 @@
 {% block title %}Deliberacion de Aspirantes{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/coordinator/deliberation.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/coordinator/deliberation.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -306,5 +305,8 @@
 
 {% block scripts %}
 {{ super() }}
+<script>
+  window.currentUserRole = "{{ current_user.role.name }}";
+</script>
 <script src="{{ url_for('static', filename='js/coordinator/deliberation.js') }}?v={{ static_version }}"></script>
 {% endblock %}

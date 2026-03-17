@@ -3,8 +3,7 @@
 {% block title %}{{ super() }} - Periodos Academicos{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/academic_periods.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/admin/settings/academic_periods.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}

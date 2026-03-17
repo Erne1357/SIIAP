@@ -211,6 +211,13 @@ def my_active_appointments():
         if not event:
             continue
         
+        # Verificar si hay solicitud de cambio pendiente
+        from app.models.appointment import AppointmentChangeRequest
+        pending_change = AppointmentChangeRequest.query.filter_by(
+            appointment_id=appt.id,
+            status='pending'
+        ).first()
+
         items.append({
             "id": appt.id,
             "status": appt.status,
@@ -220,10 +227,75 @@ def my_active_appointments():
             "location": event.location,
             "starts_at": slot.starts_at.isoformat(),
             "ends_at": slot.ends_at.isoformat(),
-            "created_at": appt.created_at.isoformat()
+            "created_at": appt.created_at.isoformat(),
+            "pending_change_request": {
+                "id": pending_change.id,
+                "reason": pending_change.reason,
+                "suggestions": pending_change.suggestions,
+                "created_at": pending_change.created_at.isoformat()
+            } if pending_change else None
         })
     
     return jsonify({"ok": True, "appointments": items}), 200
+
+@api_appointments.route('/change-requests/by-event/<int:event_id>', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def get_change_requests_by_event(event_id: int):
+    """Lista solicitudes de cambio de cita pendientes para un evento específico"""
+    from app.models.event import Event, EventSlot, EventWindow
+    from app.models.user import User
+    from app.models.appointment import AppointmentChangeRequest
+    from app.models.program import Program
+    from sqlalchemy import select
+
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+
+    if current_user.role.name == 'program_admin' and event.program_id:
+        program = db.session.get(Program, event.program_id)
+        if not program or program.coordinator_id != current_user.id:
+            return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
+    try:
+        results = db.session.execute(
+            select(AppointmentChangeRequest, Appointment, EventSlot, User)
+            .join(Appointment, AppointmentChangeRequest.appointment_id == Appointment.id)
+            .join(EventSlot, Appointment.slot_id == EventSlot.id)
+            .join(User, Appointment.applicant_id == User.id)
+            .where(
+                Appointment.event_id == event_id,
+                AppointmentChangeRequest.status == 'pending'
+            )
+            .order_by(AppointmentChangeRequest.created_at.desc())
+        ).all()
+
+        items = []
+        for req, appt, slot, user in results:
+            items.append({
+                "id": req.id,
+                "appointment_id": appt.id,
+                "student": {
+                    "id": user.id,
+                    "full_name": f"{user.first_name} {user.last_name}",
+                    "email": user.email
+                },
+                "current_slot": {
+                    "id": slot.id,
+                    "starts_at": slot.starts_at.isoformat(),
+                    "ends_at": slot.ends_at.isoformat()
+                },
+                "reason": req.reason,
+                "suggestions": req.suggestions,
+                "created_at": req.created_at.isoformat()
+            })
+
+        return jsonify({"ok": True, "change_requests": items, "count": len(items)}), 200
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @api_appointments.route('/change-requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
@@ -237,6 +309,43 @@ def decide_change(req_id:int):
             decided_by=current_user.id,
             new_slot_id=data.get('new_slot_id')
         )
+
+        # Enviar notificación y correo al aspirante
+        try:
+            from app.models.event import Event, EventSlot, EventWindow
+            from app.services.notification_service import NotificationService
+
+            appt = db.session.get(Appointment, acr.appointment_id)
+            slot = db.session.get(EventSlot, appt.slot_id)
+            window = db.session.get(EventWindow, slot.event_window_id)
+            event = db.session.get(Event, window.event_id)
+
+            new_slot_str = slot.starts_at.strftime('%d/%m/%Y %H:%M') if slot else ''
+            location = getattr(event, 'location', None)
+
+            if acr.status == 'accepted':
+                NotificationService.notify_appointment_reassigned(
+                    user_id=appt.applicant_id,
+                    event_title=event.title,
+                    appointment_id=appt.id,
+                    new_slot_datetime=new_slot_str,
+                    old_slot_datetime='',
+                    event_id=event.id,
+                    location=location
+                )
+            elif acr.status == 'rejected':
+                NotificationService.create_notification(
+                    user_id=appt.applicant_id,
+                    notification_type='appointment_change_rejected',
+                    title='Cambio de horario rechazado',
+                    message=f'Tu solicitud de cambio de horario para "{event.title}" fue rechazada. Tu cita original se mantiene el {new_slot_str}.',
+                    priority='medium',
+                    data={'event_id': event.id, 'event_title': event.title, 'slot_datetime': new_slot_str}
+                )
+        except Exception as notify_err:
+            import logging
+            logging.error(f"Error enviando notificación de cambio de cita: {notify_err}")
+
         return jsonify({"ok": True, "id": acr.id, "status": acr.status}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400

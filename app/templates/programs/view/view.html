@@ -5,9 +5,7 @@
 {% block title %}{{ program.name }}{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" data-swup-include-style>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/program/view.css') }}?v={{ static_version }}" data-swup-include-style>
+<link href="{{ url_for('static', filename='css/program/view.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -34,44 +32,43 @@
     {% include 'programs/view/_floating_buttons.html' %}
 
 </div>
+
 {% endblock %}
 
 {% block modals %}
-    <!-- Modal para inscripción con si o no -->
-    <div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
+<div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
 
-                <form method="POST" action="{{ url_for('program.inscription_program', program_id=program.id) }}">
+            <form method="POST" action="{{ url_for('program.inscription_program', program_id=program.id) }}">
 
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="enrollmentModalLabel">
-                            ¿Deseas postularte en el programa?
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="enrollmentModalLabel">
+                        ¿Deseas postularte en el programa?
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
 
-                    <div class="modal-body">
-                        Por favor confirma si deseas proceder con la postulación al programa {{ program.name }}.
-                    </div>
+                <div class="modal-body">
+                    Por favor confirma si deseas proceder con la postulación al programa {{ program.name }}.
+                </div>
 
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
 
-                        <button type="submit" class="btn btn-primary">
-                            Sí, postularme
-                        </button>
-                    </div>
-                </form>
+                    <button type="submit" class="btn btn-primary">
+                        Sí, postularme
+                    </button>
+                </div>
+            </form>
 
-            </div>
         </div>
     </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
-<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
 <script src="{{ url_for('static', filename='js/program/view.js') }}?v={{ static_version }}"></script>
 {% endblock %}

@@ -444,10 +444,25 @@ document.addEventListener('DOMContentLoaded', () => {
           ` : ''}
         </div>
         <div class="col-12 col-md-4 text-md-end mt-3 mt-md-0">
-          <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change" data-appointment-id="${appointment.id}">
-            <i class="fas fa-exchange-alt me-1"></i>
-            Solicitar Cambio
-          </button>
+          ${appointment.pending_change_request ? `
+            <div class="alert alert-warning py-2 mb-2 text-start">
+              <small><i class="fas fa-clock me-1"></i><strong>Solicitud en revisión</strong><br>
+              Tu solicitud de cambio está pendiente de respuesta.</small>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm w-100 w-md-auto btn-request-change"
+                    data-appointment-id="${appointment.id}"
+                    data-pending-reason="${(appointment.pending_change_request.reason || '').replace(/"/g, '&quot;')}"
+                    data-pending-suggestions="${(appointment.pending_change_request.suggestions || '').replace(/"/g, '&quot;')}">
+              <i class="fas fa-edit me-1"></i>
+              Editar Solicitud
+            </button>
+          ` : `
+            <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change"
+                    data-appointment-id="${appointment.id}">
+              <i class="fas fa-exchange-alt me-1"></i>
+              Solicitar Cambio
+            </button>
+          `}
         </div>
       </div>
     `;
@@ -463,22 +478,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.closest('.btn-request-change')) {
       const button = e.target.closest('.btn-request-change');
       const appointmentId = button.getAttribute('data-appointment-id');
+      const pendingReason = button.getAttribute('data-pending-reason') || '';
+      const pendingSuggestions = button.getAttribute('data-pending-suggestions') || '';
 
       if (appointmentId) {
-        // TODO Fase 3: Reemplazar con modal
-        openChangeRequestModal(appointmentId);
+        openChangeRequestModal(appointmentId, pendingReason, pendingSuggestions);
       }
     }
   });
 
-  function openChangeRequestModal(appointmentId) {
-    // TODO Fase 3: Modal en lugar de prompt
-    const reason = prompt('Motivo del cambio de horario:');
-    if (!reason || !reason.trim()) return;
+  const changeRequestModalEl = document.getElementById('changeRequestModal');
+  const changeRequestModal = changeRequestModalEl ? new bootstrap.Modal(changeRequestModalEl) : null;
+  const changeRequestForm = document.getElementById('changeRequestForm');
 
-    const suggestions = prompt('Sugerencias de horario (opcional):');
+  changeRequestForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const appointmentId = document.getElementById('changeReqAppointmentId').value;
+    const reason = document.getElementById('changeReqReason').value.trim();
+    const suggestions = document.getElementById('changeReqSuggestions').value.trim();
 
-    requestAppointmentChange(appointmentId, reason.trim(), suggestions?.trim());
+    await requestAppointmentChange(appointmentId, reason, suggestions || null);
+    changeRequestModal?.hide();
+    changeRequestForm.reset();
+  });
+
+  function openChangeRequestModal(appointmentId, pendingReason = '', pendingSuggestions = '') {
+    document.getElementById('changeReqAppointmentId').value = appointmentId;
+    document.getElementById('changeReqReason').value = pendingReason;
+    document.getElementById('changeReqSuggestions').value = pendingSuggestions;
+
+    if (changeRequestModal) {
+      changeRequestModal.show();
+    }
   }
 
   async function requestAppointmentChange(appointmentId, reason, suggestions) {

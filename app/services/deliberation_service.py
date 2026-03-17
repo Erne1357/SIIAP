@@ -16,7 +16,7 @@ from app.models import UserProgram, User, Program
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 
 
 class DeliberationError(Exception):
@@ -126,11 +126,12 @@ def mark_interview_completed(user_id: int, program_id: int):
     up.admission_status = 'interview_completed'
 
     # Buscar y marcar la cita de entrevista como 'done'
+    # Se incluyen eventos globales (program_id=NULL) además de los del programa
     appointment = Appointment.query.join(
         Event, Appointment.event_id == Event.id
     ).filter(
         Appointment.applicant_id == user_id,
-        Event.program_id == program_id,
+        or_(Event.program_id == program_id, Event.program_id.is_(None)),
         Event.type == 'interview',
         Appointment.status == 'scheduled'
     ).first()
@@ -218,6 +219,22 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         message=f'Has sido aceptado en el programa {program.name}. Revisa tu correo para mas informacion.'
     )
 
+    # Emitir actualización en tiempo real a la sala de deliberación del programa
+    try:
+        from app.extensions import socketio
+        socketio.emit(
+            'deliberation:updated',
+            {
+                'user_id': user_id,
+                'user_name': f'{user.first_name} {user.last_name}',
+                'program_id': program_id,
+                'status': 'accepted',
+            },
+            room=f'deliberation:{program_id}',
+        )
+    except Exception:
+        pass
+
     return up
 
 
@@ -283,6 +300,22 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
             message=f'El comite de admision de {program.name} ha solicitado algunas correcciones. Revisa los detalles en tu portal.'
         )
 
+    # Emitir actualización en tiempo real a la sala de deliberación del programa
+    try:
+        from app.extensions import socketio
+        socketio.emit(
+            'deliberation:updated',
+            {
+                'user_id': user_id,
+                'user_name': f'{user.first_name} {user.last_name}',
+                'program_id': program_id,
+                'status': rejection_type if rejection_type == 'partial' else 'rejected',
+            },
+            room=f'deliberation:{program_id}',
+        )
+    except Exception:
+        pass
+
     return up
 
 
@@ -328,6 +361,42 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
         admin_id=admin_id,
         action='admission_reset',
         details=f'Estado reiniciado a in_progress. {reason or ""}'
+    )
+
+    return up
+
+
+def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: str = None):
+    """
+    Reinicia forzosamente el estado de un aspirante a 'in_progress' desde cualquier estado.
+    Solo debe ser usado por postgraduate_admin para correcciones administrativas.
+
+    Args:
+        user_id: ID del aspirante
+        program_id: ID del programa
+        admin_id: ID del admin que autoriza
+        reason: Razón del reinicio
+
+    Returns:
+        UserProgram actualizado
+    """
+    up = get_user_program(user_id, program_id)
+
+    prev_status = up.admission_status
+    up.admission_status = 'in_progress'
+    up.deliberation_started_at = None
+    up.decision_at = None
+    up.decision_by = None
+    up.decision_notes = None
+    up.rejection_type = None
+    up.correction_required = None
+    db.session.commit()
+
+    UserHistoryService.log_action(
+        user_id=user_id,
+        admin_id=admin_id,
+        action='admission_reset',
+        details=f'Reinicio administrativo forzado desde "{prev_status}". {reason or ""}'
     )
 
     return up
@@ -389,11 +458,12 @@ def get_applicants_with_pending_interview(program_id: int):
     from app.models.appointment import Appointment
 
     # Obtener aspirantes que tienen una cita de entrevista agendada (scheduled)
-    # para un evento de tipo 'interview' del programa
+    # Se incluyen tanto eventos del programa como eventos globales (program_id=NULL)
+    # ya que la asociación con el programa se verifica mediante UserProgram
     subquery_appointments = db.session.query(Appointment.applicant_id).join(
         Event, Appointment.event_id == Event.id
     ).filter(
-        Event.program_id == program_id,
+        or_(Event.program_id == program_id, Event.program_id.is_(None)),
         Event.type == 'interview',
         Appointment.status == 'scheduled'
     ).subquery()

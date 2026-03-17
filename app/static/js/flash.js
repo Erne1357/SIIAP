@@ -91,14 +91,3 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-/**
- * Limpiar mensajes flash al cambiar de página con Swup
- */
-if (typeof swup !== 'undefined') {
-  swup.on('willReplaceContent', () => {
-    const container = document.getElementById('flash-container');
-    if (container) {
-      container.innerHTML = '';
-    }
-  });
-}

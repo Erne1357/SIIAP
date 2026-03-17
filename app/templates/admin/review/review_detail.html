@@ -3,7 +3,7 @@
 {% block title %}Revisión de Documento #{{ sub.id }}{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/admin_review.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/admin/admin_review.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}

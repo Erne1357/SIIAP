@@ -2,8 +2,7 @@
 {% block title %}Admisión – {{ program.name }}{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/program/admission.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/program/admission.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -280,6 +279,47 @@
           <i class="fas fa-check me-1"></i>Confirmar Cambio
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Solicitar Cambio de Horario de Entrevista -->
+<div class="modal fade" id="changeRequestModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-exchange-alt me-2"></i> Solicitar Cambio de Horario
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="changeRequestForm">
+        <div class="modal-body">
+          <input type="hidden" id="changeReqAppointmentId">
+
+          <div class="mb-3">
+            <label class="form-label" for="changeReqReason">
+              Motivo del cambio <span class="text-danger">*</span>
+            </label>
+            <textarea class="form-control" id="changeReqReason" rows="3" required
+              placeholder="Explica por qué necesitas cambiar el horario de tu entrevista..."></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="changeReqSuggestions">
+              Sugerencias de disponibilidad <span class="text-muted">(opcional)</span>
+            </label>
+            <textarea class="form-control" id="changeReqSuggestions" rows="2"
+              placeholder="Ej: disponible lunes o miércoles por la tarde..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning">
+            <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

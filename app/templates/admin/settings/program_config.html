@@ -4,7 +4,7 @@
 {% block title %}Configurar {{ program.name }}{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/program_config.css') }}?v={{static_version}}">
+<link href="{{ url_for('static', filename='css/admin/settings/program_config.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}

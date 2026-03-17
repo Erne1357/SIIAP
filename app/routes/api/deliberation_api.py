@@ -412,3 +412,38 @@ def api_get_user_deliberation_status(user_id, program_id):
             "error": {"code": "SERVER_ERROR", "message": str(e)},
             "meta": {}
         }), 500
+
+
+@api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/force-reset')
+@login_required
+@roles_required('postgraduate_admin')
+def api_force_reset_applicant(user_id, program_id):
+    """Reinicio forzado del estado de admisión a 'in_progress'. Solo postgraduate_admin."""
+    data = request.get_json() or {}
+    reason = data.get('reason', 'Reinicio administrativo')
+
+    try:
+        up = svc.force_reset_applicant(user_id, program_id, current_user.id, reason)
+
+        return jsonify({
+            "data": up.to_dict(include_deliberation=True),
+            "flash": [{"level": "success", "message": "Estado reiniciado a 'En Proceso'"}],
+            "error": None,
+            "meta": {}
+        }), 200
+
+    except svc.ApplicantNotFound as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500

@@ -19,7 +19,44 @@ class DeliberationManager {
         if (this.currentProgramId) {
             this.loadStats();
             this.loadPendingInterview();
+            this.joinDeliberationRoom();
         }
+        this.listenWebSocket();
+    }
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+
+    joinDeliberationRoom() {
+        /**
+         * Une al coordinador a la sala Socket.IO del programa para recibir
+         * actualizaciones en tiempo real cuando otro coordinador toma una decisión.
+         */
+        if (window.siiapSocket && this.currentProgramId) {
+            window.siiapSocket.emit('join_deliberation', {
+                program_id: parseInt(this.currentProgramId)
+            });
+        }
+    }
+
+    listenWebSocket() {
+        window.addEventListener('siiap:deliberation:updated', (e) => {
+            const data = e.detail || {};
+
+            // Solo reaccionar si el evento es del programa que se está viendo
+            if (data.program_id && String(data.program_id) !== String(this.currentProgramId)) return;
+
+            // Recargar stats y la pestaña activa para reflejar el nuevo estado
+            this.loadStats();
+            this.loadCurrentTab();
+
+            // Notificar visualmente
+            window.dispatchEvent(new CustomEvent('flash', {
+                detail: {
+                    level: 'info',
+                    message: `Estado actualizado: ${data.user_name || 'aspirante'} → ${data.status}`
+                }
+            }));
+        });
     }
 
     bindEvents() {
@@ -330,15 +367,24 @@ class DeliberationManager {
                     </tr>
                 `;
 
-            case 'accepted':
+            case 'accepted': {
+                const forceResetBtn = window.currentUserRole === 'postgraduate_admin'
+                    ? `<button class="btn btn-sm btn-outline-secondary btn-action"
+                               title="Reiniciar estado a En Proceso (solo admin)"
+                               onclick="deliberationManager.forceResetApplicant(${user.id}, ${up.program_id}, '${user.full_name}')">
+                           <i class="bi bi-arrow-counterclockwise"></i>
+                       </button>`
+                    : '';
                 return `
                     <tr>
                         <td class="applicant-name">${user.full_name}</td>
                         <td class="applicant-email">${user.email}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
                         <td class="notes-cell">${up.decision_notes || '-'}</td>
+                        <td class="text-center">${forceResetBtn}</td>
                     </tr>
                 `;
+            }
 
             case 'rejected':
                 const rejectionBadge = up.rejection_type === 'partial'
@@ -508,6 +554,29 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error resetting applicant:', error);
+            this.showToast('Error al reiniciar estado', 'danger');
+        }
+    }
+
+    async forceResetApplicant(userId, programId, applicantName) {
+        if (!confirm(`¿Reiniciar el estado de "${applicantName}" a "En Proceso"? Se registrará en el historial.`)) return;
+        try {
+            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/force-reset`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                },
+                body: JSON.stringify({ reason: 'Reinicio administrativo desde panel de deliberación' })
+            });
+            const result = await response.json();
+            if (result.flash) result.flash.forEach(f => this.showToast(f.message, f.level));
+            if (!result.error) {
+                this.loadStats();
+                this.loadApplicants('accepted');
+            }
+        } catch (error) {
+            console.error('Error force resetting applicant:', error);
             this.showToast('Error al reiniciar estado', 'danger');
         }
     }

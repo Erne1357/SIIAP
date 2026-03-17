@@ -3,8 +3,7 @@
 {% block title %}Programas de Posgrado{% endblock %}
 
 {% block styles %}
-{{ super() }}
-  <link rel="stylesheet" href="{{url_for('static', filename='css/program/list.css') }}?v={{ static_version }}" data-swup-include-style>
+<link href="{{ url_for('static', filename='css/program/list.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
