@@ -4,15 +4,15 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Permite ejecutar manualmente desde GitHub
+  workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy to Server
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: 🚀 Deploy via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -20,40 +20,56 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            set -e  # Detener en caso de error
-            
-            echo "📂 Navegando al directorio del proyecto..."
-            cd /home/cuaderno/SIIAP
-            
-            echo "🔄 Actualizando código desde GitHub..."
-            git fetch origin
-            git reset --hard origin/main
-            
-            echo "🛑 Deteniendo contenedores actuales..."
-            docker compose -f docker/docker-compose.prod.yml down
-            
-            echo "🏗️ Construyendo nuevas imágenes..."
-            docker compose -f docker/docker-compose.prod.yml build --no-cache
-            
-            echo "▶️ Iniciando contenedores..."
-            docker compose -f docker/docker-compose.prod.yml up -d
-            
-            echo "⏳ Esperando que la aplicación inicie..."
-            sleep 10
-            
-            echo "🧹 Limpiando imágenes antiguas..."
-            docker image prune -f
-            
-            echo "📊 Estado de los contenedores:"
-            docker compose -f docker/docker-compose.prod.yml ps
-            
-            echo "✅ ¡Deployment completado exitosamente!"
+            set -e
 
-      - name: 📢 Notify deployment status
+            COMPOSE="docker compose -f /home/cuaderno/SIIAP/docker/docker-compose.prod.yml"
+            PROJECT_DIR="/home/cuaderno/SIIAP"
+
+            echo "=== [1/6] Actualizando código ==="
+            cd $PROJECT_DIR
+            git fetch origin
+            PREV_COMMIT=$(git rev-parse HEAD)
+            git reset --hard origin/main
+            echo "Commit anterior: $PREV_COMMIT"
+            echo "Commit actual:   $(git rev-parse HEAD)"
+
+            echo "=== [2/6] Construyendo imágenes ==="
+            $COMPOSE build
+
+            echo "=== [3/6] Reiniciando servicios ==="
+            $COMPOSE up -d --remove-orphans
+
+            echo "=== [4/6] Verificando salud de la aplicación ==="
+            MAX_RETRIES=18   # 18 × 10s = 3 minutos máximo
+            RETRY=0
+            until curl -sf http://127.0.0.1:8081/health > /dev/null 2>&1; do
+              RETRY=$((RETRY + 1))
+              if [ $RETRY -ge $MAX_RETRIES ]; then
+                echo "ERROR: La app no respondió tras $((MAX_RETRIES * 10))s. Iniciando rollback..."
+                git reset --hard $PREV_COMMIT
+                $COMPOSE build
+                $COMPOSE up -d --remove-orphans
+                echo "Rollback completado al commit $PREV_COMMIT"
+                exit 1
+              fi
+              echo "Esperando... intento $RETRY/$MAX_RETRIES"
+              sleep 10
+            done
+            echo "Aplicacion lista y saludable."
+
+            echo "=== [5/6] Limpiando imágenes antiguas ==="
+            docker image prune -f
+
+            echo "=== [6/6] Estado final de contenedores ==="
+            $COMPOSE ps
+
+            echo "Deployment completado: commit $(git rev-parse --short HEAD)"
+
+      - name: Notify deployment status
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Deployment successful"
+            echo "Deployment exitoso al commit ${{ github.sha }}"
           else
-            echo "❌ Deployment failed"
+            echo "Deployment fallido. Revisa los logs del paso anterior."
           fi
