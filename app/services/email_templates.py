@@ -83,6 +83,21 @@ class EmailTemplates:
         return subject, html
     
     @staticmethod
+    def appointment_reassigned(user_name: str, event_title: str, new_slot_datetime: str,
+                               old_slot_datetime: str, location: str, dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para cita reasignada por cambio de horario aprobado"""
+        subject = f"🔄 Cita reasignada: {event_title}"
+        html = EmailTemplates.render_email('appointment_reassigned', {
+            'user_name': user_name,
+            'event_title': event_title,
+            'new_slot_datetime': new_slot_datetime,
+            'old_slot_datetime': old_slot_datetime,
+            'location': location,
+            'dashboard_url': dashboard_url
+        })
+        return subject, html
+
+    @staticmethod
     def appointment_cancelled(user_name: str, event_title: str, reason: str, dashboard_url: str) -> tuple[str, str]:
         """Plantilla para cita cancelada"""
         subject = f"❌ Cita cancelada: {event_title}"

@@ -30,21 +30,23 @@ class NotificationService:
         message: str,
         priority: str = 'medium',
         data: Optional[Dict[str, Any]] = None,
+        action_url: Optional[str] = None,
         related_invitation_id: Optional[int] = None,
         expires_at: Optional[datetime] = None
     ) -> Notification:
         """
         Crea una notificación para un usuario.
-        
+
         Args:
-            user_id: ID del usuario que recibirá la notificación
-            notification_type: Tipo de notificación
-            title: Título de la notificación
-            message: Mensaje de la notificación
-            priority: Prioridad (low, medium, high, critical)
-            data: Datos adicionales en formato JSON
+            user_id:               ID del usuario que recibirá la notificación
+            notification_type:     Tipo de notificación
+            title:                 Título de la notificación
+            message:               Mensaje de la notificación
+            priority:              Prioridad (low, medium, high, critical)
+            data:                  Datos adicionales en formato JSON
+            action_url:            URL destino cuando el usuario hace clic (opcional)
             related_invitation_id: ID de invitación relacionada (si aplica)
-            expires_at: Fecha de expiración (opcional)
+            expires_at:            Fecha de expiración (opcional)
         """
         notification = Notification(
             user_id=user_id,
@@ -53,6 +55,7 @@ class NotificationService:
             message=message,
             priority=priority,
             data=data or {},
+            action_url=action_url,
             related_invitation_id=related_invitation_id,
             expires_at=expires_at,
             is_actionable=notification_type in NotificationService.ACTIONABLE_TYPES
@@ -60,8 +63,20 @@ class NotificationService:
         
         db.session.add(notification)
         db.session.flush()
+
+        # Emitir evento WebSocket al usuario en tiempo real
+        try:
+            from app.extensions import socketio
+            socketio.emit(
+                'notification:new',
+                {'notification': notification.to_dict()},
+                room=f'user:{user_id}',
+            )
+        except Exception:
+            pass  # Si Redis/socket falla, la notificación DB ya está guardada
+
         return notification
-    
+
     # ==================== DOCUMENTOS ====================
     
     @staticmethod
@@ -350,7 +365,49 @@ class NotificationService:
         return notification
     
     @staticmethod
-    def notify_event_invitation(user_id: int, event_title: str, event_id: int, 
+    def notify_appointment_reassigned(user_id: int, event_title: str, appointment_id: int,
+                                      new_slot_datetime: str, old_slot_datetime: str,
+                                      event_id: int, location: str = None) -> Notification:
+        """Notifica cuando se reasigna una cita por aprobación de solicitud de cambio"""
+        notification = NotificationService.create_notification(
+            user_id=user_id,
+            notification_type='appointment_change_accepted',
+            title='Cambio de horario aprobado',
+            message=f'Tu solicitud de cambio para "{event_title}" fue aprobada. Tu nuevo horario es el {new_slot_datetime}.',
+            priority='high',
+            data={
+                'appointment_id': appointment_id,
+                'event_id': event_id,
+                'event_title': event_title,
+                'slot_datetime': new_slot_datetime,
+                'url': '/events/'
+            }
+        )
+
+        try:
+            from app.models.user import User
+            from app.services.email_service import EmailService
+            from app.services.email_templates import EmailTemplates
+            user = User.query.get(user_id)
+            if user:
+                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                subject, html = EmailTemplates.appointment_reassigned(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    event_title=event_title,
+                    new_slot_datetime=new_slot_datetime,
+                    old_slot_datetime=old_slot_datetime,
+                    location=location or "Por confirmar",
+                    dashboard_url=dashboard_url
+                )
+                EmailService.queue_email(user_id, subject, html, notification.id)
+        except Exception as e:
+            import logging
+            logging.error(f"Error queueing email for appointment_reassigned: {e}")
+
+        return notification
+
+    @staticmethod
+    def notify_event_invitation(user_id: int, event_title: str, event_id: int,
                                invitation_id: int, event_date: str, description: str = None) -> Notification:
         """Notifica sobre una invitación a evento"""
         notification = NotificationService.create_notification(
@@ -627,12 +684,107 @@ class NotificationService:
     def cleanup_old_notifications(days: int = 30) -> int:
         """Limpia notificaciones antiguas y leídas"""
         cutoff_date = now_local() - timedelta(days=days)
-        
+
         count = Notification.query.filter(
             Notification.created_at < cutoff_date,
             Notification.is_read == True,
             Notification.is_deleted == False
         ).update({'is_deleted': True})
-        
+
         db.session.flush()
         return count
+
+    # ==================== NOTIFICACIONES MASIVAS (VÍA CELERY) ====================
+
+    @staticmethod
+    def send_bulk(
+        user_ids: List[int],
+        notification_type: str,
+        title: str,
+        message: str,
+        priority: str = 'medium',
+        action_url: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        send_email: bool = False,
+        email_subject: Optional[str] = None,
+        email_html: Optional[str] = None,
+    ) -> str:
+        """
+        Encola una tarea Celery para enviar notificaciones masivas a una lista de usuarios.
+
+        Returns:
+            task_id (str): ID de la tarea Celery para seguimiento.
+
+        Ejemplo:
+            task_id = NotificationService.send_bulk(
+                user_ids=[1, 2, 3],
+                notification_type='event_announcement',
+                title='Nuevo evento',
+                message='Te invitamos al taller de tesis.',
+                action_url='/events/42',
+                priority='high',
+            )
+        """
+        from app.tasks.notifications import send_bulk_notification
+        task = send_bulk_notification.delay(
+            user_ids=user_ids,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            priority=priority,
+            action_url=action_url,
+            data=data or {},
+            send_email=send_email,
+            email_subject=email_subject,
+            email_html=email_html,
+        )
+        return task.id
+
+    @staticmethod
+    def send_bulk_by_filter(
+        filter_type: str,
+        filter_value: str,
+        notification_type: str,
+        title: str,
+        message: str,
+        priority: str = 'medium',
+        action_url: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        send_email: bool = False,
+        email_subject: Optional[str] = None,
+        email_html: Optional[str] = None,
+    ) -> str:
+        """
+        Encola una tarea Celery para enviar notificaciones a un grupo filtrado.
+
+        filter_type: 'role' | 'program' | 'process' | 'all'
+        filter_value: nombre del rol, id/slug del programa, estado del proceso, etc.
+
+        Returns:
+            task_id (str): ID de la tarea Celery para seguimiento.
+
+        Ejemplo:
+            task_id = NotificationService.send_bulk_by_filter(
+                filter_type='role',
+                filter_value='applicant',
+                notification_type='deadline_reminder',
+                title='Recordatorio',
+                message='Tu proceso de admisión vence en 7 días.',
+                action_url='/user/dashboard',
+            )
+        """
+        from app.tasks.notifications import send_bulk_notification_by_filter
+        task = send_bulk_notification_by_filter.delay(
+            filter_type=filter_type,
+            filter_value=filter_value,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            priority=priority,
+            action_url=action_url,
+            data=data or {},
+            send_email=send_email,
+            email_subject=email_subject,
+            email_html=email_html,
+        )
+        return task.id

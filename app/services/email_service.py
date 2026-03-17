@@ -36,12 +36,30 @@ class EmailService:
         
         db.session.add(email_item)
         db.session.flush()
-        
+
         # Intentar enviar inmediatamente si hay conexión
         if is_connected():
             EmailService._try_send_email(email_item)
-        
+
+        # Notificar en tiempo real al panel de administración
+        EmailService._emit_queue_update()
+
         return email_item
+
+    @staticmethod
+    def _emit_queue_update():
+        """Emite el estado actual de la cola al panel de admin vía WebSocket."""
+        try:
+            from app.extensions import socketio
+            pending = EmailQueue.query.filter_by(status='pending').count()
+            failed = EmailQueue.query.filter_by(status='failed').count()
+            socketio.emit(
+                'email:queue_update',
+                {'pending': pending, 'failed': failed},
+                room='role:postgraduate_admin',
+            )
+        except Exception:
+            pass
     
     @staticmethod
     def _try_send_email(email_item: EmailQueue) -> bool:

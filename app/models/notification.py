@@ -20,7 +20,11 @@ class Notification(db.Model):
     is_read = db.Column(db.Boolean, default=False, nullable=False)
     is_deleted = db.Column(db.Boolean, default=False, nullable=False)
     is_actionable = db.Column(db.Boolean, default=False, nullable=False)
-    
+
+    # URL a la que debe navegar el usuario al hacer clic en la notificación.
+    # Tiene prioridad sobre el campo 'url' dentro de data{}.
+    action_url = db.Column(db.String(500), nullable=True)
+
     related_invitation_id = db.Column(db.Integer, db.ForeignKey('event_invitation.id', ondelete='SET NULL'), nullable=True)
     
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
@@ -42,6 +46,7 @@ class Notification(db.Model):
             'is_read': self.is_read,
             'is_deleted': self.is_deleted,
             'is_actionable': self.is_actionable,
+            'action_url': self.action_url,
             'related_invitation_id': self.related_invitation_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'read_at': self.read_at.isoformat() if self.read_at else None,

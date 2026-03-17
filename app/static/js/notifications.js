@@ -2,8 +2,6 @@
 
 class NotificationManager {
     constructor() {
-        this.pollInterval = 30000; // 30 segundos
-        this.pollTimer = null;
         this.dropdownOpen = false;
         this.isMobile = window.innerWidth < 768;
         this.init();
@@ -11,13 +9,96 @@ class NotificationManager {
 
     async init() {
         await this.updateBadge();
-        this.startPolling();
         this.wireEvents();
         this.wireFabEvents();
+        this.listenWebSocket();
         window.addEventListener('resize', () => {
             this.isMobile = window.innerWidth < 768;
         });
     }
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+
+    listenWebSocket() {
+        /**
+         * Escucha el CustomEvent global 'siiap:notification:new' emitido por socket-client.js.
+         * Actualiza el badge inmediatamente y muestra un toast.
+         * Si el dropdown ya está abierto, recarga la lista.
+         */
+        window.addEventListener('siiap:notification:new', (e) => {
+            const notification = e.detail?.notification;
+            if (!notification) return;
+
+            this.incrementBadge();
+            this.showToast(notification);
+
+            if (this.dropdownOpen) {
+                this.loadUnreadNotifications();
+            }
+
+            // Permite que otros módulos reaccionen al tipo de notificación
+            window.dispatchEvent(new CustomEvent('siiap:notification:received', {
+                detail: notification
+            }));
+        });
+    }
+
+    // ── Badge ─────────────────────────────────────────────────────────────────
+
+    async updateBadge() {
+        try {
+            const res = await window.apiClient.get('/api/v1/notifications/unread-count');
+            const json = await res.json();
+            this.setBadgeCount(json.data.count);
+        } catch (error) {
+            console.error('Error updating notification badge:', error);
+        }
+    }
+
+    setBadgeCount(count) {
+        const label = count > 99 ? '99+' : count;
+        const show = count > 0;
+
+        const badge = document.getElementById('notificationBadge');
+        if (badge) {
+            badge.textContent = label;
+            badge.classList.toggle('d-none', !show);
+        }
+
+        const badgeMobile = document.getElementById('notificationBadgeMobile');
+        if (badgeMobile) {
+            badgeMobile.textContent = label;
+            badgeMobile.classList.toggle('d-none', !show);
+        }
+    }
+
+    incrementBadge() {
+        ['notificationBadge', 'notificationBadgeMobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const current = parseInt(el.textContent) || 0;
+            const next = current + 1;
+            el.textContent = next > 99 ? '99+' : next;
+            el.classList.remove('d-none');
+        });
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+
+    showToast(notification) {
+        const level = {
+            'critical': 'danger',
+            'high': 'warning',
+            'medium': 'info',
+            'low': 'secondary',
+        }[notification.priority] || 'info';
+
+        window.dispatchEvent(new CustomEvent('flash', {
+            detail: { level, message: notification.title }
+        }));
+    }
+
+    // ── Dropdown ──────────────────────────────────────────────────────────────
 
     wireEvents() {
         const bell = document.getElementById('notificationBell');
@@ -25,34 +106,31 @@ class NotificationManager {
 
         if (!bell || !dropdown) return;
 
-        // Toggle dropdown
         bell.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleDropdown();
         });
 
-        // Cerrar al hacer click fuera
         document.addEventListener('click', (e) => {
             if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
                 this.closeDropdown();
             }
         });
 
-        // Marcar todas como leídas
         const markAllBtn = document.getElementById('markAllReadBtn');
         if (markAllBtn) {
             markAllBtn.addEventListener('click', () => this.markAllAsRead());
         }
     }
+
     wireFabEvents() {
         const fab = document.getElementById('notificationFab');
         const dropdown = document.getElementById('notificationDropdown');
-
         if (!fab || !dropdown) return;
 
         fab.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.toggleDropdown(true); // true = es desde FAB
+            this.toggleDropdown(true);
         });
     }
 
@@ -64,55 +142,18 @@ class NotificationManager {
         } else {
             await this.loadUnreadNotifications();
             dropdown.classList.add('show');
-
-            if (fromFab) {
-                dropdown.classList.add('from-fab');
-            }
-
+            if (fromFab) dropdown.classList.add('from-fab');
             this.dropdownOpen = true;
         }
-
-
     }
 
     closeDropdown() {
         const dropdown = document.getElementById('notificationDropdown');
-        dropdown.classList.remove('show');
-        dropdown.classList.remove('from-fab');
+        dropdown.classList.remove('show', 'from-fab');
         this.dropdownOpen = false;
     }
 
-    async updateBadge() {
-        try {
-            const res = await window.apiClient.get('/api/v1/notifications/unread-count');
-            const json = await res.json();
-            const count = json.data.count;
-
-            // Badge del header (desktop)
-            const badge = document.getElementById('notificationBadge');
-            if (badge) {
-                if (count > 0) {
-                    badge.textContent = count > 99 ? '99+' : count;
-                    badge.classList.remove('d-none');
-                } else {
-                    badge.classList.add('d-none');
-                }
-            }
-
-            //  Badge del FAB (móvil)
-            const badgeMobile = document.getElementById('notificationBadgeMobile');
-            if (badgeMobile) {
-                if (count > 0) {
-                    badgeMobile.textContent = count > 99 ? '99+' : count;
-                    badgeMobile.classList.remove('d-none');
-                } else {
-                    badgeMobile.classList.add('d-none');
-                }
-            }
-        } catch (error) {
-            console.error('Error updating notification badge:', error);
-        }
-    }
+    // ── Lista de notificaciones ───────────────────────────────────────────────
 
     async loadUnreadNotifications() {
         const container = document.getElementById('notificationsList');
@@ -137,7 +178,6 @@ class NotificationManager {
 
             container.innerHTML = notifications.map(n => this.renderNotificationItem(n)).join('');
 
-            // Wire eventos de click
             container.querySelectorAll('.notification-item').forEach(item => {
                 item.addEventListener('click', (e) => {
                     if (!e.target.closest('.notification-actions') && !e.target.closest('.btn-mark-read')) {
@@ -154,7 +194,6 @@ class NotificationManager {
                 }
             });
 
-            // Wire botones de invitación
             container.querySelectorAll('[data-respond-invitation]').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
@@ -183,17 +222,16 @@ class NotificationManager {
 
         let actionsHtml = '';
 
-        // Si es invitación y no leída, mostrar botones
         if (notification.type === 'event_invitation' && !notification.is_read && notification.related_invitation_id) {
             actionsHtml = `
                 <div class="notification-actions">
-                    <button class="btn btn-sm btn-success" 
-                            data-respond-invitation="accepted" 
+                    <button class="btn btn-sm btn-success"
+                            data-respond-invitation="accepted"
                             data-notification-id="${notification.id}">
                         <i class="bi bi-check"></i> Aceptar
                     </button>
-                    <button class="btn btn-sm btn-danger" 
-                            data-respond-invitation="rejected" 
+                    <button class="btn btn-sm btn-danger"
+                            data-respond-invitation="rejected"
                             data-notification-id="${notification.id}">
                         <i class="bi bi-x"></i> Rechazar
                     </button>
@@ -232,6 +270,7 @@ class NotificationManager {
             'extension_rejected': 'bi bi-calendar-x',
             'appointment_assigned': 'bi bi-calendar-event',
             'appointment_cancelled': 'bi bi-calendar-x',
+            'appointment_change_accepted': 'bi bi-calendar-check',
             'event_invitation': 'bi bi-envelope',
             'password_reset': 'bi bi-shield-lock',
             'control_number_assigned': 'bi bi-person-badge',
@@ -245,6 +284,7 @@ class NotificationManager {
         const colors = {
             'document_approved': 'success',
             'extension_approved': 'success',
+            'appointment_change_accepted': 'success',
             'document_rejected': 'danger',
             'extension_rejected': 'danger',
             'appointment_cancelled': 'danger',
@@ -276,18 +316,16 @@ class NotificationManager {
         });
     }
 
-    async handleNotificationClick(notificationId) {
-        // Marcar como leída
-        await this.markAsRead(notificationId);
+    // ── Acciones ──────────────────────────────────────────────────────────────
 
-        // Cerrar dropdown
+    async handleNotificationClick(notificationId) {
+        await this.markAsRead(notificationId);
         this.closeDropdown();
     }
 
     async markAsRead(notificationId) {
         try {
             const res = await window.apiClient.patch(`/api/v1/notifications/${notificationId}/read`);
-
             if (res.ok) {
                 await this.updateBadge();
                 await this.loadUnreadNotifications();
@@ -300,7 +338,6 @@ class NotificationManager {
     async markAllAsRead() {
         try {
             const res = await window.apiClient.post('/api/v1/notifications/mark-all-read');
-
             if (res.ok) {
                 const json = await res.json();
                 if (json.flash) {
@@ -316,33 +353,20 @@ class NotificationManager {
 
     async respondInvitation(notificationId, response) {
         try {
-            const res = await window.apiClient.post(`/api/v1/notifications/${notificationId}/respond-invitation`, { response });
-
+            const res = await window.apiClient.post(
+                `/api/v1/notifications/${notificationId}/respond-invitation`,
+                { response }
+            );
             const json = await res.json();
-
             if (json.flash) {
                 json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
             }
-
             if (res.ok) {
                 await this.updateBadge();
                 await this.loadUnreadNotifications();
             }
         } catch (error) {
             console.error('Error responding to invitation:', error);
-        }
-    }
-
-    startPolling() {
-        this.pollTimer = setInterval(() => {
-            this.updateBadge();
-        }, this.pollInterval);
-    }
-
-    stopPolling() {
-        if (this.pollTimer) {
-            clearInterval(this.pollTimer);
-            this.pollTimer = null;
         }
     }
 
@@ -353,7 +377,8 @@ class NotificationManager {
     }
 }
 
-// Inicializar cuando el DOM esté listo
+// ── Inicialización ────────────────────────────────────────────────────────────
+
 let notificationManager = null;
 
 function initNotifications() {
@@ -368,12 +393,9 @@ if (document.readyState === 'loading') {
     initNotifications();
 }
 
-// Reiniciar con Swup si está disponible
+// Reiniciar con Swup — socket-client.js mantiene la conexión WS activa
 if (typeof swup !== 'undefined') {
     swup.on('contentReplaced', () => {
-        if (notificationManager) {
-            notificationManager.stopPolling();
-        }
         initNotifications();
     });
 }
