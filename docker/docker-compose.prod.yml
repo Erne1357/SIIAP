@@ -2,31 +2,7 @@
 name: SIIAP
 
 services:
-  web:
-    restart: always
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    expose:
-      - "5000"
-    depends_on:
-      - db
-    env_file:
-      - .env.prod
-    environment:
-      - TZ=America/Ciudad_Juarez
-    volumes:
-      # Solo montamos instance para uploads persistentes
-      - /home/cuaderno/SIIAP/instance:/app/instance
-    command: >
-      sh -c "gunicorn 
-      --bind 0.0.0.0:5000 
-      --workers ${GUNICORN_WORKERS:-1}
-      --timeout ${GUNICORN_TIMEOUT:-120}
-      --access-logfile -
-      --error-logfile -
-      app:app"
-
+  # ─── Base de datos ────────────────────────────────────────────────────────
   db:
     restart: always
     build:
@@ -38,20 +14,124 @@ services:
       - TZ=America/Ciudad_Juarez
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ─── Cache / Broker (Redis) ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: always
+    environment:
+      - TZ=America/Ciudad_Juarez
+    # Sin exposición de puerto en producción — solo accesible dentro de la red Docker
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── Aplicación web ───────────────────────────────────────────────────────
+  web:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    expose:
+      - "5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.prod
+    environment:
+      - TZ=America/Ciudad_Juarez
+    volumes:
+      - /home/cuaderno/SIIAP/instance:/app/instance
+    # eventlet requiere exactamente 1 worker por proceso;
+    # el paralelismo real viene de la concurrencia async de eventlet.
+    # Para múltiples réplicas usa Docker Swarm/Kubernetes con Redis como message_queue.
+    command: >
+      sh -c "gunicorn
+      --bind 0.0.0.0:5000
+      --worker-class eventlet
+      --workers 1
+      --timeout ${GUNICORN_TIMEOUT:-120}
+      --access-logfile -
+      --error-logfile -
+      app:app"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+
+  # ─── Celery worker (tareas asíncronas) ────────────────────────────────────
+  celery-worker:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: >
+      celery -A app.celery_app.celery worker
+      --loglevel=info
+      --concurrency=${CELERY_CONCURRENCY:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.prod
+    environment:
+      - TZ=America/Ciudad_Juarez
+    volumes:
+      - /home/cuaderno/SIIAP/instance:/app/instance
+
+  # ─── Celery Beat (tareas periódicas) ──────────────────────────────────────
+  celery-beat:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: >
+      celery -A app.celery_app.celery beat
+      --loglevel=info
+      --schedule=/app/instance/celerybeat-schedule
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.prod
+    environment:
+      - TZ=America/Ciudad_Juarez
+    volumes:
+      - /home/cuaderno/SIIAP/instance:/app/instance
+
+  # ─── Reverse proxy ────────────────────────────────────────────────────────
   nginx:
     restart: always
     image: nginx:stable-alpine
     depends_on:
-      - web
+      web:
+        condition: service_healthy
     environment:
       - TZ=America/Ciudad_Juarez
     volumes:
-      - ../app/static:/usr/share/nginx/html/static:ro
+      - /home/cuaderno/SIIAP/app/static:/usr/share/nginx/html/static:ro
       - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
     ports:
-      # Solo expone en localhost para que nginx del servidor lo proxee
       - "127.0.0.1:8081:80"
 
 volumes:
   pgdata:
+  redisdata:
