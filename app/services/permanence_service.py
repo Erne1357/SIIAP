@@ -222,14 +222,15 @@ def confirm_semester_enrollment(
     # Notificar al estudiante
     NotificationService.create_notification(
         user_id=user.id,
-        notification_type='general',
-        title=f'Inscripcion confirmada — {period.name}',
+        notification_type='semester_enrolled',
+        title=f'Inscripción confirmada — {period.name}',
         message=(
-            f'Tu inscripcion para el semestre {se.semester_number} '
+            f'Tu inscripción para el semestre {se.semester_number} '
             f'({period.name}) ha sido confirmada. '
             f'Puedes ver tu estado en tu panel de permanencia.'
         ),
-        priority='normal'
+        priority='medium',
+        action_url='/user/dashboard',
     )
 
     UserHistoryService.log_action(
@@ -295,6 +296,25 @@ def update_enrollment_status(
             f'{STATUS_LABELS.get(new_status, new_status)}'
         )
     )
+
+    # Notificar al estudiante solo en estados finales significativos
+    NOTIFY_STATUSES = {
+        'completed': ('Semestre completado', f'Tu semestre {se.semester_number} ({period.name}) en {program.name} ha sido marcado como completado.'),
+        'on_leave': ('Baja temporal registrada', f'Se ha registrado una baja temporal en tu semestre {se.semester_number} ({period.name}) en {program.name}.'),
+        'dropped': ('Baja definitiva registrada', f'Se ha registrado una baja definitiva en tu semestre {se.semester_number} ({period.name}) en {program.name}. Contacta al coordinador si crees que esto es un error.'),
+    }
+
+    if new_status in NOTIFY_STATUSES:
+        title, message = NOTIFY_STATUSES[new_status]
+        priority = 'high' if new_status == 'dropped' else 'medium'
+        NotificationService.create_notification(
+            user_id=user.id,
+            notification_type='enrollment_status_changed',
+            title=title,
+            message=message,
+            priority=priority,
+            action_url='/user/dashboard',
+        )
 
     db.session.commit()
     return se

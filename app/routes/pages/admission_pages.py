@@ -3,11 +3,13 @@ from flask import Blueprint, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app.models import Program, UserProgram
 from app.services.admission_service import get_admission_state
+from app.utils.auth import roles_required
 
 admission_bp = Blueprint('admission', __name__, url_prefix='/admission')
 
 @admission_bp.route('/<string:slug>', methods=['GET'])
 @login_required
+@roles_required('applicant')
 def admission_dashboard(slug):
     # validar inscripción
     program = Program.query.filter_by(slug=slug).first_or_404()

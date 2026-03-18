@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 # 1. LIMPIEZA DE ARCHIVOS DE ADMISIÓN EXPIRADOS
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _periods_elapsed_since(enrollment_period_code: str) -> int:
+    """
+    Cuenta cuántos periodos han cerrado su proceso de admisión después del periodo
+    de inscripción (código YYYYN comparado lexicográficamente, lo que equivale a
+    orden cronológico por el formato fijo de 5 caracteres).
+    """
+    from app.models.academic_period import AcademicPeriod
+    return (
+        AcademicPeriod.query
+        .filter(
+            AcademicPeriod.code > enrollment_period_code,
+            AcademicPeriod.admission_end_date < datetime.utcnow(),
+        )
+        .count()
+    )
+
+
 @celery.task(
     name='app.tasks.maintenance.cleanup_expired_admission_files',
     bind=True,
@@ -28,37 +45,36 @@ logger = logging.getLogger(__name__)
 )
 def cleanup_expired_admission_files(self):
     """
-    Elimina archivos físicos y submissions de procesos de admisión expirados.
+    Expira procesos de admisión incompletos que superaron el límite de 2 periodos.
 
-    Un proceso se considera expirado cuando:
-      - El aspirante lleva más de 2 períodos académicos activos sin completar
-        la admisión (estado != 'completed').
-      - O cuando la fecha actual supera la fecha límite configurada en el
-        UserProgram/AcademicPeriod.
+    Un proceso se considera expirado cuando han cerrado 2 o más periodos de
+    admisión DESPUÉS del periodo en que el aspirante se inscribió
+    (UserProgram.admission_period_id). Esto le da al aspirante el periodo de
+    inscripción más un periodo adicional para completar el proceso.
 
-    Los archivos físicos se eliminan del disco; las submissions quedan con
-    estado 'expired' en la base de datos (no se borran los registros para
-    mantener auditoría).
+    Procesos sin admission_period_id (registros anteriores al Bloque 1) se omiten
+    para no afectar datos históricos.
+
+    Los archivos físicos se eliminan del disco; las submissions quedan con estado
+    'expired' en la base de datos para mantener auditoría.
     """
     from app import db
     from app.models.submission import Submission
+    from app.models.program_step import ProgramStep
     from app.models.user_program import UserProgram
+    from app.models.academic_period import AcademicPeriod
     from app.config import Config
 
     logger.info("[cleanup_expired_admission_files] Iniciando limpieza de archivos expirados...")
 
     try:
-        # Obtiene procesos de admisión activos cuya fecha de cierre de admisión
-        # del periodo ya pasó.
-        # TODO: refinar el join con AcademicPeriod.admission_end_date para
-        # determinar la fecha límite real del proceso.
-        from app.models.academic_period import AcademicPeriod
-        expired_programs = (
+        # Candidatos: procesos incompletos con periodo de inscripción conocido
+        candidates = (
             UserProgram.query
             .join(AcademicPeriod, UserProgram.admission_period_id == AcademicPeriod.id)
             .filter(
                 UserProgram.admission_status.in_(['in_progress', 'interview_completed', 'deliberation']),
-                AcademicPeriod.admission_end_date < datetime.utcnow(),
+                UserProgram.admission_period_id.isnot(None),
             )
             .all()
         )
@@ -66,16 +82,30 @@ def cleanup_expired_admission_files(self):
         deleted_files = 0
         marked_expired = 0
 
-        for up in expired_programs:
-            # Marca el proceso como expirado (admission_status es la fuente de verdad)
+        for up in candidates:
+            enrollment_period = AcademicPeriod.query.get(up.admission_period_id)
+            if not enrollment_period:
+                continue
+
+            elapsed = _periods_elapsed_since(enrollment_period.code)
+            if elapsed < 2:
+                continue  # todavía dentro del plazo permitido
+
             up.admission_status = 'expired'
             marked_expired += 1
 
-            # Obtiene todos los documentos subidos en este proceso
-            submissions = Submission.query.filter_by(user_program_id=up.id).all()
+            # Eliminar archivos físicos de las submissions de este proceso
+            submissions = (
+                Submission.query
+                .join(ProgramStep, Submission.program_step_id == ProgramStep.id)
+                .filter(
+                    Submission.user_id == up.user_id,
+                    ProgramStep.program_id == up.program_id,
+                )
+                .all()
+            )
 
             for sub in submissions:
-                # Elimina el archivo físico si existe
                 if sub.file_path:
                     full_path = os.path.join(str(Config.UPLOAD_FOLDER), sub.file_path)
                     if os.path.exists(full_path):
@@ -83,9 +113,7 @@ def cleanup_expired_admission_files(self):
                             os.remove(full_path)
                             deleted_files += 1
                         except OSError as e:
-                            logger.warning(
-                                f"No se pudo eliminar {full_path}: {e}"
-                            )
+                            logger.warning(f"No se pudo eliminar {full_path}: {e}")
 
                 sub.status = 'expired'
 

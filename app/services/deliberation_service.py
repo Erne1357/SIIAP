@@ -212,13 +212,17 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         details=f'Aceptado en {program.name}. {notes or ""}'
     )
 
-    # Notificar al aspirante (en la misma transaccion)
-    NotificationService.create_notification(
+    # Notificar al aspirante con email (en la misma transaccion)
+    from flask import url_for
+    try:
+        dashboard_url = url_for('pages_user.dashboard', _external=True)
+    except Exception:
+        dashboard_url = '/user/dashboard'
+
+    NotificationService.notify_deliberation_accepted(
         user_id=user_id,
-        notification_type='general',
-        title='¡Felicidades! Has sido aceptado',
-        message=f'Has sido aceptado en el programa {program.name}. Revisa tu portal para más información.',
-        priority='high'
+        program_name=program.name,
+        dashboard_url=dashboard_url,
     )
 
     db.session.commit()
@@ -289,23 +293,20 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
         details=f'{program.name}: {notes or ""}'
     )
 
-    # Notificar al aspirante (en la misma transaccion)
-    if rejection_type == 'full':
-        NotificationService.create_notification(
-            user_id=user_id,
-            notification_type='general',
-            title='Resultado de tu proceso de admisión',
-            message=f'Lamentamos informarte que no has sido aceptado en el programa {program.name}. Consulta tu portal para más detalles.',
-            priority='high'
-        )
-    else:
-        NotificationService.create_notification(
-            user_id=user_id,
-            notification_type='general',
-            title='Se requieren correcciones en tu expediente',
-            message=f'El comité de admisión de {program.name} ha solicitado algunas correcciones. Revisa los detalles en tu portal.',
-            priority='high'
-        )
+    # Notificar al aspirante con email (en la misma transaccion)
+    from flask import url_for
+    try:
+        dashboard_url = url_for('pages_user.dashboard', _external=True)
+    except Exception:
+        dashboard_url = '/user/dashboard'
+
+    NotificationService.notify_deliberation_rejected(
+        user_id=user_id,
+        program_name=program.name,
+        rejection_type=rejection_type,
+        notes=notes or '',
+        dashboard_url=dashboard_url,
+    )
 
     db.session.commit()
 

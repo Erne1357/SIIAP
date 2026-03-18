@@ -131,7 +131,7 @@
           <i class="fas fa-clipboard me-2"></i>Programas
         </a>
         {% set up = current_user.user_program|first %}
-        {% if up %}
+        {% if up and current_user.role.name == 'applicant' %}
         <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %}"
           href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}">
           <i class="fas fa-clipboard-list me-2"></i>Admisión
@@ -285,7 +285,7 @@
           <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
             href="{{ url_for('program.list_programs') }}">
             <i class="fas fa-clipboard me-2"></i>Programas</a>
-          {% if up %}
+          {% if up and current_user.role.name == 'applicant' %}
           <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %}"
             href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}">
             <i class="fas fa-clipboard-list me-2"></i>Admisión</a>

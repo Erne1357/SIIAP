@@ -7,8 +7,18 @@ from app import db
 from app.models import Step, ProgramStep, Phase, Submission, ExtensionRequest
 from app.models.event import Event, EventSlot, EventAttendance, EventWindow
 from datetime import datetime, timezone
+import calendar
 import logging,json
 from app.utils.datetime_utils import now_local, to_local_timezone
+
+
+def _add_months(dt, months):
+    """Suma `months` meses a un datetime, ajustando el día al último del mes si es necesario."""
+    month = dt.month - 1 + months
+    year = dt.year + month // 12
+    month = month % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
 
 def get_admission_state(user_id: int, program_id: int, up) -> dict:
     """
@@ -56,6 +66,16 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                           .filter(Submission.archive_id.in_(archive_ids))
                           .all()
     }
+
+    # 2.5) Calcular documentos con validez vencida (basado en archive.validity_months)
+    # Solo aplica a submissions aprobadas cuya vigencia configurada ya expiró.
+    expired_archive_ids = set()
+    for aid, sub in subs.items():
+        arch = sub.archive
+        if arch and arch.validity_months and sub.upload_date:
+            expiry_dt = _add_months(sub.upload_date, arch.validity_months)
+            if expiry_dt < now_local():
+                expired_archive_ids.add(aid)
 
     # 3) Map extensiones activas del usuario (solo para archivos que cuentan para progreso)
     # Usar hora local de Ciudad Juárez
@@ -416,6 +436,7 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         'timeline': timeline,
         'extended_docs': status_count.get('extended', 0),  # NUEVO: conteo de archivos con extensión
         'total_docs': total,  # Total de documentos para el progreso
+        'expired_archive_ids': expired_archive_ids,  # IDs de archivos con validez vencida
         # Campos de deliberación para mostrar estado al aspirante
         'admission_status': up.admission_status,
         'decision_notes': up.decision_notes,

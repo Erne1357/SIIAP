@@ -62,7 +62,7 @@ def api_confirm_semester_enrollment(user_program_id):
     """El coordinador confirma la inscripcion semestral de un estudiante."""
     data = request.get_json() or {}
     academic_period_id = data.get('academic_period_id')
-    notes = data.get('notes', '').strip() or None
+    notes = (data.get('notes') or '').strip() or None
 
     if not academic_period_id:
         return jsonify({
@@ -117,8 +117,8 @@ def api_confirm_semester_enrollment(user_program_id):
 def api_update_enrollment_status(semester_enrollment_id):
     """Actualiza el estado de una inscripcion semestral."""
     data = request.get_json() or {}
-    new_status = data.get('status', '').strip()
-    notes = data.get('notes', '').strip() or None
+    new_status = (data.get('status') or '').strip()
+    notes = (data.get('notes') or '').strip() or None
 
     if not new_status:
         return jsonify({

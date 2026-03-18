@@ -304,7 +304,7 @@ def api_review_enrollment_receipt(doc_id):
 def api_assign_control_number(user_id, program_id):
     """El coordinador asigna el número de control al aspirante aceptado."""
     data = request.get_json() or {}
-    control_number = data.get('control_number', '').strip()
+    control_number = (data.get('control_number') or '').strip()
 
     if not control_number:
         return jsonify({
@@ -330,6 +330,18 @@ def api_assign_control_number(user_id, program_id):
             "error": {"code": "NOT_FOUND", "message": str(e)},
             "meta": {}
         }), 404
+
+    except svc.DocumentDebtError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {
+                "code": "DOCUMENT_DEBT",
+                "message": str(e),
+                "debts": e.debts,
+            },
+            "meta": {}
+        }), 409
 
     except svc.InvalidStateTransition as e:
         return jsonify({
@@ -427,7 +439,10 @@ def api_get_deferred_applicants(program_id):
 def api_defer_applicant(user_id, program_id):
     """El coordinador difiere directamente la inscripción de un aspirante aceptado."""
     data = request.get_json() or {}
-    reason = data.get('reason', '').strip() or None
+    
+    # Safely handle reason
+    reason_val = data.get('reason')
+    reason = str(reason_val).strip() if reason_val else None
 
     try:
         deferral = dsvc.defer_applicant(
@@ -485,7 +500,7 @@ def api_request_deferral(program_id):
         }), 403
 
     data = request.get_json() or {}
-    reason = data.get('reason', '').strip() or None
+    reason = (data.get('reason') or '').strip() or None
 
     try:
         deferral = dsvc.request_deferral(
@@ -523,7 +538,7 @@ def api_request_deferral(program_id):
 def api_approve_deferral(deferral_id):
     """El coordinador aprueba una solicitud de diferimiento del aspirante."""
     data = request.get_json() or {}
-    notes = data.get('notes', '').strip() or None
+    notes = (data.get('notes') or '').strip() or None
 
     try:
         deferral = dsvc.approve_deferral(
@@ -569,7 +584,7 @@ def api_approve_deferral(deferral_id):
 def api_reject_deferral(deferral_id):
     """El coordinador rechaza una solicitud de diferimiento del aspirante."""
     data = request.get_json() or {}
-    notes = data.get('notes', '').strip() or None
+    notes = (data.get('notes') or '').strip() or None
 
     if not notes:
         return jsonify({

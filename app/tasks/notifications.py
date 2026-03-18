@@ -226,3 +226,49 @@ def send_bulk_notification_by_filter(
             f"[send_bulk_notification_by_filter] Error: {exc}", exc_info=True
         )
         raise self.retry(exc=exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. ENVÍO INDIVIDUAL DE CORREO ASÍNCRONO
+# ─────────────────────────────────────────────────────────────────────────────
+
+@celery.task(
+    name='app.tasks.notifications.send_email_async',
+    bind=True,
+    max_retries=5,
+    default_retry_delay=60,
+)
+def send_email_async(self, email_queue_id: int):
+    """
+    Intenta enviar un correo de la cola (EmailQueue) de forma asíncrona.
+    Se llama desde EmailService.queue_email para no bloquear la petición HTTP.
+    """
+    from app import db
+    from app.models.email_queue import EmailQueue
+    from app.services.email_service import EmailService
+
+    try:
+        email_item = EmailQueue.query.get(email_queue_id)
+        if not email_item:
+            logger.warning(f"[send_email_async] EmailQueue {email_queue_id} no encontrado")
+            return
+
+        # Si ya se envió o falló definitivamente, no reintentar
+        if email_item.status in ('sent', 'failed'):
+            return
+
+        logger.info(f"[send_email_async] Intentando enviar email {email_queue_id}...")
+        
+        # Intentar enviar
+        sent = EmailService._try_send_email(email_item)
+        
+        if not sent:
+            # Si falló (ej. no hay token, error de red), reintentar
+            # _try_send_email ya incrementa attempts y actualiza el estado si falla
+            # pero aquí forzamos el reintento de Celery
+            raise Exception(f"Fallo al enviar email {email_queue_id}")
+            
+    except Exception as exc:
+        logger.error(f"[send_email_async] Error enviando email {email_queue_id}: {exc}")
+        # Reintentar con backoff exponencial
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))

@@ -21,7 +21,17 @@ def view_program(slug):
         program = svc.get_program_by_slug(slug)
     except Exception:
         return render_template('404.html'), 404
-    return render_template('programs/view/view.html', program=program)
+
+    open_period = svc.get_open_admission_period()
+    admission_open = open_period is not None
+    next_period = svc.get_next_upcoming_period() if not admission_open else None
+
+    return render_template(
+        'programs/view/view.html',
+        program=program,
+        admission_open=admission_open,
+        next_period=next_period,
+    )
 
 @program_bp.route('/<int:program_id>/inscription', methods=['POST'])
 @login_required
@@ -32,15 +42,17 @@ def inscription_program(program_id):
         program = svc.enroll_user_once(program_id, current_user.id)
         flash('Te has postulado en el programa.', 'success')
         return redirect(url_for('program.admission.admission_dashboard', slug=program.slug))
+    except svc.AdmissionClosedError:
+        flash('Las inscripciones están cerradas en este momento.', 'warning')
+        from app.models.program import Program
+        prog = Program.query.get(program_id)
+        if prog:
+            return redirect(url_for('program.view_program', slug=prog.slug))
+        return redirect(url_for('program.list_programs'))
     except svc.AlreadyEnrolledError as e:
-        # Si ya está inscrito, redirige al detalle del programa que intentó ver
-        p = None
-        try:
-            # intenta obtener slug para no romper la UX
-            p = svc.get_program_by_slug(program_id)  # podría no aplicar si program_id != slug
-        except Exception:
-            pass
         flash(str(e), 'warning')
-        if p:
-            return redirect(url_for('program.view_program', slug=p.slug))
+        from app.models.program import Program
+        prog = Program.query.get(program_id)
+        if prog:
+            return redirect(url_for('program.view_program', slug=prog.slug))
         return redirect(url_for('program.list_programs'))

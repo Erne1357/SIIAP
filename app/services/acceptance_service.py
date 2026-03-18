@@ -12,12 +12,12 @@ Flujo:
 """
 
 from app import db
-from app.models import UserProgram, User, Program
+from app.models import UserProgram, User, Program, ExtensionRequest, Submission, ProgramStep
 from app.models.acceptance_document import AcceptanceDocument
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.utils.files import save_user_doc
-from app.utils.datetime_utils import now_local
+from app.utils.datetime_utils import now_local, to_local_timezone
 from sqlalchemy import and_
 
 
@@ -47,6 +47,16 @@ class InvalidDocumentType(AcceptanceError):
 
 class InvalidStateTransition(AcceptanceError):
     pass
+
+
+class DocumentDebtError(AcceptanceError):
+    """
+    Hay una o más prórrogas vencidas con documentos sin entregar.
+    El coordinador debe resolver la deuda antes de asignar el número de control.
+    """
+    def __init__(self, debts: list):
+        self.debts = debts  # lista de {'archive_name': str, 'expired_at': str}
+        super().__init__("Existen documentos con prórroga vencida sin entregar.")
 
 
 def _get_user_program(user_id: int, program_id: int) -> UserProgram:
@@ -256,13 +266,15 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
 
     if letter_ok and schedule_ok:
         program = Program.query.get(program_id)
-        NotificationService.create_notification(
+        from flask import url_for
+        try:
+            dashboard_url = url_for('pages_user.dashboard', _external=True)
+        except Exception:
+            dashboard_url = '/user/dashboard'
+        NotificationService.notify_acceptance_docs_ready(
             user_id=user_id,
-            notification_type='general',
-            title='Tus documentos de aceptación están disponibles',
-            message=f'Tu carta de aceptación y tira de materias para {program.name} ya están disponibles. '
-                    f'Ingresa al portal para descargarlos y seguir las instrucciones.',
-            priority='high'
+            program_name=program.name,
+            dashboard_url=dashboard_url,
         )
         UserHistoryService.log_action(
             user_id=user_id,
@@ -381,11 +393,12 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     if status == 'approved':
         NotificationService.create_notification(
             user_id=user_id,
-            notification_type='general',
+            notification_type='enrollment_receipt_approved',
             title='Carta de número de control aprobada',
             message=f'Tu carta de asignación de número de control para {program.name} fue aprobada. '
                     f'El coordinador te asignará tu número de control próximamente.',
-            priority='high'
+            priority='high',
+            action_url='/user/dashboard',
         )
         UserHistoryService.log_action(
             user_id=user_id,
@@ -396,11 +409,12 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     else:
         NotificationService.create_notification(
             user_id=user_id,
-            notification_type='general',
+            notification_type='enrollment_receipt_rejected',
             title='Carta de número de control rechazada',
             message=f'Tu carta de asignación de número de control para {program.name} fue rechazada. '
                     f'Motivo: {notes or "Sin especificar"}. Por favor vuelve a subirla.',
-            priority='high'
+            priority='high',
+            action_url='/user/dashboard',
         )
         UserHistoryService.log_action(
             user_id=user_id,
@@ -440,6 +454,50 @@ def delete_coordinator_doc(doc_id: int, coordinator_id: int) -> None:
 
     db.session.delete(doc)
     db.session.commit()
+
+
+def _check_document_debt(user_id: int, program_id: int) -> None:
+    """
+    Detecta prórrogas vencidas cuyo documento nunca fue entregado ni aprobado.
+    Si encuentra alguna, lanza DocumentDebtError con el detalle de cada deuda.
+    """
+    now = now_local()
+
+    # Extensiones granted para este usuario en este programa
+    granted_exts = (
+        ExtensionRequest.query
+        .join(ProgramStep, ExtensionRequest.program_step_id == ProgramStep.id)
+        .filter(
+            ExtensionRequest.user_id == user_id,
+            ExtensionRequest.status == 'granted',
+            ExtensionRequest.granted_until.isnot(None),
+            ProgramStep.program_id == program_id,
+        )
+        .all()
+    )
+
+    debts = []
+    for ext in granted_exts:
+        granted_until = to_local_timezone(ext.granted_until)
+        if granted_until >= now:
+            continue  # prórroga todavía vigente
+
+        # Verificar si hay submission válida para este archivo (aprobada o en revisión)
+        sub = Submission.query.filter(
+            Submission.user_id == user_id,
+            Submission.archive_id == ext.archive_id,
+            Submission.program_step_id == ext.program_step_id,
+            Submission.status.in_(['approved', 'review']),
+        ).first()
+
+        if not sub:
+            debts.append({
+                'archive_name': ext.archive.name if ext.archive else f'Archivo #{ext.archive_id}',
+                'expired_at': granted_until.strftime('%d/%m/%Y %H:%M'),
+            })
+
+    if debts:
+        raise DocumentDebtError(debts=debts)
 
 
 def assign_control_number(user_id: int, program_id: int,
@@ -487,6 +545,9 @@ def assign_control_number(user_id: int, program_id: int,
             "La carta de asignación de número de control debe estar aprobada antes de asignar el número de control"
         )
 
+    # Verificar deuda documental: prórrogas vencidas con doc sin entregar/aprobar
+    _check_document_debt(user_id, program_id)
+
     student_role = Role.query.filter_by(name='student').first()
     if not student_role:
         raise ValueError("El rol 'student' no está configurado en el sistema. Ejecuta las migraciones.")
@@ -515,14 +576,9 @@ def assign_control_number(user_id: int, program_id: int,
         details=f'Número de control {ctrl} asignado en {program.name}. Transición a estudiante completada.'
     )
 
-    NotificationService.create_notification(
+    NotificationService.notify_control_number_assigned(
         user_id=user_id,
-        notification_type='general',
-        title='¡Inscripción completada! Bienvenido al programa',
-        message=f'Tu número de control es: {ctrl}. '
-                f'Ya eres estudiante oficial de {program.name}. '
-                f'Inicia sesión con tu número de control como usuario.',
-        priority='high'
+        control_number=ctrl,
     )
 
     db.session.commit()

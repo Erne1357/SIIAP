@@ -137,7 +137,7 @@ def _apply_deferral(up: UserProgram, deferral: EnrollmentDeferral,
 
     NotificationService.create_notification(
         user_id=user_id,
-        notification_type='general',
+        notification_type='deferral_applied',
         title='Tu inscripción ha sido diferida',
         message=(
             f'Tu inscripción en {program.name} ha sido diferida del periodo '
@@ -147,6 +147,7 @@ def _apply_deferral(up: UserProgram, deferral: EnrollmentDeferral,
             f'documentos de inscripción.'
         ),
         priority='high',
+        action_url='/user/dashboard',
     )
 
     UserHistoryService.log_action(
@@ -270,13 +271,14 @@ def request_deferral(user_id: int, program_id: int,
     if program.coordinator_id:
         NotificationService.create_notification(
             user_id=program.coordinator_id,
-            notification_type='general',
+            notification_type='deferral_request_received',
             title='Solicitud de diferimiento recibida',
             message=(
                 f'{up.user.first_name} {up.user.last_name} '
                 f'ha solicitado diferir su inscripción en {program.name}.'
             ),
             priority='medium',
+            action_url=f'/coordinator/acceptance/{program.id}',
         )
 
     UserHistoryService.log_action(
@@ -339,13 +341,14 @@ def reject_deferral(deferral_id: int, coordinator_id: int,
 
     NotificationService.create_notification(
         user_id=up.user_id,
-        notification_type='general',
+        notification_type='deferral_rejected',
         title='Solicitud de diferimiento rechazada',
         message=(
             f'Tu solicitud de diferimiento en {program.name} fue rechazada. '
             f'Motivo: {notes or "Sin especificar"}.'
         ),
         priority='high',
+        action_url='/user/dashboard',
     )
 
     UserHistoryService.log_action(
@@ -404,7 +407,7 @@ def reactivate_deferred(user_id: int, program_id: int,
 
     NotificationService.create_notification(
         user_id=user_id,
-        notification_type='general',
+        notification_type='deferral_reactivated',
         title='Tu inscripción ha sido reactivada',
         message=(
             f'Tu proceso de inscripción en {program.name} ha sido reactivado '
@@ -412,6 +415,7 @@ def reactivate_deferred(user_id: int, program_id: int,
             f'Ingresa al portal para completar los documentos pendientes.'
         ),
         priority='high',
+        action_url='/user/dashboard',
     )
 
     UserHistoryService.log_action(
@@ -595,7 +599,7 @@ def check_and_expire_deferrals() -> dict:
 
         NotificationService.create_notification(
             user_id=up.user_id,
-            notification_type='general',
+            notification_type='deferral_expired',
             title='Tu periodo de diferimiento ha expirado',
             message=(
                 f'El periodo {deferral.deferred_to_period.name if deferral.deferred_to_period else ""} '
@@ -607,6 +611,7 @@ def check_and_expire_deferrals() -> dict:
                 )
             ),
             priority='high',
+            action_url='/user/dashboard',
         )
 
         expired_count += 1
@@ -635,7 +640,7 @@ def check_and_expire_deferrals() -> dict:
         up = deferral.user_program
         NotificationService.create_notification(
             user_id=up.user_id,
-            notification_type='general',
+            notification_type='deferral_expiring',
             title='Recuerda completar tu inscripción',
             message=(
                 f'Tu periodo diferido ({deferral.deferred_to_period.name if deferral.deferred_to_period else ""}) '
@@ -643,6 +648,7 @@ def check_and_expire_deferrals() -> dict:
                 f'antes de que expire.'
             ),
             priority='high',
+            action_url='/user/dashboard',
         )
         deferral.expiry_notified_at = now_local()
         notified_count += 1

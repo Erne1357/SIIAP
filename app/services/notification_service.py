@@ -19,7 +19,16 @@ class NotificationService:
         'event_invitation',
         'password_reset',
         'profile_incomplete',
-        'extension_deadline_near'
+        'extension_deadline_near',
+        'deliberation_accepted',
+        'deliberation_rejected',
+        'deliberation_corrections',
+        'acceptance_docs_ready',
+        'enrollment_receipt_rejected',
+        'deferral_applied',
+        'deferral_rejected',
+        'deferral_reactivated',
+        'deferral_request_received',
     }
     
     @staticmethod
@@ -416,12 +425,12 @@ class NotificationService:
             title='Invitación a evento',
             message=f'Has sido invitado a "{event_title}" el {event_date}.',
             priority='high',
+            action_url=f'/events/{event_id}',
             data={
                 'event_id': event_id,
                 'invitation_id': invitation_id,
                 'event_title': event_title,
                 'event_date': event_date,
-                'url': '/events/'
             },
             related_invitation_id=invitation_id
         )
@@ -591,8 +600,122 @@ class NotificationService:
         
         return notification
     
+    # ==================== DELIBERACIÓN ====================
+
+    @staticmethod
+    def notify_deliberation_accepted(user_id: int, program_name: str, dashboard_url: str) -> Notification:
+        """Notifica cuando el aspirante es aceptado en deliberación (con email)"""
+        notification = NotificationService.create_notification(
+            user_id=user_id,
+            notification_type='deliberation_accepted',
+            title='¡Felicidades! Has sido aceptado',
+            message=f'Has sido aceptado en el programa {program_name}. Revisa tu portal para los próximos pasos.',
+            priority='high',
+            action_url='/user/dashboard',
+        )
+
+        try:
+            from app.models.user import User
+            from app.services.email_service import EmailService
+            from app.services.email_templates import EmailTemplates
+            user = User.query.get(user_id)
+            if user:
+                subject, html = EmailTemplates.deliberation_accepted(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    program_name=program_name,
+                    dashboard_url=dashboard_url,
+                )
+                EmailService.queue_email(user_id, subject, html, notification.id)
+        except Exception as e:
+            import logging
+            logging.error(f"Error queueing email for deliberation_accepted: {e}")
+
+        return notification
+
+    @staticmethod
+    def notify_deliberation_rejected(user_id: int, program_name: str,
+                                      rejection_type: str, notes: str,
+                                      dashboard_url: str) -> Notification:
+        """Notifica cuando el aspirante es rechazado o requiere correcciones (con email)"""
+        if rejection_type == 'partial':
+            notif_type = 'deliberation_corrections'
+            title = 'Se requieren correcciones en tu expediente'
+            message = (
+                f'El comité de admisión de {program_name} ha solicitado algunas correcciones. '
+                f'Revisa los detalles en tu portal.'
+            )
+        else:
+            notif_type = 'deliberation_rejected'
+            title = 'Resultado de tu proceso de admisión'
+            message = (
+                f'Lamentamos informarte que no has sido aceptado en el programa {program_name}. '
+                f'Consulta tu portal para más detalles.'
+            )
+
+        notification = NotificationService.create_notification(
+            user_id=user_id,
+            notification_type=notif_type,
+            title=title,
+            message=message,
+            priority='high',
+            action_url='/user/dashboard',
+        )
+
+        try:
+            from app.models.user import User
+            from app.services.email_service import EmailService
+            from app.services.email_templates import EmailTemplates
+            user = User.query.get(user_id)
+            if user:
+                subject, html = EmailTemplates.deliberation_rejected(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    program_name=program_name,
+                    rejection_type=rejection_type,
+                    notes=notes or '',
+                    dashboard_url=dashboard_url,
+                )
+                EmailService.queue_email(user_id, subject, html, notification.id)
+        except Exception as e:
+            import logging
+            logging.error(f"Error queueing email for deliberation_rejected: {e}")
+
+        return notification
+
+    @staticmethod
+    def notify_acceptance_docs_ready(user_id: int, program_name: str, dashboard_url: str) -> Notification:
+        """Notifica cuando el coordinador sube carta de aceptación + tira de materias (con email)"""
+        notification = NotificationService.create_notification(
+            user_id=user_id,
+            notification_type='acceptance_docs_ready',
+            title='Tus documentos de aceptación están disponibles',
+            message=(
+                f'Tu carta de aceptación y tira de materias para {program_name} ya están disponibles. '
+                f'Ingresa al portal para descargarlos y seguir las instrucciones.'
+            ),
+            priority='high',
+            action_url='/user/dashboard',
+        )
+
+        try:
+            from app.models.user import User
+            from app.services.email_service import EmailService
+            from app.services.email_templates import EmailTemplates
+            user = User.query.get(user_id)
+            if user:
+                subject, html = EmailTemplates.acceptance_docs_ready(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    program_name=program_name,
+                    dashboard_url=dashboard_url,
+                )
+                EmailService.queue_email(user_id, subject, html, notification.id)
+        except Exception as e:
+            import logging
+            logging.error(f"Error queueing email for acceptance_docs_ready: {e}")
+
+        return notification
+
     # ==================== GESTIÓN DE NOTIFICACIONES ====================
-    
+
     @staticmethod
     def mark_as_read(notification_id: int, user_id: int) -> Optional[Notification]:
         """Marca una notificación como leída"""

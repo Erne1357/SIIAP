@@ -25,7 +25,7 @@ def create_extension_request():
     data = request.get_json() or {}
     archive_id = data.get('archive_id')
     requested_until = data.get('requested_until')
-    reason = data.get('reason', '').strip()
+    reason = (data.get('reason') or '').strip()
 
     if not archive_id or not requested_until or not reason:
         return jsonify({

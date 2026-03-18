@@ -37,9 +37,13 @@ class EmailService:
         db.session.add(email_item)
         db.session.flush()
 
-        # Intentar enviar inmediatamente si hay conexión
-        if is_connected():
-            EmailService._try_send_email(email_item)
+        # Delegar el envío a Celery para evitar bloqueos síncronos en la UI
+        # Usamos countdown=1 para dar tiempo a que la transacción principal haga commit
+        try:
+            from app.tasks.notifications import send_email_async
+            send_email_async.apply_async(args=[email_item.id], countdown=1)
+        except Exception as err:
+            logger.warning(f"No se pudo encolar la tarea de email async: {err}")
 
         # Notificar en tiempo real al panel de administración
         EmailService._emit_queue_update()

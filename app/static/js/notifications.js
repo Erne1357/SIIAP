@@ -219,6 +219,8 @@ class NotificationManager {
         const color = this.getColorForType(notification.type);
         const unreadClass = notification.is_read ? '' : 'unread';
         const timeAgo = this.getTimeAgo(notification.created_at);
+        const hasLink = !!notification.action_url;
+        const cursorStyle = hasLink ? 'cursor:pointer;' : '';
 
         let actionsHtml = '';
 
@@ -240,7 +242,9 @@ class NotificationManager {
         }
 
         return `
-            <div class="notification-item ${unreadClass}" data-id="${notification.id}">
+            <div class="notification-item ${unreadClass}" data-id="${notification.id}"
+                 data-action-url="${this.escapeHtml(notification.action_url || '')}"
+                 style="${cursorStyle}">
                 <div class="d-flex gap-3">
                     <div class="notification-icon bg-${color}">
                         <i class="${icon}"></i>
@@ -249,7 +253,7 @@ class NotificationManager {
                         <strong>${this.escapeHtml(notification.title)}</strong>
                         <p class="mb-1">${this.escapeHtml(notification.message)}</p>
                         ${actionsHtml}
-                        <small>${timeAgo}</small>
+                        <small>${timeAgo}${hasLink ? ' &nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:.7rem;opacity:.6;"></i>' : ''}</small>
                     </div>
                     ${!notification.is_read ? `
                         <button class="btn-mark-read" title="Marcar como leída">
@@ -275,7 +279,25 @@ class NotificationManager {
             'password_reset': 'bi bi-shield-lock',
             'control_number_assigned': 'bi bi-person-badge',
             'account_deactivated': 'bi bi-person-x',
-            'program_changed': 'bi bi-arrow-left-right'
+            'program_changed': 'bi bi-arrow-left-right',
+            // Deliberación
+            'deliberation_accepted': 'bi bi-mortarboard',
+            'deliberation_rejected': 'bi bi-x-octagon',
+            'deliberation_corrections': 'bi bi-pencil-square',
+            // Aceptación
+            'acceptance_docs_ready': 'bi bi-file-earmark-check',
+            'enrollment_receipt_approved': 'bi bi-check2-circle',
+            'enrollment_receipt_rejected': 'bi bi-x-circle',
+            // Permanencia
+            'semester_enrolled': 'bi bi-journal-check',
+            'enrollment_status_changed': 'bi bi-journal-x',
+            // Diferimiento
+            'deferral_applied': 'bi bi-calendar2-minus',
+            'deferral_rejected': 'bi bi-calendar2-x',
+            'deferral_reactivated': 'bi bi-calendar2-check',
+            'deferral_request_received': 'bi bi-calendar2-plus',
+            'deferral_expired': 'bi bi-hourglass-bottom',
+            'deferral_expiring': 'bi bi-hourglass-split',
         };
         return icons[type] || 'bi bi-bell';
     }
@@ -285,16 +307,30 @@ class NotificationManager {
             'document_approved': 'success',
             'extension_approved': 'success',
             'appointment_change_accepted': 'success',
+            'deliberation_accepted': 'success',
+            'enrollment_receipt_approved': 'success',
+            'semester_enrolled': 'success',
+            'deferral_reactivated': 'success',
+            'acceptance_docs_ready': 'success',
             'document_rejected': 'danger',
             'extension_rejected': 'danger',
             'appointment_cancelled': 'danger',
             'account_deactivated': 'danger',
+            'deliberation_rejected': 'danger',
+            'enrollment_receipt_rejected': 'danger',
+            'deferral_expired': 'danger',
+            'enrollment_status_changed': 'danger',
             'appointment_assigned': 'primary',
             'event_invitation': 'primary',
+            'deliberation_corrections': 'warning',
+            'deferral_applied': 'warning',
+            'deferral_rejected': 'warning',
+            'deferral_expiring': 'warning',
             'control_number_assigned': 'info',
             'coordinator_uploaded': 'info',
             'password_reset': 'warning',
-            'program_changed': 'warning'
+            'program_changed': 'warning',
+            'deferral_request_received': 'info',
         };
         return colors[type] || 'info';
     }
@@ -319,8 +355,31 @@ class NotificationManager {
     // ── Acciones ──────────────────────────────────────────────────────────────
 
     async handleNotificationClick(notificationId) {
+        const item = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
+        const actionUrl = item?.dataset?.actionUrl;
+
         await this.markAsRead(notificationId);
         this.closeDropdown();
+
+        if (actionUrl) {
+            await this._navigateToUrl(actionUrl);
+        }
+    }
+
+    async _navigateToUrl(url) {
+        try {
+            const res = await fetch(url, { method: 'HEAD', credentials: 'same-origin' });
+            if (res.ok) {
+                window.location.href = url;
+            } else {
+                window.dispatchEvent(new CustomEvent('flash', {
+                    detail: { level: 'warning', message: 'Esta página ya no está disponible.' }
+                }));
+            }
+        } catch {
+            // Si hay error de red, intentar navegar de todas formas
+            window.location.href = url;
+        }
     }
 
     async markAsRead(notificationId) {

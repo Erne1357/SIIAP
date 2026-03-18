@@ -12,7 +12,7 @@
       type="button"
       class="btn btn-primary btn-inscription"
       data-bs-toggle="modal"
-      data-bs-target="#enrollmentModal">
+      data-bs-target="{{ '#enrollmentModal' if admission_open else '#enrollmentClosedModal' }}">
     <i class="fas fa-graduation-cap me-2"></i>Postularme
   </button>
 </div>

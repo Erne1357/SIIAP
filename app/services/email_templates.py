@@ -165,3 +165,42 @@ class EmailTemplates:
             'dashboard_url': dashboard_url
         })
         return subject, html
+
+    @staticmethod
+    def deliberation_accepted(user_name: str, program_name: str, dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para aceptación en deliberación"""
+        subject = f"🎓 ¡Felicidades! Has sido aceptado en {program_name}"
+        html = EmailTemplates.render_email('deliberation_accepted', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'dashboard_url': dashboard_url
+        })
+        return subject, html
+
+    @staticmethod
+    def deliberation_rejected(user_name: str, program_name: str, rejection_type: str,
+                               notes: str, dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para rechazo o solicitud de correcciones en deliberación"""
+        if rejection_type == 'partial':
+            subject = f"⚠️ Se requieren correcciones en tu expediente — {program_name}"
+        else:
+            subject = f"📋 Resultado del proceso de admisión — {program_name}"
+        html = EmailTemplates.render_email('deliberation_rejected', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'rejection_type': rejection_type,
+            'notes': notes,
+            'dashboard_url': dashboard_url
+        })
+        return subject, html
+
+    @staticmethod
+    def acceptance_docs_ready(user_name: str, program_name: str, dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para documentos de aceptación disponibles"""
+        subject = f"📄 Tus documentos de aceptación están listos — {program_name}"
+        html = EmailTemplates.render_email('acceptance_docs_ready', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'dashboard_url': dashboard_url
+        })
+        return subject, html
