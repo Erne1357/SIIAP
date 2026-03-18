@@ -84,7 +84,11 @@ class DeliberationManager {
         // Rejection type change
         document.getElementById('rejectionType')?.addEventListener('change', (e) => {
             const correctionSection = document.getElementById('correctionSection');
-            correctionSection.style.display = e.target.value === 'partial' ? 'block' : 'none';
+            const isPartial = e.target.value === 'partial';
+            correctionSection.style.display = isPartial ? 'block' : 'none';
+            if (isPartial) {
+                this.loadProgramArchivesForRejection();
+            }
         });
 
         // Confirm decision
@@ -175,11 +179,16 @@ class DeliberationManager {
         `;
     }
 
-    async markInterviewCompleted(userId, programId, applicantName) {
-        if (!confirm(`¿Confirmas que ${applicantName} completó su entrevista?`)) {
-            return;
-        }
+    markInterviewCompleted(userId, programId, applicantName) {
+        this.showConfirm(
+            'Confirmar Entrevista Completada',
+            `¿Confirmas que ${applicantName} completó su entrevista?`,
+            () => this._doMarkInterviewCompleted(userId, programId),
+            'btn-success'
+        );
+    }
 
+    async _doMarkInterviewCompleted(userId, programId) {
         try {
             const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/interview-completed`, {
                 method: 'POST',
@@ -192,7 +201,7 @@ class DeliberationManager {
             const result = await response.json();
 
             if (result.flash) {
-                result.flash.forEach(f => this.showToast(f.message, f.level));
+                result.flash.forEach(f => showFlash(f.level, f.message));
             }
 
             if (!result.error) {
@@ -201,7 +210,7 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error marking interview completed:', error);
-            this.showToast('Error al marcar entrevista', 'danger');
+            showFlash('danger', 'Error al marcar entrevista');
         }
     }
 
@@ -386,7 +395,7 @@ class DeliberationManager {
                 `;
             }
 
-            case 'rejected':
+            case 'rejected': {
                 const rejectionBadge = up.rejection_type === 'partial'
                     ? '<span class="badge badge-partial">Correcciones</span>'
                     : '<span class="badge badge-full">Definitivo</span>';
@@ -397,19 +406,67 @@ class DeliberationManager {
                        </button>`
                     : '';
 
+                // Parsear correction_required: puede ser JSON {archive_id, archive_name, notes} o texto plano
+                let correctionDisplay = up.correction_required || up.decision_notes || '-';
+                if (up.correction_required) {
+                    try {
+                        const corr = JSON.parse(up.correction_required);
+                        const parts = [];
+                        if (corr.archive_name) parts.push(`<strong>Documento:</strong> ${corr.archive_name}`);
+                        if (corr.notes) parts.push(corr.notes);
+                        correctionDisplay = parts.join('<br>') || '-';
+                    } catch (e) {
+                        // No es JSON, usar el texto tal cual
+                    }
+                }
+
                 return `
                     <tr>
                         <td class="applicant-name">${user.full_name}</td>
                         <td class="applicant-email">${user.email}</td>
                         <td class="text-center">${rejectionBadge}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
-                        <td class="notes-cell">${up.decision_notes || up.correction_required || '-'}</td>
+                        <td class="notes-cell">${correctionDisplay}</td>
                         <td class="text-center">${resetBtn}</td>
                     </tr>
                 `;
+            }
 
             default:
                 return '';
+        }
+    }
+
+    async loadProgramArchivesForRejection() {
+        if (!this.currentProgramId) return;
+
+        const select = document.getElementById('rejectionArchiveSelect');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Cargando documentos...</option>';
+        select.disabled = true;
+
+        try {
+            const response = await fetch(`/api/v1/deliberation/program/${this.currentProgramId}/admission-archives`);
+            const result = await response.json();
+
+            if (result.error || !result.data) {
+                select.innerHTML = '<option value="">Error al cargar documentos</option>';
+                return;
+            }
+
+            select.innerHTML = '<option value="">— Sin documento específico —</option>';
+            result.data.forEach(archive => {
+                const opt = document.createElement('option');
+                opt.value = archive.id;
+                opt.dataset.name = archive.name;
+                opt.textContent = archive.name;
+                select.appendChild(opt);
+            });
+            select.disabled = false;
+        } catch (error) {
+            console.error('Error loading archives:', error);
+            select.innerHTML = '<option value="">Error al cargar documentos</option>';
         }
     }
 
@@ -438,7 +495,7 @@ class DeliberationManager {
             this.startDeliberationModal.hide();
 
             if (result.flash) {
-                result.flash.forEach(f => this.showToast(f.message, f.level));
+                result.flash.forEach(f => showFlash(f.level, f.message));
             }
 
             if (!result.error) {
@@ -447,7 +504,7 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error starting deliberation:', error);
-            this.showToast('Error al iniciar deliberacion', 'danger');
+            showFlash('danger', 'Error al iniciar deliberacion');
         }
     }
 
@@ -468,6 +525,13 @@ class DeliberationManager {
             rejectionSection.style.display = 'block';
             correctionSection.style.display = 'none';
             document.getElementById('rejectionType').value = 'full';
+            // Reset archive select
+            const archiveSelect = document.getElementById('rejectionArchiveSelect');
+            if (archiveSelect) {
+                archiveSelect.innerHTML = '<option value="">— Sin documento específico —</option>';
+                archiveSelect.disabled = true;
+            }
+            document.getElementById('correctionRequired').value = '';
             modalTitle.textContent = 'Rechazar Aspirante';
             confirmBtn.className = 'btn btn-danger';
             confirmBtn.textContent = 'Confirmar Rechazo';
@@ -494,8 +558,24 @@ class DeliberationManager {
             body = { notes };
         } else {
             const rejectionType = document.getElementById('rejectionType').value;
-            const correctionRequired = document.getElementById('correctionRequired').value;
+            const correctionText = document.getElementById('correctionRequired').value;
             endpoint = `/api/v1/deliberation/user/${userId}/program/${programId}/reject`;
+
+            // Si es parcial, incluir el documento específico seleccionado (si se eligió uno)
+            let correctionRequired = correctionText;
+            if (rejectionType === 'partial') {
+                const archiveSelect = document.getElementById('rejectionArchiveSelect');
+                const archiveId = archiveSelect?.value;
+                const archiveName = archiveSelect?.options[archiveSelect.selectedIndex]?.dataset?.name;
+                if (archiveId && archiveName) {
+                    correctionRequired = JSON.stringify({
+                        archive_id: parseInt(archiveId),
+                        archive_name: archiveName,
+                        notes: correctionText
+                    });
+                }
+            }
+
             body = { rejection_type: rejectionType, notes, correction_required: correctionRequired };
         }
 
@@ -514,7 +594,7 @@ class DeliberationManager {
             this.decisionModal.hide();
 
             if (result.flash) {
-                result.flash.forEach(f => this.showToast(f.message, f.level));
+                result.flash.forEach(f => showFlash(f.level, f.message));
             }
 
             if (!result.error) {
@@ -523,15 +603,20 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error submitting decision:', error);
-            this.showToast('Error al procesar decision', 'danger');
+            showFlash('danger', 'Error al procesar decision');
         }
     }
 
-    async resetApplicant(userId, programId) {
-        if (!confirm('Deseas reiniciar el estado de este aspirante? Podra volver a enviar documentos.')) {
-            return;
-        }
+    resetApplicant(userId, programId) {
+        this.showConfirm(
+            'Reiniciar Estado',
+            '¿Deseas reiniciar el estado de este aspirante? Podrá volver a enviar documentos.',
+            () => this._doResetApplicant(userId, programId),
+            'btn-primary'
+        );
+    }
 
+    async _doResetApplicant(userId, programId) {
         try {
             const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/reset`, {
                 method: 'POST',
@@ -545,7 +630,7 @@ class DeliberationManager {
             const result = await response.json();
 
             if (result.flash) {
-                result.flash.forEach(f => this.showToast(f.message, f.level));
+                result.flash.forEach(f => showFlash(f.level, f.message));
             }
 
             if (!result.error) {
@@ -554,12 +639,20 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error resetting applicant:', error);
-            this.showToast('Error al reiniciar estado', 'danger');
+            showFlash('danger', 'Error al reiniciar estado');
         }
     }
 
-    async forceResetApplicant(userId, programId, applicantName) {
-        if (!confirm(`¿Reiniciar el estado de "${applicantName}" a "En Proceso"? Se registrará en el historial.`)) return;
+    forceResetApplicant(userId, programId, applicantName) {
+        this.showConfirm(
+            'Reinicio Administrativo',
+            `¿Reiniciar el estado de "${applicantName}" a "En Proceso"? Se registrará en el historial.`,
+            () => this._doForceResetApplicant(userId, programId, applicantName),
+            'btn-warning'
+        );
+    }
+
+    async _doForceResetApplicant(userId, programId, applicantName) {
         try {
             const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/force-reset`, {
                 method: 'POST',
@@ -570,46 +663,28 @@ class DeliberationManager {
                 body: JSON.stringify({ reason: 'Reinicio administrativo desde panel de deliberación' })
             });
             const result = await response.json();
-            if (result.flash) result.flash.forEach(f => this.showToast(f.message, f.level));
+            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
             if (!result.error) {
                 this.loadStats();
                 this.loadApplicants('accepted');
             }
         } catch (error) {
             console.error('Error force resetting applicant:', error);
-            this.showToast('Error al reiniciar estado', 'danger');
+            showFlash('danger', 'Error al reiniciar estado');
         }
     }
 
-    showToast(message, level = 'info') {
-        // Simple toast implementation using Bootstrap
-        const toastContainer = document.getElementById('toast-container') || this.createToastContainer();
-        const toastId = `toast-${Date.now()}`;
-
-        const toastHtml = `
-            <div id="${toastId}" class="toast align-items-center text-bg-${level} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-
-        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-        const toastEl = document.getElementById(toastId);
-        const toast = new bootstrap.Toast(toastEl, { autohide: true, delay: 4000 });
-        toast.show();
-
-        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
-    }
-
-    createToastContainer() {
-        const container = document.createElement('div');
-        container.id = 'toast-container';
-        container.className = 'toast-container position-fixed top-0 end-0 p-3';
-        container.style.zIndex = '1100';
-        document.body.appendChild(container);
-        return container;
+    showConfirm(title, message, onConfirm, btnClass = 'btn-primary') {
+        document.getElementById('confirmModalTitle').textContent = title;
+        document.getElementById('confirmModalMessage').textContent = message;
+        const btn = document.getElementById('confirmModalBtn');
+        btn.className = `btn ${btnClass}`;
+        const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+        btn.onclick = () => {
+            modal.hide();
+            onConfirm();
+        };
+        modal.show();
     }
 }
 

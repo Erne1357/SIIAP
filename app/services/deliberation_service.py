@@ -164,15 +164,16 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
         )
 
     up.start_deliberation()
-    db.session.commit()
 
-    # Registrar en historial
+    # Registrar en historial (en la misma transaccion)
     UserHistoryService.log_action(
         user_id=user_id,
         admin_id=coordinator_id,
         action='deliberation_started',
         details='Proceso de deliberacion iniciado'
     )
+
+    db.session.commit()
 
     return up
 
@@ -198,13 +199,12 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         )
 
     up.accept(decision_by=decision_by, notes=notes)
-    db.session.commit()
 
     # Obtener datos para notificacion
     user = User.query.get(user_id)
     program = Program.query.get(program_id)
 
-    # Registrar en historial
+    # Registrar en historial (en la misma transaccion)
     UserHistoryService.log_action(
         user_id=user_id,
         admin_id=decision_by,
@@ -212,14 +212,18 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         details=f'Aceptado en {program.name}. {notes or ""}'
     )
 
-    # Notificar al aspirante
-    NotificationService.send(
+    # Notificar al aspirante (en la misma transaccion)
+    NotificationService.create_notification(
         user_id=user_id,
-        title='Felicidades! Has sido aceptado',
-        message=f'Has sido aceptado en el programa {program.name}. Revisa tu correo para mas informacion.'
+        notification_type='general',
+        title='¡Felicidades! Has sido aceptado',
+        message=f'Has sido aceptado en el programa {program.name}. Revisa tu portal para más información.',
+        priority='high'
     )
 
-    # Emitir actualización en tiempo real a la sala de deliberación del programa
+    db.session.commit()
+
+    # Emitir actualización en tiempo real (fire-and-forget, fuera de la transaccion)
     try:
         from app.extensions import socketio
         socketio.emit(
@@ -271,36 +275,41 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
         notes=notes,
         correction_required=correction_required
     )
-    db.session.commit()
 
     # Obtener datos para notificacion
     user = User.query.get(user_id)
     program = Program.query.get(program_id)
 
-    # Registrar en historial
-    action = 'admission_rejected' if rejection_type == 'full' else 'correction_requested'
+    # Registrar en historial (en la misma transaccion)
+    history_action = 'admission_rejected' if rejection_type == 'full' else 'correction_requested'
     UserHistoryService.log_action(
         user_id=user_id,
         admin_id=decision_by,
-        action=action,
+        action=history_action,
         details=f'{program.name}: {notes or ""}'
     )
 
-    # Notificar al aspirante
+    # Notificar al aspirante (en la misma transaccion)
     if rejection_type == 'full':
-        NotificationService.send(
+        NotificationService.create_notification(
             user_id=user_id,
-            title='Resultado de tu proceso de admision',
-            message=f'Lamentamos informarte que no has sido aceptado en el programa {program.name}. Consulta tu correo para mas detalles.'
+            notification_type='general',
+            title='Resultado de tu proceso de admisión',
+            message=f'Lamentamos informarte que no has sido aceptado en el programa {program.name}. Consulta tu portal para más detalles.',
+            priority='high'
         )
     else:
-        NotificationService.send(
+        NotificationService.create_notification(
             user_id=user_id,
+            notification_type='general',
             title='Se requieren correcciones en tu expediente',
-            message=f'El comite de admision de {program.name} ha solicitado algunas correcciones. Revisa los detalles en tu portal.'
+            message=f'El comité de admisión de {program.name} ha solicitado algunas correcciones. Revisa los detalles en tu portal.',
+            priority='high'
         )
 
-    # Emitir actualización en tiempo real a la sala de deliberación del programa
+    db.session.commit()
+
+    # Emitir actualización en tiempo real (fire-and-forget, fuera de la transaccion)
     try:
         from app.extensions import socketio
         socketio.emit(
@@ -353,15 +362,16 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
     up.decision_notes = None
     up.rejection_type = None
     up.correction_required = None
-    db.session.commit()
 
-    # Registrar en historial
+    # Registrar en historial (en la misma transaccion)
     UserHistoryService.log_action(
         user_id=user_id,
         admin_id=admin_id,
         action='admission_reset',
         details=f'Estado reiniciado a in_progress. {reason or ""}'
     )
+
+    db.session.commit()
 
     return up
 
@@ -390,7 +400,6 @@ def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: 
     up.decision_notes = None
     up.rejection_type = None
     up.correction_required = None
-    db.session.commit()
 
     UserHistoryService.log_action(
         user_id=user_id,
@@ -398,6 +407,8 @@ def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: 
         action='admission_reset',
         details=f'Reinicio administrativo forzado desde "{prev_status}". {reason or ""}'
     )
+
+    db.session.commit()
 
     return up
 

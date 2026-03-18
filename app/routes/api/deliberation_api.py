@@ -414,6 +414,48 @@ def api_get_user_deliberation_status(user_id, program_id):
         }), 500
 
 
+@api_deliberation.get('/program/<int:program_id>/admission-archives')
+@login_required
+@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+def api_get_program_admission_archives(program_id):
+    """Obtiene los archivos uploadables de la fase de admisión de un programa (para rechazo parcial)."""
+    try:
+        from app.models import Step, ProgramStep, Phase
+        from app.models.archive import Archive
+        from sqlalchemy import and_
+
+        archives = (
+            Archive.query
+            .join(Step, Archive.step_id == Step.id)
+            .join(ProgramStep, Step.id == ProgramStep.step_id)
+            .join(Phase, ProgramStep.phase_id == Phase.id)
+            .filter(
+                and_(
+                    ProgramStep.program_id == program_id,
+                    Phase.name == 'admission',
+                    Archive.is_uploadable == True  # noqa: E712
+                )
+            )
+            .order_by(ProgramStep.sequence, Archive.id)
+            .all()
+        )
+
+        data = [{'id': a.id, 'name': a.name} for a in archives]
+
+        return jsonify({
+            "data": data,
+            "error": None,
+            "meta": {"count": len(data)}
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
 @api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/force-reset')
 @login_required
 @roles_required('postgraduate_admin')
