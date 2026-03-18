@@ -7,6 +7,10 @@ puede importar `socketio` desde este módulo sin depender de `app/__init__.py`.
 """
 
 from flask_socketio import SocketIO
+from celery import Celery
 
 # La instancia de SocketIO se configura en create_app() con socketio.init_app(app, ...)
 socketio = SocketIO()
+
+# Instancia de Celery para evitar importaciones circulares
+celery = Celery()

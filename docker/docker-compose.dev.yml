@@ -55,7 +55,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     command: >
-      celery -A app.celery_app.celery worker
+      celery -A app.celery_worker.celery worker
       --loglevel=info
       --concurrency=2
     depends_on:
@@ -63,6 +63,8 @@ services:
       - redis
     env_file:
       - .env
+    environment:
+      - SKIP_MIGRATIONS=true
     volumes:
       - ../instance:/app/instance
       - ../:/app
@@ -74,14 +76,16 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     command: >
-      celery -A app.celery_app.celery beat
+      celery -A app.celery_worker.celery beat
       --loglevel=info
-      --schedule=/app/instance/celerybeat-schedule
+      --scheduler redbeat.RedBeatScheduler
     depends_on:
       - db
       - redis
     env_file:
       - .env
+    environment:
+      - SKIP_MIGRATIONS=true
     volumes:
       - ../instance:/app/instance
       - ../:/app

@@ -1,27 +1,11 @@
-from celery import Celery
+from app.extensions import celery
 from celery.schedules import crontab
 
 
-def make_celery(app=None):
+def init_celery(app):
     """
-    Crea y configura la instancia de Celery integrada con Flask.
-
-    Cuando se llama sin argumentos (desde el worker/beat), crea el app de Flask
-    internamente. Cuando se llama con un app existente (desde create_app),
-    usa ese contexto directamente.
+    Configura la instancia de Celery ya creada en extensions.py con el contexto de la app Flask.
     """
-    if app is None:
-        from app import create_app
-        app = create_app()
-
-    celery = Celery(app.import_name)
-
-    # Registrar módulos de tareas explícitamente para que el worker los descubra
-    celery.conf.include = [
-        'app.tasks.maintenance',
-        'app.tasks.notifications',
-    ]
-
     celery.conf.update(
         broker_url=app.config['CELERY_BROKER_URL'],
         result_backend=app.config['CELERY_RESULT_BACKEND'],
@@ -32,8 +16,16 @@ def make_celery(app=None):
         task_track_started=app.config.get('CELERY_TASK_TRACK_STARTED', True),
         task_time_limit=app.config.get('CELERY_TASK_TIME_LIMIT', 300),
         task_soft_time_limit=app.config.get('CELERY_TASK_SOFT_TIME_LIMIT', 240),
+        broker_connection_retry_on_startup=True,
 
-        # Tareas periódicas (Celery Beat)
+        # ── Redbeat: scheduler con respaldo en Redis ──────────────────────────
+        # Permite editar el schedule en tiempo real desde la UI sin reiniciar.
+        beat_scheduler='redbeat.RedBeatScheduler',
+        redbeat_redis_url=app.config['CELERY_BROKER_URL'],
+        redbeat_lock_timeout=300,
+
+        # Tareas periódicas — se migran automáticamente a Redis en el primer
+        # arranque de celery-beat con RedBeatScheduler.
         beat_schedule={
             # Limpia archivos de procesos de admisión expirados — todos los días a las 02:00
             'cleanup-expired-admission-files': {
@@ -50,8 +42,21 @@ def make_celery(app=None):
                 'task': 'app.tasks.maintenance.cleanup_old_notifications',
                 'schedule': crontab(hour=4, minute=0),
             },
+            # Revisa diferimientos: expira vencidos y notifica próximos a vencer — diario a las 08:00
+            'check-deferral-expirations': {
+                'task': 'app.tasks.maintenance.check_deferral_expirations',
+                'schedule': crontab(hour=8, minute=0),
+            },
         },
     )
+
+    celery.main = app.import_name
+
+    # Registrar módulos de tareas explícitamente para que el worker los descubra
+    celery.conf.include = [
+        'app.tasks.maintenance',
+        'app.tasks.notifications',
+    ]
 
     # Hace que cada tarea se ejecute dentro del contexto de la app Flask
     class ContextTask(celery.Task):
@@ -60,10 +65,11 @@ def make_celery(app=None):
                 return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
+
+    # Registra las señales para logging de tareas + eventos Socket.IO en tiempo real
+    from app.extensions import socketio
+    from app.tasks.signals import register_task_signals
+    # Nota: socketio ya debe estar init_app-eado o al menos instanciado.
+    register_task_signals(app, socketio)
+
     return celery
-
-
-# Instancia de Celery que usan los workers al invocar:
-#   celery -A app.celery_app.celery worker --loglevel=info
-#   celery -A app.celery_app.celery beat  --loglevel=info
-celery = make_celery()
