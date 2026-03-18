@@ -149,6 +149,7 @@ def get_accepted_applicants(program_id: int):
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'email': user.email,
                 'curp': user.curp,
+                'control_number': user.control_number,
             },
             'acceptance_docs': docs,
         })
@@ -245,26 +246,32 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
     doc.uploaded_at = now_local()
     doc.status = 'uploaded'
 
-    db.session.commit()
-
-    # Notificar al aspirante cuando ambos documentos esten disponibles
+    # Notificar al aspirante cuando ambos documentos esten disponibles (en la misma transaccion)
     letter = AcceptanceDocument.query.filter_by(user_program_id=up.id, document_type='acceptance_letter').first()
     schedule = AcceptanceDocument.query.filter_by(user_program_id=up.id, document_type='course_schedule').first()
 
-    if letter and letter.status == 'uploaded' and schedule and schedule.status == 'uploaded':
+    # Determinar si con este documento se completaron ambos
+    letter_ok = (letter and letter.status == 'uploaded') or document_type == 'acceptance_letter'
+    schedule_ok = (schedule and schedule.status == 'uploaded') or document_type == 'course_schedule'
+
+    if letter_ok and schedule_ok:
         program = Program.query.get(program_id)
-        NotificationService.send(
+        NotificationService.create_notification(
             user_id=user_id,
-            title='Tus documentos de aceptacion estan disponibles',
-            message=f'Tu carta de aceptacion y tira de materias para {program.name} ya estan disponibles. '
-                    f'Ingresa al portal y sube tu boleta de servicios escolares.'
+            notification_type='general',
+            title='Tus documentos de aceptación están disponibles',
+            message=f'Tu carta de aceptación y tira de materias para {program.name} ya están disponibles. '
+                    f'Ingresa al portal para descargarlos y seguir las instrucciones.',
+            priority='high'
         )
         UserHistoryService.log_action(
             user_id=user_id,
             admin_id=coordinator_id,
             action='acceptance_docs_uploaded',
-            details=f'Carta de aceptacion y tira de materias subidas para {program.name}'
+            details=f'Carta de aceptación y tira de materias subidas para {program.name}'
         )
+
+    db.session.commit()
 
     return doc
 
@@ -318,18 +325,16 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
     doc.reviewed_at = None
     doc.review_notes = None
 
-    db.session.commit()
-
-    # Notificar al coordinador
     program = Program.query.get(program_id)
-    # (Notificacion al coordinador queda pendiente de implementar cuando haya sistema de notif por rol)
 
     UserHistoryService.log_action(
         user_id=user_id,
         admin_id=aspirant_id,
         action='enrollment_receipt_submitted',
-        details=f'Boleta de servicios escolares subida para {program.name}'
+        details=f'Carta de asignación de número de control subida para {program.name}'
     )
+
+    db.session.commit()
 
     return doc
 
@@ -372,35 +377,39 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     user_id = up.user_id
     program = up.program
 
-    db.session.commit()
-
-    # Notificar al aspirante
+    # Notificar e historiar (en la misma transaccion)
     if status == 'approved':
-        NotificationService.send(
+        NotificationService.create_notification(
             user_id=user_id,
-            title='Boleta de inscripcion aprobada',
-            message=f'Tu boleta de servicios escolares para {program.name} fue aprobada. '
-                    f'Pronto recibiras instrucciones para completar tu inscripcion.'
+            notification_type='general',
+            title='Carta de número de control aprobada',
+            message=f'Tu carta de asignación de número de control para {program.name} fue aprobada. '
+                    f'El coordinador te asignará tu número de control próximamente.',
+            priority='high'
         )
         UserHistoryService.log_action(
             user_id=user_id,
             admin_id=coordinator_id,
             action='enrollment_receipt_approved',
-            details=f'Boleta aprobada para {program.name}. {notes or ""}'
+            details=f'Carta aprobada para {program.name}. {notes or ""}'
         )
     else:
-        NotificationService.send(
+        NotificationService.create_notification(
             user_id=user_id,
-            title='Boleta de inscripcion rechazada',
-            message=f'Tu boleta de servicios escolares para {program.name} fue rechazada. '
-                    f'Motivo: {notes or "Sin especificar"}. Por favor vuelve a subirla.'
+            notification_type='general',
+            title='Carta de número de control rechazada',
+            message=f'Tu carta de asignación de número de control para {program.name} fue rechazada. '
+                    f'Motivo: {notes or "Sin especificar"}. Por favor vuelve a subirla.',
+            priority='high'
         )
         UserHistoryService.log_action(
             user_id=user_id,
             admin_id=coordinator_id,
             action='enrollment_receipt_rejected',
-            details=f'Boleta rechazada para {program.name}. {notes or ""}'
+            details=f'Carta rechazada para {program.name}. {notes or ""}'
         )
+
+    db.session.commit()
 
     return doc
 
@@ -419,13 +428,103 @@ def delete_coordinator_doc(doc_id: int, coordinator_id: int) -> None:
 
     user_id = doc.user_program.user_id
     program = doc.user_program.program
+    doc_label = DOC_TYPE_LABELS[doc.document_type]
 
-    db.session.delete(doc)
-    db.session.commit()
-
+    # Registrar antes de eliminar (en la misma transaccion)
     UserHistoryService.log_action(
         user_id=user_id,
         admin_id=coordinator_id,
         action='acceptance_doc_deleted',
-        details=f'{DOC_TYPE_LABELS[doc.document_type]} eliminado de {program.name}'
+        details=f'{doc_label} eliminado de {program.name}'
     )
+
+    db.session.delete(doc)
+    db.session.commit()
+
+
+def assign_control_number(user_id: int, program_id: int,
+                           control_number: str, coordinator_id: int) -> UserProgram:
+    """
+    El coordinador asigna un número de control al aspirante aceptado.
+    Completa la transición: número de control + rol 'student' + admission_status='enrolled'.
+    Requiere que la boleta/carta de asignación ya esté aprobada.
+
+    Args:
+        user_id: ID del aspirante
+        program_id: ID del programa
+        control_number: Número de control a asignar (ej: M21111182)
+        coordinator_id: ID del coordinador que asigna
+
+    Returns:
+        UserProgram actualizado
+    """
+    from app.models.user import User as UserModel
+    from app.models.role import Role
+
+    if not control_number or not control_number.strip():
+        raise ValueError("El número de control no puede estar vacío")
+
+    ctrl = control_number.strip()
+
+    # Verificar que el número de control no esté ya asignado a otro usuario
+    existing = UserModel.query.filter_by(control_number=ctrl).first()
+    if existing and existing.id != user_id:
+        raise ValueError(f"El número de control '{ctrl}' ya está asignado a otro usuario")
+
+    up = _get_user_program(user_id, program_id)
+
+    if up.admission_status != 'accepted':
+        raise InvalidStateTransition(
+            f"El aspirante debe estar en estado 'accepted', estado actual: '{up.admission_status}'"
+        )
+
+    receipt = AcceptanceDocument.query.filter_by(
+        user_program_id=up.id, document_type='enrollment_receipt'
+    ).first()
+
+    if not receipt or receipt.status != 'approved':
+        raise InvalidStateTransition(
+            "La carta de asignación de número de control debe estar aprobada antes de asignar el número de control"
+        )
+
+    student_role = Role.query.filter_by(name='student').first()
+    if not student_role:
+        raise ValueError("El rol 'student' no está configurado en el sistema. Ejecuta las migraciones.")
+
+    user = UserModel.query.get(user_id)
+    if not user:
+        raise ApplicantNotFound(f"Usuario {user_id} no encontrado")
+
+    program = Program.query.get(program_id)
+
+    # 1. Asignar número de control (también actualiza username)
+    user.assign_control_number(ctrl)
+
+    # 2. Cambiar rol a 'student'
+    user.role_id = student_role.id
+
+    # 3. Actualizar estado de inscripción
+    up.admission_status = 'enrolled'
+    up.current_semester = 1
+
+    # 4. Historial y notificación (antes del commit)
+    UserHistoryService.log_action(
+        user_id=user_id,
+        admin_id=coordinator_id,
+        action='control_number_assigned',
+        details=f'Número de control {ctrl} asignado en {program.name}. Transición a estudiante completada.'
+    )
+
+    NotificationService.create_notification(
+        user_id=user_id,
+        notification_type='general',
+        title='¡Inscripción completada! Bienvenido al programa',
+        message=f'Tu número de control es: {ctrl}. '
+                f'Ya eres estudiante oficial de {program.name}. '
+                f'Inicia sesión con tu número de control como usuario.',
+        priority='high'
+    )
+
+    db.session.commit()
+
+    return up

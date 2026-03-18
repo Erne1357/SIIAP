@@ -69,6 +69,13 @@
             <span class="badge bg-success ms-2" id="completedCount">0</span>
           </button>
         </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="deferred-tab" data-bs-toggle="tab"
+                  data-bs-target="#deferred-pane" type="button" role="tab">
+            <i class="bi bi-arrow-clockwise me-2"></i>Diferidos
+            <span class="badge bg-secondary ms-2" id="deferredCount">0</span>
+          </button>
+        </li>
       </ul>
 
       <!-- Contenido de tabs -->
@@ -94,7 +101,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colspan="5" class="text-center py-4 text-muted">Cargando...</td></tr>
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -136,7 +143,7 @@
           <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
               <h5 class="mb-0">Proceso de Inscripcion Completado</h5>
-              <small class="text-muted">Listos para transicion a estudiante</small>
+              <small class="text-muted">Asigna el número de control para completar la inscripcion</small>
             </div>
             <div class="card-body p-0">
               <div class="table-responsive">
@@ -148,15 +155,78 @@
                       <th class="text-center">Carta</th>
                       <th class="text-center">Tira de Materias</th>
                       <th class="text-center">Boleta</th>
+                      <th class="text-center">Número de Control</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colspan="5" class="text-center py-4 text-muted">Cargando...</td></tr>
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Tab: Diferidos -->
+        <div class="tab-pane fade" id="deferred-pane" role="tabpanel">
+
+          <!-- Solicitudes pendientes del aspirante -->
+          <div id="pendingRequestsSection" class="mb-4" style="display:none;">
+            <div class="card border-warning">
+              <div class="card-header bg-warning-subtle d-flex align-items-center gap-2">
+                <i class="bi bi-bell-fill text-warning"></i>
+                <strong>Solicitudes de Diferimiento Pendientes</strong>
+                <span class="badge bg-warning text-dark ms-auto" id="pendingRequestsCount">0</span>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0" id="pendingRequestsTable">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Aspirante</th>
+                        <th>Email</th>
+                        <th>Diferimiento #</th>
+                        <th>Periodo destino</th>
+                        <th>Motivo</th>
+                        <th class="text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="6" class="text-center py-3 text-muted">Cargando...</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aspirantes diferidos activos -->
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Aspirantes con Inscripción Diferida</h5>
+              <small class="text-muted">Reactiva al aspirante cuando el nuevo periodo esté activo</small>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0" id="deferredTable">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Aspirante</th>
+                      <th>Email</th>
+                      <th class="text-center">Diferimiento #</th>
+                      <th>Periodo original</th>
+                      <th>Periodo destino</th>
+                      <th class="text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -255,6 +325,199 @@
     </div>
   </div>
 </div>
+
+<!-- Modal: Asignar Número de Control -->
+<div class="modal fade" id="assignControlNumberModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-hash me-2"></i>Asignar Número de Control</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="assignCtrlUserId">
+        <input type="hidden" id="assignCtrlProgramId">
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Aspirante</label>
+          <p class="mb-0" id="assignCtrlApplicantName">-</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Número de Control <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="assignCtrlNumber"
+                 placeholder="Ej: M21111182" maxlength="20">
+          <div class="form-text">Este número también se usará como nombre de usuario del aspirante.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="confirmAssignCtrlBtn">
+          <i class="bi bi-check-lg me-1"></i>Asignar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+<!-- Modal: Diferir Aspirante (coordinador inicia) -->
+<div class="modal fade" id="deferApplicantModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-arrow-clockwise me-2"></i>Diferir Inscripción</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="deferUserId">
+        <input type="hidden" id="deferProgramId">
+
+        <div class="alert alert-warning d-flex gap-2 align-items-start mb-3">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+          <div>
+            <strong>Atención:</strong> Al diferir la inscripción, se conservará la carta de aceptación del aspirante,
+            pero se requerirá subir una nueva tira de materias y boleta de servicios escolares en el nuevo periodo.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Aspirante</label>
+          <p class="mb-0" id="deferApplicantName">-</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Periodo destino</label>
+          <p class="mb-0 text-primary" id="deferNextPeriodInfo">
+            <i class="bi bi-info-circle me-1"></i>Se asignará automáticamente al siguiente periodo disponible.
+          </p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Motivo (opcional)</label>
+          <textarea class="form-control" id="deferReason" rows="3"
+                    placeholder="Razón del diferimiento..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning" id="confirmDeferBtn">
+          <span class="spinner-border spinner-border-sm d-none me-2" id="deferSpinner"></span>
+          <i class="bi bi-arrow-clockwise me-1"></i>Confirmar Diferimiento
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Revisar Solicitud de Diferimiento (del aspirante) -->
+<div class="modal fade" id="reviewDeferralModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-arrow-clockwise me-2"></i>Revisar Solicitud de Diferimiento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="reviewDeferralId">
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Aspirante</label>
+          <p class="mb-0" id="reviewDeferralApplicantName">-</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Diferimiento #</label>
+          <p class="mb-0" id="reviewDeferralNumber">-</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Periodo destino</label>
+          <p class="mb-0 text-primary" id="reviewDeferralPeriod">-</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Motivo del aspirante</label>
+          <p class="mb-0 fst-italic text-muted" id="reviewDeferralReason">Sin especificar</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Decisión <span class="text-danger">*</span></label>
+          <div class="d-flex gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="reviewDeferralStatus"
+                     id="reviewDeferralApprove" value="approved">
+              <label class="form-check-label text-success fw-bold" for="reviewDeferralApprove">Aprobar</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="reviewDeferralStatus"
+                     id="reviewDeferralReject" value="rejected">
+              <label class="form-check-label text-danger fw-bold" for="reviewDeferralReject">Rechazar</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">
+            Notas
+            <span id="deferralNotesRequired" class="text-danger" style="display:none;">*</span>
+          </label>
+          <textarea class="form-control" id="reviewDeferralNotes" rows="3"
+                    placeholder="Observaciones..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirmReviewDeferralBtn">
+          <span class="spinner-border spinner-border-sm d-none me-2" id="reviewDeferralSpinner"></span>
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Reactivar Aspirante Diferido -->
+<div class="modal fade" id="reactivateModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-check-fill me-2"></i>Reactivar Inscripción</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="reactivateUserId">
+        <input type="hidden" id="reactivateProgramId">
+
+        <div class="alert alert-info d-flex gap-2 align-items-start mb-3">
+          <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+          <div>
+            Al reactivar, el aspirante volverá a estado <strong>Aceptado</strong> en el nuevo periodo.
+            Deberás subir una nueva tira de materias y el aspirante deberá volver a subir su boleta.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Aspirante</label>
+          <p class="mb-0" id="reactivateApplicantName">-</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Nuevo periodo de admisión</label>
+          <p class="mb-0 text-success fw-bold" id="reactivatePeriodName">-</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="confirmReactivateBtn">
+          <span class="spinner-border spinner-border-sm d-none me-2" id="reactivateSpinner"></span>
+          <i class="bi bi-person-check-fill me-1"></i>Reactivar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}

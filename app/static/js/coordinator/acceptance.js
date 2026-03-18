@@ -1,6 +1,7 @@
 /**
  * Acceptance & Enrollment Document Management for Coordinators
  * Fase 4 - Aceptacion e Inscripcion
+ * Fase 7 - Diferimiento de Inscripcion
  */
 class AcceptanceManager {
     constructor() {
@@ -11,6 +12,9 @@ class AcceptanceManager {
         // Modals
         this.uploadDocModal = new bootstrap.Modal(document.getElementById('uploadDocModal'));
         this.reviewReceiptModal = new bootstrap.Modal(document.getElementById('reviewReceiptModal'));
+        this.deferApplicantModal = new bootstrap.Modal(document.getElementById('deferApplicantModal'));
+        this.reviewDeferralModal = new bootstrap.Modal(document.getElementById('reviewDeferralModal'));
+        this.reactivateModal = new bootstrap.Modal(document.getElementById('reactivateModal'));
 
         this.init();
     }
@@ -35,8 +39,12 @@ class AcceptanceManager {
         // Tab changes
         document.querySelectorAll('#acceptanceTabs button[data-bs-toggle="tab"]').forEach(tab => {
             tab.addEventListener('shown.bs.tab', (e) => {
-                const tabName = e.target.dataset.tab;
-                this.loadTab(tabName);
+                const tabId = e.target.getAttribute('data-bs-target');
+                if (tabId === '#deferred-pane') {
+                    this.loadDeferredTab();
+                } else {
+                    this.loadTab(e.target.dataset.tab);
+                }
             });
         });
 
@@ -50,6 +58,11 @@ class AcceptanceManager {
             this.submitReviewReceipt();
         });
 
+        // Assign control number confirm
+        document.getElementById('confirmAssignCtrlBtn')?.addEventListener('click', () => {
+            this.submitAssignControlNumber();
+        });
+
         // Show/hide notes required indicator when selecting reject
         document.querySelectorAll('input[name="reviewReceiptStatus"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -57,11 +70,38 @@ class AcceptanceManager {
                 notesRequired.style.display = e.target.value === 'rejected' ? 'inline' : 'none';
             });
         });
+
+        // Defer applicant confirm
+        document.getElementById('confirmDeferBtn')?.addEventListener('click', () => {
+            this.submitDefer();
+        });
+
+        // Review deferral confirm
+        document.getElementById('confirmReviewDeferralBtn')?.addEventListener('click', () => {
+            this.submitReviewDeferral();
+        });
+
+        // Reactivate confirm
+        document.getElementById('confirmReactivateBtn')?.addEventListener('click', () => {
+            this.submitReactivate();
+        });
+
+        // Show/hide notes required when rejecting deferral
+        document.querySelectorAll('input[name="reviewDeferralStatus"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const required = document.getElementById('deferralNotesRequired');
+                required.style.display = e.target.value === 'rejected' ? 'inline' : 'none';
+            });
+        });
     }
 
     loadCurrentTab() {
         const activeTab = document.querySelector('#acceptanceTabs button.active');
-        if (activeTab) {
+        if (!activeTab) return;
+        const tabId = activeTab.getAttribute('data-bs-target');
+        if (tabId === '#deferred-pane') {
+            this.loadDeferredTab();
+        } else {
             this.loadTab(activeTab.dataset.tab);
         }
     }
@@ -136,12 +176,7 @@ class AcceptanceManager {
     }
 
     isPendingDocs(applicant) {
-        const docs = applicant.acceptance_docs;
-        const letterOk = docs.acceptance_letter?.status === 'uploaded' || docs.acceptance_letter?.status === 'approved';
-        const scheduleOk = docs.course_schedule?.status === 'uploaded' || docs.course_schedule?.status === 'approved';
-        const receiptApproved = docs.enrollment_receipt?.status === 'approved';
-        const receiptUploaded = docs.enrollment_receipt?.status === 'uploaded';
-        return (!letterOk || !scheduleOk) && !receiptApproved && !receiptUploaded;
+        return !this.isReceiptSubmitted(applicant) && !this.isCompleted(applicant);
     }
 
     isReceiptSubmitted(applicant) {
@@ -159,7 +194,7 @@ class AcceptanceManager {
         if (!tbody) return;
 
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes pendientes</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes pendientes</p></td></tr>`;
             return;
         }
 
@@ -169,6 +204,7 @@ class AcceptanceManager {
             const docs = a.acceptance_docs;
             const letterStatus = this.renderDocBadge(docs.acceptance_letter);
             const scheduleStatus = this.renderDocBadge(docs.course_schedule);
+            const safeName = user.full_name.replace(/'/g, "\\'");
 
             return `
                 <tr>
@@ -180,22 +216,26 @@ class AcceptanceManager {
                         <div class="btn-group-actions">
                             ${!docs.acceptance_letter?.file_path ? `
                             <button class="btn btn-sm btn-outline-primary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${user.full_name}', 'acceptance_letter')">
+                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'acceptance_letter')">
                                 <i class="bi bi-upload"></i> Carta
                             </button>` : `
                             <button class="btn btn-sm btn-outline-secondary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${user.full_name}', 'acceptance_letter')">
+                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'acceptance_letter')">
                                 <i class="bi bi-arrow-repeat"></i> Carta
                             </button>`}
                             ${!docs.course_schedule?.file_path ? `
                             <button class="btn btn-sm btn-outline-primary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${user.full_name}', 'course_schedule')">
+                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'course_schedule')">
                                 <i class="bi bi-upload"></i> Tira
                             </button>` : `
                             <button class="btn btn-sm btn-outline-secondary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${user.full_name}', 'course_schedule')">
+                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'course_schedule')">
                                 <i class="bi bi-arrow-repeat"></i> Tira
                             </button>`}
+                            <button class="btn btn-sm btn-outline-warning btn-action"
+                                    onclick="acceptanceManager.showDeferModal(${user.id}, ${up.program_id}, '${safeName}')">
+                                <i class="bi bi-arrow-clockwise"></i> Diferir
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -242,13 +282,24 @@ class AcceptanceManager {
         if (!tbody) return;
 
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><i class="bi bi-inbox"></i><p>No hay procesos completados aun</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><i class="bi bi-inbox"></i><p>No hay procesos completados aun</p></td></tr>`;
             return;
         }
 
         tbody.innerHTML = applicants.map(a => {
             const user = a.user;
-            const docs = a.acceptance_docs;
+            const up = a.user_program;
+
+            let controlNumberCell;
+            if (user.control_number) {
+                controlNumberCell = `<span class="badge bg-primary fs-6">${user.control_number}</span>`;
+            } else {
+                controlNumberCell = `
+                    <button class="btn btn-sm btn-outline-success btn-action"
+                            onclick="acceptanceManager.showAssignControlNumberModal(${user.id}, ${up.program_id}, '${user.full_name.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-hash"></i> Asignar
+                    </button>`;
+            }
 
             return `
                 <tr>
@@ -257,9 +308,65 @@ class AcceptanceManager {
                     <td class="text-center"><span class="badge bg-success">Disponible</span></td>
                     <td class="text-center"><span class="badge bg-success">Disponible</span></td>
                     <td class="text-center"><span class="badge bg-success">Aprobada</span></td>
+                    <td class="text-center">${controlNumberCell}</td>
                 </tr>
             `;
         }).join('');
+    }
+
+    showAssignControlNumberModal(userId, programId, applicantName) {
+        document.getElementById('assignCtrlUserId').value = userId;
+        document.getElementById('assignCtrlProgramId').value = programId;
+        document.getElementById('assignCtrlApplicantName').textContent = applicantName;
+        document.getElementById('assignCtrlNumber').value = '';
+
+        const modal = new bootstrap.Modal(document.getElementById('assignControlNumberModal'));
+        modal.show();
+    }
+
+    async submitAssignControlNumber() {
+        const userId = document.getElementById('assignCtrlUserId').value;
+        const programId = document.getElementById('assignCtrlProgramId').value;
+        const controlNumber = document.getElementById('assignCtrlNumber').value.trim();
+
+        if (!controlNumber) {
+            showFlash('warning', 'Ingresa el número de control');
+            return;
+        }
+
+        const btn = document.getElementById('confirmAssignCtrlBtn');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(
+                `/api/v1/acceptance/user/${userId}/program/${programId}/assign-control-number`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({ control_number: controlNumber })
+                }
+            );
+
+            const result = await response.json();
+            bootstrap.Modal.getInstance(document.getElementById('assignControlNumberModal'))?.hide();
+
+            if (result.flash) {
+                result.flash.forEach(f => showFlash(f.level, f.message));
+            }
+
+            if (!result.error) {
+                this.loadStats();
+                this.loadCurrentTab();
+            }
+        } catch (error) {
+            console.error('Error assigning control number:', error);
+            showFlash('danger', 'Error al asignar número de control');
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     renderDocBadge(doc) {
@@ -299,7 +406,7 @@ class AcceptanceManager {
         const fileInput = document.getElementById('uploadDocFile');
 
         if (!fileInput.files[0]) {
-            this.showToast('Selecciona un archivo', 'warning');
+            showFlash('warning', 'Selecciona un archivo');
             return;
         }
 
@@ -328,7 +435,7 @@ class AcceptanceManager {
             this.uploadDocModal.hide();
 
             if (result.flash) {
-                result.flash.forEach(f => this.showToast(f.message, f.level));
+                result.flash.forEach(f => showFlash(f.level, f.message));
             }
 
             if (!result.error) {
@@ -337,7 +444,7 @@ class AcceptanceManager {
             }
         } catch (error) {
             console.error('Error uploading doc:', error);
-            this.showToast('Error al subir el documento', 'danger');
+            showFlash('danger', 'Error al subir el documento');
         } finally {
             spinner.classList.add('d-none');
             btn.disabled = false;
@@ -373,12 +480,12 @@ class AcceptanceManager {
         const notes = document.getElementById('reviewReceiptNotes').value.trim();
 
         if (!status) {
-            this.showToast('Selecciona una decision (Aprobar o Rechazar)', 'warning');
+            showFlash('warning', 'Selecciona una decision (Aprobar o Rechazar)');
             return;
         }
 
         if (status === 'rejected' && !notes) {
-            this.showToast('Debes indicar el motivo del rechazo', 'warning');
+            showFlash('warning', 'Debes indicar el motivo del rechazo');
             return;
         }
 
@@ -396,7 +503,7 @@ class AcceptanceManager {
             this.reviewReceiptModal.hide();
 
             if (result.flash) {
-                result.flash.forEach(f => this.showToast(f.message, f.level));
+                result.flash.forEach(f => showFlash(f.level, f.message));
             }
 
             if (!result.error) {
@@ -405,39 +512,233 @@ class AcceptanceManager {
             }
         } catch (error) {
             console.error('Error reviewing receipt:', error);
-            this.showToast('Error al revisar la boleta', 'danger');
+            showFlash('danger', 'Error al revisar la boleta');
         }
     }
 
-    showToast(message, level = 'info') {
-        const toastContainer = document.getElementById('toast-container') || this.createToastContainer();
-        const toastId = `toast-${Date.now()}`;
+    // ─────────────────────────────────────────────────────────────────────
+    // FASE 7: Diferimiento de Inscripción
+    // ─────────────────────────────────────────────────────────────────────
 
-        const toastHtml = `
-            <div id="${toastId}" class="toast align-items-center text-bg-${level} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
+    async loadDeferredTab() {
+        if (!this.currentProgramId) return;
 
-        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-        const toastEl = document.getElementById(toastId);
-        const toast = new bootstrap.Toast(toastEl, { autohide: true, delay: 4000 });
-        toast.show();
+        const deferredTbody = document.querySelector('#deferredTable tbody');
+        const requestsTbody = document.querySelector('#pendingRequestsTable tbody');
+        const deferredCountBadge = document.getElementById('deferredCount');
 
-        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+        if (deferredTbody) deferredTbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>`;
+
+        try {
+            const response = await fetch(`/api/v1/acceptance/program/${this.currentProgramId}/deferred`);
+            const result = await response.json();
+
+            if (result.error) { console.error('Error loading deferred:', result.error); return; }
+
+            const { deferred, pending_requests } = result.data;
+
+            if (deferredCountBadge) deferredCountBadge.textContent = deferred.length;
+
+            // Sección solicitudes pendientes del aspirante
+            const pendingSection = document.getElementById('pendingRequestsSection');
+            const pendingCount = document.getElementById('pendingRequestsCount');
+            if (pendingSection) pendingSection.style.display = pending_requests.length ? '' : 'none';
+            if (pendingCount) pendingCount.textContent = pending_requests.length;
+
+            if (requestsTbody) {
+                if (!pending_requests.length) {
+                    requestsTbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-muted">No hay solicitudes pendientes</td></tr>`;
+                } else {
+                    requestsTbody.innerHTML = pending_requests.map(p => {
+                        const safeName = p.user.full_name.replace(/'/g, "\\'");
+                        const safeReason = (p.deferral.reason || '').replace(/'/g, "\\'");
+                        return `
+                            <tr>
+                                <td>${p.user.full_name}</td>
+                                <td>${p.user.email}</td>
+                                <td class="text-center">#${p.deferral.deferral_number}</td>
+                                <td>${p.deferral.deferred_to_period_name || '<em class="text-muted">Por asignar</em>'}</td>
+                                <td class="fst-italic text-muted">${p.deferral.reason || 'Sin especificar'}</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-primary"
+                                            onclick="acceptanceManager.showReviewDeferralModal(${p.deferral.id}, '${safeName}', ${p.deferral.deferral_number}, '${p.deferral.deferred_to_period_name || ''}', '${safeReason}')">
+                                        <i class="bi bi-eye me-1"></i>Revisar
+                                    </button>
+                                </td>
+                            </tr>`;
+                    }).join('');
+                }
+            }
+
+            if (deferredTbody) {
+                if (!deferred.length) {
+                    deferredTbody.innerHTML = `<tr><td colspan="6" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes con inscripción diferida</p></td></tr>`;
+                } else {
+                    deferredTbody.innerHTML = deferred.map(d => {
+                        const safeName = d.user.full_name.replace(/'/g, "\\'");
+                        const deferral = d.deferral;
+                        const canReactivate = deferral && deferral.deferred_to_period_id;
+                        const deferralsLeft = d.can_defer_again
+                            ? `<span class="badge bg-warning text-dark">${d.deferrals_used}/2 usados</span>`
+                            : `<span class="badge bg-danger">Máximo alcanzado</span>`;
+                        const reactivateBtn = canReactivate
+                            ? `<button class="btn btn-sm btn-success" onclick="acceptanceManager.showReactivateModal(${d.user_program.user_id}, ${d.user_program.program_id}, '${safeName}', '${deferral.deferred_to_period_name || ''}')">
+                                   <i class="bi bi-person-check-fill me-1"></i>Reactivar
+                               </button>`
+                            : `<span class="text-muted small">Sin periodo destino</span>`;
+                        return `
+                            <tr>
+                                <td>${d.user.full_name}</td>
+                                <td>${d.user.email}</td>
+                                <td class="text-center">${deferralsLeft}</td>
+                                <td>${deferral ? (deferral.original_period_name || '-') : '-'}</td>
+                                <td>${deferral ? (deferral.deferred_to_period_name || '<em class="text-muted">Por asignar</em>') : '-'}</td>
+                                <td class="text-center">${reactivateBtn}</td>
+                            </tr>`;
+                    }).join('');
+                }
+            }
+        } catch (error) {
+            console.error('Error loading deferred tab:', error);
+            if (deferredTbody) deferredTbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Error al cargar los datos</td></tr>`;
+        }
     }
 
-    createToastContainer() {
-        const container = document.createElement('div');
-        container.id = 'toast-container';
-        container.className = 'toast-container position-fixed top-0 end-0 p-3';
-        container.style.zIndex = '1100';
-        document.body.appendChild(container);
-        return container;
+    showDeferModal(userId, programId, applicantName) {
+        document.getElementById('deferUserId').value = userId;
+        document.getElementById('deferProgramId').value = programId;
+        document.getElementById('deferApplicantName').textContent = applicantName;
+        document.getElementById('deferReason').value = '';
+        this.deferApplicantModal.show();
     }
+
+    async submitDefer() {
+        const userId = document.getElementById('deferUserId').value;
+        const programId = document.getElementById('deferProgramId').value;
+        const reason = document.getElementById('deferReason').value.trim();
+
+        const btn = document.getElementById('confirmDeferBtn');
+        const spinner = document.getElementById('deferSpinner');
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const response = await fetch(
+                `/api/v1/acceptance/user/${userId}/program/${programId}/defer`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({ reason: reason || null })
+                }
+            );
+            const result = await response.json();
+            this.deferApplicantModal.hide();
+            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
+            if (!result.error) { this.loadStats(); this.loadCurrentTab(); }
+        } catch (error) {
+            console.error('Error deferring applicant:', error);
+            showFlash('danger', 'Error al diferir la inscripción');
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
+    showReviewDeferralModal(deferralId, applicantName, deferralNumber, periodName, reason) {
+        document.getElementById('reviewDeferralId').value = deferralId;
+        document.getElementById('reviewDeferralApplicantName').textContent = applicantName;
+        document.getElementById('reviewDeferralNumber').textContent = `#${deferralNumber}`;
+        document.getElementById('reviewDeferralPeriod').textContent = periodName || 'Por asignar';
+        document.getElementById('reviewDeferralReason').textContent = reason || 'Sin especificar';
+        document.getElementById('reviewDeferralNotes').value = '';
+        document.getElementById('deferralNotesRequired').style.display = 'none';
+        document.querySelectorAll('input[name="reviewDeferralStatus"]').forEach(r => r.checked = false);
+        this.reviewDeferralModal.show();
+    }
+
+    async submitReviewDeferral() {
+        const deferralId = document.getElementById('reviewDeferralId').value;
+        const decision = document.querySelector('input[name="reviewDeferralStatus"]:checked')?.value;
+        const notes = document.getElementById('reviewDeferralNotes').value.trim();
+
+        if (!decision) { showFlash('warning', 'Selecciona una decisión'); return; }
+        if (decision === 'rejected' && !notes) { showFlash('warning', 'Debes indicar el motivo del rechazo'); return; }
+
+        const btn = document.getElementById('confirmReviewDeferralBtn');
+        const spinner = document.getElementById('reviewDeferralSpinner');
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        const endpoint = decision === 'approved'
+            ? `/api/v1/acceptance/deferral/${deferralId}/approve`
+            : `/api/v1/acceptance/deferral/${deferralId}/reject`;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                },
+                body: JSON.stringify({ notes: notes || null })
+            });
+            const result = await response.json();
+            this.reviewDeferralModal.hide();
+            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
+            if (!result.error) this.loadDeferredTab();
+        } catch (error) {
+            console.error('Error reviewing deferral:', error);
+            showFlash('danger', 'Error al procesar la solicitud');
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
+    showReactivateModal(userId, programId, applicantName, periodName) {
+        document.getElementById('reactivateUserId').value = userId;
+        document.getElementById('reactivateProgramId').value = programId;
+        document.getElementById('reactivateApplicantName').textContent = applicantName;
+        document.getElementById('reactivatePeriodName').textContent = periodName || 'Siguiente periodo';
+        this.reactivateModal.show();
+    }
+
+    async submitReactivate() {
+        const userId = document.getElementById('reactivateUserId').value;
+        const programId = document.getElementById('reactivateProgramId').value;
+
+        const btn = document.getElementById('confirmReactivateBtn');
+        const spinner = document.getElementById('reactivateSpinner');
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const response = await fetch(
+                `/api/v1/acceptance/user/${userId}/program/${programId}/reactivate`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                }
+            );
+            const result = await response.json();
+            this.reactivateModal.hide();
+            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
+            if (!result.error) { this.loadStats(); this.loadDeferredTab(); }
+        } catch (error) {
+            console.error('Error reactivating applicant:', error);
+            showFlash('danger', 'Error al reactivar al aspirante');
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
 }
 
 let acceptanceManager;
