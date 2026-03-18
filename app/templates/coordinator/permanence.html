@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% block title %}Permanencia Semestral{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/acceptance.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-12">
+
+      <!-- Header -->
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+        <div>
+          <h1 class="h3 mb-2">
+            <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia Semestral
+          </h1>
+          <p class="text-muted mb-0">Gestiona la inscripcion semestral de los estudiantes activos</p>
+        </div>
+      </div>
+
+      <!-- Selector de programa (si hay más de uno) -->
+      {% if coordinator_programs|length > 1 %}
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Programa</label>
+              <select class="form-select" id="programSelector">
+                {% for program in coordinator_programs %}
+                <option value="{{ program.id }}"
+                  {% if selected_program and program.id == selected_program.id %}selected{% endif %}>
+                  {{ program.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-8">
+              <div id="statsContainer" class="d-flex flex-wrap gap-3 mt-3 mt-md-0">
+                <!-- Stats se cargan por JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <!-- Stats inline cuando solo hay un programa -->
+      <div id="statsContainer" class="d-flex flex-wrap gap-3 mb-4">
+        <!-- Stats se cargan por JS -->
+      </div>
+      {% endif %}
+
+      {% if not active_period %}
+      <!-- Sin periodo activo -->
+      <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+          <strong>Sin periodo académico activo.</strong>
+          Para confirmar inscripciones, primero activa un periodo en
+          <a href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">Configuración → Periodos Académicos</a>.
+        </div>
+      </div>
+      {% else %}
+      <!-- Banner del periodo activo -->
+      <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+        <i class="bi bi-calendar-check-fill fs-5"></i>
+        <div>
+          <strong>Periodo activo:</strong> {{ active_period.name }} ({{ active_period.code }})
+          &nbsp;·&nbsp; {{ active_period.start_date.strftime('%d/%m/%Y') }} – {{ active_period.end_date.strftime('%d/%m/%Y') }}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Tabla de estudiantes -->
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold">Estudiantes Inscritos</span>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="text" id="searchInput" class="form-control form-control-sm"
+              placeholder="Buscar estudiante..." style="width: 200px;">
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div id="loadingSpinner" class="text-center py-5 d-none">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Cargando estudiantes...</p>
+          </div>
+          <div id="emptyState" class="text-center py-5 d-none">
+            <i class="bi bi-people fs-1 text-muted"></i>
+            <p class="text-muted mt-2">No hay estudiantes inscritos en este programa.</p>
+          </div>
+          <div class="table-responsive" id="tableContainer">
+            <table class="table table-hover mb-0" id="studentsTable">
+              <thead class="table-light">
+                <tr>
+                  <th>Estudiante</th>
+                  <th class="text-center">N° Control</th>
+                  <th class="text-center">Semestre</th>
+                  <th class="text-center">Periodo Actual</th>
+                  <th class="text-center">Estado Semestre</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="studentsTableBody">
+                <!-- Filas generadas por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal: Confirmar inscripción semestral -->
+<div class="modal fade" id="confirmEnrollmentModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-check-circle-fill text-success me-2"></i>Confirmar Inscripcion Semestral
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">Estudiante: <strong id="confirmEnrollStudentName"></strong></p>
+        <p class="mb-3">Esto confirmara la inscripcion del estudiante en el semestre actual del periodo activo.</p>
+        <div class="mb-3">
+          <label class="form-label">Notas (opcional)</label>
+          <textarea class="form-control" id="confirmEnrollNotes" rows="2"
+            placeholder="Ej: Pago verificado, boleta recibida..."></textarea>
+        </div>
+        <input type="hidden" id="confirmEnrollUserProgramId">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="confirmEnrollBtn">
+          <i class="bi bi-check-lg me-1"></i>Confirmar Inscripcion
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Actualizar estado -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-pencil-square me-2"></i>Actualizar Estado
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">Estudiante: <strong id="updateStatusStudentName"></strong></p>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Nuevo estado</label>
+          <select class="form-select" id="updateStatusSelect">
+            <option value="active">Activo</option>
+            <option value="completed">Completado</option>
+            <option value="on_leave">Baja temporal</option>
+            <option value="dropped">Baja definitiva</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Notas (opcional)</label>
+          <textarea class="form-control" id="updateStatusNotes" rows="2"></textarea>
+        </div>
+        <input type="hidden" id="updateStatusEnrollmentId">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirmUpdateStatusBtn">
+          <i class="bi bi-save me-1"></i>Guardar Cambio
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ver historial de semestres -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-clock-history me-2"></i>Historial de Semestres
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">Estudiante: <strong id="historyStudentName"></strong></p>
+        <div id="historyContent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const PROGRAM_ID = {{ selected_program.id if selected_program else 'null' }};
+  const ACTIVE_PERIOD_ID = {{ active_period.id if active_period else 'null' }};
+  const ACTIVE_PERIOD_NAME = {{ ('"' + active_period.name + '"') if active_period else 'null' }};
+</script>
+<script src="{{ url_for('static', filename='js/coordinator/permanence.js') }}?v={{ static_version }}"></script>
+{% endblock %}

@@ -28,11 +28,40 @@ def dashboard():
                 "timeline": []
             }
 
+        # Datos de diferimiento cuando el aspirante está en estado 'deferred'
+        deferral_status = None
+        if up and up.admission_status == 'deferred':
+            from app.services.deferral_service import get_deferral_status
+            try:
+                deferral_status = get_deferral_status(up.id)
+            except Exception:
+                deferral_status = None
+
         context = {
             "program": program,
             **adm_state,
             "admission_status": up.admission_status if up else None,
             "user_program_id": up.id if up else None,
+            "deferral_status": deferral_status,
+        }
+
+    # ── Dashboard para STUDENT ───────────────────────────────────
+    elif current_user.role.name == 'student':
+        up = current_user.user_program[0] if current_user.user_program else None
+        program = up.program if up else None
+
+        permanence_data = None
+        if up:
+            from app.services.permanence_service import get_student_permanence
+            try:
+                permanence_data = get_student_permanence(up.id)
+            except Exception:
+                permanence_data = None
+
+        context = {
+            'program': program,
+            'up': up,
+            'permanence_data': permanence_data,
         }
 
     # ── Dashboard para PROGRAM_ADMIN ─────────────────────────────

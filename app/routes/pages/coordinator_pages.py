@@ -75,3 +75,34 @@ def acceptance(program_id=None):
     return render_template('coordinator/acceptance.html',
                            coordinator_programs=coordinator_programs,
                            selected_program=selected_program)
+
+
+@pages_coordinator.route('/permanence')
+@pages_coordinator.route('/permanence/<int:program_id>')
+@login_required
+@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+def permanence(program_id=None):
+    """Vista de permanencia semestral de estudiantes."""
+    from app.models.academic_period import AcademicPeriod
+    if current_user.role.name == 'program_admin':
+        coordinator_programs = Program.query.filter_by(coordinator_id=current_user.id).all()
+    else:
+        coordinator_programs = Program.query.all()
+
+    selected_program = None
+    if program_id:
+        selected_program = Program.query.get_or_404(program_id)
+        if current_user.role.name == 'program_admin' and selected_program.coordinator_id != current_user.id:
+            from flask import abort
+            abort(403)
+    elif coordinator_programs:
+        selected_program = coordinator_programs[0]
+
+    active_period = AcademicPeriod.get_active_period()
+    all_periods = AcademicPeriod.query.order_by(AcademicPeriod.start_date.desc()).all()
+
+    return render_template('coordinator/permanence.html',
+                           coordinator_programs=coordinator_programs,
+                           selected_program=selected_program,
+                           active_period=active_period,
+                           all_periods=all_periods)
