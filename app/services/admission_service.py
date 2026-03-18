@@ -387,6 +387,20 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     
     # ========== FIN NUEVO ==========
 
+    # Documentos de aceptación (solo si está aceptado)
+    acceptance_docs = {}
+    if up.admission_status == 'accepted':
+        try:
+            from app.models.acceptance_document import AcceptanceDocument
+            for doc_type in ['acceptance_letter', 'course_schedule', 'enrollment_receipt']:
+                doc = AcceptanceDocument.query.filter_by(
+                    user_program_id=up.id,
+                    document_type=doc_type
+                ).first()
+                acceptance_docs[doc_type] = doc.to_dict() if doc else None
+        except Exception:
+            pass
+
     return {
         'steps': steps,  # mantener original para compatibilidad
         'processed_steps': processed_steps,  # NUEVO: lista procesada
@@ -401,5 +415,15 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         'pending_items': pending_items,
         'timeline': timeline,
         'extended_docs': status_count.get('extended', 0),  # NUEVO: conteo de archivos con extensión
-        'total_docs': total  # Total de documentos para el progreso
+        'total_docs': total,  # Total de documentos para el progreso
+        # Campos de deliberación para mostrar estado al aspirante
+        'admission_status': up.admission_status,
+        'decision_notes': up.decision_notes,
+        'correction_required': up.correction_required,
+        'rejection_type': up.rejection_type,
+        'deliberation_started_at': up.deliberation_started_at,
+        'decision_at': up.decision_at,
+        # Documentos de aceptación (solo cuando admission_status == 'accepted')
+        'acceptance_docs': acceptance_docs,
+        'user_program_id': up.id,
     }

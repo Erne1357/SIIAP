@@ -107,6 +107,11 @@
           <span class="badge bg-success text-uppercase small">Admin. Programa</span>
           {% elif current_user.role.name == 'postgraduate_admin' %}
           <span class="badge bg-danger text-uppercase small">Admin. Posgrado</span>
+          {% elif current_user.role.name == 'student' %}
+          <span class="badge bg-primary text-uppercase small">Estudiante</span>
+          {% endif %}
+          {% if current_user.role.name == 'student' and current_user.control_number %}
+          <div class="small text-muted">{{ current_user.control_number }}</div>
           {% endif %}
         </div>
       </div>
@@ -166,12 +171,20 @@
         </a>
         <a class="nav-link {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
           href="{{ url_for('pages_coordinator.acceptance') }}">
-          <i class="fas fa-file-check me-2"></i>Aceptación
+          <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación
         </a>
         {% endif %}
-        <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}">
-          <i class="fas fa-calendar-alt me-2"></i>Permanencia
+        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+        <a class="nav-link {% if request.endpoint=='pages_coordinator.permanence' %}active{% endif %}"
+          href="{{ url_for('pages_coordinator.permanence') }}">
+          <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia
         </a>
+        {% elif current_user.role.name == 'student' %}
+        <a class="nav-link {% if request.endpoint=='pages_user.dashboard' %}active{% endif %}"
+          href="{{ url_for('pages_user.dashboard') }}">
+          <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia
+        </a>
+        {% endif %}
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
         <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
           href="{{ url_for('pages_admin.pages_review.index') }}">
@@ -215,6 +228,10 @@
               href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">
               <i class="fas fa-calendar-alt me-2"></i>Periodos Academicos
             </a>
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.celery_worker' %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_settings.celery_worker') }}">
+              <i class="fas fa-robot me-2"></i>Tareas programadas
+            </a>
             {% endif %}
           </div>
         </div>
@@ -246,6 +263,11 @@
             <span class="badge bg-success text-uppercase small">Admin. Programa</span>
             {% elif current_user.role.name == 'postgraduate_admin' %}
             <span class="badge bg-danger text-uppercase small">Admin. Posgrado</span>
+            {% elif current_user.role.name == 'student' %}
+            <span class="badge bg-primary text-uppercase small">Estudiante</span>
+            {% endif %}
+            {% if current_user.role.name == 'student' and current_user.control_number %}
+            <div class="small text-muted">{{ current_user.control_number }}</div>
             {% endif %}
           </div>
         </div>
@@ -300,10 +322,17 @@
             <i class="fas fa-gavel me-2"></i>Deliberación</a>
           <a class="nav-link {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
             href="{{ url_for('pages_coordinator.acceptance') }}">
-            <i class="fas fa-file-check me-2"></i>Aceptación</a>
+            <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación</a>
           {% endif %}
-          <a class="nav-link {% if request.endpoint=='user.permanence' %}active{% endif %}">
-            <i class="fas fa-calendar-alt me-2"></i>Permanencia</a>
+          {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+          <a class="nav-link {% if request.endpoint=='pages_coordinator.permanence' %}active{% endif %}"
+            href="{{ url_for('pages_coordinator.permanence') }}">
+            <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia</a>
+          {% elif current_user.role.name == 'student' %}
+          <a class="nav-link {% if request.endpoint=='pages_user.dashboard' %}active{% endif %}"
+            href="{{ url_for('pages_user.dashboard') }}">
+            <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia</a>
+          {% endif %}
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
           <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
             href="{{ url_for('pages_admin.pages_review.index') }}">
@@ -348,6 +377,10 @@
                 href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">
                 <i class="fas fa-calendar-alt me-2"></i>Periodos Academicos
               </a>
+              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.celery_worker' %}active{% endif %}"
+                href="{{ url_for('pages_admin.pages_settings.celery_worker') }}">
+                <i class="fas fa-robot me-2"></i>Tareas programadas
+              </a>
               {% endif %}
             </div>
           </div>
@@ -368,12 +401,11 @@
     <main class="flex-grow-1 p-3 p-md-4" id="main-content">
       {% block content %}{% endblock %}
     </main>
-    {% block scripts %}{% endblock %}
   </div>
 
   <!-- FOOTER -->
   <footer>
-    <small>&copy; 2025 SIIAP. Todos los derechos reservados.</small>
+    <small>&copy; 2026 SIIAP. Todos los derechos reservados.</small>
   </footer>
 
   <!-- Dropdown de notificaciones (compartido entre header y FAB) -->
@@ -691,6 +723,8 @@
     });
   </script>
 
+  <!-- Scripts de página: se insertan aquí para que Bootstrap ya esté disponible -->
+  {% block scripts %}{% endblock %}
 
 </body>
 

@@ -35,6 +35,10 @@ def create_app(test_config=None):
     from app.routes.pages import register_page_blueprints
     register_api_blueprints(app)
     register_page_blueprints(app)
+    
+    # Inicializar Celery (evita ciclos de importación al no crear otra app)
+    from app.celery_app import init_celery
+    init_celery(app)
 
     # Socket.IO
     # Intentar usar Redis como message broker (requerido con múltiples workers).

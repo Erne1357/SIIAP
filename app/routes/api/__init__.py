@@ -32,7 +32,9 @@ def register_api_blueprints(app):
     from app.routes.api.academic_period_api import api_academic_periods
     from app.routes.api.deliberation_api import api_deliberation
     from app.routes.api.acceptance_api import api_acceptance
+    from app.routes.api.permanence_api import api_permanence
     from app.routes.api.health_api import api_health
+    from app.routes.api.admin.celery_api import api_celery_admin
 
     blueprints = [
         # Auth
@@ -56,10 +58,12 @@ def register_api_blueprints(app):
         api_academic_periods,
         api_deliberation,
         api_acceptance,
+        api_permanence,
         # Admin
         api_review,
         api_admin_users,
         api_admin_history,
+        api_celery_admin,
         # Sistema
         api_notifications,
         api_emails,

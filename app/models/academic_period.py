@@ -41,6 +41,7 @@ class AcademicPeriod(db.Model):
     # Relaciones inversas
     submissions = db.relationship('Submission', back_populates='academic_period', lazy='dynamic')
     user_programs = db.relationship('UserProgram', back_populates='admission_period', lazy='dynamic')
+    semester_enrollments = db.relationship('SemesterEnrollment', back_populates='academic_period', lazy='dynamic')
 
     def to_dict(self):
         return {

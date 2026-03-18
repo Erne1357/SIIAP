@@ -17,3 +17,6 @@ from .retention_policy import RetentionPolicy
 from .term import Term
 from .academic_period import AcademicPeriod
 from .acceptance_document import AcceptanceDocument
+from .semester_enrollment import SemesterEnrollment
+from .task_log import TaskLog
+from .enrollment_deferral import EnrollmentDeferral

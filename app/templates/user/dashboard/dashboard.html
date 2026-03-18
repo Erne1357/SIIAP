@@ -16,6 +16,8 @@
 
   {% if current_user.role.name == 'applicant' %}
     {% include 'user/dashboard/applicant_dashboard.html' %}
+  {% elif current_user.role.name == 'student' %}
+    {% include 'user/dashboard/student_dashboard.html' %}
   {% elif current_user.role.name == 'program_admin' %}
     {% include 'user/dashboard/program_admin_dashboard.html' %}
   {% elif current_user.role.name == 'postgraduate_admin' %}

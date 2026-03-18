@@ -59,3 +59,11 @@ def config_program(slug):
 def academic_periods():
     """Gestión de periodos académicos."""
     return render_template('admin/settings/academic_periods.html')
+
+
+@pages_settings.route('/worker', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin')
+def celery_worker():
+    """Panel de monitoreo y control del worker Celery."""
+    return render_template('admin/settings/celery_worker.html')

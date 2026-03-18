@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, jsonify, flash
 from flask_login import login_required
 from app.utils.auth import roles_required
 from app.utils.ms_graph import build_auth_url, process_auth_code, clear_account_and_cache, read_account_info
@@ -25,8 +25,11 @@ def email_config():
 @roles_required('postgraduate_admin', 'program_admin')
 def ms_login():
     """Inicia el flujo de autenticación con Microsoft"""
-    state = "email_config"
-    return redirect(build_auth_url(state))
+    try:
+        return redirect(build_auth_url("email_config"))
+    except RuntimeError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('pages_emails.email_config'))
 
 
 @pages_emails.route('/emails/callback')

@@ -929,6 +929,24 @@ class UserHistoryService:
         'archive_updated': 'Modificó configuración de archivo',
         'archive_deleted': 'Eliminó archivo/documento',
         'template_uploaded': 'Subió plantilla para archivo',
+
+        # ACCIONES DE DELIBERACIÓN (se guardan en el historial del aspirante/coordinador)
+        'deliberation_started': 'Inició proceso de deliberación',
+        'admission_accepted': 'Aceptó aspirante al programa',
+        'admission_rejected': 'Rechazó aspirante del programa',
+        'correction_requested': 'Solicitó correcciones al aspirante',
+        'admission_reset': 'Reinició estado de admisión a en proceso',
+
+        # ACCIONES DE ACEPTACIÓN E INSCRIPCIÓN (Fase 4)
+        'acceptance_docs_uploaded': 'Subió carta de aceptación y tira de materias',
+        'acceptance_doc_deleted': 'Eliminó documento de aceptación',
+        'enrollment_receipt_submitted': 'Subió carta de asignación de número de control',
+        'enrollment_receipt_approved': 'Aprobó carta de asignación de número de control',
+        'enrollment_receipt_rejected': 'Rechazó carta de asignación de número de control',
+
+        # ACCIONES DE PERMANENCIA SEMESTRAL (Fase 6)
+        'semester_enrollment_confirmed': 'Confirmó inscripción semestral del estudiante',
+        'semester_enrollment_status_updated': 'Actualizó estado de inscripción semestral',
     }
 
     @staticmethod
