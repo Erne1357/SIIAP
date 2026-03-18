@@ -1,0 +1,500 @@
+{% extends "base.html" %}
+
+{% block title %}{{ super() }} - Worker Celery{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/admin/settings/celery_worker.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
+
+  {# ── Cabecera ──────────────────────────────────────────────────────────── #}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-0">
+        <i class="bi bi-cpu me-2"></i>Worker Celery
+      </h2>
+      <p class="text-muted small mb-0 mt-1">
+        Monitoreo, historial y configuración de tareas asíncronas
+      </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      {# Badge de estado en vivo #}
+      <span id="workerStatusBadge" class="badge rounded-pill bg-secondary fs-6 px-3 py-2">
+        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+        Verificando…
+      </span>
+      <button class="btn btn-outline-secondary btn-sm" id="btnRefreshStatus" title="Actualizar estado">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+  </div>
+
+  {# ── Tarjetas de resumen ───────────────────────────────────────────────── #}
+  <div class="row g-3 mb-4" id="summaryCards">
+    <div class="col-6 col-md-3">
+      <div class="card text-center h-100 border-0 shadow-sm">
+        <div class="card-body py-3">
+          <div class="fs-3 fw-bold text-success" id="cardActive">—</div>
+          <div class="text-muted small">Tareas activas</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center h-100 border-0 shadow-sm">
+        <div class="card-body py-3">
+          <div class="fs-3 fw-bold text-primary" id="cardWorkers">—</div>
+          <div class="text-muted small">Workers online</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center h-100 border-0 shadow-sm">
+        <div class="card-body py-3">
+          <div class="fs-3 fw-bold text-info" id="cardSuccess">—</div>
+          <div class="text-muted small">Exitosas (total)</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center h-100 border-0 shadow-sm">
+        <div class="card-body py-3">
+          <div class="fs-3 fw-bold text-danger" id="cardFailures">—</div>
+          <div class="text-muted small">Fallidas (total)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Tabs principales ──────────────────────────────────────────────────── #}
+  <ul class="nav nav-tabs mb-0" id="workerTabs" role="tablist">
+    <li class="nav-item">
+      <button class="nav-link active" id="tab-historial" data-bs-toggle="tab"
+              data-bs-target="#paneHistorial" type="button">
+        <i class="bi bi-clock-history me-1"></i> Historial
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" id="tab-schedules" data-bs-toggle="tab"
+              data-bs-target="#paneSchedules" type="button">
+        <i class="bi bi-calendar-check me-1"></i> Tareas programadas
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" id="tab-manual" data-bs-toggle="tab"
+              data-bs-target="#paneManual" type="button">
+        <i class="bi bi-play-circle me-1"></i> Ejecución manual
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content bg-white border border-top-0 rounded-bottom shadow-sm p-4">
+
+    {# ══════════════════════════════════════════════════════════════════════
+       TAB 1: HISTORIAL
+    ══════════════════════════════════════════════════════════════════════ #}
+    <div class="tab-pane fade show active" id="paneHistorial" role="tabpanel">
+
+      {# Filtros #}
+      <div class="row g-2 mb-3">
+        <div class="col-sm-4 col-md-3">
+          <select class="form-select form-select-sm" id="filterStatus">
+            <option value="">Todos los estados</option>
+            <option value="success">Exitosas</option>
+            <option value="failure">Fallidas</option>
+            <option value="started">En ejecución</option>
+            <option value="retry">Reintentando</option>
+            <option value="pending">Pendientes</option>
+          </select>
+        </div>
+        <div class="col-sm-4 col-md-3">
+          <select class="form-select form-select-sm" id="filterTriggeredBy">
+            <option value="">Cualquier origen</option>
+            <option value="scheduled">Programadas</option>
+            <option value="manual">Manuales</option>
+          </select>
+        </div>
+        <div class="col-sm-4 col-md-3">
+          <select class="form-select form-select-sm" id="filterTaskName">
+            <option value="">Todas las tareas</option>
+            <option value="app.tasks.maintenance.cleanup_expired_admission_files">Limpieza archivos expirados</option>
+            <option value="app.tasks.maintenance.apply_retention_policies">Retención</option>
+            <option value="app.tasks.maintenance.cleanup_old_notifications">Notificaciones antiguas</option>
+            <option value="app.tasks.notifications.send_bulk_notification">Envío masivo</option>
+            <option value="app.tasks.notifications.send_bulk_notification_by_filter">Envío por filtro</option>
+          </select>
+        </div>
+        <div class="col-sm-12 col-md-3 d-flex gap-2">
+          <button class="btn btn-sm btn-primary flex-fill" id="btnApplyFilters">
+            <i class="bi bi-funnel me-1"></i> Filtrar
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="btnClearFilters" title="Limpiar filtros">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      {# Tabla de historial #}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:180px">Tarea</th>
+              <th style="width:100px">Estado</th>
+              <th style="width:100px">Origen</th>
+              <th style="width:150px">Inicio</th>
+              <th style="width:90px">Duración</th>
+              <th>Resultado / Error</th>
+            </tr>
+          </thead>
+          <tbody id="historialBody">
+            <tr>
+              <td colspan="6" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="text-muted mt-2 mb-0">Cargando historial…</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {# Paginación #}
+      <div class="d-flex justify-content-between align-items-center mt-2" id="historialPagination">
+        <small class="text-muted" id="historialInfo"></small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0" id="historialPages"></ul>
+        </nav>
+      </div>
+
+      {# Live feed — aparece cuando hay eventos WS #}
+      <div class="mt-4" id="liveFeedSection" style="display:none!important">
+        <h6 class="text-muted mb-2">
+          <i class="bi bi-broadcast me-1 text-success"></i> Actividad en vivo
+        </h6>
+        <div id="liveFeed" class="live-feed border rounded p-2"></div>
+      </div>
+    </div>
+
+    {# ══════════════════════════════════════════════════════════════════════
+       TAB 2: TAREAS PROGRAMADAS
+    ══════════════════════════════════════════════════════════════════════ #}
+    <div class="tab-pane fade" id="paneSchedules" role="tabpanel">
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <p class="text-muted small mb-0">
+          Los cambios se aplican en el próximo tick de Celery Beat sin necesidad de reiniciar.
+        </p>
+        <button class="btn btn-sm btn-outline-secondary" id="btnRefreshSchedules">
+          <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+        </button>
+      </div>
+
+      <div id="schedulesLoading" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="text-muted mt-2">Cargando schedules…</p>
+      </div>
+
+      <div class="table-responsive d-none" id="schedulesTableWrapper">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Nombre</th>
+              <th>Tarea</th>
+              <th>Schedule</th>
+              <th style="width:110px">Última ejecución</th>
+              <th style="width:80px">Total</th>
+              <th style="width:80px">Estado</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="schedulesBody"></tbody>
+        </table>
+      </div>
+
+      <div class="alert alert-warning d-none" id="schedulesError">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <span id="schedulesErrorMsg"></span>
+      </div>
+    </div>
+
+    {# ══════════════════════════════════════════════════════════════════════
+       TAB 3: EJECUCIÓN MANUAL
+    ══════════════════════════════════════════════════════════════════════ #}
+    <div class="tab-pane fade" id="paneManual" role="tabpanel">
+
+      <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle me-2"></i>
+        Las tareas se encolan inmediatamente y se ejecutan en el worker. Puedes seguir
+        el progreso en la pestaña <strong>Historial</strong>.
+      </div>
+
+      {# Tareas de mantenimiento #}
+      <h5 class="mb-3">
+        <i class="bi bi-tools me-2 text-muted"></i>Tareas de mantenimiento
+      </h5>
+      <div class="row g-3 mb-4">
+
+        {# Cleanup expired files #}
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-2">
+                <span class="task-icon bg-warning-subtle text-warning rounded-circle me-3">
+                  <i class="bi bi-trash3"></i>
+                </span>
+                <h6 class="card-title mb-0">Limpieza de archivos expirados</h6>
+              </div>
+              <p class="card-text text-muted small">
+                Elimina archivos físicos de procesos de admisión cuya fecha límite ya pasó
+                y marca las submissions como expiradas.
+              </p>
+              <p class="card-text small text-muted">
+                <i class="bi bi-clock me-1"></i>Programada: diario 02:00
+              </p>
+            </div>
+            <div class="card-footer bg-transparent border-0 pt-0">
+              <button class="btn btn-warning w-100 btn-run-task"
+                      data-task-key="cleanup_expired_admission_files"
+                      data-task-name="Limpieza de archivos expirados">
+                <i class="bi bi-play-fill me-1"></i> Ejecutar ahora
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {# Apply retention policies #}
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-2">
+                <span class="task-icon bg-primary-subtle text-primary rounded-circle me-3">
+                  <i class="bi bi-shield-lock"></i>
+                </span>
+                <h6 class="card-title mb-0">Aplicar políticas de retención</h6>
+              </div>
+              <p class="card-text text-muted small">
+                Purga archivos de usuarios según las políticas configuradas en RetentionPolicy
+                (antigüedad y estado del proceso).
+              </p>
+              <p class="card-text small text-muted">
+                <i class="bi bi-clock me-1"></i>Programada: lunes 03:00
+              </p>
+            </div>
+            <div class="card-footer bg-transparent border-0 pt-0">
+              <button class="btn btn-primary w-100 btn-run-task"
+                      data-task-key="apply_retention_policies"
+                      data-task-name="Aplicar políticas de retención">
+                <i class="bi bi-play-fill me-1"></i> Ejecutar ahora
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {# Cleanup old notifications #}
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-2">
+                <span class="task-icon bg-info-subtle text-info rounded-circle me-3">
+                  <i class="bi bi-bell-slash"></i>
+                </span>
+                <h6 class="card-title mb-0">Limpiar notificaciones antiguas</h6>
+              </div>
+              <p class="card-text text-muted small">
+                Marca como eliminadas (soft delete) las notificaciones leídas con más
+                de N días de antigüedad.
+              </p>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Días de antigüedad</label>
+                <input type="number" class="form-control form-control-sm" id="notifDays"
+                       value="30" min="1" max="365">
+              </div>
+            </div>
+            <div class="card-footer bg-transparent border-0 pt-0">
+              <button class="btn btn-info w-100 btn-run-task"
+                      data-task-key="cleanup_old_notifications"
+                      data-task-name="Limpiar notificaciones antiguas"
+                      id="btnCleanupNotif">
+                <i class="bi bi-play-fill me-1"></i> Ejecutar ahora
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Envío masivo de notificaciones #}
+      <h5 class="mb-3">
+        <i class="bi bi-megaphone me-2 text-muted"></i>Envío masivo de notificaciones
+      </h5>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <form id="formBulkNotif">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">Destinatarios</label>
+                <select class="form-select" id="bulkFilterType" required>
+                  <option value="">— Seleccionar —</option>
+                  <option value="all">Todos los usuarios activos</option>
+                  <option value="role">Por rol</option>
+                  <option value="program">Por programa</option>
+                  <option value="process">Por estado de proceso</option>
+                </select>
+              </div>
+              <div class="col-md-4" id="bulkFilterValueWrapper" style="display:none">
+                <label class="form-label" id="bulkFilterValueLabel">Valor del filtro</label>
+                <input type="text" class="form-control" id="bulkFilterValue"
+                       placeholder="Ej: applicant, in_progress…">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Prioridad</label>
+                <select class="form-select" id="bulkPriority">
+                  <option value="low">Baja</option>
+                  <option value="medium" selected>Media</option>
+                  <option value="high">Alta</option>
+                  <option value="critical">Crítica</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Título</label>
+                <input type="text" class="form-control" id="bulkTitle"
+                       placeholder="Ej: Recordatorio de fecha límite" maxlength="120" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">URL de acción <span class="text-muted small">(opcional)</span></label>
+                <input type="text" class="form-control" id="bulkActionUrl"
+                       placeholder="Ej: /user/dashboard">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Mensaje</label>
+                <textarea class="form-control" id="bulkMessage" rows="3"
+                          placeholder="Texto del mensaje que recibirá el usuario…" required></textarea>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="card-footer bg-transparent border-top d-flex justify-content-end gap-2">
+          <button type="button" class="btn btn-outline-secondary" id="btnResetBulk">
+            <i class="bi bi-x-circle me-1"></i> Limpiar
+          </button>
+          <button type="button" class="btn btn-success" id="btnSendBulk">
+            <i class="bi bi-send me-1"></i> Encolar envío masivo
+          </button>
+        </div>
+      </div>
+
+    </div>{# /paneManual #}
+
+  </div>{# /tab-content #}
+
+</div>{# /container #}
+
+
+{% endblock %}
+
+{% block modals %}
+{# ══════════════════════════════════════════════════════════════════════════
+   MODAL: EDITAR SCHEDULE
+══════════════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="modalEditSchedule" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-calendar-event me-2"></i>Editar schedule
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Los cambios se aplican en el próximo tick de Celery Beat
+          <strong>sin reiniciar el contenedor</strong>.
+        </p>
+        <input type="hidden" id="editScheduleName">
+
+        <div class="mb-3">
+          <label class="form-label">Nombre de la entrada</label>
+          <input type="text" class="form-control" id="editScheduleLabel" disabled>
+        </div>
+
+        <hr class="my-3">
+        <h6 class="mb-3">Expresión cron</h6>
+
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label small">Minuto</label>
+            <input type="text" class="form-control form-control-sm" id="editCronMinute"
+                   placeholder="0-59 o *">
+          </div>
+          <div class="col">
+            <label class="form-label small">Hora</label>
+            <input type="text" class="form-control form-control-sm" id="editCronHour"
+                   placeholder="0-23 o *">
+          </div>
+          <div class="col">
+            <label class="form-label small">Día semana</label>
+            <input type="text" class="form-control form-control-sm" id="editCronDow"
+                   placeholder="0-6 o *">
+          </div>
+          <div class="col">
+            <label class="form-label small">Día mes</label>
+            <input type="text" class="form-control form-control-sm" id="editCronDom"
+                   placeholder="1-31 o *">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="editEnabled">
+            <label class="form-check-label" for="editEnabled">Tarea habilitada</label>
+          </div>
+        </div>
+
+        <div class="alert alert-warning d-none" id="editScheduleAlert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveSchedule">
+          <i class="bi bi-check-lg me-1"></i> Guardar cambios
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════
+   MODAL: CONFIRMACIÓN EJECUCIÓN MANUAL
+══════════════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="modalConfirmRun" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">
+          <i class="bi bi-play-circle me-2 text-success"></i>Confirmar ejecución
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>¿Ejecutar <strong id="confirmTaskName"></strong> ahora?</p>
+        <p class="text-muted small">La tarea se encola inmediatamente en el worker.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm btn-success" id="btnConfirmRunTask">
+          <i class="bi bi-play-fill me-1"></i> Sí, ejecutar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CSRF_TOKEN    = "{{ csrf_token() }}";
+  const API_BASE      = "/api/admin/worker";
+  const SOCKET_NS     = "/worker";
+</script>
+<script src="{{ url_for('static', filename='js/admin/settings/celery_worker.js') }}?v={{ static_version }}"></script>
+{% endblock %}
