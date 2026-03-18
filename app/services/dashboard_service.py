@@ -21,10 +21,10 @@ class DashboardService:
         Returns:
             dict con métricas de admisión
         """
-        # Total de solicitantes (applicants con status pending o active en este programa)
+        # Total de solicitantes activos en este programa (no rechazados ni expirados)
         total_applicants = db.session.query(func.count(UserProgram.user_id)).filter(
             UserProgram.program_id == program_id,
-            UserProgram.status.in_(['pending', 'active'])
+            UserProgram.admission_status.notin_(['rejected', 'expired'])
         ).scalar() or 0
 
         # Documentos pendientes de revisión (submissions con status 'review')
@@ -42,7 +42,7 @@ class DashboardService:
 
         applicants = db.session.query(UserProgram).filter(
             UserProgram.program_id == program_id,
-            UserProgram.status == 'pending'
+            UserProgram.admission_status.in_(['in_progress', 'interview_completed', 'deliberation'])
         ).all()
 
         for applicant in applicants:
@@ -107,14 +107,14 @@ class DashboardService:
         # Total de programas activos
         total_programs = db.session.query(func.count(Program.id)).scalar() or 0
 
-        # Total de solicitantes en todos los programas
+        # Total de solicitantes activos en todos los programas (no rechazados ni expirados)
         total_applicants = db.session.query(func.count(UserProgram.id)).filter(
-            UserProgram.status.in_(['pending', 'active'])
+            UserProgram.admission_status.notin_(['rejected', 'expired'])
         ).scalar() or 0
 
-        # Total de estudiantes activos
+        # Total de estudiantes inscritos
         total_students = db.session.query(func.count(UserProgram.id)).filter(
-            UserProgram.status == 'active'
+            UserProgram.admission_status == 'enrolled'
         ).scalar() or 0
 
         # Documentos pendientes de revisión globalmente
@@ -133,7 +133,7 @@ class DashboardService:
         for program in programs:
             applicants_count = db.session.query(func.count(UserProgram.user_id)).filter(
                 UserProgram.program_id == program.id,
-                UserProgram.status.in_(['pending', 'active'])
+                UserProgram.admission_status.notin_(['rejected', 'expired'])
             ).scalar() or 0
 
             pending_docs = db.session.query(func.count(Submission.id)).join(
@@ -217,10 +217,10 @@ class DashboardService:
                 'in_process': 0
             }
 
-        # Total de solicitantes en los programas seleccionados
+        # Total de solicitantes activos en los programas seleccionados (no rechazados ni expirados)
         total_applicants = db.session.query(func.count(UserProgram.user_id)).filter(
             UserProgram.program_id.in_(program_ids),
-            UserProgram.status.in_(['pending', 'active'])
+            UserProgram.admission_status.notin_(['rejected', 'expired'])
         ).scalar() or 0
 
         # Documentos pendientes de revisión en todos los programas
@@ -245,7 +245,7 @@ class DashboardService:
         for program_id in program_ids:
             applicants = db.session.query(UserProgram).filter(
                 UserProgram.program_id == program_id,
-                UserProgram.status == 'pending'
+                UserProgram.admission_status.in_(['in_progress', 'interview_completed', 'deliberation'])
             ).all()
 
             for applicant in applicants:

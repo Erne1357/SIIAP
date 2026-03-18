@@ -29,8 +29,8 @@ class RetentionService:
                 threshold = now - timedelta(days=pol.keep_years*365)
                 q = q.filter(UserProgram.enrollment_date <= threshold)
             else:
-                # En esta versión mínima, asumimos que el estado final (graduated/dropped)
-                # quedó invertido en user_program.status. Filtra por antigüedad general del archivo.
+                # En esta versión mínima, filtra por antigüedad general del archivo
+                # (el estado final se controla con admission_status).
                 threshold = now - timedelta(days=pol.keep_years*365)
                 q = q.filter(Submission.upload_date <= threshold)
 

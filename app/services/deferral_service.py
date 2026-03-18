@@ -592,7 +592,6 @@ def check_and_expire_deferrals() -> dict:
         total_used = _count_active_or_used_deferrals(up.id)
         if total_used >= MAX_DEFERRALS:
             up.admission_status = 'expired'
-            up.status = 'expired'
 
         NotificationService.create_notification(
             user_id=up.user_id,
