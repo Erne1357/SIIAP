@@ -22,7 +22,6 @@ class UserProgram(db.Model):
     program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False)
     enrollment_date = db.Column(db.DateTime, default=now_local)
     current_semester = db.Column(db.Integer)
-    status = db.Column(db.String(50), nullable=False, default='active')
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     # Relacion con periodo de admision
@@ -45,15 +44,22 @@ class UserProgram(db.Model):
     admission_period = db.relationship('AcademicPeriod', back_populates='user_programs')
     decision_maker = db.relationship('User', foreign_keys=[decision_by])
     acceptance_documents = db.relationship('AcceptanceDocument', back_populates='user_program', lazy='dynamic')
+    semester_enrollments = db.relationship('SemesterEnrollment', back_populates='user_program', lazy='dynamic', order_by='SemesterEnrollment.semester_number')
+    enrollment_deferrals = db.relationship('EnrollmentDeferral', back_populates='user_program', lazy='dynamic', order_by='EnrollmentDeferral.deferral_number')
     
     def to_dict(self, include_deliberation=False):
+        # Derivar current_semester del ultimo SemesterEnrollment confirmado.
+        # Si no existen registros aun (pre-Fase 6), se usa el valor en columna
+        # (= 1, asignado al momento de la transicion a estudiante).
+        last_se = self.semester_enrollments.order_by(db.text('semester_number DESC')).first()
+        current_sem = last_se.semester_number if last_se else self.current_semester
+
         data = {
             'id': self.id,
             'user_id': self.user_id,
             'program_id': self.program_id,
             'enrollment_date': self.enrollment_date.isoformat() if self.enrollment_date else None,
-            'current_semester': self.current_semester,
-            'status': self.status,
+            'current_semester': current_sem,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'admission_period_id': self.admission_period_id,
             'admission_status': self.admission_status

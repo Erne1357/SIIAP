@@ -102,7 +102,6 @@ class ProgramChangesService:
                     user_id=src.user_id,
                     archive_id=to_archive.id,
                     program_step_id=dest_ps.id,
-                    period=src.period,
                     semester=src.semester,
                     review_date=src.review_date,
                     reviewer_id=src.reviewer_id,

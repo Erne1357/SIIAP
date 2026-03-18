@@ -4,7 +4,6 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import Program, Archive, Submission, UserProgram, ProgramStep
 from app.utils.files import save_user_doc
-from app.utils.utils import getPeriod
 from app.services.admission_service import get_admission_state
 from app.services.user_history_service import UserHistoryService
 import logging
@@ -95,7 +94,6 @@ def upload_submission():
         archive_id=archive.id,
         program_step_id=ps.id,
         file_path=rel,
-        period=getPeriod(),
         semester=0,
         uploaded_by=current_user.id,
         uploaded_by_role=current_user.role.name,

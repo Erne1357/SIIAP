@@ -48,19 +48,27 @@ def cleanup_expired_admission_files(self):
     logger.info("[cleanup_expired_admission_files] Iniciando limpieza de archivos expirados...")
 
     try:
-        # Obtiene procesos de admisión en estado 'in_progress' cuya fecha límite
-        # ya pasó. Ajusta esta query según el modelo real de tu proyecto.
-        expired_programs = UserProgram.query.filter(
-            UserProgram.status == 'in_progress',
-            UserProgram.deadline < datetime.utcnow(),
-        ).all()
+        # Obtiene procesos de admisión activos cuya fecha de cierre de admisión
+        # del periodo ya pasó.
+        # TODO: refinar el join con AcademicPeriod.admission_end_date para
+        # determinar la fecha límite real del proceso.
+        from app.models.academic_period import AcademicPeriod
+        expired_programs = (
+            UserProgram.query
+            .join(AcademicPeriod, UserProgram.admission_period_id == AcademicPeriod.id)
+            .filter(
+                UserProgram.admission_status.in_(['in_progress', 'interview_completed', 'deliberation']),
+                AcademicPeriod.admission_end_date < datetime.utcnow(),
+            )
+            .all()
+        )
 
         deleted_files = 0
         marked_expired = 0
 
         for up in expired_programs:
-            # Marca el proceso como expirado
-            up.status = 'expired'
+            # Marca el proceso como expirado (admission_status es la fuente de verdad)
+            up.admission_status = 'expired'
             marked_expired += 1
 
             # Obtiene todos los documentos subidos en este proceso
@@ -132,11 +140,12 @@ def apply_retention_policies(self):
 
             cutoff_date = datetime.utcnow() - timedelta(days=policy.keep_years * 365)
 
-            # Encuentra UserPrograms con el evento de apply_after anterior al cutoff
-            # Ajusta el campo de fecha según tu modelo real.
+            # Encuentra UserPrograms con admission_status igual a apply_after
+            # (ej: 'rejected', 'enrolled') cuyo updated_at sea anterior al cutoff.
+            # Nota: UserProgram no tiene archive_id directamente; se filtra por
+            # submissions que pertenezcan al archive de la política.
             expired_ups = UserProgram.query.filter(
-                UserProgram.archive_id == policy.archive_id,
-                UserProgram.status == policy.apply_after,
+                UserProgram.admission_status == policy.apply_after,
                 UserProgram.updated_at < cutoff_date,
             ).all()
 
@@ -199,4 +208,41 @@ def cleanup_old_notifications(self, days: int = 30):
     except Exception as exc:
         db.session.rollback()
         logger.error(f"[cleanup_old_notifications] Error: {exc}", exc_info=True)
+        raise self.retry(exc=exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. EXPIRACIÓN DE DIFERIMIENTOS Y NOTIFICACIONES DE VENCIMIENTO PRÓXIMO
+# ─────────────────────────────────────────────────────────────────────────────
+
+@celery.task(
+    name='app.tasks.maintenance.check_deferral_expirations',
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def check_deferral_expirations(self):
+    """
+    Revisa diferimientos activos:
+    - Marca como 'expired' los cuyo periodo diferido ya terminó.
+    - Envía notificación 30 días antes del vencimiento (una sola vez).
+    - Si el aspirante agotó sus diferimientos y el periodo expiró,
+      cambia admission_status a 'expired'.
+
+    Programada diariamente a las 08:00.
+    """
+    from app.services.deferral_service import check_and_expire_deferrals
+
+    logger.info("[check_deferral_expirations] Revisando diferimientos...")
+
+    try:
+        result = check_and_expire_deferrals()
+        logger.info(
+            f"[check_deferral_expirations] Completado. "
+            f"Expirados: {result['expired']}, notificaciones enviadas: {result['notified']}"
+        )
+        return result
+
+    except Exception as exc:
+        logger.error(f"[check_deferral_expirations] Error: {exc}", exc_info=True)
         raise self.retry(exc=exc)

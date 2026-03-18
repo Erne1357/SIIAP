@@ -16,7 +16,6 @@ class Submission(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     archive_id = db.Column(db.Integer,db.ForeignKey('archive.id') , nullable = False)
     program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id') , nullable = False)
-    period = db.Column(db.String(50), nullable=True)  # Deprecado, usar academic_period_id
     semester = db.Column(db.Integer, nullable=True)
     academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
@@ -31,14 +30,13 @@ class Submission(db.Model):
     uploader = db.relationship('User', foreign_keys=[uploaded_by], viewonly=True)
     academic_period = db.relationship('AcademicPeriod', back_populates='submissions')
 
-    def __init__(self, file_path, status, user_id, archive_id, program_step_id, period, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
+    def __init__(self, file_path, status, user_id, archive_id, program_step_id, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
         self.file_path = file_path
         self.status = status
         self.user_id = user_id
         self.archive_id = archive_id
         self.program_step_id = program_step_id
         self.review_date = review_date
-        self.period = period
         self.semester = semester
         self.reviewer_id = reviewer_id
         self.reviewer_comment = reviewer_comment
@@ -60,7 +58,6 @@ class Submission(db.Model):
             'user_id': self.user_id,
             'archive_id': self.archive_id,
             'program_step_id': self.program_step_id,
-            'period': self.period,
             'semester': self.semester,
             'academic_period_id': self.academic_period_id,
             'uploaded_by': self.uploaded_by,
