@@ -14,14 +14,12 @@ def register_page_blueprints(app):
     from app.routes.pages.admin.admin_pages import pages_admin
     from app.routes.pages.coordinator_pages import pages_coordinator
     from app.routes.pages.event_pages import pages_events_public
-    from app.routes.pages.admin.email_pages import pages_emails
 
     blueprints = [
         pages_auth,
         program_bp,
         pages_user,
         pages_admin,
-        pages_emails,
         pages_coordinator,
         pages_events_public,
     ]

@@ -197,6 +197,9 @@ def is_connected() -> bool:
     """
     if not is_configured():
         return False
+    cfg = get_config()
+    if not os.path.exists(cfg['ACCT_PATH']):
+        return False
     try:
         token = acquire_token_silent()
         return token is not None

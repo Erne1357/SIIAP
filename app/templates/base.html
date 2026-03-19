@@ -197,21 +197,22 @@
         <hr class="mx-3">
         <div class="dropdown-menu-container">
           <a href="#"
-            class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+            class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
             data-dropdown="config-menu">
             <i class="fas fa-cog me-2"></i>Configuración
             <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
           </a>
           <div class="dropdown-submenu" id="config-menu">
-            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+            <a class="nav-link submenu-item {% if request.endpoint == 'pages_admin.pages_settings.index' %}active{% endif %}"
               href="{{ url_for('pages_admin.pages_settings.index') }}">
               <i class="fas fa-folder me-2"></i>Archivos
             </a>
-            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.users' %}active{% endif %}"
               href="{{ url_for('pages_admin.pages_settings.users') }}">
               <i class="fas fa-user-cog me-2"></i>Usuarios
             </a>
-            <a class="nav-link submenu-item" href="{{ url_for('pages_admin.pages_emails.email_config') }}">
+            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_emails.email_config') }}">
               <i class="fas fa-envelope me-2"></i>Correos
             </a>
             {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
@@ -345,21 +346,22 @@
           <hr class="my-2">
           <div class="dropdown-menu-container mobile">
             <a href="#"
-              class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+              class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
               data-dropdown="mobile-config-menu">
               <i class="fas fa-cog me-2"></i>Configuración
               <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
             </a>
             <div class="dropdown-submenu" id="mobile-config-menu">
-              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+              <a class="nav-link submenu-item {% if request.endpoint == 'pages_admin.pages_settings.index' %}active{% endif %}"
                 href="{{ url_for('pages_admin.pages_settings.index') }}">
                 <i class="fas fa-folder me-2"></i>Archivos
               </a>
-              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_settings') %}active{% endif %}"
+              <a class="nav-link submenu-item {% if request.endpoint == 'pages_admin.pages_settings.users' %}active{% endif %}"
                 href="{{ url_for('pages_admin.pages_settings.users') }}">
                 <i class="fas fa-user-cog me-2"></i>Usuarios
               </a>
-              <a class="nav-link submenu-item" href="{{ url_for('pages_admin.pages_emails.email_config') }}"
+              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}" 
+               href="{{ url_for('pages_admin.pages_emails.email_config') }}"
                >
                 <i class="fas fa-envelope me-2"></i>Correos
               </a>

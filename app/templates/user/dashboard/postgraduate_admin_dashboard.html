@@ -343,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     message: 'No hay una cuenta de correo configurada. Los correos no se enviarán hasta que configures Microsoft Graph.',
                     action: {
                         text: 'Configurar ahora',
-                        url: '{{ url_for("pages_admin.pages_settings.mails") }}'
+                        url: '{{ url_for("pages_admin.pages_emails.email_config") }}'
                     }
                 });
             } else {

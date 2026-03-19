@@ -23,12 +23,6 @@ def retention():
 def users():
     return render_template('admin/settings/users.html')
 
-@pages_settings.route('/mails', methods=['GET'])
-@login_required
-@roles_required('postgraduate_admin','program_admin')
-def mails():
-    return render_template('admin/settings/mails.html')
-
 @pages_settings.route('/program/<string:slug>', methods=['GET'])
 @login_required
 @roles_required('program_admin', 'postgraduate_admin')

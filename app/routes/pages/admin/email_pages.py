@@ -29,7 +29,7 @@ def ms_login():
         return redirect(build_auth_url("email_config"))
     except RuntimeError as e:
         flash(str(e), 'danger')
-        return redirect(url_for('pages_emails.email_config'))
+        return redirect(url_for('.email_config'))
 
 
 @pages_emails.route('/emails/callback')
@@ -52,7 +52,7 @@ def ms_callback():
     # Procesar cola después de conectar
     EmailService.process_queue()
     
-    return redirect(url_for('pages_emails.email_config'))
+    return redirect(url_for('.email_config'))
 
 
 @pages_emails.post('/emails/logout')

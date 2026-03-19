@@ -185,7 +185,6 @@ class EmailService:
             'sent': sent,
             'failed': failed,
             'total': pending + sent + failed,
-            'connected': is_connected()
         }
     
     @staticmethod
