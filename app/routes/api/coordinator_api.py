@@ -592,18 +592,17 @@ def _get_missing_documents(documents_by_step):
 
 def _determine_current_phase(admission_state, user_program):
     """Determina la fase actual del estudiante"""
-    progress_pct = admission_state.get("progress_pct", 0)
-    return "admission"
+    # Estudiantes con número de control = ya están en permanencia o conclusión
+    if user_program.admission_status == 'enrolled':
+        if user_program.current_semester and user_program.current_semester >= 4:
+            return "conclusion"
+        return "permanence"
+
     # Si no ha completado admisión, está en admisión
+    progress_pct = admission_state.get("progress_pct", 0)
     if progress_pct < 100:
         return "admission"
-    
-    # Si completó admisión, verificar permanencia/conclusión
-    if user_program.current_semester and user_program.current_semester >= 4:
-        return "conclusion"
-    elif progress_pct == 100:
-        return "permanence"
-    
+
     return "admission"
 
 def _determine_overall_status(admission_state):

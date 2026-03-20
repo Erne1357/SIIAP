@@ -165,14 +165,24 @@
           href="{{ url_for('pages_coordinator.dashboard') }}">
           <i class="fas fa-users me-2"></i>Coordinación
         </a>
-        <a class="nav-link {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
-          href="{{ url_for('pages_coordinator.deliberation') }}">
-          <i class="fas fa-gavel me-2"></i>Deliberación
-        </a>
-        <a class="nav-link {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
-          href="{{ url_for('pages_coordinator.acceptance') }}">
-          <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación
-        </a>
+        <div class="dropdown-menu-container">
+          <a href="#"
+            class="nav-link dropdown-toggle-custom {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
+            data-dropdown="admission-menu">
+            <i class="fas fa-user-plus me-2"></i>Admisión
+            <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
+          </a>
+          <div class="dropdown-submenu" id="admission-menu">
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
+              href="{{ url_for('pages_coordinator.deliberation') }}">
+              <i class="fas fa-gavel me-2"></i>Deliberación
+            </a>
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
+              href="{{ url_for('pages_coordinator.acceptance') }}">
+              <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación
+            </a>
+          </div>
+        </div>
         {% endif %}
         {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
         <a class="nav-link {% if request.endpoint=='pages_coordinator.permanence' %}active{% endif %}"
@@ -318,12 +328,22 @@
           <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
             href="{{ url_for('pages_coordinator.dashboard') }}">
             <i class="fas fa-users me-2"></i>Coordinación</a>
-          <a class="nav-link {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.deliberation') }}">
-            <i class="fas fa-gavel me-2"></i>Deliberación</a>
-          <a class="nav-link {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.acceptance') }}">
-            <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación</a>
+          <div class="dropdown-menu-container mobile">
+            <a href="#"
+              class="nav-link dropdown-toggle-custom {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
+              data-dropdown="mobile-admission-menu">
+              <i class="fas fa-user-plus me-2"></i>Admisión
+              <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
+            </a>
+            <div class="dropdown-submenu" id="mobile-admission-menu">
+              <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
+                href="{{ url_for('pages_coordinator.deliberation') }}">
+                <i class="fas fa-gavel me-2"></i>Deliberación</a>
+              <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
+                href="{{ url_for('pages_coordinator.acceptance') }}">
+                <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación</a>
+            </div>
+          </div>
           {% endif %}
           {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
           <a class="nav-link {% if request.endpoint=='pages_coordinator.permanence' %}active{% endif %}"

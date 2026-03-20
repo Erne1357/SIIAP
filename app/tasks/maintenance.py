@@ -2,9 +2,11 @@
 Tareas de mantenimiento periódico del sistema SIIAP.
 
 Programadas automáticamente a través de Celery Beat (ver app/celery_app.py):
-  - cleanup_expired_admission_files  → diario a las 02:00
-  - apply_retention_policies         → lunes a las 03:00
-  - cleanup_old_notifications        → diario a las 04:00
+  - cleanup_expired_admission_files    → diario a las 02:00
+  - apply_retention_policies           → lunes a las 03:00
+  - cleanup_old_notifications          → diario a las 04:00
+  - check_deferral_expirations         → diario a las 08:00
+  - notify_pending_permanence_docs     → lunes a las 09:00
 """
 
 import logging
@@ -68,6 +70,8 @@ def cleanup_expired_admission_files(self):
     logger.info("[cleanup_expired_admission_files] Iniciando limpieza de archivos expirados...")
 
     try:
+        from app.services.user_history_service import UserHistoryService
+
         # Candidatos: procesos incompletos con periodo de inscripción conocido
         candidates = (
             UserProgram.query
@@ -105,6 +109,7 @@ def cleanup_expired_admission_files(self):
                 .all()
             )
 
+            files_deleted_this_user = 0
             for sub in submissions:
                 if sub.file_path:
                     full_path = os.path.join(str(Config.UPLOAD_FOLDER), sub.file_path)
@@ -112,10 +117,22 @@ def cleanup_expired_admission_files(self):
                         try:
                             os.remove(full_path)
                             deleted_files += 1
+                            files_deleted_this_user += 1
                         except OSError as e:
                             logger.warning(f"No se pudo eliminar {full_path}: {e}")
 
                 sub.status = 'expired'
+
+            UserHistoryService.log_action(
+                user_id=up.user_id,
+                admin_id=None,
+                action='data_cleanup',
+                details=(
+                    f"Proceso de admisión expirado automáticamente tras {elapsed} periodos "
+                    f"sin completar. Archivos eliminados: {files_deleted_this_user}. "
+                    f"Programa: {up.program.name}. Período de inscripción: {enrollment_period.name}."
+                ),
+            )
 
         db.session.commit()
 
@@ -273,4 +290,74 @@ def check_deferral_expirations(self):
 
     except Exception as exc:
         logger.error(f"[check_deferral_expirations] Error: {exc}", exc_info=True)
+        raise self.retry(exc=exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. NOTIFICAR ESTUDIANTES CON INSCRIPCIÓN SEMESTRAL PENDIENTE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@celery.task(
+    name='app.tasks.maintenance.notify_pending_permanence_docs',
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def notify_pending_permanence_docs(self):
+    """
+    Notifica a estudiantes activos cuya inscripción semestral aún no ha sido
+    confirmada por el coordinador para el período académico activo.
+
+    Sólo notifica si existe un período activo. No re-notifica a estudiantes
+    que ya tienen su inscripción confirmada (enrollment_confirmed=True).
+
+    Programada semanalmente los lunes a las 09:00.
+    """
+    from app import db
+    from app.models.user_program import UserProgram
+    from app.models.semester_enrollment import SemesterEnrollment
+    from app.models.academic_period import AcademicPeriod
+    from app.services.notification_service import NotificationService
+
+    logger.info("[notify_pending_permanence_docs] Iniciando notificaciones de permanencia pendiente...")
+
+    try:
+        active_period = AcademicPeriod.get_active_period()
+        if not active_period:
+            logger.info("[notify_pending_permanence_docs] Sin período activo. No se envían notificaciones.")
+            return {'notified': 0, 'reason': 'no_active_period'}
+
+        enrolled_ups = UserProgram.query.filter_by(admission_status='enrolled').all()
+
+        notified = 0
+        for up in enrolled_ups:
+            enrollment = SemesterEnrollment.query.filter_by(
+                user_program_id=up.id,
+                academic_period_id=active_period.id,
+            ).first()
+
+            if enrollment and enrollment.enrollment_confirmed:
+                continue  # ya confirmado, no notificar
+
+            NotificationService.create_notification(
+                user_id=up.user_id,
+                notification_type='permanence_pending',
+                title='Inscripción semestral pendiente de confirmación',
+                message=(
+                    f'Tu inscripción para el período {active_period.name} '
+                    f'aún no ha sido confirmada por la coordinación de tu programa. '
+                    f'Comunícate con tu coordinador para más información.'
+                ),
+                priority='medium',
+                action_url='/dashboard',
+            )
+            notified += 1
+
+        db.session.commit()
+        logger.info(f"[notify_pending_permanence_docs] Notificaciones enviadas: {notified}")
+        return {'notified': notified, 'period': active_period.name}
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f"[notify_pending_permanence_docs] Error: {exc}", exc_info=True)
         raise self.retry(exc=exc)

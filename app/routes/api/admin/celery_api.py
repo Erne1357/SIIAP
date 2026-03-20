@@ -131,10 +131,12 @@ def task_history():
 
 # Mapa de nombres de tareas permitidas para ejecución manual
 _RUNNABLE_TASKS = {
-    'cleanup_expired_admission_files': 'app.tasks.maintenance.cleanup_expired_admission_files',
-    'apply_retention_policies':        'app.tasks.maintenance.apply_retention_policies',
-    'cleanup_old_notifications':       'app.tasks.maintenance.cleanup_old_notifications',
-    'send_bulk_notification_by_filter':'app.tasks.notifications.send_bulk_notification_by_filter',
+    'cleanup_expired_admission_files':  'app.tasks.maintenance.cleanup_expired_admission_files',
+    'apply_retention_policies':         'app.tasks.maintenance.apply_retention_policies',
+    'cleanup_old_notifications':        'app.tasks.maintenance.cleanup_old_notifications',
+    'check_deferral_expirations':       'app.tasks.maintenance.check_deferral_expirations',
+    'notify_pending_permanence_docs':   'app.tasks.maintenance.notify_pending_permanence_docs',
+    'send_bulk_notification_by_filter': 'app.tasks.notifications.send_bulk_notification_by_filter',
 }
 
 

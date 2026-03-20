@@ -35,6 +35,7 @@ def register_api_blueprints(app):
     from app.routes.api.permanence_api import api_permanence
     from app.routes.api.health_api import api_health
     from app.routes.api.admin.celery_api import api_celery_admin
+    from app.routes.api.admin.cleanup_api import api_cleanup
 
     blueprints = [
         # Auth
@@ -64,6 +65,7 @@ def register_api_blueprints(app):
         api_admin_users,
         api_admin_history,
         api_celery_admin,
+        api_cleanup,
         # Sistema
         api_notifications,
         api_emails,

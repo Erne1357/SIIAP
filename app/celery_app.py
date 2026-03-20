@@ -48,6 +48,11 @@ def init_celery(app):
                 'task': 'app.tasks.maintenance.check_deferral_expirations',
                 'schedule': crontab(hour=8, minute=0),
             },
+            # Notifica estudiantes sin inscripción semestral confirmada — lunes a las 09:00
+            'notify-pending-permanence-docs': {
+                'task': 'app.tasks.maintenance.notify_pending_permanence_docs',
+                'schedule': crontab(hour=9, minute=0, day_of_week=1),
+            },
         },
     )
 
