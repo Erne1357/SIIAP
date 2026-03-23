@@ -13,7 +13,7 @@ api_academic_periods = Blueprint(
 
 @api_academic_periods.route('', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin')
+@roles_required('postgraduate_admin', 'program_admin')
 def api_list_periods():
     """Lista todos los periodos académicos."""
     include_completed = request.args.get('include_completed', 'true').lower() == 'true'

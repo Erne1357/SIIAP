@@ -1,0 +1,290 @@
+# app/routes/api/admin/document_template_api.py
+"""
+API para gestionar plantillas de documentos y generar documentos rellenos.
+
+Endpoints:
+  GET    /api/admin/document-templates            — listar plantillas
+  POST   /api/admin/document-templates            — subir plantilla (multipart)
+  GET    /api/admin/document-templates/<id>       — detalle
+  PATCH  /api/admin/document-templates/<id>       — activar/desactivar / cambiar nombre
+  DELETE /api/admin/document-templates/<id>       — eliminar
+  POST   /api/admin/document-templates/generate   — generar documento para un estudiante
+  GET    /api/admin/document-templates/variables  — lista de variables disponibles
+"""
+import os
+
+from flask import Blueprint, jsonify, request, send_file, current_app
+from flask_login import login_required, current_user
+from app.utils.auth import roles_required
+from app import db
+from app.models.document_template import (
+    DocumentTemplate, DOCUMENT_TYPES, TEMPLATE_FILE_TYPES
+)
+
+api_document_templates = Blueprint(
+    'api_document_templates',
+    __name__,
+    url_prefix='/api/admin/document-templates',
+)
+
+ALLOWED_EXTENSIONS = {'html', 'docx'}
+
+
+def _ok(data=None, **kwargs):
+    payload = {'ok': True}
+    if data is not None:
+        payload['data'] = data
+    payload.update(kwargs)
+    return jsonify(payload)
+
+
+def _err(msg, code=400):
+    return jsonify({'ok': False, 'error': msg}), code
+
+
+def _allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _templates_sys_dir():
+    return current_app.config.get(
+        'TEMPLATES_SYS_FOLDER',
+        os.path.join(current_app.instance_path, 'templates_sys'),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LISTAR
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_document_templates.get('')
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def list_templates():
+    """Lista todas las plantillas. Filtros opcionales: document_type, program_id, is_active."""
+    q = DocumentTemplate.query
+
+    doc_type = request.args.get('document_type')
+    if doc_type:
+        q = q.filter_by(document_type=doc_type)
+
+    program_id = request.args.get('program_id', type=int)
+    if program_id is not None:
+        q = q.filter_by(program_id=program_id)
+
+    active_only = request.args.get('active_only', 'false').lower() == 'true'
+    if active_only:
+        q = q.filter_by(is_active=True)
+
+    templates = q.order_by(DocumentTemplate.document_type, DocumentTemplate.name).all()
+    return _ok([t.to_dict() for t in templates], total=len(templates))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SUBIR PLANTILLA
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_document_templates.post('')
+@login_required
+@roles_required('postgraduate_admin')
+def upload_template():
+    """
+    Sube un archivo de plantilla (HTML o DOCX) y registra la plantilla en BD.
+
+    Form fields:
+      file          (required) — archivo .html o .docx
+      name          (required) — nombre descriptivo
+      document_type (required) — acceptance_letter | enrollment_confirmation | course_schedule
+      program_id    (optional) — si omitido, la plantilla es global
+      description   (optional)
+    """
+    if 'file' not in request.files:
+        return _err("Se requiere un archivo en el campo 'file'.")
+
+    file = request.files['file']
+    if not file.filename:
+        return _err("El archivo no tiene nombre.")
+
+    if not _allowed_file(file.filename):
+        return _err(f"Tipo de archivo no permitido. Use: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    name = (request.form.get('name') or '').strip()
+    doc_type = (request.form.get('document_type') or '').strip()
+    program_id = request.form.get('program_id', type=int)
+    description = (request.form.get('description') or '').strip() or None
+
+    if not name:
+        return _err("El campo 'name' es requerido.")
+    if doc_type not in DOCUMENT_TYPES:
+        return _err(f"document_type inválido. Opciones: {list(DOCUMENT_TYPES.keys())}")
+
+    ext = file.filename.rsplit('.', 1)[1].lower()
+
+    # Guardar en instance/templates_sys/<document_type>/
+    base_dir = _templates_sys_dir()
+    subdir = os.path.join(base_dir, doc_type)
+    os.makedirs(subdir, exist_ok=True)
+
+    from werkzeug.utils import secure_filename
+    from app.utils.datetime_utils import now_local
+    timestamp = now_local().strftime('%Y%m%d_%H%M%S')
+    safe_name = secure_filename(f"{timestamp}_{file.filename}")
+    abs_path = os.path.join(subdir, safe_name)
+    file.save(abs_path)
+
+    # Ruta relativa guardada en BD
+    rel_path = os.path.join(doc_type, safe_name)
+
+    template = DocumentTemplate(
+        program_id=program_id,
+        document_type=doc_type,
+        name=name,
+        file_path=rel_path,
+        file_type=ext,
+        description=description,
+        is_active=True,
+        created_by=current_user.id,
+    )
+    db.session.add(template)
+    db.session.commit()
+
+    return _ok(template.to_dict()), 201
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DETALLE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_document_templates.get('/<int:template_id>')
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def get_template(template_id):
+    t = DocumentTemplate.query.get_or_404(template_id)
+    return _ok(t.to_dict())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ACTUALIZAR (nombre, descripción, activar/desactivar)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_document_templates.patch('/<int:template_id>')
+@login_required
+@roles_required('postgraduate_admin')
+def update_template(template_id):
+    t = DocumentTemplate.query.get_or_404(template_id)
+    body = request.get_json(silent=True) or {}
+
+    if 'name' in body:
+        t.name = body['name'].strip()
+    if 'description' in body:
+        t.description = body['description'] or None
+    if 'is_active' in body:
+        t.is_active = bool(body['is_active'])
+
+    db.session.commit()
+    return _ok(t.to_dict())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ELIMINAR
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_document_templates.delete('/<int:template_id>')
+@login_required
+@roles_required('postgraduate_admin')
+def delete_template(template_id):
+    t = DocumentTemplate.query.get_or_404(template_id)
+
+    # Eliminar archivo físico
+    base_dir = _templates_sys_dir()
+    abs_path = os.path.join(base_dir, t.file_path)
+    if os.path.exists(abs_path):
+        try:
+            os.remove(abs_path)
+        except OSError:
+            pass  # archivo ya no existe, continuar
+
+    db.session.delete(t)
+    db.session.commit()
+    return _ok({'deleted_id': template_id})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VARIABLES DISPONIBLES
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_document_templates.get('/variables')
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def list_variables():
+    """Retorna la lista de variables disponibles para usar en plantillas."""
+    variables = [
+        {'key': '{{student_name}}',     'description': 'Nombre completo del estudiante'},
+        {'key': '{{student_curp}}',     'description': 'CURP del estudiante'},
+        {'key': '{{student_email}}',    'description': 'Correo electrónico del estudiante'},
+        {'key': '{{control_number}}',   'description': 'Número de control asignado'},
+        {'key': '{{program_name}}',     'description': 'Nombre del programa de posgrado'},
+        {'key': '{{program_level}}',    'description': 'Nivel del programa (Maestría, Doctorado…)'},
+        {'key': '{{period_code}}',      'description': 'Código del período académico (ej. 20261)'},
+        {'key': '{{period_name}}',      'description': 'Nombre del período (ej. Enero-Junio 2026)'},
+        {'key': '{{acceptance_date}}',  'description': 'Fecha de aceptación en formato largo'},
+        {'key': '{{coordinator_name}}', 'description': 'Nombre del coordinador del programa'},
+        {'key': '{{current_date}}',     'description': 'Fecha actual en formato dd/mm/yyyy'},
+    ]
+    return _ok(variables)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GENERAR DOCUMENTO
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_document_templates.post('/generate')
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def generate_document():
+    """
+    Genera un documento relleno para un estudiante y lo retorna como descarga.
+
+    Body JSON:
+      user_id       (int, required)
+      program_id    (int, required)
+      document_type (str, required)
+      period_id     (int, optional)
+    """
+    body = request.get_json(silent=True) or {}
+    user_id = body.get('user_id')
+    program_id = body.get('program_id')
+    doc_type = body.get('document_type')
+    period_id = body.get('period_id')
+
+    if not user_id or not program_id or not doc_type:
+        return _err("Se requieren: user_id, program_id, document_type.")
+
+    if doc_type not in DOCUMENT_TYPES:
+        return _err(f"document_type inválido. Opciones: {list(DOCUMENT_TYPES.keys())}")
+
+    try:
+        from app.services.document_generation_service import DocumentGenerationService
+        result = DocumentGenerationService.generate(
+            user_id=user_id,
+            program_id=program_id,
+            document_type=doc_type,
+            period_id=period_id,
+        )
+    except ValueError as e:
+        return _err(str(e), 404)
+    except RuntimeError as e:
+        return _err(str(e), 500)
+    except Exception as e:
+        current_app.logger.error(f"[generate_document] Error: {e}", exc_info=True)
+        return _err(f"Error interno al generar el documento: {e}", 500)
+
+    mime = 'application/pdf' if result['file_type'] == 'pdf' else \
+           'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+    return send_file(
+        result['output_path'],
+        mimetype=mime,
+        as_attachment=True,
+        download_name=result['filename'],
+    )

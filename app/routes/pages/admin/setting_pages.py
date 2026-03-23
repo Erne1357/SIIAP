@@ -55,6 +55,17 @@ def academic_periods():
     return render_template('admin/settings/academic_periods.html')
 
 
+@pages_settings.route('/document-templates', methods=['GET'])
+@login_required
+@roles_required('postgraduate_admin', 'program_admin')
+def document_templates():
+    """Gestión de plantillas de documentos institucionales."""
+    return render_template(
+        'admin/settings/document_templates.html',
+        is_postgrad_admin=(current_user.role.name == 'postgraduate_admin'),
+    )
+
+
 @pages_settings.route('/worker', methods=['GET'])
 @login_required
 @roles_required('postgraduate_admin')

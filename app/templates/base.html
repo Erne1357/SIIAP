@@ -225,6 +225,10 @@
               href="{{ url_for('pages_admin.pages_emails.email_config') }}">
               <i class="fas fa-envelope me-2"></i>Correos
             </a>
+            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.document_templates' %}active{% endif %}"
+              href="{{ url_for('pages_admin.pages_settings.document_templates') }}">
+              <i class="bi bi-file-earmark-text me-2"></i>Plantillas
+            </a>
             {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
             <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
               href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}">
@@ -380,10 +384,14 @@
                 href="{{ url_for('pages_admin.pages_settings.users') }}">
                 <i class="fas fa-user-cog me-2"></i>Usuarios
               </a>
-              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}" 
+              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
                href="{{ url_for('pages_admin.pages_emails.email_config') }}"
                >
                 <i class="fas fa-envelope me-2"></i>Correos
+              </a>
+              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.document_templates' %}active{% endif %}"
+                href="{{ url_for('pages_admin.pages_settings.document_templates') }}">
+                <i class="bi bi-file-earmark-text me-2"></i>Plantillas
               </a>
               {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
               <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
