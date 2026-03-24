@@ -518,6 +518,8 @@ def assign_control_number(user_id: int, program_id: int,
     """
     from app.models.user import User as UserModel
     from app.models.role import Role
+    from app.models.academic_period import AcademicPeriod
+    from app.models.semester_enrollment import SemesterEnrollment
 
     if not control_number or not control_number.strip():
         raise ValueError("El número de control no puede estar vacío")
@@ -567,6 +569,23 @@ def assign_control_number(user_id: int, program_id: int,
     # 3. Actualizar estado de inscripción
     up.admission_status = 'enrolled'
     up.current_semester = 1
+
+    # 3b. Crear SemesterEnrollment para semestre 1 ya confirmado.
+    #     El pago del primer semestre se verifica implícitamente al aprobar la
+    #     carta de asignación de número de control, por lo que no se requiere
+    #     una confirmación adicional por parte del coordinador.
+    active_period = AcademicPeriod.get_active_period()
+    if active_period:
+        first_semester_enrollment = SemesterEnrollment(
+            user_program_id=up.id,
+            academic_period_id=active_period.id,
+            semester_number=1,
+            status='active',
+            enrollment_confirmed=True,
+            confirmed_by=coordinator_id,
+            confirmed_at=now_local(),
+        )
+        db.session.add(first_semester_enrollment)
 
     # 4. Historial y notificación (antes del commit)
     UserHistoryService.log_action(
