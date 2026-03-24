@@ -574,11 +574,18 @@ def assign_control_number(user_id: int, program_id: int,
     #     El pago del primer semestre se verifica implícitamente al aprobar la
     #     carta de asignación de número de control, por lo que no se requiere
     #     una confirmación adicional por parte del coordinador.
-    active_period = AcademicPeriod.get_active_period()
-    if active_period:
+    
+    # Usar el periodo de admisión original, o fallback al activo si no existe
+    enrollment_period_id = up.admission_period_id
+    if not enrollment_period_id:
+        active_period = AcademicPeriod.get_active_period()
+        if active_period:
+            enrollment_period_id = active_period.id
+
+    if enrollment_period_id:
         first_semester_enrollment = SemesterEnrollment(
             user_program_id=up.id,
-            academic_period_id=active_period.id,
+            academic_period_id=enrollment_period_id,
             semester_number=1,
             status='active',
             enrollment_confirmed=True,
