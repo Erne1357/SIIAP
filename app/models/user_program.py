@@ -38,6 +38,9 @@ class UserProgram(db.Model):
     rejection_type = db.Column(db.String(30), nullable=True)  # full, partial
     correction_required = db.Column(db.Text, nullable=True)
 
+    # Beca CONACyT — True si el estudiante es becario activo (Módulo C, Permanencia)
+    has_conacyt_scholarship = db.Column(db.Boolean, default=False, nullable=False)
+
     # Relaciones
     user = db.relationship('User', foreign_keys=[user_id], back_populates='user_program')
     program = db.relationship('Program', back_populates='user_program')
@@ -62,7 +65,8 @@ class UserProgram(db.Model):
             'current_semester': current_sem,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'admission_period_id': self.admission_period_id,
-            'admission_status': self.admission_status
+            'admission_status': self.admission_status,
+            'has_conacyt_scholarship': self.has_conacyt_scholarship,
         }
 
         if include_deliberation:

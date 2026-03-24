@@ -36,13 +36,13 @@ def list_students():
     search = request.args.get('search', '').strip()
     show_other = request.args.get('show_other') == 'true'
     
-    # Base query: usuarios con programas
+    # Base query: usuarios con programas (aspirantes y estudiantes ya inscritos)
     query = db.session.query(User, UserProgram, Program).join(
         UserProgram, User.id == UserProgram.user_id
     ).join(
         Program, UserProgram.program_id == Program.id
     ).filter(
-        User.role.has(name='applicant')
+        User.role.has(name='applicant') | User.role.has(name='student')
     )
     
     # Programas que puede gestionar el coordinador
@@ -155,7 +155,7 @@ def manageable_students():
     ).join(
         Program, UserProgram.program_id == Program.id
     ).filter(
-        User.role.has(name='applicant'),
+        (User.role.has(name='applicant') | User.role.has(name='student')),
         program_filter
     ).order_by(User.first_name, User.last_name)
     
@@ -358,6 +358,107 @@ def list_coordinator_programs():
     
     return jsonify({"ok": True, "programs": items}), 200
 
+@api_coordinator.route('/student/<int:student_id>/permanence-details', methods=['GET'])
+@login_required
+@roles_required('program_admin', 'postgraduate_admin')
+def get_student_permanence_details(student_id: int):
+    """
+    Detalles de permanencia de un estudiante inscrito:
+    semestre actual, periodo activo, confirmación semestral,
+    beca CONACyT, documentos de admisión pendientes e historial semestral.
+    """
+    from app.models.semester_enrollment import SemesterEnrollment
+    from app.models.academic_period import AcademicPeriod
+
+    student = db.session.get(User, student_id)
+    if not student:
+        return jsonify({"ok": False, "error": "Estudiante no encontrado"}), 404
+
+    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+    if not user_program:
+        return jsonify({"ok": False, "error": "Sin programa"}), 404
+
+    program = db.session.get(Program, user_program.program_id)
+
+    if current_user.role.name == 'postgraduate_admin':
+        can_manage = True
+    else:
+        managed_programs = list(db.session.execute(
+            select(Program.id).where(Program.coordinator_id == current_user.id)
+        ).scalars().all())
+        can_manage = program.id in managed_programs
+
+    # Periodo activo y enrollment del periodo actual
+    active_period = AcademicPeriod.get_active_period()
+    current_enrollment = None
+    if active_period:
+        current_enrollment = SemesterEnrollment.query.filter_by(
+            user_program_id=user_program.id,
+            academic_period_id=active_period.id
+        ).first()
+
+    # Historial semestral (todos los periodos)
+    history = SemesterEnrollment.query.filter_by(
+        user_program_id=user_program.id
+    ).order_by(SemesterEnrollment.semester_number.asc()).all()
+
+    # Documentos de admisión pendientes/rechazados
+    admission_state = get_admission_state(student_id, program.id, user_program)
+    pending_admission = (
+        admission_state['status_count'].get('pending', 0) +
+        admission_state['status_count'].get('rejected', 0)
+    )
+
+    return jsonify({
+        "ok": True,
+        "student": {
+            "id": student.id,
+            "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
+            "email": student.email,
+            "avatar_url": student.avatar_url,
+            "control_number": student.control_number,
+        },
+        "user_program": {
+            "id": user_program.id,
+            "current_semester": user_program.current_semester or 1,
+            "has_conacyt_scholarship": user_program.has_conacyt_scholarship,
+            "admission_status": user_program.admission_status,
+        },
+        "program": {
+            "id": program.id,
+            "name": program.name,
+        },
+        "active_period": {
+            "id": active_period.id,
+            "name": active_period.name,
+            "code": active_period.code,
+        } if active_period else None,
+        "current_enrollment": {
+            "id": current_enrollment.id,
+            "semester_number": current_enrollment.semester_number,
+            "status": current_enrollment.status,
+            "enrollment_confirmed": current_enrollment.enrollment_confirmed,
+            "confirmed_at": current_enrollment.confirmed_at.isoformat() if current_enrollment.confirmed_at else None,
+            "notes": current_enrollment.notes,
+        } if current_enrollment else None,
+        "pending_admission_count": pending_admission,
+        "semester_history": [
+            {
+                "id": se.id,
+                "semester_number": se.semester_number,
+                "period_name": se.academic_period.name if se.academic_period else "—",
+                "period_code": se.academic_period.code if se.academic_period else "—",
+                "status": se.status,
+                "enrollment_confirmed": se.enrollment_confirmed,
+                "confirmed_at": se.confirmed_at.isoformat() if se.confirmed_at else None,
+                "notes": se.notes,
+            }
+            for se in history
+        ],
+        "can_manage": can_manage,
+    }), 200
+
+
 @api_coordinator.route('/student/<int:student_id>/details', methods=['GET'])
 @login_required
 @roles_required('program_admin', 'postgraduate_admin')
@@ -531,7 +632,7 @@ def _get_interview_status(student_id, program_id):
     """Obtiene el estado de entrevista del estudiante"""
     from app.models.event import Event, EventSlot, EventWindow
 
-    # Buscar cita activa. Se incluyen eventos del programa y eventos globales (program_id=NULL)
+    # Buscar cualquier cita no cancelada: scheduled (pendiente), done (realizada), no_show
     appointment = db.session.execute(
         select(Appointment)
         .join(EventSlot, Appointment.slot_id == EventSlot.id)
@@ -539,12 +640,12 @@ def _get_interview_status(student_id, program_id):
         .join(Event, EventWindow.event_id == Event.id)
         .where(
             Appointment.applicant_id == student_id,
-            Appointment.status == 'scheduled',
+            Appointment.status.in_(['scheduled', 'done', 'no_show']),
             or_(Event.program_id == program_id, Event.program_id.is_(None)),
             Event.type == 'interview'
         )
     ).scalar_one_or_none()
-    
+
     if not appointment:
         return {
             "has_interview": False,
@@ -632,7 +733,7 @@ def get_student_history(student_id):
     try:
         # Verificar que el estudiante existe y el coordinador tiene acceso
         student = User.query.filter_by(id=student_id).first()
-        if not student or student.role.name != 'applicant':
+        if not student or student.role.name not in ('applicant', 'student'):
             return jsonify({
                 'success': False,
                 'message': 'Estudiante no encontrado'

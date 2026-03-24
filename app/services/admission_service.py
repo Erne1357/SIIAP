@@ -143,25 +143,25 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
 
     lock_info = { step.id: _is_locked(step) for step in steps }
 
-    # 4.5) Verificar si el usuario tiene entrevista asignada (solo EventSlot para entrevistas 1 a 1)
+    # 4.5) Verificar si el usuario tiene entrevista asignada o realizada
     def _has_interview_assigned():
-        # Buscar en EventSlot (para entrevistas individuales 1 a 1)
-        slot_assigned = db.session.execute(
-            select(EventSlot).join(
-                EventWindow, EventSlot.event_window_id == EventWindow.id
-            ).join(
-                Event, EventWindow.event_id == Event.id
-            ).where(
+        from app.models.appointment import Appointment
+        # Cualquier cita no cancelada cuenta: scheduled (pendiente), done (realizada), no_show
+        appt = db.session.execute(
+            select(Appointment)
+            .join(EventSlot, Appointment.slot_id == EventSlot.id)
+            .join(EventWindow, EventSlot.event_window_id == EventWindow.id)
+            .join(Event, EventWindow.event_id == Event.id)
+            .where(
                 and_(
-                    EventSlot.held_by == user_id,
-                    EventSlot.status == 'booked',
-                    Event.program_id == program_id,
+                    Appointment.applicant_id == user_id,
+                    Appointment.status.in_(['scheduled', 'done', 'no_show']),
+                    or_(Event.program_id == program_id, Event.program_id.is_(None)),
                     Event.type == 'interview'
                 )
             )
         ).scalar_one_or_none()
-        current_app.logger.warning(f"Entrevista asignada para usuario {user_id} en programa {program_id}: {bool(slot_assigned)}")
-        return bool(slot_assigned)
+        return bool(appt)
     
     has_interview = _has_interview_assigned()
 

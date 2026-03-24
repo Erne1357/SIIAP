@@ -5,7 +5,9 @@ API para gestionar la permanencia semestral de estudiantes (Fase 6).
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app import db
 from app.utils.auth import roles_required
+from app.models.user_program import UserProgram
 from app.services import permanence_service as svc
 
 api_permanence = Blueprint(
@@ -213,3 +215,36 @@ def api_get_student_permanence(user_program_id):
             "error": {"code": "SERVER_ERROR", "message": str(e)},
             "meta": {}
         }), 500
+
+
+@api_permanence.patch('/user-program/<int:user_program_id>/conacyt-scholarship')
+@login_required
+@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+def api_toggle_conacyt_scholarship(user_program_id):
+    """Activa o desactiva la beca CONACyT de un estudiante."""
+    up = db.session.get(UserProgram, user_program_id)
+    if not up:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Estudiante no encontrado"}],
+            "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
+            "meta": {}
+        }), 404
+
+    data = request.get_json() or {}
+    # Acepta valor explícito o simplemente alterna el valor actual
+    if 'value' in data:
+        new_value = bool(data['value'])
+    else:
+        new_value = not up.has_conacyt_scholarship
+
+    up.has_conacyt_scholarship = new_value
+    db.session.commit()
+
+    label = 'activada' if new_value else 'desactivada'
+    return jsonify({
+        "data": {"has_conacyt_scholarship": new_value},
+        "flash": [{"level": "success", "message": f"Beca CONACyT {label} correctamente"}],
+        "error": None,
+        "meta": {}
+    }), 200

@@ -9,6 +9,9 @@ Variables disponibles en plantillas:
   {{period_code}}, {{period_name}},
   {{acceptance_date}}, {{coordinator_name}}, {{current_date}},
   {{control_number}}
+
+Variables adicionales para payment_reference:
+  {{semester_number}}, {{payment_amount}}, {{payment_reference}}, {{due_date}}
 """
 from app import db
 from app.utils.datetime_utils import now_local
@@ -18,6 +21,7 @@ DOCUMENT_TYPES = {
     'acceptance_letter':        'Carta de Aceptación',
     'enrollment_confirmation':  'Confirmación de Inscripción',
     'course_schedule':          'Tira de Materias',
+    'payment_reference':        'Referencia Bancaria de Pago',
 }
 
 # Formatos de plantilla soportados
@@ -37,7 +41,7 @@ class DocumentTemplate(db.Model):
     program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=True)
 
     document_type = db.Column(db.String(50), nullable=False)
-    # Tipos: acceptance_letter, enrollment_confirmation, course_schedule
+    # Tipos: acceptance_letter, enrollment_confirmation, course_schedule, payment_reference
 
     name = db.Column(db.String(100), nullable=False)
     # Nombre descriptivo, ej: "Carta de Aceptación — ITJ 2026"

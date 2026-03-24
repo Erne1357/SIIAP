@@ -15,6 +15,8 @@ class Archive(db.Model):
     allow_extension_request = db.Column(db.Boolean, default=False, nullable=False)
     # Meses de validez del documento; NULL = sin expiración (válido indefinidamente)
     validity_months = db.Column(db.Integer, nullable=True)
+    # False = desactivado (no visible para estudiantes/coordinadores, pero conservado por historial)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
@@ -41,6 +43,7 @@ class Archive(db.Model):
             'allow_coordinator_upload': self.allow_coordinator_upload,
             'allow_extension_request': self.allow_extension_request,
             'validity_months': self.validity_months,
+            'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

@@ -170,9 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary btn-view-student" 
-                    data-student-id="${student.id}">
-              <i class="fas fa-eye"></i>
+            <button class="btn btn-outline-info btn-view-permanence"
+                    data-student-id="${student.id}"
+                    title="Ver detalle de permanencia">
+              <i class="bi bi-person-badge"></i>
             </button>
           </div>
         </td>
@@ -296,6 +297,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (button.classList.contains('btn-view-student')) {
       viewStudentDetails(studentId);
+    } else if (button.classList.contains('btn-view-permanence')) {
+      viewPermanenceDetails(studentId);
     } else if (button.classList.contains('btn-upload-for')) {
       openUploadModal(studentId);
     }
@@ -566,11 +569,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderInterviewTab(interview, student) {
     const interviewContent = document.getElementById('interviewTabContent');
-
     const eligibility = interview.eligibility;
+    const appt = interview.appointment;
+    const apptStatus = appt?.status;
+    const interviewDone = apptStatus === 'done' || apptStatus === 'no_show';
+
+    // Mapa de estado de cita → badge + color header
+    const apptStatusMap = {
+      scheduled: { badge: 'bg-primary',   label: 'Programada',       headerBg: 'bg-primary'  },
+      done:      { badge: 'bg-success',   label: 'Realizada',        headerBg: 'bg-success'  },
+      no_show:   { badge: 'bg-danger',    label: 'No se presentó',   headerBg: 'bg-danger'   },
+    };
+    const apptStyle = apptStatusMap[apptStatus] || { badge: 'bg-secondary', label: apptStatus, headerBg: 'bg-secondary' };
 
     interviewContent.innerHTML = `
-    <!-- Estado de Elegibilidad -->
+    <!-- Estado de Elegibilidad (solo si la entrevista no se realizó todavía) -->
+    ${!interviewDone ? `
     <div class="alert ${eligibility.eligible ? 'alert-success' : 'alert-warning'} mb-4">
       <h6 class="mb-2">
         <i class="fas ${eligibility.eligible ? 'fa-check-circle' : 'fa-exclamation-triangle'} me-2"></i>
@@ -578,8 +592,8 @@ document.addEventListener('DOMContentLoaded', () => {
       </h6>
       <p class="mb-0">
         ${eligibility.eligible
-        ? '✅ El estudiante cumple con todos los requisitos para entrevista'
-        : '⚠️ El estudiante NO cumple con los requisitos para entrevista'}
+          ? '✅ El estudiante cumple con todos los requisitos para entrevista'
+          : '⚠️ El estudiante NO cumple con los requisitos para entrevista'}
       </p>
       ${!eligibility.eligible && eligibility.missing_items.length > 0 ? `
         <hr>
@@ -591,48 +605,49 @@ document.addEventListener('DOMContentLoaded', () => {
         </ul>
       ` : ''}
     </div>
-    
-    <!-- Estado de Entrevista -->
+    ` : ''}
+
+    <!-- Detalle de la cita de entrevista -->
     ${interview.has_interview ? `
       <div class="card">
-        <div class="card-header bg-success text-white">
+        <div class="card-header ${apptStyle.headerBg} text-white">
           <h6 class="mb-0">
             <i class="fas fa-calendar-check me-2"></i>
-            Entrevista Asignada
+            ${interviewDone ? 'Entrevista Completada' : 'Entrevista Asignada'}
           </h6>
         </div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
               <label class="small text-muted">Evento</label>
-              <p class="mb-0"><strong>${interview.appointment.event.title}</strong></p>
+              <p class="mb-0"><strong>${appt.event.title}</strong></p>
             </div>
             <div class="col-md-6">
               <label class="small text-muted">Fecha y Hora</label>
               <p class="mb-0">
-                ${new Date(interview.appointment.slot.starts_at).toLocaleDateString('es-MX', {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        })}<br>
+                ${new Date(appt.slot.starts_at).toLocaleDateString('es-MX', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                })}<br>
                 <small class="text-muted">
-                  ${new Date(interview.appointment.slot.starts_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} - 
-                  ${new Date(interview.appointment.slot.ends_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                  ${new Date(appt.slot.starts_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} –
+                  ${new Date(appt.slot.ends_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                 </small>
               </p>
             </div>
             <div class="col-md-6">
               <label class="small text-muted">Lugar</label>
-              <p class="mb-0">${interview.appointment.event.location || 'Por confirmar'}</p>
+              <p class="mb-0">${appt.event.location || 'Por confirmar'}</p>
             </div>
             <div class="col-md-6">
               <label class="small text-muted">Estado</label>
               <p class="mb-0">
-                <span class="badge bg-success">Programada</span>
+                <span class="badge ${apptStyle.badge}">${apptStyle.label}</span>
               </p>
             </div>
-            ${interview.appointment.notes ? `
+            ${appt.notes ? `
               <div class="col-12">
                 <label class="small text-muted">Notas</label>
-                <p class="mb-0 small">${interview.appointment.notes}</p>
+                <p class="mb-0 small">${appt.notes}</p>
               </div>
             ` : ''}
           </div>
@@ -831,4 +846,235 @@ document.addEventListener('DOMContentLoaded', () => {
       timeout = setTimeout(later, wait);
     };
   }
+
+  // ==================== MODAL DE PERMANENCIA ====================
+
+  // Estado del modal para acciones internas
+  let _permCurrentStudentId = null;
+  let _permCurrentUserProgramId = null;
+  let _permCurrentConacyt = false;
+
+  async function viewPermanenceDetails(studentId) {
+    _permCurrentStudentId = parseInt(studentId);
+
+    // Resetear modal
+    document.getElementById('permModalAvatar').src = '/static/assets/images/default.jpg';
+    document.getElementById('permModalName').textContent = 'Cargando...';
+    document.getElementById('permModalEmail').textContent = '';
+    document.getElementById('permModalProgram').textContent = '';
+    document.getElementById('permModalControlNumber').textContent = '';
+    document.getElementById('permModalSpinner').classList.remove('d-none');
+    document.getElementById('permModalContent').classList.add('d-none');
+
+    const modal = new bootstrap.Modal(document.getElementById('permanenceDetailsModal'));
+    modal.show();
+
+    try {
+      const res = await fetch(`/api/v1/coordinator/student/${studentId}/permanence-details`, {
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar');
+      renderPermanenceModal(data);
+    } catch (err) {
+      document.getElementById('permModalSpinner').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-exclamation-triangle me-2"></i>Error: ${err.message}
+        </div>`;
+    }
+  }
+
+  function renderPermanenceModal(data) {
+    const { student, user_program, program, active_period, current_enrollment,
+            pending_admission_count, semester_history, can_manage } = data;
+
+    _permCurrentUserProgramId = user_program.id;
+    _permCurrentConacyt = user_program.has_conacyt_scholarship;
+
+    // Header
+    document.getElementById('permModalAvatar').src = student.avatar_url || '/static/assets/images/default.jpg';
+    document.getElementById('permModalName').textContent = student.full_name;
+    document.getElementById('permModalEmail').textContent = student.email;
+    document.getElementById('permModalProgram').textContent = program.name;
+    document.getElementById('permModalControlNumber').textContent = student.control_number || '(sin N° control)';
+
+    // Alerta docs admisión pendientes
+    const admAlert = document.getElementById('permAdmissionAlert');
+    if (pending_admission_count > 0) {
+      document.getElementById('permAdmissionCount').textContent = pending_admission_count;
+      admAlert.classList.remove('d-none');
+      document.getElementById('permOpenAdmissionBtn').onclick = () => {
+        bootstrap.Modal.getInstance(document.getElementById('permanenceDetailsModal'))?.hide();
+        viewStudentDetails(_permCurrentStudentId);
+      };
+    } else {
+      admAlert.classList.add('d-none');
+    }
+
+    // Botón "Ver expediente completo"
+    document.getElementById('permOpenFullBtn').onclick = () => {
+      bootstrap.Modal.getInstance(document.getElementById('permanenceDetailsModal'))?.hide();
+      viewStudentDetails(_permCurrentStudentId);
+    };
+
+    // ── Tarjetas resumen ──────────────────────────────────────────
+    const statusEnrollment = current_enrollment
+      ? (current_enrollment.enrollment_confirmed
+          ? ['bg-success', 'Confirmada', 'bi-check-circle-fill']
+          : ['bg-warning text-dark', 'Pendiente', 'bi-hourglass-split'])
+      : ['bg-secondary', 'Sin registro', 'bi-dash-circle'];
+
+    document.getElementById('permSummaryCards').innerHTML = `
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-mortarboard-fill fs-3 text-primary mb-1"></i>
+            <div class="fw-bold fs-4 lh-1">${user_program.current_semester}</div>
+            <div class="small text-muted">Semestre actual</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-calendar-event-fill fs-3 text-info mb-1"></i>
+            <div class="fw-bold lh-1 small">${active_period ? active_period.name : '—'}</div>
+            <div class="small text-muted">${active_period ? active_period.code : 'Sin periodo activo'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi ${statusEnrollment[2]} fs-3 mb-1"></i>
+            <div><span class="badge ${statusEnrollment[0]}">${statusEnrollment[1]}</span></div>
+            <div class="small text-muted mt-1">Inscripción semestral</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // ── CONACyT ────────────────────────────────────────────────────
+    const badge = document.getElementById('permConacytBadge');
+    const switchEl = document.getElementById('permConacytSwitch');
+    const toggleWrap = document.getElementById('permConacytToggleWrap');
+
+    badge.className = `badge fs-6 ${_permCurrentConacyt ? 'bg-warning text-dark' : 'bg-light text-muted border'}`;
+    badge.textContent = _permCurrentConacyt ? 'Becario CONACyT' : 'Sin beca CONACyT';
+    switchEl.checked = _permCurrentConacyt;
+    toggleWrap.classList.toggle('d-none', !can_manage);
+
+    switchEl.onchange = async () => {
+      switchEl.disabled = true;
+      await toggleConacytScholarship(_permCurrentUserProgramId, switchEl.checked);
+      switchEl.disabled = false;
+    };
+
+    // ── Inscripción semestral detalle ──────────────────────────────
+    const enrollBody = document.getElementById('permEnrollmentBody');
+    if (!active_period) {
+      enrollBody.innerHTML = '<p class="text-muted mb-0">No hay periodo académico activo.</p>';
+    } else if (!current_enrollment) {
+      enrollBody.innerHTML = `
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-warning text-dark">Pendiente de confirmación</span>
+          <span class="small text-muted">El estudiante no tiene inscripción registrada para el periodo activo.</span>
+        </div>`;
+    } else {
+      const statusMap = {
+        active: ['bg-success', 'Activo'],
+        pending: ['bg-warning text-dark', 'Pendiente'],
+        completed: ['bg-primary', 'Completado'],
+        on_leave: ['bg-secondary', 'Baja temporal'],
+        dropped: ['bg-danger', 'Baja definitiva'],
+      };
+      const [cls, label] = statusMap[current_enrollment.status] || ['bg-secondary', current_enrollment.status];
+      const confirmedAt = current_enrollment.confirmed_at
+        ? new Date(current_enrollment.confirmed_at).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+        : null;
+      enrollBody.innerHTML = `
+        <div class="row g-2 align-items-center">
+          <div class="col-auto">
+            <span class="badge ${cls}">${label}</span>
+          </div>
+          ${current_enrollment.enrollment_confirmed
+            ? `<div class="col-auto small text-muted">Confirmada${confirmedAt ? ' el ' + confirmedAt : ''}</div>`
+            : `<div class="col-auto small text-muted">Pendiente de confirmación por el coordinador</div>`}
+          ${current_enrollment.notes
+            ? `<div class="col-12"><small class="text-muted fst-italic">"${current_enrollment.notes}"</small></div>`
+            : ''}
+        </div>`;
+    }
+
+    // ── Historial ─────────────────────────────────────────────────
+    const histContainer = document.getElementById('permHistoryContent');
+    if (!semester_history.length) {
+      histContainer.innerHTML = '<p class="text-muted text-center py-4">Sin historial semestral registrado.</p>';
+    } else {
+      const statusMap = {
+        active: ['bg-success', 'Activo'],
+        pending: ['bg-warning text-dark', 'Pendiente'],
+        completed: ['bg-primary', 'Completado'],
+        on_leave: ['bg-secondary', 'Baja temporal'],
+        dropped: ['bg-danger', 'Baja definitiva'],
+      };
+      histContainer.innerHTML = `
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="text-center">Semestre</th>
+              <th>Periodo</th>
+              <th class="text-center">Estado</th>
+              <th class="text-center">Confirmado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${semester_history.map(h => {
+              const [cls, label] = statusMap[h.status] || ['bg-secondary', h.status];
+              const confirmedIcon = h.enrollment_confirmed
+                ? '<i class="bi bi-check-circle-fill text-success fs-5"></i>'
+                : '<i class="bi bi-dash-circle text-muted fs-5"></i>';
+              return `
+                <tr>
+                  <td class="text-center fw-bold">Sem. ${h.semester_number}</td>
+                  <td>
+                    ${h.period_name}
+                    <span class="badge bg-light text-dark border ms-1">${h.period_code}</span>
+                  </td>
+                  <td class="text-center"><span class="badge ${cls}">${label}</span></td>
+                  <td class="text-center">${confirmedIcon}</td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    // Mostrar contenido
+    document.getElementById('permModalSpinner').classList.add('d-none');
+    document.getElementById('permModalContent').classList.remove('d-none');
+  }
+
+  async function toggleConacytScholarship(userProgramId, newValue) {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      const res = await fetch(`/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ value: newValue }),
+      });
+      const json = await res.json();
+      (json.flash || []).forEach(f => emitFlash(f.level, f.message));
+      if (res.ok && !json.error) {
+        _permCurrentConacyt = json.data.has_conacyt_scholarship;
+        const badge = document.getElementById('permConacytBadge');
+        badge.className = `badge fs-6 ${_permCurrentConacyt ? 'bg-warning text-dark' : 'bg-light text-muted border'}`;
+        badge.textContent = _permCurrentConacyt ? 'Becario CONACyT' : 'Sin beca CONACyT';
+        // Actualizar también en la tabla principal
+        loadStudents();
+      }
+    } catch (err) {
+      emitFlash('danger', 'Error al actualizar beca CONACyT');
+    }
+  }
+
 });

@@ -206,7 +206,7 @@
 <script>
   const PROGRAM_ID = {{ selected_program.id if selected_program else 'null' }};
   const ACTIVE_PERIOD_ID = {{ active_period.id if active_period else 'null' }};
-  const ACTIVE_PERIOD_NAME = {{ ('"' + active_period.name + '"') if active_period else 'null' }};
+  const ACTIVE_PERIOD_NAME = {{ active_period.name | tojson if active_period else 'null' }};
 </script>
 <script src="{{ url_for('static', filename='js/coordinator/permanence.js') }}?v={{ static_version }}"></script>
 {% endblock %}
