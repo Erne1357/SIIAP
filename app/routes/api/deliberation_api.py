@@ -428,7 +428,7 @@ def api_get_program_admission_archives(program_id):
             Archive.query
             .join(Step, Archive.step_id == Step.id)
             .join(ProgramStep, Step.id == ProgramStep.step_id)
-            .join(Phase, ProgramStep.phase_id == Phase.id)
+            .join(Phase, Step.phase_id == Phase.id)
             .filter(
                 and_(
                     ProgramStep.program_id == program_id,

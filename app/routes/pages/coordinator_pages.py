@@ -101,8 +101,20 @@ def permanence(program_id=None):
     active_period = AcademicPeriod.get_active_period()
     all_periods = AcademicPeriod.query.order_by(AcademicPeriod.start_date.desc()).all()
 
+    # Archives activos de la fase de permanencia (phase_id=2) para el modal "Nueva Ventana"
+    from app.models.archive import Archive
+    from app.models.step import Step
+    permanence_archives = (
+        Archive.query
+        .join(Step, Archive.step_id == Step.id)
+        .filter(Step.phase_id == 2, Archive.is_active == True)
+        .order_by(Step.id, Archive.name)
+        .all()
+    )
+
     return render_template('coordinator/permanence.html',
                            coordinator_programs=coordinator_programs,
                            selected_program=selected_program,
                            active_period=active_period,
-                           all_periods=all_periods)
+                           all_periods=all_periods,
+                           permanence_archives=permanence_archives)

@@ -21,3 +21,4 @@ from .semester_enrollment import SemesterEnrollment
 from .task_log import TaskLog
 from .enrollment_deferral import EnrollmentDeferral
 from .document_template import DocumentTemplate
+from .document_deadline import DocumentDeadline

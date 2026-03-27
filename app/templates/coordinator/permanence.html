@@ -16,7 +16,7 @@
           <h1 class="h3 mb-2">
             <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia Semestral
           </h1>
-          <p class="text-muted mb-0">Gestiona la inscripcion semestral de los estudiantes activos</p>
+          <p class="text-muted mb-0">Gestiona la inscripción y seguimiento documental de estudiantes activos</p>
         </div>
       </div>
 
@@ -72,16 +72,39 @@
       </div>
       {% endif %}
 
-      <!-- Tabla de estudiantes -->
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-bold">Estudiantes Inscritos</span>
-          <div class="d-flex gap-2 align-items-center">
+      <!-- Tabs de navegación -->
+      <ul class="nav nav-tabs mb-0" id="permanenceTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="tab-students" data-bs-toggle="tab"
+            data-bs-target="#pane-students" type="button" role="tab">
+            <i class="bi bi-people me-1"></i>Estudiantes
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-leave" data-bs-toggle="tab"
+            data-bs-target="#pane-leave" type="button" role="tab">
+            <i class="bi bi-person-dash me-1"></i>Movilidad
+            <span class="badge bg-danger ms-1" id="leaveBadge" style="display:none;"></span>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-documents" data-bs-toggle="tab"
+            data-bs-target="#pane-documents" type="button" role="tab">
+            <i class="bi bi-folder2-open me-1"></i>Ventanas de Entrega
+            <span class="badge bg-secondary ms-1" id="deadlinesBadge" style="display:none;"></span>
+          </button>
+        </li>
+      </ul>
+
+      <div class="tab-content border border-top-0 rounded-bottom bg-white">
+
+        <!-- ── Tab 1: Estudiantes ──────────────────────────────────────────── -->
+        <div class="tab-pane fade show active p-3" id="pane-students" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="fw-bold">Estudiantes Inscritos</span>
             <input type="text" id="searchInput" class="form-control form-control-sm"
-              placeholder="Buscar estudiante..." style="width: 200px;">
+              placeholder="Buscar estudiante..." style="width: 220px;">
           </div>
-        </div>
-        <div class="card-body p-0">
           <div id="loadingSpinner" class="text-center py-5 d-none">
             <div class="spinner-border text-primary" role="status"></div>
             <p class="mt-2 text-muted">Cargando estudiantes...</p>
@@ -99,6 +122,7 @@
                   <th class="text-center">Semestre</th>
                   <th class="text-center">Periodo Actual</th>
                   <th class="text-center">Estado Semestre</th>
+                  <th class="text-center">CONACyT</th>
                   <th class="text-center">Acciones</th>
                 </tr>
               </thead>
@@ -108,7 +132,62 @@
             </table>
           </div>
         </div>
-      </div>
+
+        <!-- ── Tab 2: Movilidad / Baja Temporal ──────────────────────────── -->
+        <div class="tab-pane fade p-3" id="pane-leave" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="fw-bold">Solicitudes de Baja Temporal</span>
+            <button class="btn btn-sm btn-outline-secondary" id="btnRefreshLeave"
+              title="Recargar solicitudes">
+              <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+            </button>
+          </div>
+          <div id="leaveLoading" class="text-center py-4 d-none">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            <span class="ms-2 text-muted">Cargando solicitudes...</span>
+          </div>
+          <div id="leaveEmpty" class="text-center py-5 d-none">
+            <i class="bi bi-check2-circle fs-2 text-success d-block mb-2"></i>
+            <p class="text-muted">No hay solicitudes de baja temporal pendientes.</p>
+          </div>
+          <div id="leaveList"></div>
+        </div>
+
+        <!-- ── Tab 3: Ventanas de Entrega ──────────────────────────────────── -->
+        <div class="tab-pane fade p-3" id="pane-documents" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="fw-bold">Gestión de Ventanas de Entrega</span>
+            {% if active_period %}
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-success" id="btnConacytMonthly"
+                title="Genera automáticamente las ventanas mensuales del semestre para becarios CONACyT">
+                <i class="bi bi-calendar-month me-1"></i>Crear ventanas CONACyT
+              </button>
+              <button class="btn btn-sm btn-primary" id="btnNewDeadline"
+                {% if not permanence_archives %}disabled title="No hay archives activos de permanencia"{% endif %}>
+                <i class="bi bi-plus-lg me-1"></i>Nueva Ventana
+              </button>
+            </div>
+            {% endif %}
+          </div>
+          <div id="deadlinesLoading" class="text-center py-4 d-none">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            <span class="ms-2 text-muted">Cargando ventanas...</span>
+          </div>
+          <div id="deadlinesEmpty" class="text-center py-5 d-none">
+            <i class="bi bi-folder-x fs-2 text-muted d-block mb-2"></i>
+            <p class="text-muted">No hay ventanas de entrega configuradas para este periodo.</p>
+            {% if active_period %}
+            <button class="btn btn-sm btn-outline-primary mt-1" id="btnNewDeadlineEmpty">
+              <i class="bi bi-plus-lg me-1"></i>Crear primera ventana
+            </button>
+            {% endif %}
+          </div>
+          <div id="deadlinesList"></div>
+        </div>
+
+
+      </div><!-- /tab-content -->
 
     </div>
   </div>
@@ -116,6 +195,7 @@
 {% endblock %}
 
 {% block modals %}
+
 <!-- Modal: Confirmar inscripción semestral -->
 <div class="modal fade" id="confirmEnrollmentModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog">
@@ -128,7 +208,7 @@
       </div>
       <div class="modal-body">
         <p class="mb-1">Estudiante: <strong id="confirmEnrollStudentName"></strong></p>
-        <p class="mb-3">Esto confirmara la inscripcion del estudiante en el semestre actual del periodo activo.</p>
+        <p class="mb-3">Esto confirmará la inscripción del estudiante en el semestre actual del periodo activo.</p>
         <div class="mb-3">
           <label class="form-label">Notas (opcional)</label>
           <textarea class="form-control" id="confirmEnrollNotes" rows="2"
@@ -200,6 +280,158 @@
     </div>
   </div>
 </div>
+
+<!-- Modal: Procesar Baja Temporal -->
+<div class="modal fade" id="processLeaveModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-person-dash me-2 text-warning"></i>Solicitud de Baja Temporal
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">Estudiante: <strong id="leaveStudentName"></strong></p>
+        <p class="mb-1 text-muted small">Semestre: <span id="leaveStudentSemester"></span></p>
+        <p class="mb-3">
+          <a id="leaveFileLink" href="#" target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-file-earmark-text me-1"></i>Ver solicitud
+          </a>
+        </p>
+        <div class="mb-3">
+          <label class="form-label">Notas (opcionales)</label>
+          <textarea class="form-control" id="leaveNotes" rows="2"
+            placeholder="Motivo del rechazo u observaciones..."></textarea>
+        </div>
+        <input type="hidden" id="leaveSubmissionId">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnRejectLeave">
+          <i class="bi bi-x-lg me-1"></i>Rechazar
+        </button>
+        <button type="button" class="btn btn-success" id="btnApproveLeave">
+          <i class="bi bi-check-lg me-1"></i>Aprobar Baja
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nueva Ventana de Entrega -->
+<div class="modal fade" id="createDeadlineModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-folder-plus me-2 text-primary"></i>Nueva Ventana de Entrega
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-bold">Documento <span class="text-danger">*</span></label>
+          <select class="form-select" id="deadlineArchiveId">
+            <option value="">— Selecciona un documento —</option>
+            {% for archive in permanence_archives %}
+            <option value="{{ archive.id }}" data-name="{{ archive.name }}">
+              {{ archive.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Etiqueta descriptiva <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="deadlineLabel"
+            placeholder="Ej: 1er Reporte Semestral, Formato CONACyT — Enero">
+          <div class="form-text">Se mostrará al estudiante para identificar esta entrega.</div>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label">Secuencia</label>
+            <input type="number" class="form-control" id="deadlineSequence" value="1" min="1" max="12">
+            <div class="form-text">1 para Maestría. 1 o 2 para Doctorado.</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Periodo Académico</label>
+            <select class="form-select" id="deadlinePeriodId">
+              {% for period in all_periods %}
+              <option value="{{ period.id }}"
+                {% if active_period and period.id == active_period.id %}selected{% endif %}>
+                {{ period.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="row g-3 mt-0">
+          <div class="col-sm-6">
+            <label class="form-label">Apertura (opcional)</label>
+            <input type="datetime-local" class="form-control" id="deadlineOpensAt">
+            <div class="form-text">Vacío = ya abierta desde ahora</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Cierre (opcional)</label>
+            <input type="datetime-local" class="form-control" id="deadlineClosesAt">
+            <div class="form-text">Vacío = sin fecha límite</div>
+          </div>
+        </div>
+        {% if selected_program %}
+        <div class="alert alert-info mt-3 mb-0 py-2 small">
+          <i class="bi bi-info-circle me-1"></i>
+          <strong>{{ selected_program.name }}</strong>
+          {% if selected_program.program_level and 'doctorado' in selected_program.program_level|lower %}
+            — Doctorado: se recomienda crear <strong>2 ventanas</strong> de reporte (secuencia 1 y 2).
+          {% else %}
+            — Maestría: se recomienda crear <strong>1 ventana</strong> de reporte (secuencia 1).
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveDeadline">
+          <i class="bi bi-check-lg me-1"></i>Crear Ventana
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Revisar Documento -->
+<div class="modal fade" id="reviewDocModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reviewDocModalTitle">
+          <i class="bi bi-clipboard2-check me-2"></i>Revisar Documento
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">Estudiante: <strong id="reviewDocStudentName"></strong></p>
+        <p class="mb-3 text-muted small">Documento: <strong id="reviewDocLabel"></strong></p>
+        <div class="mb-3">
+          <label class="form-label">Comentarios (requerido si rechaza)</label>
+          <textarea class="form-control" id="reviewDocNotes" rows="2"
+            placeholder="Motivo del rechazo o notas de aprobación..."></textarea>
+        </div>
+        <input type="hidden" id="reviewDocSubmissionId">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnRejectDoc">
+          <i class="bi bi-x-lg me-1"></i>Rechazar
+        </button>
+        <button type="button" class="btn btn-success" id="btnApproveDoc">
+          <i class="bi bi-check-lg me-1"></i>Aprobar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}

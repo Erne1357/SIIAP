@@ -152,8 +152,8 @@
           <h2 class="accordion-header" id="heading-${semIdx}">
             <button class="accordion-button ${isFirst ? '' : 'collapsed'}" type="button" 
                     data-bs-toggle="collapse" data-bs-target="#${collapseId}">
-              Semestre ${semester.semester} 
-              <span class="badge bg-secondary ms-2">${semester.courses.length} materia(s)</span>
+              Semestre ${semester.semester}
+              <span class="badge bg-secondary ms-2">${(semester.courses || []).length} materia(s)</span>
             </button>
           </h2>
           <div id="${collapseId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}" 
@@ -172,10 +172,11 @@
               </div>
       `;
 
-      if (semester.courses.length === 0) {
+      const courses = semester.courses || [];
+      if (courses.length === 0) {
         html += `<p class="text-muted text-center py-3">No hay materias en este semestre</p>`;
       } else {
-        semester.courses.forEach((course, courseIdx) => {
+        courses.forEach((course, courseIdx) => {
           html += `
             <div class="course-item">
               <input type="text" class="form-control form-control-sm" 
@@ -328,7 +329,13 @@
         
         // Validar estructura
         if (!curriculumData.type) curriculumData.type = 'semestral';
-        if (!curriculumData.semesters) curriculumData.semesters = [];
+        if (!Array.isArray(curriculumData.semesters)) curriculumData.semesters = [];
+        // Normalizar cada semestre: garantizar que tenga courses array
+        curriculumData.semesters = curriculumData.semesters.map((sem, idx) => ({
+          ...sem,
+          semester: sem.semester ?? (idx + 1),
+          courses: Array.isArray(sem.courses) ? sem.courses : [],
+        }));
       } catch (e) {
         console.error('Error parsing curriculum:', e);
         curriculumData = { type: 'semestral', semesters: [] };

@@ -320,6 +320,708 @@ def update_enrollment_status(
     return se
 
 
+def get_deadlines_for_program(program_id: int, academic_period_id: int = None) -> list:
+    """
+    Obtiene las ventanas de entrega de un programa para el periodo dado
+    (por defecto el activo). Incluye conteo de submissions por ventana.
+    """
+    from app.models.document_deadline import DocumentDeadline
+    from app.models.archive import Archive
+    from app.models.submission import Submission
+
+    if not academic_period_id:
+        period = AcademicPeriod.get_active_period()
+        if not period:
+            return []
+        academic_period_id = period.id
+
+    deadlines = (
+        DocumentDeadline.query
+        .filter_by(program_id=program_id, academic_period_id=academic_period_id)
+        .join(Archive, DocumentDeadline.archive_id == Archive.id)
+        .filter(Archive.is_active == True)
+        .order_by(DocumentDeadline.sequence)
+        .all()
+    )
+
+    result = []
+    for dl in deadlines:
+        total = Submission.query.filter_by(document_deadline_id=dl.id).count()
+        pending = Submission.query.filter_by(document_deadline_id=dl.id, status='review').count()
+        approved = Submission.query.filter_by(document_deadline_id=dl.id, status='approved').count()
+        result.append({
+            **dl.to_dict(),
+            'stats': {'total': total, 'pending': pending, 'approved': approved},
+        })
+    return result
+
+
+def create_document_deadline(
+    program_id: int,
+    archive_id: int,
+    academic_period_id: int,
+    label: str,
+    sequence: int = 1,
+    opens_at=None,
+    closes_at=None,
+    coordinator_id: int = None,
+):
+    """El coordinador crea una ventana de entrega para un documento en un periodo."""
+    from app.models.document_deadline import DocumentDeadline
+    from app.models.archive import Archive
+
+    archive = Archive.query.get(archive_id)
+    if not archive or not archive.is_active:
+        raise ValueError(f"Archive {archive_id} no encontrado o inactivo")
+
+    dl = DocumentDeadline(
+        archive_id=archive_id,
+        program_id=program_id,
+        academic_period_id=academic_period_id,
+        sequence=sequence,
+        label=label,
+        opens_at=opens_at,
+        closes_at=closes_at,
+        is_open=True,
+        created_by=coordinator_id,
+    )
+    db.session.add(dl)
+    db.session.commit()
+    return dl
+
+
+def toggle_document_deadline(deadline_id: int, is_open: bool, coordinator_id: int):
+    """El coordinador abre o cierra manualmente una ventana de entrega."""
+    from app.models.document_deadline import DocumentDeadline
+
+    dl = DocumentDeadline.query.get(deadline_id)
+    if not dl:
+        raise StudentNotFound(f"Ventana {deadline_id} no encontrada")
+
+    dl.is_open = is_open
+    UserHistoryService.log_action(
+        user_id=coordinator_id,
+        admin_id=coordinator_id,
+        action='deadline_opened' if is_open else 'deadline_closed',
+        details=f'{"Abrió" if is_open else "Cerró"} ventana "{dl.label}"',
+    )
+    db.session.commit()
+    return dl
+
+
+def delete_document_deadline(deadline_id: int, coordinator_id: int):
+    """Elimina una ventana solo si no tiene submissions."""
+    from app.models.document_deadline import DocumentDeadline
+    from app.models.submission import Submission
+
+    dl = DocumentDeadline.query.get(deadline_id)
+    if not dl:
+        raise StudentNotFound(f"Ventana {deadline_id} no encontrada")
+
+    sub_count = Submission.query.filter_by(document_deadline_id=deadline_id).count()
+    if sub_count > 0:
+        raise InvalidStateTransition(
+            f"No se puede eliminar '{dl.label}': tiene {sub_count} entrega(s) registrada(s)."
+        )
+
+    label = dl.label
+    db.session.delete(dl)
+    UserHistoryService.log_action(
+        user_id=coordinator_id,
+        admin_id=coordinator_id,
+        action='deadline_deleted',
+        details=f'Eliminó ventana "{label}"',
+    )
+    db.session.commit()
+
+
+def get_student_documents_for_period(user_program_id: int) -> list:
+    """
+    Obtiene las ventanas de entrega del periodo activo para el estudiante,
+    con el estado de su última submission en cada una.
+    Omite documentos de Step 12 (CONACyT) si el estudiante no es becario.
+    """
+    from app.models.document_deadline import DocumentDeadline
+    from app.models.archive import Archive
+    from app.models.submission import Submission
+
+    up = UserProgram.query.get(user_program_id)
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        return []
+
+    deadlines = (
+        DocumentDeadline.query
+        .filter_by(program_id=up.program_id, academic_period_id=active_period.id)
+        .join(Archive, DocumentDeadline.archive_id == Archive.id)
+        .filter(Archive.is_active == True)
+        .order_by(DocumentDeadline.sequence)
+        .all()
+    )
+
+    result = []
+    for dl in deadlines:
+        # Filtrar Step 12 (Becarios CONACyT) si el estudiante no es becario
+        if dl.archive.step_id == 12 and not up.has_conacyt_scholarship:
+            continue
+        sub = (
+            Submission.query
+            .filter_by(user_id=up.user_id, document_deadline_id=dl.id)
+            .order_by(Submission.upload_date.desc())
+            .first()
+        )
+        result.append({
+            'deadline': dl.to_dict(),
+            'archive': dl.archive.to_dict(),
+            'submission': sub.to_dict() if sub else None,
+        })
+    return result
+
+
+def submit_permanence_document(
+    user_program_id: int,
+    document_deadline_id: int,
+    file_storage,
+    student_id: int,
+) -> dict:
+    """El estudiante sube un documento para una ventana de entrega activa."""
+    from app.models.document_deadline import DocumentDeadline
+    from app.models.submission import Submission
+    from app.models.program_step import ProgramStep
+    from app.utils.files import save_user_doc
+
+    up = UserProgram.query.get(user_program_id)
+    if not up or up.user_id != student_id:
+        raise StudentNotFound("UserProgram no encontrado o no pertenece al estudiante")
+
+    dl = DocumentDeadline.query.get(document_deadline_id)
+    if not dl:
+        raise StudentNotFound(f"Ventana {document_deadline_id} no encontrada")
+
+    if not dl.is_currently_open:
+        raise InvalidStateTransition(
+            f"La ventana '{dl.label}' está cerrada. No se puede subir el documento."
+        )
+
+    if dl.program_id != up.program_id:
+        raise InvalidStateTransition("Esta ventana no corresponde a tu programa")
+
+    program_step = ProgramStep.query.filter_by(
+        program_id=up.program_id,
+        step_id=dl.archive.step_id,
+    ).first()
+    if not program_step:
+        raise InvalidStateTransition("El documento no está configurado para este programa")
+
+    existing = Submission.query.filter_by(
+        user_id=up.user_id,
+        document_deadline_id=dl.id,
+        status='review',
+    ).first()
+    if existing:
+        raise InvalidStateTransition(
+            "Ya tienes un documento en revisión para esta ventana. "
+            "Espera a que sea revisado antes de volver a subir."
+        )
+
+    file_path = save_user_doc(file_storage, up.user_id, 'permanence', dl.archive.name)
+
+    sub = Submission(
+        file_path=file_path,
+        status='review',
+        user_id=up.user_id,
+        archive_id=dl.archive_id,
+        program_step_id=program_step.id,
+        semester=up.current_semester,
+        uploaded_by=student_id,
+        uploaded_by_role='student',
+        deadline_at=dl.closes_at,
+    )
+    sub.document_deadline_id = dl.id
+    sub.academic_period_id = dl.academic_period_id
+    db.session.add(sub)
+
+    UserHistoryService.log_action(
+        user_id=student_id,
+        admin_id=student_id,
+        action='permanence_document_submitted',
+        details=f'Subió "{dl.archive.name}" ({dl.label}) — Semestre {up.current_semester}',
+    )
+    db.session.commit()
+    return sub.to_dict()
+
+
+def get_pending_documents(program_id: int) -> list:
+    """Lista submissions de permanencia en estado 'review' para el programa activo."""
+    from app.models.document_deadline import DocumentDeadline
+    from app.models.submission import Submission
+
+    active_period = AcademicPeriod.get_active_period()
+    deadline_subq = (
+        db.session.query(DocumentDeadline.id)
+        .filter(DocumentDeadline.program_id == program_id)
+    )
+    if active_period:
+        deadline_subq = deadline_subq.filter(
+            DocumentDeadline.academic_period_id == active_period.id
+        )
+
+    subs = (
+        Submission.query
+        .filter(
+            Submission.document_deadline_id.in_(deadline_subq),
+            Submission.status == 'review',
+        )
+        .join(User, Submission.user_id == User.id)
+        .order_by(Submission.upload_date.desc())
+        .all()
+    )
+
+    result = []
+    for sub in subs:
+        user = sub.user
+        result.append({
+            'submission': sub.to_dict(),
+            'user': {
+                'id': user.id,
+                'full_name': (
+                    f"{user.first_name} {user.last_name} "
+                    f"{user.mother_last_name or ''}".strip()
+                ),
+                'control_number': user.control_number,
+            },
+            'deadline_label': (
+                sub.document_deadline.label if sub.document_deadline else sub.archive.name
+            ),
+            'archive_name': sub.archive.name if sub.archive else None,
+            'file_url': f'/files/doc/{sub.file_path}' if sub.file_path else None,
+        })
+    return result
+
+
+def review_permanence_document(
+    submission_id: int,
+    coordinator_id: int,
+    status: str,
+    notes: str = None,
+) -> dict:
+    """El coordinador aprueba o rechaza un documento de permanencia."""
+    from app.models.submission import Submission
+
+    if status not in ('approved', 'rejected'):
+        raise ValueError("status debe ser 'approved' o 'rejected'")
+
+    sub = Submission.query.get(submission_id)
+    if not sub:
+        raise StudentNotFound(f"Submission {submission_id} no encontrada")
+
+    if sub.status != 'review':
+        raise InvalidStateTransition(
+            f"Solo submissions en estado 'review' pueden revisarse. "
+            f"Estado actual: '{sub.status}'"
+        )
+
+    sub.status = status
+    sub.reviewer_id = coordinator_id
+    sub.review_date = now_local()
+    sub.reviewer_comment = notes
+
+    dl_label = sub.document_deadline.label if sub.document_deadline else sub.archive.name
+
+    if status == 'approved':
+        NotificationService.create_notification(
+            user_id=sub.user_id,
+            notification_type='permanence_doc_approved',
+            title=f'Documento aprobado — {dl_label}',
+            message=f'Tu documento "{dl_label}" fue aprobado para el periodo actual.',
+            priority='medium',
+            action_url='/user/dashboard',
+        )
+    else:
+        NotificationService.create_notification(
+            user_id=sub.user_id,
+            notification_type='permanence_doc_rejected',
+            title=f'Documento rechazado — {dl_label}',
+            message=(
+                f'Tu documento "{dl_label}" fue rechazado. '
+                f'Motivo: {notes or "Sin especificar"}. '
+                'Vuelve a subirlo cuando la ventana esté abierta.'
+            ),
+            priority='high',
+            action_url='/user/dashboard',
+        )
+
+    UserHistoryService.log_action(
+        user_id=sub.user_id,
+        admin_id=coordinator_id,
+        action=f'permanence_document_{status}',
+        details=f'{"Aprobó" if status == "approved" else "Rechazó"} "{dl_label}". {notes or ""}',
+    )
+    db.session.commit()
+    return sub.to_dict()
+
+
+def _get_leave_request_archive():
+    """Retorna el archive 'Solicitud de Baja Temporal' (step_id=9, is_active=True)."""
+    from app.models.archive import Archive
+    return (
+        Archive.query
+        .filter(
+            Archive.step_id == 9,
+            Archive.is_active == True,
+            Archive.name.ilike('%baja temporal%'),
+        )
+        .first()
+    )
+
+
+def get_student_leave_request(user_program_id: int) -> dict:
+    """
+    Retorna el estado de la solicitud de baja temporal más reciente del estudiante,
+    o None si no existe ninguna.
+    """
+    from app.models.submission import Submission
+
+    up = UserProgram.query.get(user_program_id)
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+
+    archive = _get_leave_request_archive()
+    if not archive:
+        return {'archive_available': False, 'submission': None}
+
+    sub = (
+        Submission.query
+        .filter_by(user_id=up.user_id, archive_id=archive.id)
+        .order_by(Submission.upload_date.desc())
+        .first()
+    )
+    return {
+        'archive_available': True,
+        'archive_id': archive.id,
+        'submission': sub.to_dict() if sub else None,
+    }
+
+
+def submit_leave_request(
+    user_program_id: int,
+    file_storage,
+    student_id: int,
+) -> dict:
+    """
+    El estudiante sube la Solicitud de Baja Temporal.
+    No requiere DocumentDeadline: siempre disponible si el archive está activo.
+    """
+    from app.models.submission import Submission
+    from app.models.program_step import ProgramStep
+    from app.utils.files import save_user_doc
+
+    up = UserProgram.query.get(user_program_id)
+    if not up or up.user_id != student_id:
+        raise StudentNotFound("UserProgram no encontrado o no pertenece al estudiante")
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        raise InvalidStateTransition("No hay periodo académico activo")
+
+    se = SemesterEnrollment.query.filter_by(
+        user_program_id=up.id,
+        academic_period_id=active_period.id,
+    ).first()
+    if not se or se.status not in ('active',):
+        raise InvalidStateTransition(
+            "Solo puedes solicitar baja temporal con una inscripción activa en el periodo actual."
+        )
+
+    archive = _get_leave_request_archive()
+    if not archive:
+        raise ValueError("El archive 'Solicitud de Baja Temporal' no está disponible")
+
+    program_step = ProgramStep.query.filter_by(
+        program_id=up.program_id,
+        step_id=archive.step_id,
+    ).first()
+    if not program_step:
+        raise InvalidStateTransition("El documento no está configurado para este programa")
+
+    existing = Submission.query.filter_by(
+        user_id=up.user_id,
+        archive_id=archive.id,
+        status='review',
+    ).first()
+    if existing:
+        raise InvalidStateTransition(
+            "Ya tienes una solicitud de baja en revisión. Espera a que el coordinador la procese."
+        )
+
+    file_path = save_user_doc(file_storage, up.user_id, 'permanence', archive.name)
+
+    sub = Submission(
+        file_path=file_path,
+        status='review',
+        user_id=up.user_id,
+        archive_id=archive.id,
+        program_step_id=program_step.id,
+        semester=up.current_semester,
+        uploaded_by=student_id,
+        uploaded_by_role='student',
+    )
+    sub.academic_period_id = active_period.id
+    db.session.add(sub)
+
+    UserHistoryService.log_action(
+        user_id=student_id,
+        admin_id=student_id,
+        action='leave_request_submitted',
+        details=f'Subió solicitud de baja temporal — Semestre {up.current_semester}',
+    )
+    db.session.commit()
+    return sub.to_dict()
+
+
+def get_pending_leave_requests(program_id: int) -> list:
+    """
+    Lista las solicitudes de baja temporal en estado 'review' para un programa.
+    """
+    from app.models.submission import Submission
+    from app.models.program_step import ProgramStep
+
+    archive = _get_leave_request_archive()
+    if not archive:
+        return []
+
+    # Subquery: user_ids del programa
+    user_ids_subq = (
+        db.session.query(UserProgram.user_id)
+        .filter_by(program_id=program_id, admission_status='enrolled')
+    )
+
+    subs = (
+        Submission.query
+        .filter(
+            Submission.archive_id == archive.id,
+            Submission.status == 'review',
+            Submission.user_id.in_(user_ids_subq),
+        )
+        .join(User, Submission.user_id == User.id)
+        .order_by(Submission.upload_date.asc())
+        .all()
+    )
+
+    result = []
+    for sub in subs:
+        user = sub.user
+        up = UserProgram.query.filter_by(
+            user_id=user.id, program_id=program_id
+        ).first()
+        result.append({
+            'submission': sub.to_dict(),
+            'file_url': f'/files/doc/{sub.file_path}' if sub.file_path else None,
+            'user': {
+                'id': user.id,
+                'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
+                'control_number': user.control_number,
+            },
+            'current_semester': up.current_semester if up else None,
+        })
+    return result
+
+
+def process_leave_request(
+    submission_id: int,
+    coordinator_id: int,
+    approve: bool,
+    notes: str = None,
+) -> dict:
+    """
+    El coordinador aprueba o rechaza una solicitud de baja temporal.
+    Si aprueba: el SemesterEnrollment activo pasa a 'on_leave'.
+    """
+    from app.models.submission import Submission
+    from app.models.program_step import ProgramStep
+
+    sub = Submission.query.get(submission_id)
+    if not sub:
+        raise StudentNotFound(f"Submission {submission_id} no encontrada")
+
+    if not sub.archive or 'baja temporal' not in sub.archive.name.lower():
+        raise InvalidStateTransition("Este documento no es una solicitud de baja temporal")
+
+    if sub.status != 'review':
+        raise InvalidStateTransition(
+            f"Solo solicitudes en estado 'review' pueden procesarse. Estado: '{sub.status}'"
+        )
+
+    sub.status = 'approved' if approve else 'rejected'
+    sub.reviewer_id = coordinator_id
+    sub.review_date = now_local()
+    sub.reviewer_comment = notes
+
+    if approve:
+        # Buscar el SemesterEnrollment activo del estudiante en el programa correcto
+        program_step = ProgramStep.query.get(sub.program_step_id)
+        if program_step:
+            up = UserProgram.query.filter_by(
+                user_id=sub.user_id,
+                program_id=program_step.program_id,
+            ).first()
+            if up:
+                active_se = SemesterEnrollment.query.filter_by(
+                    user_program_id=up.id,
+                    status='active',
+                ).first()
+                if active_se:
+                    active_se.status = 'on_leave'
+
+        NotificationService.create_notification(
+            user_id=sub.user_id,
+            notification_type='leave_request_approved',
+            title='Baja temporal aprobada',
+            message=(
+                'Tu solicitud de baja temporal fue aprobada. '
+                'Tu estado se actualizó a baja temporal. '
+                'Para reincorporarte, contacta al coordinador.'
+            ),
+            priority='high',
+            action_url='/user/dashboard',
+        )
+    else:
+        NotificationService.create_notification(
+            user_id=sub.user_id,
+            notification_type='leave_request_rejected',
+            title='Baja temporal rechazada',
+            message=(
+                f'Tu solicitud de baja temporal fue rechazada. '
+                f'Motivo: {notes or "Sin especificar"}.'
+            ),
+            priority='high',
+            action_url='/user/dashboard',
+        )
+
+    UserHistoryService.log_action(
+        user_id=sub.user_id,
+        admin_id=coordinator_id,
+        action='leave_request_approved' if approve else 'leave_request_rejected',
+        details=f'{"Aprobó" if approve else "Rechazó"} solicitud de baja temporal. {notes or ""}',
+    )
+    db.session.commit()
+
+    return {
+        'submission': sub.to_dict(),
+        'new_enrollment_status': 'on_leave' if approve else None,
+    }
+
+
+def create_monthly_conacyt_deadlines(
+    program_id: int,
+    academic_period_id: int,
+    coordinator_id: int,
+) -> dict:
+    """
+    Crea las ventanas de entrega mensuales para becarios CONACyT del semestre.
+
+    Busca el archive activo de Step 12 (Formato de Desempeño) y genera un
+    DocumentDeadline por cada mes dentro del rango del periodo académico,
+    usando el número de mes como sequence (1-12).
+
+    Es idempotente: omite los meses que ya tienen ventana creada.
+
+    Returns:
+        {'created': int, 'skipped': int, 'deadlines': [...]}
+    """
+    import calendar
+    from datetime import datetime
+    from app.models.document_deadline import DocumentDeadline
+    from app.models.archive import Archive
+
+    period = AcademicPeriod.query.get(academic_period_id)
+    if not period:
+        raise StudentNotFound(f"Periodo académico {academic_period_id} no encontrado")
+
+    conacyt_archive = (
+        Archive.query
+        .filter(Archive.step_id == 12, Archive.is_active == True)
+        .first()
+    )
+    if not conacyt_archive:
+        raise ValueError(
+            "No se encontró el archive de CONACyT (Step 12) o está inactivo. "
+            "Verifica que el archive 'Formato de Desempeño' exista y esté activo."
+        )
+
+    # Calcular meses entre start_date y end_date del periodo
+    start = period.start_date
+    end = period.end_date
+    months = []
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        months.append((y, m))
+        if m == 12:
+            y, m = y + 1, 1
+        else:
+            m += 1
+
+    MONTH_NAMES = {
+        1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+        5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+        9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre',
+    }
+
+    created = []
+    skipped = 0
+
+    for year, month in months:
+        existing = DocumentDeadline.query.filter_by(
+            program_id=program_id,
+            academic_period_id=academic_period_id,
+            archive_id=conacyt_archive.id,
+            sequence=month,
+        ).first()
+
+        if existing:
+            skipped += 1
+            continue
+
+        last_day = calendar.monthrange(year, month)[1]
+        opens_at = datetime(year, month, 1, 0, 0, 0)
+        closes_at = datetime(year, month, last_day, 23, 59, 59)
+
+        dl = DocumentDeadline(
+            archive_id=conacyt_archive.id,
+            program_id=program_id,
+            academic_period_id=academic_period_id,
+            sequence=month,
+            label=f"Formato CONACyT — {MONTH_NAMES[month]} {year}",
+            opens_at=opens_at,
+            closes_at=closes_at,
+            is_open=True,
+            created_by=coordinator_id,
+        )
+        db.session.add(dl)
+        created.append(dl)
+
+    if created:
+        UserHistoryService.log_action(
+            user_id=coordinator_id,
+            admin_id=coordinator_id,
+            action='conacyt_deadlines_created',
+            details=(
+                f'Creó {len(created)} ventana(s) mensual(es) CONACyT '
+                f'para el periodo {period.name}'
+            ),
+        )
+
+    db.session.commit()
+    return {
+        'created': len(created),
+        'skipped': skipped,
+        'deadlines': [dl.to_dict() for dl in created],
+    }
+
+
 def get_student_permanence(user_program_id: int) -> dict:
     """
     Obtiene el estado de permanencia de un estudiante para mostrarlo en su dashboard.
