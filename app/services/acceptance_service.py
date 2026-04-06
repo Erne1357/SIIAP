@@ -283,6 +283,17 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
             details=f'Carta de aceptación y tira de materias subidas para {program.name}'
         )
 
+    # WebSocket: actualizar pestaña de aceptación del aspirante
+    try:
+        from app.extensions import socketio
+        socketio.emit('acceptance:updated', {
+            'user_id': user_id,
+            'program_id': program_id,
+            'action': f'{document_type}_uploaded',
+        }, room=f'user:{user_id}')
+    except Exception:
+        pass
+
     db.session.commit()
 
     return doc
@@ -345,6 +356,31 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
         action='enrollment_receipt_submitted',
         details=f'Carta de asignación de número de control subida para {program.name}'
     )
+
+    # Notificar al coordinador del programa
+    if program.coordinator_id:
+        user = User.query.get(user_id)
+        student_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+        NotificationService.create_notification(
+            user_id=program.coordinator_id,
+            notification_type='enrollment_receipt_submitted',
+            title='Carta de número de control recibida',
+            message=f'{student_name} ha subido su carta de asignación de número de control para {program.name}.',
+            priority='medium',
+            action_url='/coordinator/acceptance',
+            data={'student_id': user_id, 'program_id': program_id},
+        )
+
+    # WebSocket: actualizar pestaña de aceptación del coordinador
+    try:
+        from app.extensions import socketio
+        socketio.emit('acceptance:updated', {
+            'user_id': user_id,
+            'program_id': program_id,
+            'action': 'receipt_submitted',
+        }, room=f'role:coordinator')
+    except Exception:
+        pass
 
     db.session.commit()
 
@@ -422,6 +458,43 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
             action='enrollment_receipt_rejected',
             details=f'Carta rechazada para {program.name}. {notes or ""}'
         )
+
+    # Enviar email al aspirante
+    try:
+        from app.services.email_service import EmailService
+        from app.services.email_templates import EmailTemplates
+        from flask import url_for
+        user = User.query.get(user_id)
+        if user:
+            dashboard_url = url_for('pages_user.dashboard', _external=True)
+            if status == 'approved':
+                subject, html = EmailTemplates.enrollment_receipt_approved(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    program_name=program.name,
+                    dashboard_url=dashboard_url,
+                )
+            else:
+                subject, html = EmailTemplates.enrollment_receipt_rejected(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    program_name=program.name,
+                    reason=notes or "Sin especificar",
+                    dashboard_url=dashboard_url,
+                )
+            EmailService.queue_email(user_id, subject, html)
+    except Exception as e:
+        import logging
+        logging.error(f"Error queueing email for enrollment_receipt_{status}: {e}")
+
+    # WebSocket: actualizar pestaña de aceptación del aspirante
+    try:
+        from app.extensions import socketio
+        socketio.emit('acceptance:updated', {
+            'user_id': user_id,
+            'program_id': up.program_id,
+            'action': f'receipt_{status}',
+        }, room=f'user:{user_id}')
+    except Exception:
+        pass
 
     db.session.commit()
 
@@ -606,6 +679,17 @@ def assign_control_number(user_id: int, program_id: int,
         user_id=user_id,
         control_number=ctrl,
     )
+
+    # WebSocket: actualizar pestaña de aceptación del aspirante
+    try:
+        from app.extensions import socketio
+        socketio.emit('acceptance:updated', {
+            'user_id': user_id,
+            'program_id': program_id,
+            'action': 'control_number_assigned',
+        }, room=f'user:{user_id}')
+    except Exception:
+        pass
 
     db.session.commit()
 

@@ -56,6 +56,29 @@ class ExtensionsService:
         
         db.session.add(er)
         db.session.commit()
+
+        # Notificar al coordinador del programa
+        try:
+            from app.services.notification_service import NotificationService
+            from app.models.user import User
+            from app.models.program import Program
+            program = Program.query.get(user_program.program_id)
+            if program and program.coordinator_id:
+                user = User.query.get(user_id)
+                student_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+                NotificationService.create_notification(
+                    user_id=program.coordinator_id,
+                    notification_type='extension_request_submitted',
+                    title='Nueva solicitud de prórroga',
+                    message=f'{student_name} ha solicitado una prórroga para "{archive.name}" en {program.name}.',
+                    priority='medium',
+                    action_url='/coordinator/extensions',
+                    data={'student_id': user_id, 'archive_id': archive_id, 'program_id': program.id},
+                )
+                db.session.commit()
+        except Exception:
+            pass
+
         return er
 
     @staticmethod

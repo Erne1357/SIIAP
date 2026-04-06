@@ -11,8 +11,10 @@ El flujo de deliberacion es:
    - Solicitar correccion -> admission_status = 'rejected', rejection_type = 'partial'
 """
 
+import json
+
 from app import db
-from app.models import UserProgram, User, Program
+from app.models import UserProgram, User, Program, Submission, ProgramStep
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
@@ -173,6 +175,19 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
         details='Proceso de deliberacion iniciado'
     )
 
+    # Notificar al aspirante que su proceso está en deliberación
+    program = Program.query.get(program_id)
+    program_name = program.name if program else 'tu programa'
+    NotificationService.create_notification(
+        user_id=user_id,
+        notification_type='deliberation_started',
+        title='Tu expediente está en deliberación',
+        message=f'El comité de admisión de {program_name} ha iniciado la revisión de tu expediente. '
+                f'Te notificaremos cuando haya una resolución.',
+        priority='medium',
+        action_url='/user/dashboard',
+    )
+
     db.session.commit()
 
     return up
@@ -280,6 +295,28 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
         correction_required=correction_required
     )
 
+    # Si es rechazo parcial con archive_id, marcar la submission como rechazada
+    if rejection_type == 'partial' and correction_required:
+        try:
+            corr = json.loads(correction_required)
+            archive_id = corr.get('archive_id')
+            corr_notes = corr.get('notes', '')
+            if archive_id:
+                sub = Submission.query.join(
+                    ProgramStep, Submission.program_step_id == ProgramStep.id
+                ).filter(
+                    Submission.user_id == user_id,
+                    Submission.archive_id == archive_id,
+                    ProgramStep.program_id == program_id,
+                ).first()
+                if sub and sub.status == 'approved':
+                    sub.status = 'rejected'
+                    sub.review_date = now_local()
+                    sub.reviewer_id = decision_by
+                    sub.reviewer_comment = corr_notes or notes
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     # Obtener datos para notificacion
     user = User.query.get(user_id)
     program = Program.query.get(program_id)
@@ -372,6 +409,19 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
         details=f'Estado reiniciado a in_progress. {reason or ""}'
     )
 
+    # Notificar al aspirante
+    program = Program.query.get(program_id)
+    program_name = program.name if program else 'tu programa'
+    NotificationService.create_notification(
+        user_id=user_id,
+        notification_type='deliberation_reset',
+        title='Tu expediente fue reabierto',
+        message=f'Tu expediente en {program_name} ha sido reabierto para que realices las correcciones solicitadas. '
+                f'Revisa tu portal para ver los documentos que necesitan ajustes.',
+        priority='high',
+        action_url=f'/programs/admission/{program.slug}' if program else '/user/dashboard',
+    )
+
     db.session.commit()
 
     return up
@@ -407,6 +457,19 @@ def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: 
         admin_id=admin_id,
         action='admission_reset',
         details=f'Reinicio administrativo forzado desde "{prev_status}". {reason or ""}'
+    )
+
+    # Notificar al aspirante
+    program = Program.query.get(program_id)
+    program_name = program.name if program else 'tu programa'
+    NotificationService.create_notification(
+        user_id=user_id,
+        notification_type='deliberation_reset',
+        title='Tu expediente fue reiniciado',
+        message=f'Tu expediente en {program_name} ha sido reiniciado por un administrador. '
+                f'{("Motivo: " + reason) if reason else "Revisa tu portal para más detalles."}',
+        priority='high',
+        action_url=f'/programs/admission/{program.slug}' if program else '/user/dashboard',
     )
 
     db.session.commit()

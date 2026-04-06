@@ -6,6 +6,7 @@ from app import db
 from app.utils.auth import roles_required
 from app.models import Submission, ProgramStep, User, Program
 from app.services.user_history_service import UserHistoryService
+from app.services.notification_service import NotificationService
 
 api_review = Blueprint("api_review", __name__, url_prefix="/api/v1/admin/review")
 
@@ -105,8 +106,8 @@ def decide_submission(sub_id: int):
     db.session.commit()
 
     # Registrar en el historial
+    archive_name = sub.archive.name if sub.archive else f"Documento ID {sub.archive_id}"
     try:
-        archive_name = sub.archive.name if sub.archive else f"Documento ID {sub.archive_id}"
         UserHistoryService.log_document_review(
             user_id=sub.user_id,
             archive_name=archive_name,
@@ -118,6 +119,32 @@ def decide_submission(sub_id: int):
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al registrar revisión de documento en historial: {e}")
+
+    # Notificar al aspirante (incluye email automático)
+    try:
+        program_slug = None
+        if sub.program_step and sub.program_step.program:
+            program_slug = sub.program_step.program.slug
+        if action == 'approve':
+            NotificationService.notify_document_approved(sub.user_id, archive_name, sub.id, program_slug=program_slug)
+        else:
+            NotificationService.notify_document_rejected(sub.user_id, archive_name, sub.id, comment, program_slug=program_slug)
+        db.session.commit()
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Error al enviar notificación de revisión: {e}")
+
+    # WebSocket: actualizar dashboard del aspirante en tiempo real
+    try:
+        from app.extensions import socketio
+        socketio.emit('submission:reviewed', {
+            'user_id': sub.user_id,
+            'submission_id': sub.id,
+            'archive_id': sub.archive_id,
+            'status': sub.status,
+        }, room=f'user:{sub.user_id}')
+    except Exception:
+        pass
 
     return jsonify({
         "data": {"submission": _sub_to_dict(sub)},

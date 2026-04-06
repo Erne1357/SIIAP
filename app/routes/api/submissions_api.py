@@ -121,6 +121,36 @@ def upload_submission():
     except Exception as e:
         current_app.logger.error(f"Error al registrar subida de documento en historial: {e}")
 
+    # Notificar al coordinador del programa
+    try:
+        from app.services.notification_service import NotificationService
+        if program.coordinator_id:
+            student_name = f"{current_user.first_name} {current_user.last_name}"
+            NotificationService.create_notification(
+                user_id=program.coordinator_id,
+                notification_type='document_submitted',
+                title='Nuevo documento recibido',
+                message=f'{student_name} ha subido el documento "{archive.name}" en {program.name}.',
+                priority='low',
+                action_url='/admin/review',
+                data={'student_id': current_user.id, 'program_id': program.id},
+            )
+            db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error al notificar subida de documento: {e}")
+
+    # WebSocket: notificar a coordinadores en tiempo real
+    try:
+        from app.extensions import socketio
+        socketio.emit('submission:new', {
+            'user_id': current_user.id,
+            'submission_id': sub.id,
+            'archive_name': archive.name,
+            'program_id': program.id,
+        }, room=f'role:coordinator')
+    except Exception:
+        pass
+
     return jsonify({
         "data": {
             "submission": {
