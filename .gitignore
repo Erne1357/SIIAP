@@ -83,6 +83,11 @@ docker/.env.dev
 #claude local
 .claude/
 
+# Archivos de notas/documentación local
+MEJORAS_BACKEND.md
+MEJORAS_FRONTEND.md
+MIGRACION_REACT.md
+
 #Contrucción con datos reales
 docker/scripts/init-dev-real.sh
 docker/docker-compose.dev-real.yml

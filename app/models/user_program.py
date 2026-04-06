@@ -54,7 +54,11 @@ class UserProgram(db.Model):
         # Derivar current_semester del ultimo SemesterEnrollment confirmado.
         # Si no existen registros aun (pre-Fase 6), se usa el valor en columna
         # (= 1, asignado al momento de la transicion a estudiante).
-        last_se = self.semester_enrollments.order_by(db.text('semester_number DESC')).first()
+        from app.models.semester_enrollment import SemesterEnrollment
+        last_se = (SemesterEnrollment.query
+                   .filter_by(user_program_id=self.id)
+                   .order_by(SemesterEnrollment.semester_number.desc())
+                   .first())
         current_sem = last_se.semester_number if last_se else self.current_semester
 
         data = {

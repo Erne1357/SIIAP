@@ -10,6 +10,7 @@ from app.utils.files import save_user_doc  # Importar tu función de archivos
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
 from app.models.user import User
+from app.models.role import Role
 from app.models.program import Program
 from app.models.user_program import UserProgram
 from app.models.submission import Submission

@@ -232,6 +232,10 @@ def create_app(test_config=None):
             return redirect(url_for('pages_auth.login_page'))
         return redirect(url_for('pages_user.dashboard'))
 
+    # Registrar comandos CLI
+    from app.cli import register_cli
+    register_cli(app)
+
     return app
 
 

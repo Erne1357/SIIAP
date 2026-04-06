@@ -74,6 +74,7 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         arch = sub.archive
         if arch and arch.validity_months and sub.upload_date:
             expiry_dt = _add_months(sub.upload_date, arch.validity_months)
+            expiry_dt = to_local_timezone(expiry_dt)
             if expiry_dt < now_local():
                 expired_archive_ids.add(aid)
 

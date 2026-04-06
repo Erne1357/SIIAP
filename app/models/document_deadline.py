@@ -61,7 +61,7 @@ class DocumentDeadline(db.Model):
         """
         if not self.is_open:
             return False
-        now = now_local()
+        now = now_local().replace(tzinfo=None)
         if self.opens_at and now < self.opens_at:
             return False
         if self.closes_at and now > self.closes_at:
