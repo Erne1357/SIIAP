@@ -58,10 +58,72 @@ def dashboard():
             except Exception:
                 permanence_data = None
 
+        # Calcular documentos pendientes de admisión y permanencia
+        pending_admission_docs = []
+        pending_permanence_docs = []
+        if up and program:
+            from app.models import Step, ProgramStep, Phase, Submission
+            from app.models.archive import Archive
+            from sqlalchemy import and_
+
+            # Documentos de admisión pendientes (no aprobados)
+            adm_archives = (
+                Archive.query
+                .join(Step, Archive.step_id == Step.id)
+                .join(ProgramStep, Step.id == ProgramStep.step_id)
+                .join(Phase, Step.phase_id == Phase.id)
+                .filter(
+                    and_(
+                        ProgramStep.program_id == program.id,
+                        Phase.name == 'admission',
+                        Archive.is_uploadable == True,
+                    )
+                )
+                .all()
+            )
+            for arch in adm_archives:
+                sub = Submission.query.filter_by(
+                    user_id=current_user.id,
+                    archive_id=arch.id,
+                ).order_by(Submission.upload_date.desc()).first()
+                if not sub or sub.status not in ('approved', 'review'):
+                    pending_admission_docs.append({
+                        'name': arch.name,
+                        'status': sub.status if sub else 'pending',
+                    })
+
+            # Documentos de permanencia pendientes (no aprobados)
+            perm_archives = (
+                Archive.query
+                .join(Step, Archive.step_id == Step.id)
+                .join(ProgramStep, Step.id == ProgramStep.step_id)
+                .join(Phase, Step.phase_id == Phase.id)
+                .filter(
+                    and_(
+                        ProgramStep.program_id == program.id,
+                        Phase.name == 'permanence',
+                        Archive.is_uploadable == True,
+                    )
+                )
+                .all()
+            )
+            for arch in perm_archives:
+                sub = Submission.query.filter_by(
+                    user_id=current_user.id,
+                    archive_id=arch.id,
+                ).order_by(Submission.upload_date.desc()).first()
+                if not sub or sub.status not in ('approved', 'review'):
+                    pending_permanence_docs.append({
+                        'name': arch.name,
+                        'status': sub.status if sub else 'pending',
+                    })
+
         context = {
             'program': program,
             'up': up,
             'permanence_data': permanence_data,
+            'pending_admission_docs': pending_admission_docs,
+            'pending_permanence_docs': pending_permanence_docs,
         }
 
     # ── Dashboard para PROGRAM_ADMIN ─────────────────────────────
