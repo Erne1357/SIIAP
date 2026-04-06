@@ -648,6 +648,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', loadAcceptanceDocs);
+
+    // Tiempo real: recargar documentos de aceptación cuando hay cambios
+    window.addEventListener('siiap:acceptance:updated', () => {
+        loadAcceptanceDocs();
+    });
 })();
 </script>
 {% endif %}

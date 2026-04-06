@@ -292,4 +292,17 @@ document.addEventListener('DOMContentLoaded', () => {
       emitFlash('danger', 'Error al procesar la decisión');
     }
   }
+
+  // ==================== TIEMPO REAL: NUEVO DOCUMENTO RECIBIDO ====================
+  window.addEventListener('siiap:submission:new', (e) => {
+    const data = e.detail;
+    if (!data) return;
+    emitFlash('info', `Nuevo documento recibido: "${data.archive_name || 'documento'}". Recarga para verlo.`);
+
+    // Si hay una tabla de submissions visible, recargarla automáticamente
+    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
+    if (submissionsTable) {
+      setTimeout(() => { window.location.reload(); }, 3000);
+    }
+  });
 });

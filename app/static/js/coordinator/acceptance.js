@@ -744,4 +744,18 @@ class AcceptanceManager {
 let acceptanceManager;
 document.addEventListener('DOMContentLoaded', () => {
     acceptanceManager = new AcceptanceManager();
+
+    // ── Tiempo real: actualizar cuando hay cambios en aceptación ──
+    window.addEventListener('siiap:acceptance:updated', (e) => {
+        if (!acceptanceManager || !acceptanceManager.currentProgramId) return;
+        const data = e.detail;
+        // Solo recargar si el evento es del programa que estamos viendo
+        if (data?.program_id && String(data.program_id) !== String(acceptanceManager.currentProgramId)) return;
+
+        acceptanceManager.loadStats();
+        const activeTab = document.querySelector('.nav-link.active[data-tab]');
+        if (activeTab) {
+            acceptanceManager.loadTab(activeTab.dataset.tab);
+        }
+    });
 });

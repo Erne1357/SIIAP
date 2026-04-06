@@ -71,4 +71,31 @@
         window.dispatchEvent(new CustomEvent('siiap:email:queue_update', { detail: data }));
     });
 
+    /**
+     * submission:reviewed
+     * Emitido cuando un admin aprueba/rechaza un documento del aspirante.
+     * Payload: { user_id, submission_id, archive_id, status }
+     */
+    socket.on('submission:reviewed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:submission:reviewed', { detail: data }));
+    });
+
+    /**
+     * submission:new
+     * Emitido cuando un estudiante/aspirante sube un documento nuevo.
+     * Payload: { user_id, submission_id, archive_name, program_id, context? }
+     */
+    socket.on('submission:new', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:submission:new', { detail: data }));
+    });
+
+    /**
+     * acceptance:updated
+     * Emitido cuando hay cambios en documentos de aceptación.
+     * Payload: { user_id, program_id, action }
+     */
+    socket.on('acceptance:updated', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:acceptance:updated', { detail: data }));
+    });
+
 })();

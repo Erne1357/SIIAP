@@ -541,4 +541,41 @@ document.addEventListener('DOMContentLoaded', () => {
       flash('Error al enviar la solicitud de cambio', 'danger');
     }
   }
+
+  // ==================== TIEMPO REAL: ACTUALIZAR AL RECIBIR REVISIÓN ====================
+  window.addEventListener('siiap:submission:reviewed', (e) => {
+    const data = e.detail;
+    if (!data) return;
+
+    // Buscar la fila del documento revisado y actualizar el badge de estado
+    const archiveId = data.archive_id;
+    const newStatus = data.status; // 'approved' o 'rejected'
+
+    // Buscar el botón de upload que corresponde a este archive_id
+    const uploadBtn = document.querySelector(`[data-archive="${archiveId}"]`);
+    if (!uploadBtn) return;
+
+    // Buscar el contenedor del step
+    const stepCard = uploadBtn.closest('.step-card, .card, .accordion-item, [data-step]');
+    if (!stepCard) return;
+
+    // Actualizar el badge de estado
+    const statusBadge = stepCard.querySelector('.badge, .status-badge');
+    if (statusBadge) {
+      if (newStatus === 'approved') {
+        statusBadge.className = statusBadge.className.replace(/bg-\w+/, 'bg-success');
+        statusBadge.textContent = 'Aprobado';
+      } else if (newStatus === 'rejected') {
+        statusBadge.className = statusBadge.className.replace(/bg-\w+/, 'bg-danger');
+        statusBadge.textContent = 'Rechazado';
+      }
+    }
+
+    // Mostrar toast informativo
+    const action = newStatus === 'approved' ? 'aprobado' : 'rechazado';
+    flash(`Un documento ha sido ${action}. La página se actualizará.`, newStatus === 'approved' ? 'success' : 'warning');
+
+    // Recargar la página después de un breve delay para mostrar los cambios completos
+    setTimeout(() => { window.location.reload(); }, 2000);
+  });
 });

@@ -210,10 +210,12 @@ class PermanenceManager {
     }
     empty.classList.add('d-none');
     table.classList.remove('d-none');
-    tbody.innerHTML = students.map(s => this.renderStudentRow(s)).join('');
+
+    tbody.innerHTML = students.map((s, i) => this.renderStudentRow(s, i)).join('');
+
   }
 
-  renderStudentRow(s) {
+  renderStudentRow(s, index) {
     const up = s.user_program;
     const user = s.user;
     const ce = s.current_enrollment;
@@ -255,7 +257,7 @@ class PermanenceManager {
               <i class="bi bi-pencil"></i>
             </button>
             <button class="btn btn-sm btn-outline-info"
-              onclick="permanenceManager.showHistory('${this.escapeHtml(user.full_name)}', ${JSON.stringify(s.history).replace(/"/g, '&quot;')})">
+              onclick="permanenceManager.showHistoryByIndex(${index})">
               <i class="bi bi-clock-history"></i>
             </button>
           </div>`;
@@ -448,6 +450,12 @@ class PermanenceManager {
     } catch (e) {
       showFlash('danger', `Error al actualizar estado: ${e.message}`);
     }
+  }
+
+  showHistoryByIndex(index) {
+    const s = this.students[index];
+    if (!s) return;
+    this.showHistory(s.user.full_name, s.history);
   }
 
   showHistory(studentName, history) {
@@ -797,4 +805,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof PROGRAM_ID !== 'undefined' && PROGRAM_ID) {
     permanenceManager = new PermanenceManager(PROGRAM_ID, ACTIVE_PERIOD_ID);
   }
+
+  // ── Tiempo real: nuevo documento de permanencia recibido ──
+  window.addEventListener('siiap:submission:new', (e) => {
+    const data = e.detail;
+    if (!data || !permanenceManager) return;
+    // Solo recargar si el evento es del programa que estamos viendo
+    if (data.program_id && String(data.program_id) !== String(PROGRAM_ID)) return;
+    if (data.context !== 'permanence' && data.context !== 'leave_request') return;
+
+    permanenceManager.loadStats();
+    permanenceManager.loadDocumentsTabData();
+  });
 });
