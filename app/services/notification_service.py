@@ -23,12 +23,21 @@ class NotificationService:
         'deliberation_accepted',
         'deliberation_rejected',
         'deliberation_corrections',
+        'deliberation_reset',
         'acceptance_docs_ready',
         'enrollment_receipt_rejected',
+        'enrollment_receipt_submitted',
+        'permanence_doc_rejected',
+        'permanence_doc_submitted',
+        'leave_request_submitted',
+        'leave_request_rejected',
+        'deadline_created',
+        'deadline_opened',
         'deferral_applied',
         'deferral_rejected',
         'deferral_reactivated',
         'deferral_request_received',
+        'extension_request_submitted',
     }
     
     @staticmethod
@@ -89,18 +98,20 @@ class NotificationService:
     # ==================== DOCUMENTOS ====================
     
     @staticmethod
-    def notify_document_approved(user_id: int, archive_name: str, submission_id: int) -> Notification:
+    def notify_document_approved(user_id: int, archive_name: str, submission_id: int,
+                                  program_slug: str = None) -> Notification:
         """Notifica cuando un documento es aprobado"""
+        action_url = f'/programs/admission/{program_slug}' if program_slug else '/user/dashboard'
         notification = NotificationService.create_notification(
             user_id=user_id,
             notification_type='document_approved',
             title='Documento aprobado',
             message=f'Tu documento "{archive_name}" ha sido aprobado.',
             priority='medium',
+            action_url=action_url,
             data={
                 'submission_id': submission_id,
                 'archive_name': archive_name,
-                'url': '/user/dashboard'
             }
         )
         
@@ -127,23 +138,25 @@ class NotificationService:
         return notification
     
     @staticmethod
-    def notify_document_rejected(user_id: int, archive_name: str, submission_id: int, reason: str = None) -> Notification:
+    def notify_document_rejected(user_id: int, archive_name: str, submission_id: int,
+                                  reason: str = None, program_slug: str = None) -> Notification:
         """Notifica cuando un documento es rechazado"""
         message = f'Tu documento "{archive_name}" fue rechazado.'
         if reason:
             message += f' Motivo: {reason}'
-        
+
+        action_url = f'/programs/admission/{program_slug}' if program_slug else '/user/dashboard'
         notification = NotificationService.create_notification(
             user_id=user_id,
             notification_type='document_rejected',
             title='Documento rechazado',
             message=message,
             priority='high',
+            action_url=action_url,
             data={
                 'submission_id': submission_id,
                 'archive_name': archive_name,
                 'reason': reason,
-                'url': '/user/dashboard'
             }
         )
         
@@ -171,18 +184,20 @@ class NotificationService:
         return notification
     
     @staticmethod
-    def notify_coordinator_uploaded(user_id: int, archive_name: str, submission_id: int, coordinator_name: str) -> Notification:
+    def notify_coordinator_uploaded(user_id: int, archive_name: str, submission_id: int,
+                                     coordinator_name: str, program_slug: str = None) -> Notification:
         """Notifica cuando el coordinador sube un documento por el estudiante"""
+        action_url = f'/programs/admission/{program_slug}' if program_slug else '/user/dashboard'
         notification = NotificationService.create_notification(
             user_id=user_id,
             notification_type='coordinator_uploaded',
             title='Documento subido por coordinador',
             message=f'El coordinador {coordinator_name} ha subido el documento "{archive_name}" por ti.',
             priority='medium',
+            action_url=action_url,
             data={
                 'submission_id': submission_id,
                 'archive_name': archive_name,
-                'url': '/user/dashboard'
             }
         )
         
@@ -212,18 +227,20 @@ class NotificationService:
     # ==================== PRÓRROGAS ====================
     
     @staticmethod
-    def notify_extension_approved(user_id: int, archive_name: str, granted_until: str) -> Notification:
+    def notify_extension_approved(user_id: int, archive_name: str, granted_until: str,
+                                   program_slug: str = None) -> Notification:
         """Notifica cuando una prórroga es aprobada"""
+        action_url = f'/programs/admission/{program_slug}' if program_slug else '/user/dashboard'
         notification = NotificationService.create_notification(
             user_id=user_id,
             notification_type='extension_approved',
             title='Prórroga aprobada',
             message=f'Tu solicitud de prórroga para "{archive_name}" ha sido aprobada hasta el {granted_until}.',
             priority='medium',
+            action_url=action_url,
             data={
                 'archive_name': archive_name,
                 'granted_until': granted_until,
-                'url': '/user/dashboard'
             }
         )
         
@@ -251,22 +268,24 @@ class NotificationService:
         return notification
     
     @staticmethod
-    def notify_extension_rejected(user_id: int, archive_name: str, reason: str = None) -> Notification:
+    def notify_extension_rejected(user_id: int, archive_name: str, reason: str = None,
+                                   program_slug: str = None) -> Notification:
         """Notifica cuando una prórroga es rechazada"""
         message = f'Tu solicitud de prórroga para "{archive_name}" ha sido rechazada.'
         if reason:
             message += f' Motivo: {reason}'
-        
+
+        action_url = f'/programs/admission/{program_slug}' if program_slug else '/user/dashboard'
         notification = NotificationService.create_notification(
             user_id=user_id,
             notification_type='extension_rejected',
             title='Prórroga rechazada',
             message=message,
             priority='high',
+            action_url=action_url,
             data={
                 'archive_name': archive_name,
                 'reason': reason,
-                'url': '/user/dashboard'
             }
         )
         
@@ -305,12 +324,12 @@ class NotificationService:
             title='Cita asignada',
             message=f'Se te ha asignado una cita para "{event_title}" el {slot_datetime}.',
             priority='high',
+            action_url=f'/events/{event_id}',
             data={
                 'appointment_id': appointment_id,
                 'event_id': event_id,
                 'event_title': event_title,
                 'slot_datetime': slot_datetime,
-                'url': '/events/'
             }
         )
         
@@ -345,10 +364,10 @@ class NotificationService:
             title='Cita cancelada',
             message=f'Tu cita para "{event_title}" ha sido cancelada. Motivo: {reason}',
             priority='high',
+            action_url='/events/',
             data={
                 'event_title': event_title,
                 'reason': reason,
-                'url': '/events/'
             }
         )
         
@@ -384,12 +403,12 @@ class NotificationService:
             title='Cambio de horario aprobado',
             message=f'Tu solicitud de cambio para "{event_title}" fue aprobada. Tu nuevo horario es el {new_slot_datetime}.',
             priority='high',
+            action_url=f'/events/{event_id}',
             data={
                 'appointment_id': appointment_id,
                 'event_id': event_id,
                 'event_title': event_title,
                 'slot_datetime': new_slot_datetime,
-                'url': '/events/'
             }
         )
 
@@ -468,7 +487,7 @@ class NotificationService:
             title='Contraseña reseteada',
             message='Tu contraseña ha sido reseteada a "tecno#2K". Debes cambiarla en tu próximo inicio de sesión.',
             priority='critical',
-            data={'url': '/user/profile'}
+            action_url='/user/profile',
         )
         
         # NUEVO: Enviar correo
@@ -499,9 +518,9 @@ class NotificationService:
             title='Número de control asignado',
             message=f'Se te ha asignado el número de control: {control_number}',
             priority='high',
+            action_url='/user/profile',
             data={
                 'control_number': control_number,
-                'url': '/user/profile'
             }
         )
         
@@ -570,10 +589,10 @@ class NotificationService:
             title='Cambio de programa',
             message=f'Has sido cambiado del programa "{from_program}" a "{to_program}".',
             priority='high',
+            action_url='/user/dashboard',
             data={
                 'from_program': from_program,
                 'to_program': to_program,
-                'url': '/user/profile'
             }
         )
         
