@@ -16,6 +16,7 @@ from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
 from sqlalchemy import and_
+import logging
 
 
 class PermanenceError(Exception):
@@ -316,6 +317,27 @@ def update_enrollment_status(
             action_url='/user/dashboard',
         )
 
+        # Enviar email para bajas (temporal y definitiva)
+        if new_status in ('dropped', 'on_leave'):
+            try:
+                from app.services.email_service import EmailService
+                from app.services.email_templates import EmailTemplates
+                from flask import url_for
+                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                subject, html = EmailTemplates.enrollment_status_changed(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    program_name=program.name,
+                    period_name=period.name,
+                    semester_number=se.semester_number,
+                    status=new_status,
+                    status_label=STATUS_LABELS.get(new_status, new_status),
+                    dashboard_url=dashboard_url,
+                )
+                EmailService.queue_email(user.id, subject, html)
+            except Exception as e:
+                import logging as _log
+                _log.error(f"Error queueing email for enrollment_status_changed: {e}")
+
     db.session.commit()
     return se
 
@@ -387,6 +409,25 @@ def create_document_deadline(
     )
     db.session.add(dl)
     db.session.commit()
+
+    # Notificar a los estudiantes inscritos del programa (vía Celery)
+    try:
+        student_ids = [
+            up.user_id for up in
+            UserProgram.query.filter_by(program_id=program_id, admission_status='enrolled').all()
+        ]
+        if student_ids:
+            NotificationService.send_bulk(
+                user_ids=student_ids,
+                notification_type='deadline_created',
+                title=f'Nueva ventana de entrega: {label}',
+                message=f'Se ha abierto la ventana de entrega "{label}". Revisa tu panel de permanencia para subir tu documento.',
+                priority='medium',
+                action_url='/user/dashboard',
+            )
+    except Exception as e:
+        logging.error(f"Error sending bulk notification for deadline: {e}")
+
     return dl
 
 
@@ -406,6 +447,26 @@ def toggle_document_deadline(deadline_id: int, is_open: bool, coordinator_id: in
         details=f'{"Abrió" if is_open else "Cerró"} ventana "{dl.label}"',
     )
     db.session.commit()
+
+    # Notificar a estudiantes solo cuando se ABRE la ventana
+    if is_open:
+        try:
+            student_ids = [
+                up.user_id for up in
+                UserProgram.query.filter_by(program_id=dl.program_id, admission_status='enrolled').all()
+            ]
+            if student_ids:
+                NotificationService.send_bulk(
+                    user_ids=student_ids,
+                    notification_type='deadline_opened',
+                    title=f'Ventana de entrega abierta: {dl.label}',
+                    message=f'La ventana de entrega "{dl.label}" se ha abierto. Sube tu documento antes de que cierre.',
+                    priority='medium',
+                    action_url='/user/dashboard',
+                )
+        except Exception as e:
+            logging.error(f"Error sending bulk notification for deadline toggle: {e}")
+
     return dl
 
 
@@ -550,6 +611,38 @@ def submit_permanence_document(
         action='permanence_document_submitted',
         details=f'Subió "{dl.archive.name}" ({dl.label}) — Semestre {up.current_semester}',
     )
+
+    # Notificar al coordinador del programa
+    try:
+        program = Program.query.get(up.program_id)
+        if program and program.coordinator_id:
+            user = User.query.get(student_id)
+            student_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {student_id}"
+            NotificationService.create_notification(
+                user_id=program.coordinator_id,
+                notification_type='permanence_doc_submitted',
+                title='Documento de permanencia recibido',
+                message=f'{student_name} ha subido "{dl.archive.name}" ({dl.label}).',
+                priority='low',
+                action_url='/coordinator/permanence',
+                data={'student_id': student_id, 'program_id': up.program_id, 'deadline_id': dl.id},
+            )
+    except Exception as e:
+        logging.error(f"Error notifying coordinator of permanence doc: {e}")
+
+    # WebSocket: notificar a coordinadores en tiempo real
+    try:
+        from app.extensions import socketio
+        socketio.emit('submission:new', {
+            'user_id': student_id,
+            'submission_id': sub.id if hasattr(sub, 'id') else None,
+            'archive_name': dl.archive.name,
+            'program_id': up.program_id,
+            'context': 'permanence',
+        }, room=f'role:coordinator')
+    except Exception:
+        pass
+
     db.session.commit()
     return sub.to_dict()
 
@@ -653,6 +746,23 @@ def review_permanence_document(
             priority='high',
             action_url='/user/dashboard',
         )
+        # Enviar email para documentos rechazados
+        try:
+            from app.services.email_service import EmailService
+            from app.services.email_templates import EmailTemplates
+            from flask import url_for
+            user = User.query.get(sub.user_id)
+            if user:
+                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                subject, html = EmailTemplates.permanence_doc_rejected(
+                    user_name=f"{user.first_name} {user.last_name}",
+                    document_label=dl_label,
+                    reason=notes or "Sin especificar",
+                    dashboard_url=dashboard_url,
+                )
+                EmailService.queue_email(sub.user_id, subject, html)
+        except Exception as e:
+            logging.error(f"Error queueing email for permanence_doc_rejected: {e}")
 
     UserHistoryService.log_action(
         user_id=sub.user_id,
@@ -778,6 +888,37 @@ def submit_leave_request(
         action='leave_request_submitted',
         details=f'Subió solicitud de baja temporal — Semestre {up.current_semester}',
     )
+
+    # Notificar al coordinador del programa
+    try:
+        program = Program.query.get(up.program_id)
+        if program and program.coordinator_id:
+            user = User.query.get(student_id)
+            student_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {student_id}"
+            NotificationService.create_notification(
+                user_id=program.coordinator_id,
+                notification_type='leave_request_submitted',
+                title='Solicitud de baja temporal recibida',
+                message=f'{student_name} ha solicitado baja temporal en {program.name} (Semestre {up.current_semester}).',
+                priority='high',
+                action_url='/coordinator/permanence',
+                data={'student_id': student_id, 'program_id': up.program_id},
+            )
+    except Exception as e:
+        logging.error(f"Error notifying coordinator of leave request: {e}")
+
+    # WebSocket: notificar a coordinadores en tiempo real
+    try:
+        from app.extensions import socketio
+        socketio.emit('submission:new', {
+            'user_id': student_id,
+            'archive_name': archive.name,
+            'program_id': up.program_id,
+            'context': 'leave_request',
+        }, room=f'role:coordinator')
+    except Exception:
+        pass
+
     db.session.commit()
     return sub.to_dict()
 
@@ -907,6 +1048,29 @@ def process_leave_request(
         action='leave_request_approved' if approve else 'leave_request_rejected',
         details=f'{"Aprobó" if approve else "Rechazó"} solicitud de baja temporal. {notes or ""}',
     )
+
+    # Enviar email al estudiante
+    try:
+        from app.services.email_service import EmailService
+        from app.services.email_templates import EmailTemplates
+        from flask import url_for
+        user = User.query.get(sub.user_id)
+        if user:
+            # Obtener nombre del programa
+            up_for_email = UserProgram.query.filter_by(user_id=sub.user_id).first()
+            program_name = up_for_email.program.name if up_for_email and up_for_email.program else 'tu programa'
+            dashboard_url = url_for('pages_user.dashboard', _external=True)
+            subject, html = EmailTemplates.leave_request_result(
+                user_name=f"{user.first_name} {user.last_name}",
+                program_name=program_name,
+                approved=approve,
+                reason=notes or "",
+                dashboard_url=dashboard_url,
+            )
+            EmailService.queue_email(sub.user_id, subject, html)
+    except Exception as e:
+        logging.error(f"Error queueing email for leave_request_result: {e}")
+
     db.session.commit()
 
     return {
@@ -1015,6 +1179,30 @@ def create_monthly_conacyt_deadlines(
         )
 
     db.session.commit()
+
+    # Notificar solo a becarios CONACyT del programa (vía Celery)
+    if created:
+        try:
+            conacyt_student_ids = [
+                up.user_id for up in
+                UserProgram.query.filter_by(
+                    program_id=program_id,
+                    admission_status='enrolled',
+                    has_conacyt_scholarship=True,
+                ).all()
+            ]
+            if conacyt_student_ids:
+                NotificationService.send_bulk(
+                    user_ids=conacyt_student_ids,
+                    notification_type='conacyt_deadlines_created',
+                    title='Ventanas mensuales CONACyT creadas',
+                    message=f'Se crearon {len(created)} ventana(s) de entrega CONACyT para {period.name}. Revisa tu panel.',
+                    priority='medium',
+                    action_url='/user/dashboard',
+                )
+        except Exception as e:
+            logging.error(f"Error sending bulk notification for CONACyT deadlines: {e}")
+
     return {
         'created': len(created),
         'skipped': skipped,

@@ -728,6 +728,23 @@ def api_toggle_conacyt_scholarship(user_program_id):
         new_value = not up.has_conacyt_scholarship
 
     up.has_conacyt_scholarship = new_value
+
+    # Notificar al estudiante
+    try:
+        from app.services.notification_service import NotificationService
+        label_notif = 'activada' if new_value else 'desactivada'
+        NotificationService.create_notification(
+            user_id=up.user_id,
+            notification_type='conacyt_scholarship_changed',
+            title=f'Beca CONACyT {label_notif}',
+            message=f'Tu beca CONACyT ha sido {label_notif} por el coordinador. '
+                    f'{"Ahora verás las ventanas de entrega CONACyT en tu panel." if new_value else "Ya no verás las ventanas CONACyT."}',
+            priority='medium',
+            action_url='/user/dashboard',
+        )
+    except Exception:
+        pass
+
     db.session.commit()
 
     label = 'activada' if new_value else 'desactivada'
