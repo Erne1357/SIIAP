@@ -204,3 +204,90 @@ class EmailTemplates:
             'dashboard_url': dashboard_url
         })
         return subject, html
+
+    # ==================== PERMANENCIA ====================
+
+    @staticmethod
+    def permanence_doc_rejected(user_name: str, document_label: str, reason: str,
+                                 dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para documento de permanencia rechazado"""
+        subject = f"⚠️ Documento rechazado: {document_label}"
+        html = EmailTemplates.render_email('permanence_doc_rejected', {
+            'user_name': user_name,
+            'document_label': document_label,
+            'reason': reason,
+            'dashboard_url': dashboard_url,
+        })
+        return subject, html
+
+    @staticmethod
+    def enrollment_receipt_rejected(user_name: str, program_name: str, reason: str,
+                                     dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para carta de número de control rechazada"""
+        subject = f"⚠️ Carta rechazada — {program_name}"
+        html = EmailTemplates.render_email('enrollment_receipt_rejected', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'reason': reason,
+            'dashboard_url': dashboard_url,
+        })
+        return subject, html
+
+    @staticmethod
+    def enrollment_receipt_approved(user_name: str, program_name: str,
+                                     dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para carta de número de control aprobada"""
+        subject = f"✅ Carta aprobada — {program_name}"
+        html = EmailTemplates.render_email('enrollment_receipt_approved', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'dashboard_url': dashboard_url,
+        })
+        return subject, html
+
+    @staticmethod
+    def deadline_created(user_name: str, deadline_label: str, closes_at: str,
+                          dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para nueva ventana de entrega"""
+        subject = f"📄 Nueva ventana de entrega: {deadline_label}"
+        html = EmailTemplates.render_email('deadline_created', {
+            'user_name': user_name,
+            'deadline_label': deadline_label,
+            'closes_at': closes_at,
+            'dashboard_url': dashboard_url,
+        })
+        return subject, html
+
+    @staticmethod
+    def enrollment_status_changed(user_name: str, program_name: str, period_name: str,
+                                   semester_number: int, status: str, status_label: str,
+                                   dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para cambio de estado de inscripción"""
+        emoji = '🚫' if status == 'dropped' else '⏸️'
+        subject = f"{emoji} {status_label} — {program_name}"
+        html = EmailTemplates.render_email('enrollment_status_changed', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'period_name': period_name,
+            'semester_number': semester_number,
+            'status': status,
+            'status_label': status_label,
+            'dashboard_url': dashboard_url,
+        })
+        return subject, html
+
+    @staticmethod
+    def leave_request_result(user_name: str, program_name: str, approved: bool,
+                              reason: str, dashboard_url: str) -> tuple[str, str]:
+        """Plantilla para resultado de solicitud de baja temporal"""
+        status_text = 'aprobada' if approved else 'rechazada'
+        emoji = '✅' if approved else '❌'
+        subject = f"{emoji} Solicitud de baja temporal {status_text} — {program_name}"
+        html = EmailTemplates.render_email('leave_request_result', {
+            'user_name': user_name,
+            'program_name': program_name,
+            'approved': approved,
+            'reason': reason,
+            'dashboard_url': dashboard_url,
+        })
+        return subject, html
