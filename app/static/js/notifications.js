@@ -291,6 +291,23 @@ class NotificationManager {
             // Permanencia
             'semester_enrolled': 'bi bi-journal-check',
             'enrollment_status_changed': 'bi bi-journal-x',
+            'permanence_doc_approved': 'bi bi-file-check',
+            'permanence_doc_rejected': 'bi bi-file-x',
+            'permanence_doc_submitted': 'bi bi-file-earmark-arrow-up',
+            'leave_request_approved': 'bi bi-door-open',
+            'leave_request_rejected': 'bi bi-door-closed',
+            'leave_request_submitted': 'bi bi-door-open',
+            'deadline_created': 'bi bi-calendar-plus',
+            'deadline_opened': 'bi bi-calendar-check',
+            'conacyt_deadlines_created': 'bi bi-calendar-range',
+            'conacyt_scholarship_changed': 'bi bi-award',
+            // Deliberación extra
+            'deliberation_started': 'bi bi-hourglass-split',
+            'deliberation_reset': 'bi bi-arrow-counterclockwise',
+            // Admisión
+            'document_submitted': 'bi bi-file-earmark-arrow-up',
+            'enrollment_receipt_submitted': 'bi bi-file-earmark-arrow-up',
+            'extension_request_submitted': 'bi bi-calendar-plus',
             // Diferimiento
             'deferral_applied': 'bi bi-calendar2-minus',
             'deferral_rejected': 'bi bi-calendar2-x',
@@ -331,6 +348,24 @@ class NotificationManager {
             'password_reset': 'warning',
             'program_changed': 'warning',
             'deferral_request_received': 'info',
+            // Permanencia
+            'permanence_doc_approved': 'success',
+            'permanence_doc_rejected': 'danger',
+            'permanence_doc_submitted': 'info',
+            'leave_request_approved': 'success',
+            'leave_request_rejected': 'danger',
+            'leave_request_submitted': 'warning',
+            'deadline_created': 'primary',
+            'deadline_opened': 'primary',
+            'conacyt_deadlines_created': 'info',
+            'conacyt_scholarship_changed': 'info',
+            // Deliberación extra
+            'deliberation_started': 'warning',
+            'deliberation_reset': 'warning',
+            // Admisión (coordinador)
+            'document_submitted': 'info',
+            'enrollment_receipt_submitted': 'info',
+            'extension_request_submitted': 'warning',
         };
         return colors[type] || 'info';
     }
