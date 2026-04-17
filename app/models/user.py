@@ -1,5 +1,5 @@
 from app import db
-from flask import url_for
+from flask import url_for, g
 from flask_login import UserMixin
 from datetime import datetime, timezone
 from app.utils.datetime_utils import now_local
@@ -36,6 +36,14 @@ class User(db.Model, UserMixin):
     )
 
     coordinated_programs = db.relationship('Program', back_populates='coordinator')
+
+    # Permisos directos asignados al usuario (delegación / casos especiales)
+    direct_permissions = db.relationship(
+        'UserPermission',
+        foreign_keys='UserPermission.user_id',
+        back_populates='user',
+        cascade='all, delete-orphan'
+    )
     
     submissions = db.relationship(
         'Submission',
@@ -128,6 +136,77 @@ class User(db.Model, UserMixin):
         if not self.role:
             return False
         return self.role.name in role_names
+
+    def has_permission(self, codename, program_id=None):
+        """
+        Evalúa si el usuario tiene el permiso indicado.
+
+        Orden de evaluación:
+          1. Permisos base del rol (RolePermission, del seed)
+          2. Overrides activos del rol (RolePermissionOverride)
+          3. Permisos directos activos y no vencidos (UserPermission)
+
+        Caché por request (flask.g) para evitar N+1 queries.
+        Si program_id se especifica, los UserPermission deben tener
+        ese program_id o NULL (global).
+        """
+        cache_key = f'_perm_cache_{self.id}_{program_id}'
+        if not hasattr(g, cache_key):
+            from app.models.role_permission import RolePermission, RolePermissionOverride
+            from app.models.user_permission import UserPermission
+            from app.utils.datetime_utils import now_local
+
+            codenames = set()
+
+            # 1. Permisos base del rol
+            if self.role_id:
+                base = (
+                    db.session.query(RolePermission)
+                    .join(RolePermission.permission)
+                    .filter(RolePermission.role_id == self.role_id)
+                    .all()
+                )
+                codenames.update(rp.permission.codename for rp in base)
+
+            # 2. Overrides activos del rol
+            if self.role_id:
+                overrides = (
+                    db.session.query(RolePermissionOverride)
+                    .join(RolePermissionOverride.permission)
+                    .filter(
+                        RolePermissionOverride.role_id == self.role_id,
+                        RolePermissionOverride.is_active == True
+                    )
+                    .all()
+                )
+                codenames.update(ov.permission.codename for ov in overrides)
+
+            # 3. Permisos directos del usuario (activos y no vencidos)
+            now = now_local()
+            direct_q = (
+                db.session.query(UserPermission)
+                .join(UserPermission.permission)
+                .filter(
+                    UserPermission.user_id == self.id,
+                    UserPermission.is_active == True,
+                    db.or_(
+                        UserPermission.expires_at == None,
+                        UserPermission.expires_at > now
+                    ),
+                )
+            )
+            if program_id is not None:
+                direct_q = direct_q.filter(
+                    db.or_(
+                        UserPermission.program_id == None,
+                        UserPermission.program_id == program_id
+                    )
+                )
+            codenames.update(up.permission.codename for up in direct_q.all())
+
+            setattr(g, cache_key, codenames)
+
+        return codename in getattr(g, cache_key)
     
     def deactivate(self):
         """Desactiva el usuario"""

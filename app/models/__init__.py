@@ -22,3 +22,7 @@ from .task_log import TaskLog
 from .enrollment_deferral import EnrollmentDeferral
 from .document_template import DocumentTemplate
 from .document_deadline import DocumentDeadline
+from .permission import Permission
+from .role_permission import RolePermission, RolePermissionOverride
+from .role_permission_audit import RolePermissionAudit
+from .user_permission import UserPermission

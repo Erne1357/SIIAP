@@ -84,6 +84,81 @@ def register_cli(app):
                 click.echo(f'  - {filename}: {err[:100]}')
         click.echo('')
 
+    @app.cli.command('seed-permissions')
+    @click.option('--confirm', is_flag=True, help='Confirmar la ejecucion sin prompt')
+    @with_appcontext
+    def seed_permissions(confirm):
+        """
+        Pobla el catálogo de permisos y el mapeo de roles ejecutando los SQL
+        en database/DML/permissions/ en orden alfabético.
+
+        Es idempotente: se puede ejecutar múltiples veces sin duplicar datos.
+
+        Uso:
+            flask seed-permissions
+            flask seed-permissions --confirm
+        """
+        from app import db
+
+        permissions_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'database', 'DML', 'permissions'
+        )
+
+        if not os.path.isdir(permissions_dir):
+            click.echo(click.style(f'No se encontro el directorio: {permissions_dir}', fg='red'))
+            return
+
+        sql_files = sorted(glob.glob(os.path.join(permissions_dir, '*.sql')))
+        if not sql_files:
+            click.echo(click.style('No hay archivos SQL en el directorio de permisos.', fg='yellow'))
+            return
+
+        click.echo(click.style('\n=== SEED PERMISSIONS ===', fg='cyan', bold=True))
+        click.echo(f'Directorio: {permissions_dir}')
+        click.echo(f'Archivos encontrados: {len(sql_files)}')
+        for f in sql_files:
+            click.echo(f'  - {os.path.basename(f)}')
+
+        if not confirm:
+            if not click.confirm('\nEsto insertara/actualizara el catalogo de permisos. Continuar?'):
+                click.echo('Cancelado.')
+                return
+
+        errors = []
+        for sql_file in sql_files:
+            filename = os.path.basename(sql_file)
+            click.echo(f'\nEjecutando {click.style(filename, fg="blue")}...')
+            try:
+                with open(sql_file, 'r', encoding='utf-8') as f:
+                    sql_content = f.read()
+
+                db.session.execute(db.text(sql_content))
+                db.session.commit()
+                click.echo(click.style('  OK', fg='green'))
+            except Exception as e:
+                db.session.rollback()
+                errors.append((filename, str(e)))
+                click.echo(click.style(f'  ERROR: {e}', fg='red'))
+
+        # Resumen con conteos reales
+        from app.models.permission import Permission
+        from app.models.role_permission import RolePermission
+
+        total_perms = Permission.query.count()
+        total_rp = RolePermission.query.count()
+
+        click.echo(click.style('\n=== RESUMEN ===', fg='cyan', bold=True))
+        click.echo(f'Permisos en catalogo:      {click.style(str(total_perms), fg="green")}')
+        click.echo(f'Mapeos rol-permiso:        {click.style(str(total_rp), fg="green")}')
+        if errors:
+            click.echo(f'Errores:                   {click.style(str(len(errors)), fg="red")}')
+            for filename, err in errors:
+                click.echo(f'  - {filename}: {err[:120]}')
+        else:
+            click.echo(click.style('Sin errores.', fg='green'))
+        click.echo('')
+
     @app.cli.command('clean-test-data')
     @click.option('--confirm', is_flag=True, help='Confirmar la ejecucion sin prompt')
     @with_appcontext
