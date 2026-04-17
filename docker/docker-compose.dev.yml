@@ -19,8 +19,6 @@ services:
     restart: always
     environment:
       - TZ=America/Ciudad_Juarez
-    ports:
-      - "6379:6379"   # expuesto en dev para inspección con redis-cli
     volumes:
       - redisdata:/data
 
