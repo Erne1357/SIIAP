@@ -1,7 +1,7 @@
 # app/routes/api/academic_period_api.py
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services import academic_period_service as svc
 import logging
 
@@ -13,7 +13,7 @@ api_academic_periods = Blueprint(
 
 @api_academic_periods.route('', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('academic_periods.api.list')
 def api_list_periods():
     """Lista todos los periodos académicos."""
     include_completed = request.args.get('include_completed', 'true').lower() == 'true'
@@ -28,7 +28,7 @@ def api_list_periods():
 
 @api_academic_periods.route('', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('academic_periods.api.create')
 def api_create_period():
     """Crea un nuevo periodo académico."""
     data = request.get_json()
@@ -121,7 +121,7 @@ def api_get_active_period():
 
 @api_academic_periods.get('/<int:period_id>')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('academic_periods.api.create')
 def api_get_period(period_id):
     """Obtiene un periodo académico por ID."""
     try:
@@ -143,7 +143,7 @@ def api_get_period(period_id):
 
 @api_academic_periods.patch('/<int:period_id>')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('academic_periods.api.update')
 def api_update_period(period_id):
     """Actualiza un periodo académico existente."""
     data = request.get_json()
@@ -211,7 +211,7 @@ def api_update_period(period_id):
 
 @api_academic_periods.post('/<int:period_id>/activate')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('academic_periods.api.activate')
 def api_activate_period(period_id):
     """Activa un periodo académico (desactiva automáticamente el anterior)."""
     try:
@@ -245,7 +245,7 @@ def api_activate_period(period_id):
 
 @api_academic_periods.post('/<int:period_id>/deactivate')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('academic_periods.api.activate')
 def api_deactivate_period(period_id):
     """Desactiva un periodo académico."""
     try:
@@ -279,7 +279,7 @@ def api_deactivate_period(period_id):
 
 @api_academic_periods.delete('/<int:period_id>')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('academic_periods.api.delete')
 def api_delete_period(period_id):
     """Elimina un periodo académico."""
     try:

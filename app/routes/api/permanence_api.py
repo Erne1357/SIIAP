@@ -6,7 +6,7 @@ API para gestionar la permanencia semestral de estudiantes (Fase 6).
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app import db
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.models.user_program import UserProgram
 from app.services import permanence_service as svc
 
@@ -19,7 +19,7 @@ api_permanence = Blueprint(
 
 @api_permanence.get('/program/<int:program_id>/students')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.list_students', program_id_kwarg='program_id')
 def api_get_enrolled_students(program_id):
     """Lista estudiantes inscritos con su estado de permanencia."""
     try:
@@ -39,7 +39,7 @@ def api_get_enrolled_students(program_id):
 
 @api_permanence.get('/program/<int:program_id>/stats')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.list_students', program_id_kwarg='program_id')
 def api_get_permanence_stats(program_id):
     """Estadisticas de permanencia para un programa."""
     try:
@@ -59,7 +59,7 @@ def api_get_permanence_stats(program_id):
 
 @api_permanence.post('/user-program/<int:user_program_id>/confirm')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.confirm_enrollment')
 def api_confirm_semester_enrollment(user_program_id):
     """El coordinador confirma la inscripcion semestral de un estudiante."""
     data = request.get_json() or {}
@@ -115,7 +115,7 @@ def api_confirm_semester_enrollment(user_program_id):
 
 @api_permanence.patch('/semester-enrollment/<int:semester_enrollment_id>/status')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.confirm_enrollment')
 def api_update_enrollment_status(semester_enrollment_id):
     """Actualiza el estado de una inscripcion semestral."""
     data = request.get_json() or {}
@@ -193,9 +193,7 @@ def api_get_student_permanence(user_program_id):
         }), 404
 
     if current_user.id != up.user_id:
-        if not hasattr(current_user, 'role') or current_user.role.name not in (
-            'coordinator', 'program_admin', 'postgraduate_admin'
-        ):
+        if not current_user.has_permission('permanence.api.list_students'):
             return jsonify({
                 "data": None,
                 "error": {"code": "FORBIDDEN", "message": "No tienes permiso"},
@@ -221,7 +219,7 @@ def api_get_student_permanence(user_program_id):
 
 @api_permanence.get('/program/<int:program_id>/deadlines')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
 def api_get_deadlines(program_id):
     """Lista ventanas de entrega del periodo activo para un programa."""
     period_id = request.args.get('period_id', type=int)
@@ -234,7 +232,7 @@ def api_get_deadlines(program_id):
 
 @api_permanence.post('/program/<int:program_id>/deadlines')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
 def api_create_deadline(program_id):
     """Crea una ventana de entrega. Body: {archive_id, label, sequence, academic_period_id, opens_at?, closes_at?}"""
     from datetime import datetime
@@ -304,7 +302,7 @@ def api_create_deadline(program_id):
 
 @api_permanence.patch('/deadlines/<int:deadline_id>/toggle')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.manage_deadlines')
 def api_toggle_deadline(deadline_id):
     """Abre/cierra manualmente una ventana. Body: {is_open: bool}"""
     data = request.get_json() or {}
@@ -338,7 +336,7 @@ def api_toggle_deadline(deadline_id):
 
 @api_permanence.delete('/deadlines/<int:deadline_id>')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.manage_deadlines')
 def api_delete_deadline(deadline_id):
     """Elimina una ventana (solo si no tiene submissions)."""
     try:
@@ -371,9 +369,7 @@ def api_get_student_documents(user_program_id):
         return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"}, "meta": {}}), 404
 
     if current_user.id != up.user_id:
-        if not hasattr(current_user, 'role') or current_user.role.name not in (
-            'coordinator', 'program_admin', 'postgraduate_admin'
-        ):
+        if not current_user.has_permission('permanence.api.list_students'):
             return jsonify({"data": None, "error": {"code": "FORBIDDEN", "message": "Sin permiso"}, "meta": {}}), 403
 
     try:
@@ -427,7 +423,7 @@ def api_submit_permanence_document(user_program_id, deadline_id):
 
 @api_permanence.get('/program/<int:program_id>/pending-documents')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.review_doc', program_id_kwarg='program_id')
 def api_get_pending_documents(program_id):
     """Lista submissions de permanencia en estado 'review' para el programa."""
     try:
@@ -439,7 +435,7 @@ def api_get_pending_documents(program_id):
 
 @api_permanence.post('/submissions/<int:submission_id>/review')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.review_doc')
 def api_review_permanence_document(submission_id):
     """Aprueba o rechaza un documento. Body: {status: 'approved'|'rejected', notes?: str}"""
     data = request.get_json() or {}
@@ -499,9 +495,7 @@ def api_get_payment_reference(user_program_id):
         }), 404
 
     if current_user.id != up.user_id:
-        if not hasattr(current_user, 'role') or current_user.role.name not in (
-            'coordinator', 'program_admin', 'postgraduate_admin'
-        ):
+        if not current_user.has_permission('permanence.api.list_students'):
             return jsonify({
                 "data": None,
                 "error": {"code": "FORBIDDEN", "message": "Sin permiso"},
@@ -523,7 +517,7 @@ def api_get_payment_reference(user_program_id):
 
 @api_permanence.get('/program/<int:program_id>/leave-requests')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.review_doc', program_id_kwarg='program_id')
 def api_get_pending_leave_requests(program_id):
     """Lista solicitudes de baja temporal en estado 'review' para el programa."""
     try:
@@ -542,9 +536,7 @@ def api_get_student_leave_request(user_program_id):
         return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"}, "meta": {}}), 404
 
     if current_user.id != up.user_id:
-        if not hasattr(current_user, 'role') or current_user.role.name not in (
-            'coordinator', 'program_admin', 'postgraduate_admin'
-        ):
+        if not current_user.has_permission('permanence.api.list_students'):
             return jsonify({"data": None, "error": {"code": "FORBIDDEN", "message": "Sin permiso"}, "meta": {}}), 403
 
     try:
@@ -595,7 +587,7 @@ def api_submit_leave_request(user_program_id):
 
 @api_permanence.post('/submissions/<int:submission_id>/leave-request')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.review_doc')
 def api_process_leave_request(submission_id):
     """Aprueba o rechaza una solicitud de baja temporal. Body: {approve: bool, notes?: str}"""
     data = request.get_json() or {}
@@ -637,7 +629,7 @@ def api_process_leave_request(submission_id):
 
 @api_permanence.post('/program/<int:program_id>/deadlines/conacyt-monthly')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
 def api_create_conacyt_monthly_deadlines(program_id):
     """
     Crea las ventanas mensuales CONACyT del periodo activo (idempotente).
@@ -708,7 +700,7 @@ def api_create_conacyt_monthly_deadlines(program_id):
 
 @api_permanence.patch('/user-program/<int:user_program_id>/conacyt-scholarship')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.api.confirm_enrollment')
 def api_toggle_conacyt_scholarship(user_program_id):
     """Activa o desactiva la beca CONACyT de un estudiante."""
     up = db.session.get(UserProgram, user_program_id)

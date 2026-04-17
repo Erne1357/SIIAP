@@ -1,7 +1,7 @@
 # app/routes/api/programs_api.py
 from flask import Blueprint, jsonify, request, abort
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required, any_permission_required
 from app.services import programs_service as svc
 from app.services.user_history_service import UserHistoryService
 
@@ -37,7 +37,7 @@ def api_get_program(slug):
 
 @api_programs.post('/<int:program_id>/inscription')
 @login_required
-@roles_required('applicant')
+@permission_required('programs.api.enroll')
 def api_enroll(program_id):
     try:
         program = svc.enroll_user_once(program_id, current_user.id)
@@ -78,7 +78,7 @@ def api_enroll(program_id):
 
 @api_programs.patch('/<string:slug>')
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('programs.api.update')
 def api_update_program(slug):
     """
     Actualizar configuración del programa.

@@ -6,7 +6,7 @@ y diferimientos de inscripcion (Fase 7).
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required, any_permission_required
 from app.services import acceptance_service as svc
 from app.services import deferral_service as dsvc
 
@@ -19,7 +19,7 @@ api_acceptance = Blueprint(
 
 @api_acceptance.get('/program/<int:program_id>/applicants')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
 def api_get_accepted_applicants(program_id):
     """Obtiene aspirantes aceptados con estado de sus documentos."""
     try:
@@ -40,7 +40,7 @@ def api_get_accepted_applicants(program_id):
 
 @api_acceptance.get('/program/<int:program_id>/stats')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
 def api_get_acceptance_stats(program_id):
     """Obtiene estadisticas de documentos de aceptacion para un programa."""
     try:
@@ -101,7 +101,7 @@ def api_get_acceptance_status(user_id, program_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/upload-doc')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.upload_doc', program_id_kwarg='program_id')
 def api_upload_coordinator_doc(user_id, program_id):
     """El coordinador sube carta de aceptacion o tira de materias."""
     document_type = request.form.get('document_type')
@@ -227,7 +227,7 @@ def api_submit_enrollment_receipt(user_id, program_id):
 
 @api_acceptance.post('/document/<int:doc_id>/review')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.review_doc')
 def api_review_enrollment_receipt(doc_id):
     """El coordinador aprueba o rechaza la boleta del aspirante."""
     data = request.get_json() or {}
@@ -300,7 +300,7 @@ def api_review_enrollment_receipt(doc_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/assign-control-number')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.assign_control_number', program_id_kwarg='program_id')
 def api_assign_control_number(user_id, program_id):
     """El coordinador asigna el número de control al aspirante aceptado."""
     data = request.get_json() or {}
@@ -370,7 +370,7 @@ def api_assign_control_number(user_id, program_id):
 
 @api_acceptance.delete('/document/<int:doc_id>')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.upload_doc')
 def api_delete_coordinator_doc(doc_id):
     """Elimina un documento de aceptacion subido por el coordinador."""
     try:
@@ -413,7 +413,7 @@ def api_delete_coordinator_doc(doc_id):
 
 @api_acceptance.get('/program/<int:program_id>/deferred')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.list_applicants', program_id_kwarg='program_id')
 def api_get_deferred_applicants(program_id):
     """Obtiene todos los aspirantes diferidos de un programa."""
     try:
@@ -435,7 +435,7 @@ def api_get_deferred_applicants(program_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/defer')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.defer_applicant', program_id_kwarg='program_id')
 def api_defer_applicant(user_id, program_id):
     """El coordinador difiere directamente la inscripción de un aspirante aceptado."""
     data = request.get_json() or {}
@@ -534,7 +534,7 @@ def api_request_deferral(program_id):
 
 @api_acceptance.post('/deferral/<int:deferral_id>/approve')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.defer_applicant')
 def api_approve_deferral(deferral_id):
     """El coordinador aprueba una solicitud de diferimiento del aspirante."""
     data = request.get_json() or {}
@@ -580,7 +580,7 @@ def api_approve_deferral(deferral_id):
 
 @api_acceptance.post('/deferral/<int:deferral_id>/reject')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.defer_applicant')
 def api_reject_deferral(deferral_id):
     """El coordinador rechaza una solicitud de diferimiento del aspirante."""
     data = request.get_json() or {}
@@ -634,7 +634,7 @@ def api_reject_deferral(deferral_id):
 
 @api_acceptance.post('/user/<int:user_id>/program/<int:program_id>/reactivate')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.api.defer_applicant', program_id_kwarg='program_id')
 def api_reactivate_deferred(user_id, program_id):
     """
     El coordinador reactiva a un aspirante diferido en el nuevo periodo.

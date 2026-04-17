@@ -1,7 +1,7 @@
 # app/routes/api/extensions_api.py - Actualizado
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.extensions_service import ExtensionsService
 from app.services.user_history_service import UserHistoryService
 from app.models import ExtensionRequest,ProgramStep, User, Archive
@@ -146,7 +146,7 @@ def list_extension_requests():
 
 @api_extensions.route('/requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('extensions.api.decide')
 def decide_extension_request(req_id: int):
     """
     Decide sobre una solicitud de prórroga.

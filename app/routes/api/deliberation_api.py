@@ -5,7 +5,7 @@ API para gestionar el proceso de deliberacion de aspirantes.
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services import deliberation_service as svc
 
 api_deliberation = Blueprint(
@@ -17,7 +17,7 @@ api_deliberation = Blueprint(
 
 @api_deliberation.get('/program/<int:program_id>/applicants')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.list_applicants', program_id_kwarg='program_id')
 def api_get_applicants_for_deliberation(program_id):
     """Obtiene aspirantes en estado de deliberacion para un programa."""
     try:
@@ -52,7 +52,7 @@ def api_get_applicants_for_deliberation(program_id):
 
 @api_deliberation.get('/program/<int:program_id>/stats')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.list_applicants', program_id_kwarg='program_id')
 def api_get_deliberation_stats(program_id):
     """Obtiene estadisticas de deliberacion para un programa."""
     try:
@@ -74,7 +74,7 @@ def api_get_deliberation_stats(program_id):
 
 @api_deliberation.get('/program/<int:program_id>/by-status/<string:status>')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.list_applicants', program_id_kwarg='program_id')
 def api_get_applicants_by_status(program_id, status):
     """Obtiene aspirantes de un programa por estado."""
     valid_statuses = ['in_progress', 'interview_completed', 'deliberation',
@@ -118,7 +118,7 @@ def api_get_applicants_by_status(program_id, status):
 
 @api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/interview-completed')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.decide', program_id_kwarg='program_id')
 def api_mark_interview_completed(user_id, program_id):
     """Marca que un aspirante completo su entrevista."""
     try:
@@ -158,7 +158,7 @@ def api_mark_interview_completed(user_id, program_id):
 
 @api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/start')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.decide', program_id_kwarg='program_id')
 def api_start_deliberation(user_id, program_id):
     """Inicia el proceso de deliberacion para un aspirante."""
     try:
@@ -198,7 +198,7 @@ def api_start_deliberation(user_id, program_id):
 
 @api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/accept')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.decide', program_id_kwarg='program_id')
 def api_accept_applicant(user_id, program_id):
     """Acepta a un aspirante en el programa."""
     data = request.get_json() or {}
@@ -241,7 +241,7 @@ def api_accept_applicant(user_id, program_id):
 
 @api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/reject')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.decide', program_id_kwarg='program_id')
 def api_reject_applicant(user_id, program_id):
     """Rechaza a un aspirante."""
     data = request.get_json() or {}
@@ -301,7 +301,7 @@ def api_reject_applicant(user_id, program_id):
 
 @api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/reset')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.decide', program_id_kwarg='program_id')
 def api_reset_applicant(user_id, program_id):
     """Reinicia el estado de un aspirante a 'in_progress' (despues de correcciones)."""
     data = request.get_json() or {}
@@ -344,7 +344,7 @@ def api_reset_applicant(user_id, program_id):
 
 @api_deliberation.get('/program/<int:program_id>/pending-interview')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.list_applicants', program_id_kwarg='program_id')
 def api_get_applicants_pending_interview(program_id):
     """Obtiene aspirantes con entrevista reservada pero aun en in_progress."""
     try:
@@ -383,7 +383,7 @@ def api_get_user_deliberation_status(user_id, program_id):
     """Obtiene el estado de deliberacion de un usuario (aspirante puede ver el suyo)."""
     # Verificar que el usuario sea el mismo o sea coordinador/admin
     if current_user.id != user_id:
-        if not current_user.has_role('coordinator', 'program_admin', 'postgraduate_admin'):
+        if not current_user.has_permission('deliberation.api.list_applicants'):
             return jsonify({
                 "data": None,
                 "error": {"code": "FORBIDDEN", "message": "No tienes permiso para ver este estado"},
@@ -416,7 +416,7 @@ def api_get_user_deliberation_status(user_id, program_id):
 
 @api_deliberation.get('/program/<int:program_id>/admission-archives')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.api.list_applicants', program_id_kwarg='program_id')
 def api_get_program_admission_archives(program_id):
     """Obtiene los archivos uploadables de la fase de admisión de un programa (para rechazo parcial)."""
     try:
@@ -458,7 +458,7 @@ def api_get_program_admission_archives(program_id):
 
 @api_deliberation.post('/user/<int:user_id>/program/<int:program_id>/force-reset')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('deliberation.api.force_reset', program_id_kwarg='program_id')
 def api_force_reset_applicant(user_id, program_id):
     """Reinicio forzado del estado de admisión a 'in_progress'. Solo postgraduate_admin."""
     data = request.get_json() or {}

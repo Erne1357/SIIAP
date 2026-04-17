@@ -5,7 +5,7 @@ from sqlalchemy import select, and_, or_, func
 from datetime import datetime, timezone
 
 from app import db
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required, any_permission_required
 from app.utils.files import save_user_doc  # Importar tu función de archivos
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
@@ -25,7 +25,7 @@ api_coordinator = Blueprint('api_coordinator', __name__, url_prefix='/api/v1/coo
 
 @api_coordinator.route('/students', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('coordinator.api.list_students')
 def list_students():
     """
     Lista estudiantes que el coordinador puede ver/gestionar.
@@ -134,7 +134,7 @@ def list_students():
 
 @api_coordinator.route('/manageable-students', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('coordinator.api.list_students')
 def manageable_students():
     """
     Lista solo estudiantes que el coordinador puede gestionar (para selects)
@@ -175,7 +175,7 @@ def manageable_students():
 
 @api_coordinator.route('/student/<int:student_id>/uploadable-archives', methods=['GET'])
 @login_required
-@roles_required( 'postgraduate_admin', 'program_admin')
+@permission_required('coordinator.api.upload_for_student')
 def student_uploadable_archives(student_id: int):
     """
     Lista archivos que el coordinador puede subir para un estudiante específico
@@ -232,7 +232,7 @@ def student_uploadable_archives(student_id: int):
 
 @api_coordinator.route('/upload-for-student', methods=['POST'])
 @login_required
-@roles_required( 'postgraduate_admin', 'program_admin')
+@permission_required('coordinator.api.upload_for_student')
 def upload_for_student():
     """
     Permite al coordinador subir un archivo por un estudiante usando el sistema de archivos
@@ -341,7 +341,7 @@ def upload_for_student():
 
 @api_coordinator.route('/programs', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('coordinator.api.list_students')
 def list_coordinator_programs():
     """Lista programas que el coordinador puede gestionar"""
     if current_user.role.name == 'program_admin':
@@ -361,7 +361,7 @@ def list_coordinator_programs():
 
 @api_coordinator.route('/student/<int:student_id>/permanence-details', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('coordinator.api.list_students')
 def get_student_permanence_details(student_id: int):
     """
     Detalles de permanencia de un estudiante inscrito:
@@ -462,7 +462,7 @@ def get_student_permanence_details(student_id: int):
 
 @api_coordinator.route('/student/<int:student_id>/details', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('coordinator.api.list_students')
 def get_student_details(student_id: int):
     """
     Obtiene detalles completos de un estudiante para el modal del coordinador.
@@ -725,7 +725,7 @@ def _determine_overall_status(admission_state):
 
 @api_coordinator.route('/students/<int:student_id>/history', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('coordinator.api.list_students')
 def get_student_history(student_id):
     """
     Obtiene el historial formateado de un estudiante específico.
