@@ -300,8 +300,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const stepId = btn.getAttribute('data-step');
       if (!subId) return;
 
-      // TODO Fase 3: Reemplazar con modal de confirmación
-      if (!confirm('¿Eliminar este archivo?')) return;
+      const ok = await siiapConfirm({
+        type: 'danger',
+        title: 'Eliminar archivo',
+        message: '¿Eliminar este archivo?',
+        confirmLabel: 'Sí, eliminar',
+      });
+      if (!ok) return;
 
       try {
         const res = await fetch(`/api/v1/submissions/${subId}`, {
@@ -578,4 +583,84 @@ document.addEventListener('DOMContentLoaded', () => {
     // Recargar la página después de un breve delay para mostrar los cambios completos
     setTimeout(() => { window.location.reload(); }, 2000);
   });
+
+  // ==================== TIEMPO REAL: DECISIÓN DE PRÓRROGA ====================
+  window.addEventListener('siiap:extension:decided', (e) => {
+    const data = e.detail || {};
+    const messages = {
+      granted:   { text: 'Tu solicitud de prórroga fue aprobada.', level: 'success' },
+      rejected:  { text: 'Tu solicitud de prórroga fue rechazada.', level: 'warning' },
+      cancelled: { text: 'Tu solicitud de prórroga fue cancelada.', level: 'info' },
+    };
+    const m = messages[data.status];
+    if (!m) return;
+    flash(`${m.text} La página se actualizará.`, m.level);
+    setTimeout(() => { window.location.reload(); }, 2000);
+  });
+
+  // ==================== TIEMPO REAL: CAMBIO DE ESTADO DE ADMISIÓN ====================
+  window.addEventListener('siiap:admission:status_changed', (e) => {
+    const data = e.detail;
+    if (!data) return;
+
+    const ctx = window.SIIAP_ADMISSION || {};
+    if (ctx.programId && data.program_id && ctx.programId !== data.program_id) return;
+
+    const messages = {
+      interview_completed: { text: 'Tu entrevista fue marcada como completada.', level: 'info' },
+      deliberation:        { text: 'Tu expediente entró en deliberación.',        level: 'warning' },
+      accepted:            { text: '¡Has sido aceptado al programa!',             level: 'success' },
+      rejected:            { text: 'Se actualizó el estado de tu admisión.',      level: 'warning' },
+      in_progress:         { text: 'Tu expediente fue reabierto para correcciones.', level: 'info' },
+    };
+
+    const m = messages[data.new_status];
+    if (!m) return;
+
+    flash(`${m.text} La página se actualizará.`, m.level);
+    setTimeout(() => { window.location.reload(); }, 2500);
+  });
+
+  // ── Subida de carta de asignación de número de control ────────────────────
+  const receiptBtn = document.getElementById('receiptUploadBtn');
+  if (receiptBtn && window.SIIAP_ADMISSION) {
+    receiptBtn.addEventListener('click', () => submitEnrollmentReceipt());
+  }
+
+  function submitEnrollmentReceipt() {
+    const cfg = window.SIIAP_ADMISSION || {};
+    const fileInput = document.getElementById('receiptFileInput');
+    const statusDiv = document.getElementById('receiptUploadStatus');
+    const btn = document.getElementById('receiptUploadBtn');
+    if (!fileInput.files.length) {
+      statusDiv.innerHTML = '<div class="alert alert-warning py-1 small">Selecciona un archivo primero.</div>';
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Subiendo...';
+
+    fetch(`/api/v1/acceptance/user/${cfg.userId}/program/${cfg.programId}/submit-receipt`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf },
+      body: formData
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.error) {
+          statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">' + (res.error.message || 'Error al subir.') + '</div>';
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
+        } else {
+          statusDiv.innerHTML = '<div class="alert alert-success py-1 small">Documento subido. El coordinador lo revisará pronto.</div>';
+          setTimeout(() => location.reload(), 2000);
+        }
+      })
+      .catch(() => {
+        statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">Error de red. Intenta de nuevo.</div>';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
+      });
+  }
 });

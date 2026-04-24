@@ -98,4 +98,90 @@
         window.dispatchEvent(new CustomEvent('siiap:acceptance:updated', { detail: data }));
     });
 
+    /**
+     * admission:status_changed
+     * Emitido al aspirante cuando su admission_status cambia:
+     * interview_completed, deliberation, accepted, rejected, in_progress (reset).
+     * Payload: { user_id, program_id, new_status, decision_notes?, rejection_type?, correction_required? }
+     */
+    socket.on('admission:status_changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:admission:status_changed', { detail: data }));
+    });
+
+    /**
+     * permanence:status_changed
+     * Emitido al estudiante cuando cambia su estado de permanencia:
+     * semester_confirmed, doc_reviewed, leave_decided.
+     * Payload: { user_id, action, ...campos específicos de la acción }
+     */
+    socket.on('permanence:status_changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:permanence:status_changed', { detail: data }));
+    });
+
+    /**
+     * extension:decided
+     * Emitido al solicitante cuando el coordinador decide sobre su solicitud de prórroga.
+     * Payload: { user_id, extension_request_id, archive_id, status, granted_until? }
+     */
+    socket.on('extension:decided', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:extension:decided', { detail: data }));
+    });
+
+    /**
+     * academic_period:changed
+     * Emitido cuando un postgraduate_admin activa o desactiva un periodo académico.
+     * Llega a role:postgraduate_admin y role:coordinator.
+     * Payload: { period_id, code, name, action: 'activated' | 'deactivated' }
+     */
+    socket.on('academic_period:changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:academic_period:changed', { detail: data }));
+    });
+
+    /**
+     * admin_user:changed
+     * Emitido cuando se crea/modifica/elimina un usuario desde admin.
+     * Payload: { action: 'created' | 'updated' | 'deleted', user_id, role?, email?, full_name? }
+     */
+    socket.on('admin_user:changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:admin_user:changed', { detail: data }));
+    });
+
+    /**
+     * role_permission:changed
+     * Emitido cuando el jefe de posgrado agrega/revierte un override de permiso de rol.
+     * Payload: { action: 'grant' | 'revert', role_id, role_name, codename }
+     */
+    socket.on('role_permission:changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:role_permission:changed', { detail: data }));
+    });
+
+    /**
+     * appointment:changed
+     * Emitido cuando una cita se reserva o cancela (por aspirante o coordinador).
+     * Payload: { action: 'booked' | 'cancelled', appointment_id, event_id, slot_id, applicant_id, cancelled_by_coordinator? }
+     */
+    socket.on('appointment:changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:appointment:changed', { detail: data }));
+    });
+
+    /**
+     * appointment:change_requested
+     * Emitido cuando un aspirante solicita un cambio de horario.
+     * Payload: { change_request_id, appointment_id, requested_by }
+     */
+    socket.on('appointment:change_requested', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:appointment:change_requested', { detail: data }));
+    });
+
+    /**
+     * event:changed
+     * Emitido cuando un admin crea, edita o elimina un evento.
+     * Se propaga a todos los clientes conectados (broadcast global) para
+     * refrescar páginas públicas de eventos (events/list.html, events/view.html).
+     * Payload: { action: 'created' | 'updated' | 'deleted', event_id, program_id?, title? }
+     */
+    socket.on('event:changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:event:changed', { detail: data }));
+    });
+
 })();

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.email_service import EmailService
 from app.utils.ms_graph import is_connected, acquire_token_silent, read_account_info
 from app import db
@@ -10,7 +10,7 @@ api_emails = Blueprint('api_emails', __name__, url_prefix='/api/v1/emails')
 
 @api_emails.get('/status')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def email_status():
     """Verifica el estado de la conexión con Microsoft"""
     connected = is_connected()
@@ -28,7 +28,7 @@ def email_status():
 
 @api_emails.get('/queue/stats')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def queue_stats():
     """Obtiene estadísticas de la cola de correos"""
     stats = EmailService.get_queue_stats()
@@ -40,7 +40,7 @@ def queue_stats():
 
 @api_emails.get('/queue/pending')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def queue_pending():
     """Lista correos pendientes"""
     limit = min(int(request.args.get('limit', 50)), 100)
@@ -59,7 +59,7 @@ def queue_pending():
 
 @api_emails.post('/queue/process')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def process_queue():
     """Procesa la cola de correos pendientes manualmente"""
     limit = min(int(request.args.get('limit', 50)), 100)
@@ -86,7 +86,7 @@ def process_queue():
 
 @api_emails.post('/queue/retry-failed')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def retry_failed():
     """Reintenta enviar correos fallidos"""
     result = EmailService.retry_failed()
@@ -111,7 +111,7 @@ def retry_failed():
 
 @api_emails.post('/test')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_emails.api.manage')
 def send_test_email():
     """Envía un correo de prueba al usuario actual"""
     from flask_login import current_user

@@ -1,4 +1,5 @@
 {# app/templates/base.html #}
+{% from '_sidebar_nav.html' import user_card, sidebar_nav with context %}
 <!DOCTYPE html>
 <html lang="es">
 
@@ -10,7 +11,7 @@
   <title>{% block title %}SIIAP{% endblock %}</title>
 
   <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <!-- Font Awesome -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet"
@@ -50,9 +51,9 @@
       <div class="d-flex align-items-center justify-content-between gap-3">
 
         <!-- Botón menú móvil -->
-        <button class="btn d-lg-none p-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar"
-          aria-controls="mobileSidebar" aria-label="Abrir menú">
-          <i class="bi bi-list" style="font-size:1.75rem;"></i>
+        <button class="btn d-lg-none p-2 btn-menu-toggle" type="button" data-bs-toggle="offcanvas"
+          data-bs-target="#mobileSidebar" aria-controls="mobileSidebar" aria-label="Abrir menú">
+          <i class="bi bi-list"></i>
         </button>
 
         <!-- Logos izquierda -->
@@ -70,7 +71,7 @@
 
         <!-- Logos derecha -->
         <div class="header-logos header-logos-right d-none d-md-flex align-items-center gap-2 gap-lg-3">
-          <!-- NUEVO: Notificaciones -->
+          <!-- Notificaciones -->
           <div class="position-relative" id="notificationBellContainer">
             <button class="notification-bell-btn" id="notificationBell" type="button" aria-label="Notificaciones">
               <i class="bi bi-bell fs-4 text-dark"></i>
@@ -93,169 +94,17 @@
     {% block navbar %}
     <!-- Sidebar DESKTOP -->
     <aside id="sidebar" class="bg-light border-end d-none d-lg-block">
-      <!-- FICHA DEL USUARIO -->
-      <div class="user-card d-flex align-items-center gap-2 mx-3 mb-3 p-2">
-        <img src="{{ current_user.avatar_url }}" alt="avatar" width="40" height="40"
-          class="rounded-circle flex-shrink-0">
-        <div class="flex-grow-1 text-truncate">
-          <div class="fw-semibold small text-truncate">
-            {{ current_user.first_name }} {{ current_user.last_name }}
-          </div>
-          {% if current_user.role.name == 'social_service' %}
-          <span class="badge bg-warning text-dark text-uppercase small">Servicio Social</span>
-          {% elif current_user.role.name == 'program_admin' %}
-          <span class="badge bg-success text-uppercase small">Admin. Programa</span>
-          {% elif current_user.role.name == 'postgraduate_admin' %}
-          <span class="badge bg-danger text-uppercase small">Admin. Posgrado</span>
-          {% elif current_user.role.name == 'student' %}
-          <span class="badge bg-primary text-uppercase small">Estudiante</span>
-          {% endif %}
-          {% if current_user.role.name == 'student' and current_user.control_number %}
-          <div class="small text-muted">{{ current_user.control_number }}</div>
-          {% endif %}
-        </div>
+      <div class="mx-3 mb-3 mt-3">
+        {{ user_card() }}
       </div>
       <hr class="my-0">
 
-      <nav class="nav flex-column py-3">
-        <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}"
-          href="{{ url_for('pages_user.profile') }}">
-          <i class="fas fa-user me-2"></i>Perfil
-        </a>
-        <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
-          href="{{ url_for('pages_user.dashboard') }}">
-          <i class="fas fa-th-large me-2"></i>Dashboard
-        </a>
-        <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
-          href="{{ url_for('program.list_programs') }}">
-          <i class="fas fa-clipboard me-2"></i>Programas
-        </a>
-        {% set up = current_user.user_program|first %}
-        {% if up and current_user.role.name == 'applicant' %}
-        <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %}"
-          href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}">
-          <i class="fas fa-clipboard-list me-2"></i>Admisión
-        </a>
-        {% endif %}
+      {{ sidebar_nav() }}
 
-        <!-- Menú desplegable de Eventos -->
-        <div class="dropdown-menu-container">
-          <a href="#"
-            class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-            data-dropdown="events-menu">
-            <i class="fas fa-calendar-check me-2"></i>Eventos
-            <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
-          </a>
-          <div class="dropdown-submenu" id="events-menu">
-            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
-              href="{{ url_for('pages_events_public.list_events') }}">
-              <i class="fas fa-calendar me-2"></i>Eventos Públicos
-            </a>
-            {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_events.index') }}">
-              <i class="fas fa-calendar-plus me-2"></i>Gestión de Eventos
-            </a>
-            {% endif %}
-          </div>
-        </div>
-
-        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-        <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
-          href="{{ url_for('pages_coordinator.dashboard') }}">
-          <i class="fas fa-users me-2"></i>Coordinación
-        </a>
-        <div class="dropdown-menu-container">
-          <a href="#"
-            class="nav-link dropdown-toggle-custom {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
-            data-dropdown="admission-menu">
-            <i class="fas fa-user-plus me-2"></i>Admisión
-            <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
-          </a>
-          <div class="dropdown-submenu" id="admission-menu">
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
-              href="{{ url_for('pages_coordinator.deliberation') }}">
-              <i class="fas fa-gavel me-2"></i>Deliberación
-            </a>
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
-              href="{{ url_for('pages_coordinator.acceptance') }}">
-              <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación
-            </a>
-          </div>
-        </div>
-        {% endif %}
-        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-        <a class="nav-link {% if request.endpoint=='pages_coordinator.permanence' %}active{% endif %}"
-          href="{{ url_for('pages_coordinator.permanence') }}">
-          <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia
-        </a>
-        {% elif current_user.role.name == 'student' %}
-        <a class="nav-link {% if request.endpoint=='pages_user.dashboard' %}active{% endif %}"
-          href="{{ url_for('pages_user.dashboard') }}">
-          <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia
-        </a>
-        {% endif %}
-        {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
-        <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
-          href="{{ url_for('pages_admin.pages_review.index') }}">
-          <i class="fas fa-file-alt me-2"></i>Documentos
-        </a>
-        {% endif %}
-
-        <!-- Menú desplegable de Configuración -->
-        {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-        <hr class="mx-3">
-        <div class="dropdown-menu-container">
-          <a href="#"
-            class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
-            data-dropdown="config-menu">
-            <i class="fas fa-cog me-2"></i>Configuración
-            <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
-          </a>
-          <div class="dropdown-submenu" id="config-menu">
-            <a class="nav-link submenu-item {% if request.endpoint == 'pages_admin.pages_settings.index' %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_settings.index') }}">
-              <i class="fas fa-folder me-2"></i>Archivos
-            </a>
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.users' %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_settings.users') }}">
-              <i class="fas fa-user-cog me-2"></i>Usuarios
-            </a>
-            <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_emails.email_config') }}">
-              <i class="fas fa-envelope me-2"></i>Correos
-            </a>
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.document_templates' %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_settings.document_templates') }}">
-              <i class="bi bi-file-earmark-text me-2"></i>Plantillas
-            </a>
-            {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}">
-              <i class="fas fa-graduation-cap me-2"></i>Programa
-            </a>
-            {% elif current_user.role.name == 'postgraduate_admin' %}
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
-              href="{{ url_for('program.list_programs') }}">
-              <i class="fas fa-graduation-cap me-2"></i>Programas
-            </a>
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.academic_periods' %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">
-              <i class="fas fa-calendar-alt me-2"></i>Periodos Academicos
-            </a>
-            <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.celery_worker' %}active{% endif %}"
-              href="{{ url_for('pages_admin.pages_settings.celery_worker') }}">
-              <i class="fas fa-robot me-2"></i>Tareas programadas
-            </a>
-            {% endif %}
-          </div>
-        </div>
-        {% endif %}
-        <hr class="mx-3">
-        <a href="#" class="nav-link text-danger js-api-logout">
-          <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
-        </a>
-      </nav>
+      <hr class="mx-3">
+      <a href="#" class="nav-link text-danger js-api-logout mx-3">
+        <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+      </a>
     </aside>
 
     <!-- Sidebar MÓVIL (Offcanvas) -->
@@ -265,160 +114,14 @@
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
       </div>
 
-      <!-- User card fijo arriba -->
       <div class="mobile-user-section">
-        <div class="user-card d-flex align-items-center gap-2 p-2">
-          <img src="{{ current_user.avatar_url }}" alt="avatar" width="40" height="40"
-            class="rounded-circle flex-shrink-0">
-          <div class="flex-grow-1">
-            <div class="fw-semibold small">{{ current_user.first_name }} {{ current_user.last_name }}</div>
-            {% if current_user.role.name == 'social_service' %}
-            <span class="badge bg-warning text-dark text-uppercase small">Servicio Social</span>
-            {% elif current_user.role.name == 'program_admin' %}
-            <span class="badge bg-success text-uppercase small">Admin. Programa</span>
-            {% elif current_user.role.name == 'postgraduate_admin' %}
-            <span class="badge bg-danger text-uppercase small">Admin. Posgrado</span>
-            {% elif current_user.role.name == 'student' %}
-            <span class="badge bg-primary text-uppercase small">Estudiante</span>
-            {% endif %}
-            {% if current_user.role.name == 'student' and current_user.control_number %}
-            <div class="small text-muted">{{ current_user.control_number }}</div>
-            {% endif %}
-          </div>
-        </div>
+        {{ user_card() }}
       </div>
 
-      <!-- Body scrollable solo para navegación -->
       <div class="offcanvas-body">
-        <nav class="nav flex-column">
-          <a class="nav-link {% if request.endpoint=='user.profile' %}active{% endif %}"
-            href="{{ url_for('pages_user.profile') }}">
-            <i class="fas fa-user me-2"></i>Perfil</a>
-          <a class="nav-link {% if request.endpoint=='user.dashboard' %}active{% endif %}"
-            href="{{ url_for('pages_user.dashboard') }}">
-            <i class="fas fa-th-large me-2"></i>Dashboard</a>
-          <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
-            href="{{ url_for('program.list_programs') }}">
-            <i class="fas fa-clipboard me-2"></i>Programas</a>
-          {% if up and current_user.role.name == 'applicant' %}
-          <a class="nav-link {% if request.endpoint == 'program.admission.admission_dashboard' %}active{% endif %}"
-            href="{{ url_for('program.admission.admission_dashboard', slug=up.program.slug) }}">
-            <i class="fas fa-clipboard-list me-2"></i>Admisión</a>
-          {% endif %}
-
-          <!-- Menú desplegable móvil de Eventos -->
-          <div class="dropdown-menu-container mobile">
-            <a href="#"
-              class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-              data-dropdown="mobile-events-menu">
-              <i class="fas fa-calendar-check me-2"></i>Eventos
-              <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
-            </a>
-            <div class="dropdown-submenu" id="mobile-events-menu">
-              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
-                href="{{ url_for('pages_events_public.list_events') }}">
-                <i class="fas fa-calendar me-2"></i>Eventos Públicos
-              </a>
-              {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_events.index') }}">
-                <i class="fas fa-calendar-plus me-2"></i>Gestión de Eventos
-              </a>
-              {% endif %}
-            </div>
-          </div>
-
-          {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-          <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.dashboard') }}">
-            <i class="fas fa-users me-2"></i>Coordinación</a>
-          <div class="dropdown-menu-container mobile">
-            <a href="#"
-              class="nav-link dropdown-toggle-custom {% if request.endpoint in ['pages_coordinator.deliberation', 'pages_coordinator.acceptance'] %}active{% endif %}"
-              data-dropdown="mobile-admission-menu">
-              <i class="fas fa-user-plus me-2"></i>Admisión
-              <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
-            </a>
-            <div class="dropdown-submenu" id="mobile-admission-menu">
-              <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.deliberation' %}active{% endif %}"
-                href="{{ url_for('pages_coordinator.deliberation') }}">
-                <i class="fas fa-gavel me-2"></i>Deliberación</a>
-              <a class="nav-link submenu-item {% if request.endpoint=='pages_coordinator.acceptance' %}active{% endif %}"
-                href="{{ url_for('pages_coordinator.acceptance') }}">
-                <i class="bi bi-file-earmark-check-fill me-2"></i>Aceptación</a>
-            </div>
-          </div>
-          {% endif %}
-          {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-          <a class="nav-link {% if request.endpoint=='pages_coordinator.permanence' %}active{% endif %}"
-            href="{{ url_for('pages_coordinator.permanence') }}">
-            <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia</a>
-          {% elif current_user.role.name == 'student' %}
-          <a class="nav-link {% if request.endpoint=='pages_user.dashboard' %}active{% endif %}"
-            href="{{ url_for('pages_user.dashboard') }}">
-            <i class="bi bi-calendar2-check-fill me-2"></i>Permanencia</a>
-          {% endif %}
-          {% if current_user.role.name in ['program_admin', 'postgraduate_admin', 'social_service'] %}
-          <a class="nav-link {% if request.endpoint.startswith('review.') %}active{% endif %}"
-            href="{{ url_for('pages_admin.pages_review.index') }}">
-            <i class="fas fa-file-alt me-2"></i>Documentos
-          </a>
-          {% endif %}
-
-          <!-- Menú desplegable móvil de Configuración -->
-          {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
-          <hr class="my-2">
-          <div class="dropdown-menu-container mobile">
-            <a href="#"
-              class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_admin.pages_settings') or request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
-              data-dropdown="mobile-config-menu">
-              <i class="fas fa-cog me-2"></i>Configuración
-              <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
-            </a>
-            <div class="dropdown-submenu" id="mobile-config-menu">
-              <a class="nav-link submenu-item {% if request.endpoint == 'pages_admin.pages_settings.index' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.index') }}">
-                <i class="fas fa-folder me-2"></i>Archivos
-              </a>
-              <a class="nav-link submenu-item {% if request.endpoint == 'pages_admin.pages_settings.users' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.users') }}">
-                <i class="fas fa-user-cog me-2"></i>Usuarios
-              </a>
-              <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_emails') %}active{% endif %}"
-               href="{{ url_for('pages_admin.pages_emails.email_config') }}"
-               >
-                <i class="fas fa-envelope me-2"></i>Correos
-              </a>
-              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.document_templates' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.document_templates') }}">
-                <i class="bi bi-file-earmark-text me-2"></i>Plantillas
-              </a>
-              {% if current_user.role.name == 'program_admin' and current_user.coordinated_programs %}
-              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.config_program', slug=current_user.coordinated_programs[0].slug) }}">
-                <i class="fas fa-graduation-cap me-2"></i>Programa
-              </a>
-              {% elif current_user.role.name == 'postgraduate_admin' %}
-              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.config_program' %}active{% endif %}"
-                href="{{ url_for('program.list_programs') }}">
-                <i class="fas fa-graduation-cap me-2"></i>Programas
-              </a>
-              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.academic_periods' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.academic_periods') }}">
-                <i class="fas fa-calendar-alt me-2"></i>Periodos Academicos
-              </a>
-              <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.celery_worker' %}active{% endif %}"
-                href="{{ url_for('pages_admin.pages_settings.celery_worker') }}">
-                <i class="fas fa-robot me-2"></i>Tareas programadas
-              </a>
-              {% endif %}
-            </div>
-          </div>
-          {% endif %}
-        </nav>
+        {{ sidebar_nav(prefix='m-') }}
       </div>
 
-      <!-- Footer fijo con botón de cerrar sesión -->
       <div class="offcanvas-footer">
         <a href="#" class="nav-link text-danger js-api-logout">
           <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
@@ -438,7 +141,7 @@
     <small>&copy; 2026 SIIAP. Todos los derechos reservados.</small>
   </footer>
 
-  <!-- Dropdown de notificaciones (compartido entre header y FAB) -->
+  <!-- Dropdown de notificaciones -->
   <div id="notificationDropdown" class="notification-dropdown">
     <div class="notification-dropdown-header">
       <h6>Notificaciones</h6>
@@ -467,6 +170,7 @@
   <div id="modal-portal">
     {% block modals %}{% endblock %}
 
+    <!-- Modal cambio de contraseña forzado -->
     <div class="modal fade" id="forcePasswordChangeModal" tabindex="-1" aria-labelledby="forcePasswordChangeModalLabel"
       aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
       <div class="modal-dialog modal-dialog-centered">
@@ -476,7 +180,6 @@
               <i class="bi bi-shield-lock me-2"></i>
               Cambio de Contraseña Requerido
             </h5>
-            <!-- No hay botón de cerrar, es obligatorio -->
           </div>
 
           <div class="modal-body">
@@ -487,17 +190,15 @@
             </div>
 
             <form id="forcePasswordChangeForm">
-              <!-- Contraseña Actual -->
               <div class="mb-3">
                 <label for="current_password" class="form-label">
-                  Contraseña Actual
-                  <span class="text-danger">*</span>
+                  Contraseña Actual <span class="text-danger">*</span>
                 </label>
                 <div class="input-group">
                   <input type="password" class="form-control" id="current_password" name="current_password"
                     placeholder="tecno#2K" required autocomplete="current-password">
-                  <button class="btn btn-outline-secondary" type="button"
-                    onclick="togglePasswordVisibility('current_password')">
+                  <button class="btn btn-outline-secondary js-toggle-password" type="button"
+                    data-target="current_password">
                     <i class="bi bi-eye" id="current_password_icon"></i>
                   </button>
                 </div>
@@ -505,42 +206,33 @@
 
               <hr class="my-3">
 
-              <!-- Nueva Contraseña -->
               <div class="mb-3">
                 <label for="new_password" class="form-label">
-                  Nueva Contraseña
-                  <span class="text-danger">*</span>
+                  Nueva Contraseña <span class="text-danger">*</span>
                 </label>
                 <div class="input-group">
                   <input type="password" class="form-control" id="new_password" name="new_password"
                     placeholder="Ingresa tu nueva contraseña" required autocomplete="new-password">
-                  <button class="btn btn-outline-secondary" type="button"
-                    onclick="togglePasswordVisibility('new_password')">
+                  <button class="btn btn-outline-secondary js-toggle-password" type="button" data-target="new_password">
                     <i class="bi bi-eye" id="new_password_icon"></i>
                   </button>
                 </div>
-                <div id="password_strength_feedback" class="mt-2">
-                  <!-- Se llena dinámicamente con JS -->
-                </div>
+                <div id="password_strength_feedback" class="mt-2"></div>
               </div>
 
-              <!-- Confirmar Nueva Contraseña -->
               <div class="mb-3">
                 <label for="confirm_password" class="form-label">
-                  Confirmar Nueva Contraseña
-                  <span class="text-danger">*</span>
+                  Confirmar Nueva Contraseña <span class="text-danger">*</span>
                 </label>
                 <div class="input-group">
                   <input type="password" class="form-control" id="confirm_password" name="confirm_password"
                     placeholder="Confirma tu nueva contraseña" required autocomplete="new-password">
-                  <button class="btn btn-outline-secondary" type="button"
-                    onclick="togglePasswordVisibility('confirm_password')">
+                  <button class="btn btn-outline-secondary js-toggle-password" type="button"
+                    data-target="confirm_password">
                     <i class="bi bi-eye" id="confirm_password_icon"></i>
                   </button>
                 </div>
-                <div id="password_match_feedback" class="mt-1">
-                  <!-- Se llena dinámicamente con JS -->
-                </div>
+                <div id="password_match_feedback" class="mt-1"></div>
               </div>
 
               <div class="alert alert-info small mb-0">
@@ -560,8 +252,9 @@
       </div>
     </div>
   </div>
+
   <!-- Modal sesión -->
-  <div id="sessionModal" class="session-modal" style="display: none;">
+  <div id="sessionModal" class="session-modal" style="display:none;">
     <div class="session-modal-content">
       <h3>Atención</h3>
       <p>Tu sesión expirará en 1 minuto. ¿Deseas continuar conectado?</p>
@@ -573,185 +266,37 @@
   </div>
 
   <!-- Bootstrap JS Bundle -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Session Timeout -->
+  <!-- Configuración global del layout -->
   <script>
-    var sessionKeepaliveUrl = "{{ url_for('api_auth.api_keepalive') }}";
-    var sessionLogoutUrl = "{{ url_for('api_auth.api_logout') }}";
-    var loginPageUrl = "{{ url_for('pages_auth.login_page') }}";
-    const userLoggedIn = "{{ 'true' if current_user.is_authenticated else 'false' }}";
+    window.SIIAP_BASE = {
+      keepaliveUrl: "{{ url_for('api_auth.api_keepalive') }}",
+      logoutUrl:    "{{ url_for('api_auth.api_logout') }}",
+      loginUrl:     "{{ url_for('pages_auth.login_page') }}",
+      userLoggedIn: "{{ 'true' if current_user.is_authenticated else 'false' }}" === "true",
+    };
+    // Aliases retro-compatibles
+    var sessionKeepaliveUrl = window.SIIAP_BASE.keepaliveUrl;
+    var sessionLogoutUrl    = window.SIIAP_BASE.logoutUrl;
+    var loginPageUrl        = window.SIIAP_BASE.loginUrl;
+    var userLoggedIn        = String(window.SIIAP_BASE.userLoggedIn);
   </script>
 
-  <!-- API Client - debe cargarse primero -->
+  <!-- API Client + diálogos reutilizables -->
   <script src="{{ url_for('static', filename='js/utils/api.js') }}?v={{ static_version }}"></script>
+  <script src="{{ url_for('static', filename='js/utils/dialogs.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/flash.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/force_password_change.js') }}?v={{ static_version }}"></script>
-  <!-- Socket.IO cliente v4 (CDN) — DEBE estar antes de socket-client.js -->
+
+  <!-- Socket.IO -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
-  <!-- Gestor global de WebSocket — conecta y re-emite eventos al window -->
   <script src="{{ url_for('static', filename='js/socket-client.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/notifications.js') }}?v={{ static_version }}"></script>
-  <script>
-    (function () {
-      const getCsrf = () => {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
-      };
 
-      function wireLogout(selector) {
-        document.querySelectorAll(selector).forEach(el => {
-          el.addEventListener('click', async (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-
-            // Cerrar el offcanvas si está abierto
-            const offcanvas = document.getElementById('mobileSidebar');
-            if (offcanvas) {
-              const bsOffcanvas = bootstrap.Offcanvas.getInstance(offcanvas);
-              if (bsOffcanvas) {
-                bsOffcanvas.hide();
-              }
-            }
-
-            try {
-              const res = await fetch("{{ url_for('api_auth.api_logout') }}", {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "X-CSRFToken": getCsrf() }
-              });
-              const json = await res.json().catch(() => ({}));
-              if (json.flash) {
-                json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
-              }
-              if (!res.ok) throw new Error("Error al cerrar sesión");
-            } catch (e) {
-              console.error(e);
-            } finally {
-              window.location.href = "{{ url_for('pages_auth.login_page') }}";
-            }
-          });
-        });
-      }
-
-      // Wire logout buttons en ambos lugares
-      wireLogout('.js-api-logout');
-    })();
-  </script>
-
-  <!-- Script para menús desplegables y offcanvas -->
-  <script>
-    function initDropdownMenus() {
-      // Manejar dropdowns
-      document.querySelectorAll('[data-dropdown]').forEach(trigger => {
-        // Remover listeners previos
-        const newTrigger = trigger.cloneNode(true);
-        trigger.parentNode.replaceChild(newTrigger, trigger);
-
-        newTrigger.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-
-          const targetId = this.getAttribute('data-dropdown');
-          const submenu = document.getElementById(targetId);
-          const arrow = this.querySelector('.dropdown-arrow');
-
-          if (submenu) {
-            const isShowing = submenu.classList.contains('show');
-
-            // Cerrar todos los otros submenús
-            document.querySelectorAll('.dropdown-submenu.show').forEach(menu => {
-              if (menu !== submenu) {
-                menu.classList.remove('show');
-              }
-            });
-            document.querySelectorAll('.dropdown-toggle-custom.expanded').forEach(toggle => {
-              if (toggle !== this) {
-                toggle.classList.remove('expanded');
-              }
-            });
-
-            // Toggle el submenu actual
-            if (isShowing) {
-              submenu.classList.remove('show');
-              this.classList.remove('expanded');
-            } else {
-              submenu.classList.add('show');
-              this.classList.add('expanded');
-            }
-          }
-        });
-      });
-    }
-
-    function initOffcanvasLinks() {
-      const offcanvasElement = document.getElementById('mobileSidebar');
-      if (!offcanvasElement) return;
-
-      // Cerrar el offcanvas cuando se hace click en un enlace válido
-      const allLinks = offcanvasElement.querySelectorAll('a[href]:not(.dropdown-toggle-custom):not(.js-api-logout)');
-
-      allLinks.forEach(link => {
-        // Usar 'once' para que se ejecute solo una vez y luego se reinicialice
-        link.addEventListener('click', function(e) {
-          const href = this.getAttribute('href');
-          // Si el enlace tiene href válido y no es #, permitir navegación y cerrar offcanvas
-          if (href && href !== '#' && href !== '') {
-            // Cerrar el offcanvas inmediatamente para mejor UX
-            const bsOffcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
-            if (bsOffcanvas) {
-              bsOffcanvas.hide();
-            }
-            // El navegador manejará la navegación naturalmente
-          }
-        });
-      });
-    }
-
-    // Manejar el z-index del footer cuando el offcanvas se abre/cierra
-    function initOffcanvasFooterFix() {
-      const offcanvasElement = document.getElementById('mobileSidebar');
-      const footer = document.querySelector('footer');
-
-      if (!offcanvasElement || !footer) return;
-
-      // Cuando el offcanvas se muestra - ocultar el footer
-      offcanvasElement.addEventListener('show.bs.offcanvas', function () {
-        footer.style.display = 'none';
-      });
-
-      // Cuando el offcanvas se oculta - mostrar el footer nuevamente
-      offcanvasElement.addEventListener('hidden.bs.offcanvas', function () {
-        footer.style.display = 'flex';
-      });
-    }
-
-    function initAllMenus() {
-      initDropdownMenus();
-      initOffcanvasLinks();
-      initOffcanvasFooterFix();
-    }
-
-    // Inicializar cuando el DOM esté listo
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initAllMenus);
-    } else {
-      initAllMenus();
-    }
-
-    // Cerrar dropdowns al hacer click fuera
-    document.addEventListener('click', function (e) {
-      if (!e.target.closest('.dropdown-menu-container')) {
-        document.querySelectorAll('.dropdown-submenu.show').forEach(menu => {
-          menu.classList.remove('show');
-        });
-        document.querySelectorAll('.dropdown-toggle-custom.expanded').forEach(toggle => {
-          toggle.classList.remove('expanded');
-        });
-      }
-    });
-  </script>
+  <!-- Layout base (menú + logout) -->
+  <script src="{{ url_for('static', filename='js/base.js') }}?v={{ static_version }}"></script>
 
   <!-- Scripts de página: se insertan aquí para que Bootstrap ya esté disponible -->
   {% block scripts %}{% endblock %}

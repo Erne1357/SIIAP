@@ -152,9 +152,9 @@
         <p class="text-muted small mb-2">Una vez que Servicios Escolares te entregue la carta, súbela aquí.</p>
         {% endif %}
         <div>
-          <input type="file" class="form-control mb-2" id="receiptFileInput" accept=".pdf" style="max-width:400px;">
+          <input type="file" class="form-control mb-2 receipt-upload-input" id="receiptFileInput" accept=".pdf">
           <div class="form-text mb-2">Solo PDF. Tamaño máximo: 3 MB.</div>
-          <button class="btn btn-primary btn-sm" id="receiptUploadBtn" onclick="submitEnrollmentReceipt()">
+          <button class="btn btn-primary btn-sm" id="receiptUploadBtn">
             <i class="bi bi-upload me-1"></i>Subir carta
           </button>
           <div id="receiptUploadStatus" class="mt-2"></div>
@@ -169,45 +169,6 @@
         {% endif %}
       </div>
     </div>
-
-    <script>
-    function submitEnrollmentReceipt() {
-      var fileInput = document.getElementById('receiptFileInput');
-      var statusDiv = document.getElementById('receiptUploadStatus');
-      var btn = document.getElementById('receiptUploadBtn');
-      if (!fileInput.files.length) {
-        statusDiv.innerHTML = '<div class="alert alert-warning py-1 small">Selecciona un archivo primero.</div>';
-        return;
-      }
-      var formData = new FormData();
-      formData.append('file', fileInput.files[0]);
-      var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-      var csrfToken = csrfMeta ? csrfMeta.content : '';
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Subiendo...';
-      fetch('/api/v1/acceptance/user/{{ current_user.id }}/program/{{ program.id }}/submit-receipt', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrfToken },
-        body: formData
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(res) {
-        if (res.error) {
-          statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">' + (res.error.message || 'Error al subir.') + '</div>';
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
-        } else {
-          statusDiv.innerHTML = '<div class="alert alert-success py-1 small">Documento subido. El coordinador lo revisará pronto.</div>';
-          setTimeout(function() { location.reload(); }, 2000);
-        }
-      })
-      .catch(function() {
-        statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">Error de red. Intenta de nuevo.</div>';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
-      });
-    }
-    </script>
 
     {% elif admission_status == 'rejected' %}
       {% if rejection_type == 'partial' %}
@@ -357,13 +318,13 @@
         <table class="table table-hover align-middle" id="archiveTable">
           <thead class="table-light">
             <tr>
-              <th style="width:32px;"></th>
+              <th class="w-px-32"></th>
               <th>Documento</th>
-              <th class="d-none d-md-table-cell" style="width:160px;">Plantilla</th>
-              <th style="width:140px;">Estado</th>
-              <th style="width:180px;">Acciones</th>
-              <th class="d-none d-lg-table-cell" style="width:200px;">Observaciones</th>
-              <th class="d-none d-lg-table-cell" style="width:130px;">Revisado</th>
+              <th class="d-none d-md-table-cell w-px-160">Plantilla</th>
+              <th class="w-px-140">Estado</th>
+              <th class="w-px-180">Acciones</th>
+              <th class="d-none d-lg-table-cell w-px-200">Observaciones</th>
+              <th class="d-none d-lg-table-cell w-px-130">Revisado</th>
             </tr>
           </thead>
           <tbody>
@@ -417,7 +378,7 @@
         <input type="hidden" name="archive_id" id="archiveIdInput">
         <input type="hidden" name="program_id" id="programIdInput" value="{{ program.id }}">
 
-        <div id="existingFileInfo" class="d-none" style="display: none;">
+        <div id="existingFileInfo" class="d-none">
           <div class="alert alert-info">
             <h6><i class="fas fa-info-circle"></i> Archivo Existente</h6>
             <p class="mb-1"><strong>Documento:</strong> <span id="existingArchiveName"></span></p>
@@ -532,7 +493,7 @@
           Análisis de Cambio de Programa
         </h5>
       </div>
-      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+      <div class="modal-body modal-body-scroll">
         <div id="analysisContent">
           <!-- Se llenará dinámicamente -->
         </div>
@@ -593,6 +554,12 @@
 
 {% block scripts %}
 {{ super() }}
+<script>
+  window.SIIAP_ADMISSION = {
+    userId:    {{ current_user.id|tojson }},
+    programId: {{ (program.id if program else 0)|tojson }}
+  };
+</script>
 <script src="{{ url_for('static', filename='js/program/admission.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/program/program_transfer.js') }}?v={{ static_version }}"></script>
 {% endblock %}

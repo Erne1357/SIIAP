@@ -4,7 +4,7 @@
     <div class="col-lg-8">
         <div class="card shadow border-0">
             <div class="card-body text-center py-5">
-                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 5rem;"></i>
+                <i class="bi bi-exclamation-triangle text-warning icon-5xl"></i>
                 <h3 class="mt-3 mb-3">No tienes un programa asignado</h3>
                 <p class="text-muted mb-0">
                     Contacta al administrador de posgrado para que te asigne un programa.
@@ -31,7 +31,7 @@
             </h4>
             <div class="d-flex align-items-center">
                 <label for="programSelector" class="form-label me-2 mb-0 fw-bold text-secondary">Programa:</label>
-                <select id="programSelector" class="form-select" style="width: auto; min-width: 250px;" onchange="switchProgram()">
+                <select id="programSelector" class="form-select program-selector">
                     {% for prog in coordinated_programs %}
                     <option value="{{ prog.id }}" {% if prog.id == selected_program_id and not show_all_programs %}selected{% endif %}>
                         {{ prog.name }}
@@ -56,10 +56,10 @@
             <!-- Revisar Solicitudes -->
             <div class="col-md-3 col-sm-6">
                 {% if show_all_programs %}
-                <div class="card h-100 border-0 shadow-sm" style="opacity: 0.6; cursor: not-allowed;">
+                <div class="card h-100 border-0 shadow-sm quick-action-card-disabled">
                     <div class="card-body text-center py-4">
                         <div class="mb-3">
-                            <i class="bi bi-clipboard-check text-muted" style="font-size: 2.5rem;"></i>
+                            <i class="bi bi-clipboard-check text-muted icon-2xl"></i>
                         </div>
                         <h6 class="mb-1 fw-bold text-muted">Revisar Solicitudes</h6>
                         <small class="text-muted">Selecciona un programa</small>
@@ -71,7 +71,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-clipboard-check text-primary" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-clipboard-check text-primary icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Revisar Solicitudes</h6>
                             <small class="text-muted">Aprobar documentos</small>
@@ -82,10 +82,10 @@
                     </div>
                 </a>
                 {% else %}
-                <div class="card h-100 border-0 shadow-sm" style="opacity: 0.6; cursor: not-allowed;">
+                <div class="card h-100 border-0 shadow-sm quick-action-card-disabled">
                     <div class="card-body text-center py-4">
                         <div class="mb-3">
-                            <i class="bi bi-clipboard-check text-muted" style="font-size: 2.5rem;"></i>
+                            <i class="bi bi-clipboard-check text-muted icon-2xl"></i>
                         </div>
                         <h6 class="mb-1 fw-bold text-muted">Revisar Solicitudes</h6>
                         <small class="text-muted">Sin programas</small>
@@ -101,7 +101,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-people text-success" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-people text-success icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Ver Estudiantes</h6>
                             <small class="text-muted">Gestionar usuarios</small>
@@ -112,10 +112,10 @@
 
             <!-- Gestionar Programa -->
             <div class="col-md-3 col-sm-6">
-                <div class="card h-100 border-0 shadow-sm quick-action-card" style="opacity: 0.6; cursor: not-allowed;">
+                <div class="card h-100 border-0 shadow-sm quick-action-card quick-action-card-disabled">
                     <div class="card-body text-center py-4">
                         <div class="mb-3">
-                            <i class="bi bi-gear text-info" style="font-size: 2.5rem;"></i>
+                            <i class="bi bi-gear text-info icon-2xl"></i>
                         </div>
                         <h6 class="mb-1 fw-bold">Gestionar Programa</h6>
                         <small class="text-muted">Próximamente</small>
@@ -130,7 +130,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-calendar-event text-warning" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-calendar-event text-warning icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Eventos</h6>
                             <small class="text-muted">Entrevistas y defensas</small>
@@ -145,10 +145,10 @@
 <!-- KPIs Principales -->
 <div class="row mb-4">
     <div class="col-12">
-        <div class="mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #e7f1ff 0%, #f8f9fa 100%); border-left: 4px solid #0d6efd;">
+        <div class="mb-4 p-3 rounded-3 applicant-banner">
             <div class="d-flex align-items-center">
                 <div class="flex-shrink-0 me-3">
-                    <i class="bi bi-mortarboard-fill text-primary" style="font-size: 2rem;"></i>
+                    <i class="bi bi-mortarboard-fill text-primary icon-xl"></i>
                 </div>
                 <div class="flex-grow-1">
                     <h5 class="mb-0 fw-bold text-primary">
@@ -173,7 +173,7 @@
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body text-center">
                 <div class="mb-2">
-                    <i class="bi bi-person-lines-fill text-primary" style="font-size: 2.5rem;"></i>
+                    <i class="bi bi-person-lines-fill text-primary icon-2xl"></i>
                 </div>
                 <h2 class="mb-0 fw-bold text-primary">{{ metrics.total_applicants if metrics else 0 }}</h2>
                 <p class="text-muted mb-0 small">Solicitantes Totales</p>
@@ -185,7 +185,7 @@
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body text-center">
                 <div class="mb-2">
-                    <i class="bi bi-hourglass-split text-warning" style="font-size: 2.5rem;"></i>
+                    <i class="bi bi-hourglass-split text-warning icon-2xl"></i>
                 </div>
                 <h2 class="mb-0 fw-bold text-warning">{{ metrics.pending_reviews if metrics else 0 }}</h2>
                 <p class="text-muted mb-0 small">Documentos por Revisar</p>
@@ -197,7 +197,7 @@
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body text-center">
                 <div class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success" style="font-size: 2.5rem;"></i>
+                    <i class="bi bi-check-circle-fill text-success icon-2xl"></i>
                 </div>
                 <h2 class="mb-0 fw-bold text-success">{{ metrics.approved_applications if metrics else 0 }}</h2>
                 <p class="text-muted mb-0 small">Solicitudes Aprobadas</p>
@@ -209,7 +209,7 @@
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body text-center">
                 <div class="mb-2">
-                    <i class="bi bi-calendar2-check text-info" style="font-size: 2.5rem;"></i>
+                    <i class="bi bi-calendar2-check text-info icon-2xl"></i>
                 </div>
                 <h2 class="mb-0 fw-bold text-info">{{ metrics.interviews_scheduled if metrics else 0 }}</h2>
                 <p class="text-muted mb-0 small">Entrevistas Programadas</p>
@@ -245,7 +245,7 @@
                 </div>
 
                 <!-- Barra de progreso visual -->
-                <div class="progress" style="height: 30px; border-radius: 8px;">
+                <div class="progress progress-admission">
                     {% set total = metrics.total_applicants if metrics else 0 %}
                     {% if metrics and total > 0 %}
                         <div class="progress-bar bg-success" style="width: {{ (metrics.approved_applications / total * 100)|round }}%">
@@ -323,7 +323,7 @@
                 </div>
                 {% else %}
                 <div class="text-center py-4">
-                    <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                    <i class="bi bi-inbox text-muted icon-3xl"></i>
                     <p class="text-muted mt-3 mb-0">No hay actividad reciente</p>
                 </div>
                 {% endif %}
@@ -332,33 +332,4 @@
     </div>
 </div>
 
-<!-- Estilos adicionales -->
-<style>
-.quick-action-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.quick-action-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
-</style>
-
-<!-- JavaScript para el selector de programas -->
-<script>
-function switchProgram() {
-    const selector = document.getElementById('programSelector');
-    const selectedValue = selector.value;
-    
-    // Construir la URL con el parámetro del programa
-    const currentUrl = new URL(window.location);
-    
-    // Establecer el parámetro program_id
-    currentUrl.searchParams.set('program_id', selectedValue);
-    
-    // Recargar la página con el nuevo parámetro
-    window.location.href = currentUrl.toString();
-}
-</script>
 {% endif %}

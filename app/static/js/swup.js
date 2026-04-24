@@ -1,1 +1,0 @@
-// SWUP deshabilitado

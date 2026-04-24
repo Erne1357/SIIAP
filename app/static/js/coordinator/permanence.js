@@ -547,9 +547,9 @@ class PermanenceManager {
       return `
         <div class="border rounded p-3 mb-2 d-flex flex-wrap align-items-center gap-3">
           <div class="flex-grow-1">
-            <div class="fw-semibold">${this._esc(r.user.full_name)}</div>
+            <div class="fw-semibold">${this.escapeHtml(r.user.full_name)}</div>
             <div class="small text-muted">
-              N° Control: ${this._esc(r.user.control_number || '—')}
+              N° Control: ${this.escapeHtml(r.user.control_number || '—')}
               &nbsp;·&nbsp; Semestre ${r.current_semester || '—'}
               &nbsp;·&nbsp; Subida: ${uploadDate}
             </div>
@@ -559,7 +559,7 @@ class PermanenceManager {
               <i class="bi bi-file-earmark-text me-1"></i>Ver
             </a>` : ''}
             <button class="btn btn-sm btn-success"
-              onclick="permanenceManager.showLeaveModal(${sub.id}, '${this._esc(r.user.full_name)}', ${r.current_semester || 0}, '${r.file_url || ''}')">
+              onclick="permanenceManager.showLeaveModal(${sub.id}, '${this.escapeHtml(r.user.full_name)}', ${r.current_semester || 0}, '${r.file_url || ''}')">
               <i class="bi bi-check-lg me-1"></i>Revisar
             </button>
           </div>
@@ -608,12 +608,6 @@ class PermanenceManager {
     } finally {
       btn.disabled = false;
     }
-  }
-
-  _esc(str) {
-    return String(str || '')
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   async createConacytMonthlyDeadlines() {
@@ -717,8 +711,15 @@ class PermanenceManager {
     }
   }
 
-  async deleteDeadline(deadlineId, label) {
-    if (!confirm(`¿Eliminar la ventana "${label}"? Esta acción no se puede deshacer.`)) return;
+  deleteDeadline(deadlineId, label) {
+    document.getElementById('deleteDeadlineId').value = deadlineId;
+    document.getElementById('deleteDeadlineLabel').textContent = label;
+    new bootstrap.Modal(document.getElementById('deleteDeadlineModal')).show();
+  }
+
+  async _confirmDeleteDeadline() {
+    const deadlineId = document.getElementById('deleteDeadlineId').value;
+    bootstrap.Modal.getInstance(document.getElementById('deleteDeadlineModal'))?.hide();
     try {
       const res = await fetch(`/api/v1/permanence/deadlines/${deadlineId}`, {
         method: 'DELETE',
@@ -806,15 +807,24 @@ document.addEventListener('DOMContentLoaded', () => {
     permanenceManager = new PermanenceManager(PROGRAM_ID, ACTIVE_PERIOD_ID);
   }
 
+  // ── Confirmar eliminación de ventana ──
+  document.getElementById('btnConfirmDeleteDeadline')?.addEventListener('click', () => {
+    permanenceManager?._confirmDeleteDeadline();
+  });
+
   // ── Tiempo real: nuevo documento de permanencia recibido ──
   window.addEventListener('siiap:submission:new', (e) => {
     const data = e.detail;
     if (!data || !permanenceManager) return;
     // Solo recargar si el evento es del programa que estamos viendo
     if (data.program_id && String(data.program_id) !== String(PROGRAM_ID)) return;
-    if (data.context !== 'permanence' && data.context !== 'leave_request') return;
 
-    permanenceManager.loadStats();
-    permanenceManager.loadDocumentsTabData();
+    if (data.context === 'permanence') {
+      permanenceManager.loadStats();
+      permanenceManager.loadDocumentsTabData();
+    } else if (data.context === 'leave_request') {
+      permanenceManager.loadStats();
+      permanenceManager.loadLeaveRequestsTab();
+    }
   });
 });

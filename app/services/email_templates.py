@@ -121,6 +121,26 @@ class EmailTemplates:
             'event_url': event_url
         })
         return subject, html
+
+    @staticmethod
+    def event_reminder(user_name: str, event_title: str, slot_datetime: str,
+                       reminder_type: str, location: str, event_url: str) -> tuple[str, str]:
+        """Plantilla para recordatorio de evento (24h o 2h antes)."""
+        if reminder_type == '24h':
+            subject = f"⏰ Recordatorio: {event_title} (mañana)"
+            template_name = 'event_reminder_24h'
+        else:
+            subject = f"⏰ Tu evento comienza pronto: {event_title}"
+            template_name = 'event_reminder_2h'
+
+        html = EmailTemplates.render_email(template_name, {
+            'user_name': user_name,
+            'event_title': event_title,
+            'slot_datetime': slot_datetime,
+            'location': location,
+            'event_url': event_url,
+        })
+        return subject, html
     
     @staticmethod
     def password_reset(user_name: str, dashboard_url: str) -> tuple[str, str]:

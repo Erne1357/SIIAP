@@ -1,7 +1,7 @@
 from datetime import date, time
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.events_service import EventsService
 from app.models.event import Event, EventWindow, EventSlot
 from app.models.program import Program
@@ -14,7 +14,7 @@ api_events = Blueprint('api_events', __name__, url_prefix='/api/v1/events')
 
 @api_events.route('', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.create')
 def create_event():
     data = request.get_json() or {}
     ev = EventsService.create_event(
@@ -29,13 +29,25 @@ def create_event():
         max_capacity=data.get('max_capacity'),
         requires_registration=bool(data.get('requires_registration', True)),
         allows_attendance_tracking=bool(data.get('allows_attendance_tracking', False)),
-        status=data.get('status', 'published')
+        status=data.get('status', 'published'),
+        academic_period_id=data.get('academic_period_id'),
+        visibility=data.get('visibility', 'public'),
+        reminders_enabled=bool(data.get('reminders_enabled', True))
     )
+
+    from app.sockets.emitters import emit_broadcast
+    emit_broadcast('event:changed', {
+        'action': 'created',
+        'event_id': ev.id,
+        'program_id': ev.program_id,
+        'title': ev.title,
+    })
+
     return jsonify({"ok": True, "id": ev.id}), 201
 
 @api_events.route('/<int:event_id>/windows', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.create_window')
 def add_window(event_id:int):
     data = request.get_json() or {}
     current_app.logger.warning(f"Received add_window request with data: {data}")
@@ -56,7 +68,7 @@ def add_window(event_id:int):
 
 @api_events.route('/windows/<int:window_id>/generate-slots', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.generate_slots')
 def generate_slots(window_id:int):
     try:
         slots = EventsService.generate_slots(window_id)
@@ -74,89 +86,76 @@ def list_slots(event_id:int):
 
 @api_events.route('', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.list')
 def list_events():
     """Lista eventos que el coordinador puede gestionar"""
-    program_id = request.args.get('program_id', type=int)
-    
-    # Filtrar por programas que puede gestionar
-    query = Event.query
-    
-    if current_user.role.name == 'program_admin':
-        # Solo eventos de sus programas O eventos globales (program_id=NULL)
-        managed_programs = db.session.execute(
-            select(Program.id).where(Program.coordinator_id == current_user.id)
-        ).scalars().all()
-        
-        if not managed_programs:
-            # Solo eventos globales
-            query = query.filter(Event.program_id.is_(None))
-        else:
-            # Sus programas + eventos globales
-            query = query.filter(
-                or_(
-                    Event.program_id.in_(managed_programs),
-                    Event.program_id.is_(None)
-                )
-            )
-    
-    if program_id:
-        query = query.filter(Event.program_id == program_id)
-    
-    events = query.order_by(Event.created_at.desc()).all()
-    
+    from app.models.academic_period import AcademicPeriod
+
+    filters = {
+        'academic_period_id': request.args.get('academic_period_id', type=int),
+        'program_id': request.args.get('program_id', type=int),
+        'type': request.args.get('type'),
+        'status': request.args.get('status'),
+        'capacity_type': request.args.get('capacity_type'),
+        'search': request.args.get('search'),
+    }
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    events = EventsService.list_admin_events(accessible_pids, filters)
+
     items = []
     for event in events:
-        # Contar ventanas y slots
         windows_count = EventWindow.query.filter_by(event_id=event.id).count()
-        
+
         slots_query = db.session.query(EventSlot).join(
             EventWindow, EventWindow.id == EventSlot.event_window_id
         ).filter(EventWindow.event_id == event.id)
-        
+
         slots_total = slots_query.count()
         slots_booked = slots_query.filter(EventSlot.status == 'booked').count()
-        
-        # Obtener nombre del programa
+
         program = db.session.get(Program, event.program_id) if event.program_id else None
-        
+        period = db.session.get(AcademicPeriod, event.academic_period_id) if event.academic_period_id else None
+
         items.append({
             "id": event.id,
             "title": event.title,
             "type": event.type,
+            "status": event.status,
             "location": event.location,
             "description": event.description,
             "program_id": event.program_id,
-            "program_name": program.name if program else None,  # CAMBIAR: Puede ser None
+            "program_name": program.name if program else None,
+            "academic_period_id": event.academic_period_id,
+            "academic_period_code": period.code if period else None,
             "visible_to_students": event.visible_to_students,
-            "capacity_type": event.capacity_type,  # AGREGAR
-            "max_capacity": event.max_capacity,  # AGREGAR
+            "visibility": event.visibility,
+            "reminders_enabled": event.reminders_enabled,
+            "capacity_type": event.capacity_type,
+            "max_capacity": event.max_capacity,
             "windows_count": windows_count,
             "slots_total": slots_total,
             "slots_booked": slots_booked,
             "created_at": event.created_at.isoformat()
         })
-    
+
     return jsonify({"ok": True, "items": items}), 200
 
 @api_events.route('/<int:event_id>', methods=['DELETE'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.manage')
 def delete_event(event_id: int):
     """Elimina un evento y todos sus slots/appointments asociados"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if not event.program_id:
+    # Verificar permisos: scoped users no pueden borrar eventos globales
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None:
+        if not event.program_id or event.program_id not in accessible_pids:
             return jsonify({"ok": False, "error": "No tienes permiso para eliminar este evento"}), 403
-            
-        program = db.session.get(Program, event.program_id)
-        if not program or program.coordinator_id != current_user.id:
-            return jsonify({"ok": False, "error": "No tienes permiso para eliminar este evento"}), 403
-    
+
     # Verificar si hay appointments activas
     appointments_count = db.session.query(Appointment).join(
         EventSlot, EventSlot.id == Appointment.slot_id
@@ -178,31 +177,39 @@ def delete_event(event_id: int):
     
     try:
         # Cascade debería manejar la eliminación de windows, slots y appointments
+        program_id = event.program_id
+        title = event.title
         db.session.delete(event)
         db.session.commit()
-        
+
+        from app.sockets.emitters import emit_broadcast
+        emit_broadcast('event:changed', {
+            'action': 'deleted',
+            'event_id': event_id,
+            'program_id': program_id,
+            'title': title,
+        })
+
         return jsonify({"ok": True, "deleted": event_id}), 200
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"ok": False, "error": str(e)}), 500
 
 @api_events.route('/<int:event_id>', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.manage')
 def get_event_details(event_id: int):
     """Obtiene detalles completos de un evento incluyendo sus ventanas"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "No tienes permiso"}), 403
-    
+    # Verificar permisos: scoped users solo pueden ver eventos de sus programas
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "No tienes permiso"}), 403
+
     # Obtener ventanas
     windows = EventWindow.query.filter_by(event_id=event_id).all()
     
@@ -224,7 +231,7 @@ def get_event_details(event_id: int):
     }), 200
 @api_events.route('/windows/<int:window_id>', methods=['DELETE'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.manage')
 def delete_window(window_id: int):
     """Elimina una ventana y todos sus slots"""
     from app.services.events_service import EventsService
@@ -234,16 +241,13 @@ def delete_window(window_id: int):
         return jsonify({"ok": False, "error": "Ventana no encontrada"}), 404
     
     event = db.session.get(Event, window.event_id)
-    
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     force = request.args.get('force') in ('true', '1', 'yes')
-    
+
     try:
         EventsService.delete_window(window_id, force=force)
         return jsonify({"ok": True, "deleted": window_id}), 200
@@ -262,7 +266,7 @@ def delete_window(window_id: int):
 
 @api_events.route('/slots/<int:slot_id>', methods=['DELETE'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.manage')
 def delete_slot(slot_id: int):
     """Elimina un slot individual"""
     from app.services.events_service import EventsService
@@ -273,16 +277,13 @@ def delete_slot(slot_id: int):
     
     window = db.session.get(EventWindow, slot.event_window_id)
     event = db.session.get(Event, window.event_id)
-    
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     force = request.args.get('force') in ('true', '1', 'yes')
-    
+
     try:
         EventsService.delete_slot(slot_id, force=force)
         return jsonify({"ok": True, "deleted": slot_id}), 200
@@ -301,20 +302,17 @@ def delete_slot(slot_id: int):
 
 @api_events.route('/<int:event_id>/windows-list', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.manage')
 def list_event_windows(event_id: int):
     """Lista todas las ventanas de un evento con estadísticas"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     windows = EventWindow.query.filter_by(event_id=event_id).order_by(
         EventWindow.date.asc(), EventWindow.start_time.asc()
     ).all()
@@ -346,108 +344,82 @@ def list_event_windows(event_id: int):
 
 @api_events.route('/<int:event_id>', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('events.api.manage')
 def update_event(event_id: int):
     """Actualizar información de un evento"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
-    
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     data = request.get_json() or {}
-    
-    # Campos actualizables
-    if 'title' in data:
-        event.title = data['title']
-    if 'description' in data:
-        event.description = data['description']
-    if 'location' in data:
-        event.location = data['location']
-    if 'type' in data:
-        event.type = data['type']
-    if 'status' in data:
-        event.status = data['status']
-    if 'visible_to_students' in data:
-        event.visible_to_students = data['visible_to_students']
-    if 'allows_attendance_tracking' in data:
-        event.allows_attendance_tracking = data['allows_attendance_tracking']
-    
-    # No permitir cambiar capacity_type si ya tiene registros/slots
-    if 'capacity_type' in data and data['capacity_type'] != event.capacity_type:
-        # Verificar si tiene slots o registros
-        from app.models.event import EventAttendance
-        has_slots = EventSlot.query.join(EventWindow).filter(
-            EventWindow.event_id == event_id
-        ).count() > 0
-        has_registrations = EventAttendance.query.filter_by(event_id=event_id).count() > 0
-        
-        if has_slots or has_registrations:
-            return jsonify({
-                "ok": False,
-                "error": "No se puede cambiar el tipo de capacidad de un evento con slots o registros existentes"
-            }), 400
-        
-        event.capacity_type = data['capacity_type']
-    
-    if 'max_capacity' in data:
-        event.max_capacity = data['max_capacity']
-    
     try:
-        db.session.commit()
-        return jsonify({"ok": True, "id": event.id}), 200
+        event = EventsService.update_event(event_id, data)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({"ok": False, "error": str(e)}), 500
-    
+
+    from app.sockets.emitters import emit_broadcast
+    emit_broadcast('event:changed', {
+        'action': 'updated',
+        'event_id': event.id,
+        'program_id': event.program_id,
+        'title': event.title,
+    })
+
+    return jsonify({"ok": True, "id": event.id}), 200
+
 @api_events.route('/public', methods=['GET'])
-@login_required  
+@login_required
 def list_public_events():
-    """Lista eventos públicos visibles para estudiantes"""
-    from app.models.user_program import UserProgram
-    
-    # Base query: eventos visibles y publicados
-    query = Event.query.filter(
-        Event.visible_to_students == True,
-        Event.status == 'published',
-        Event.capacity_type != 'single'  # Excluir eventos 1:1
-    )
-    
-    # Si el estudiante tiene programa, mostrar:
-    # 1. Eventos de su programa
-    # 2. Eventos globales (program_id = NULL)
-    user_program = UserProgram.query.filter_by(user_id=current_user.id).first()
-    
-    if user_program:
-        query = query.filter(
-            or_(
-                Event.program_id == user_program.program_id,
-                Event.program_id.is_(None)
-            )
-        )
-    else:
-        # Si no tiene programa, solo eventos globales
-        query = query.filter(Event.program_id.is_(None))
-    
-    events = query.order_by(Event.event_date.desc().nullslast(), Event.created_at.desc()).all()
-    
+    """Lista eventos visibles para estudiantes (filtrados por periodo activo + visibilidad)."""
+    from app.models.event import EventAttendance, EventImage, EventHost
+    from app.models.user import User
+
+    annotated = EventsService.get_public_events_with_invitation_status(current_user.id)
+
     items = []
-    for event in events:
-        # Obtener programa si existe
+    for entry in annotated:
+        event = entry['event']
         program = db.session.get(Program, event.program_id) if event.program_id else None
-        
-        # Contar registros actuales
-        from app.models.event import EventAttendance
         current_registrations = EventAttendance.query.filter_by(
             event_id=event.id,
             status='registered'
         ).count()
-        
+
+        # Cover path (elimina N+1 en frontend)
+        cover = EventImage.query.filter_by(event_id=event.id, is_cover=True).first()
+        cover_path = cover.path if cover else None
+
+        # Hosts summary: máximo 3 para evitar payload excesivo
+        hosts_summary = []
+        hosts = EventHost.query.filter_by(event_id=event.id).order_by(
+            EventHost.display_order.asc()
+        ).limit(3).all()
+        for h in hosts:
+            if h.user_id:
+                u = db.session.get(User, h.user_id)
+                hosts_summary.append({
+                    'name': f"{u.first_name} {u.last_name}" if u else 'Ponente',
+                    'photo_path': getattr(u, 'profile_photo', None) if u else None,
+                    'is_external': False,
+                    'role_label': h.role_label,
+                })
+            else:
+                hosts_summary.append({
+                    'name': h.external_name,
+                    'photo_path': h.external_photo_path,
+                    'is_external': True,
+                    'role_label': h.role_label,
+                })
+
+        hosts_total = EventHost.query.filter_by(event_id=event.id).count()
+
         items.append({
             "id": event.id,
             "title": event.title,
@@ -459,9 +431,433 @@ def list_public_events():
             "current_registrations": current_registrations,
             "program_id": event.program_id,
             "program_name": program.name if program else None,
+            "academic_period_id": event.academic_period_id,
+            "visibility": event.visibility,
+            "my_invitation_status": entry['my_invitation_status'],
             "event_date": event.event_date.isoformat() if event.event_date else None,
             "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
-            "created_at": event.created_at.isoformat()
+            "created_at": event.created_at.isoformat(),
+            "cover_path": cover_path,
+            "hosts_summary": hosts_summary,
+            "hosts_total": hosts_total,
         })
-    
+
     return jsonify({"ok": True, "items": items}), 200
+
+
+@api_events.route('/public/<int:event_id>', methods=['GET'])
+@login_required
+def get_public_event_detail(event_id: int):
+    """
+    Detalle público de un evento visible para estudiantes.
+
+    Incluye:
+      - datos del evento + programa
+      - registro actual del usuario (si aplica)
+      - cita actual del usuario (si aplica, para capacity_type='single')
+      - ventanas con slots (para eventos 1:1)
+      - conteo de registros actuales (para multiple/unlimited)
+    """
+    from app.models.user_program import UserProgram
+    from app.models.event import EventAttendance
+    from app.models.appointment import Appointment
+
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+
+    if not event.visible_to_students or event.status != 'published':
+        return jsonify({"ok": False, "error": "Evento no disponible"}), 403
+
+    # Si tiene program_id, validar que coincida con el programa del usuario
+    # o sea un evento global (program_id=None)
+    if event.program_id is not None:
+        user_program = UserProgram.query.filter_by(user_id=current_user.id).first()
+        if not user_program or user_program.program_id != event.program_id:
+            # Permitir acceso a coordinadores del programa aunque no sean estudiantes
+            accessible_pids = current_user.get_accessible_program_ids()
+            allowed = accessible_pids is None or event.program_id in (accessible_pids or set())
+            if not allowed:
+                return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
+
+    program = db.session.get(Program, event.program_id) if event.program_id else None
+
+    # Registro actual del usuario en eventos multiple/unlimited
+    my_registration = None
+    if event.capacity_type in ('multiple', 'unlimited'):
+        att = EventAttendance.query.filter_by(
+            event_id=event.id, user_id=current_user.id
+        ).first()
+        if att:
+            my_registration = {
+                'id': att.id,
+                'status': att.status,
+                'registered_at': att.registered_at.isoformat(),
+                'attended_at': att.attended_at.isoformat() if att.attended_at else None,
+            }
+
+    # Invitación actual del usuario a este evento
+    from app.models.event import EventInvitation
+    my_invitation = None
+    inv = EventInvitation.query.filter_by(
+        event_id=event.id, user_id=current_user.id
+    ).first()
+    if inv:
+        my_invitation = {
+            'id': inv.id,
+            'status': inv.status,
+            'invited_at': inv.invited_at.isoformat() if inv.invited_at else None,
+            'responded_at': inv.responded_at.isoformat() if inv.responded_at else None,
+        }
+
+    # Cita actual del usuario en eventos single (1:1)
+    my_appointment = None
+    if event.capacity_type == 'single':
+        appt = Appointment.query.filter(
+            Appointment.event_id == event.id,
+            Appointment.applicant_id == current_user.id,
+            Appointment.status == 'scheduled',
+        ).first()
+        if appt:
+            slot = db.session.get(EventSlot, appt.slot_id)
+            my_appointment = {
+                'id': appt.id,
+                'slot_id': appt.slot_id,
+                'status': appt.status,
+                'starts_at': slot.starts_at.isoformat() if slot else None,
+                'ends_at': slot.ends_at.isoformat() if slot else None,
+            }
+
+    # Ventanas con slots (solo para eventos 1:1 o cuando aplique)
+    windows = []
+    if event.capacity_type == 'single':
+        wins = EventWindow.query.filter_by(event_id=event.id).order_by(
+            EventWindow.date.asc(), EventWindow.start_time.asc()
+        ).all()
+        for w in wins:
+            slots = EventSlot.query.filter_by(event_window_id=w.id).order_by(
+                EventSlot.starts_at.asc()
+            ).all()
+            windows.append({
+                'id': w.id,
+                'date': w.date.isoformat() if w.date else None,
+                'start_time': w.start_time.isoformat() if w.start_time else None,
+                'end_time': w.end_time.isoformat() if w.end_time else None,
+                'slot_minutes': w.slot_minutes,
+                'slots': [{
+                    'id': s.id,
+                    'starts_at': s.starts_at.isoformat(),
+                    'ends_at': s.ends_at.isoformat(),
+                    'status': s.status,
+                } for s in slots],
+            })
+
+    # Conteo de registros (multiple/unlimited)
+    current_registrations = 0
+    if event.capacity_type in ('multiple', 'unlimited'):
+        current_registrations = EventAttendance.query.filter_by(
+            event_id=event.id, status='registered'
+        ).count()
+
+    return jsonify({
+        "ok": True,
+        "event": {
+            "id": event.id,
+            "title": event.title,
+            "type": event.type,
+            "description": event.description,
+            "location": event.location,
+            "capacity_type": event.capacity_type,
+            "max_capacity": event.max_capacity,
+            "current_registrations": current_registrations,
+            "requires_registration": event.requires_registration,
+            "status": event.status,
+            "visibility": event.visibility,
+            "event_date": event.event_date.isoformat() if event.event_date else None,
+            "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
+            "program_id": event.program_id,
+            "program_name": program.name if program else None,
+            "created_at": event.created_at.isoformat(),
+        },
+        "my_registration": my_registration,
+        "my_appointment": my_appointment,
+        "my_invitation": my_invitation,
+        "windows": windows,
+    }), 200
+
+
+# ============================================================================
+# STATUS TRANSITIONS (conclude / archive / unarchive)
+# ============================================================================
+
+def _check_event_access(event_id: int):
+    """Helper: carga evento y valida acceso por programa. Retorna (event, error_response|None)."""
+    event = db.session.get(Event, event_id)
+    if not event:
+        return None, (jsonify({"ok": False, "error": "Evento no encontrado"}), 404)
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return None, (jsonify({"ok": False, "error": "Sin permisos"}), 403)
+    return event, None
+
+
+@api_events.route('/<int:event_id>/conclude', methods=['POST'])
+@login_required
+@permission_required('events.api.conclude')
+def conclude_event(event_id: int):
+    """Concluye evento: status='completed', cancela pending invitations, purga media."""
+    event, err = _check_event_access(event_id)
+    if err:
+        return err
+    try:
+        event = EventsService.conclude_event(event_id, current_user.id)
+
+        from app.sockets.emitters import emit_broadcast
+        emit_broadcast('event:changed', {
+            'action': 'concluded',
+            'event_id': event_id,
+            'program_id': event.program_id,
+            'title': event.title,
+        })
+        return jsonify({"ok": True, "status": event.status}), 200
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@api_events.route('/<int:event_id>/archive', methods=['POST'])
+@login_required
+@permission_required('events.api.archive')
+def archive_event(event_id: int):
+    """Archiva evento: oculto del público, cancela invitaciones, notifica registrados, purga media."""
+    event, err = _check_event_access(event_id)
+    if err:
+        return err
+    try:
+        event = EventsService.archive_event(event_id, current_user.id)
+
+        from app.sockets.emitters import emit_broadcast
+        emit_broadcast('event:changed', {
+            'action': 'archived',
+            'event_id': event_id,
+            'program_id': event.program_id,
+            'title': event.title,
+        })
+        return jsonify({"ok": True, "status": event.status}), 200
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@api_events.route('/<int:event_id>/unarchive', methods=['POST'])
+@login_required
+@permission_required('events.api.archive')
+def unarchive_event(event_id: int):
+    """Reactiva evento archivado. Body opcional: {new_status: 'published'|'draft'}."""
+    event, err = _check_event_access(event_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    new_status = data.get('new_status', 'published')
+    try:
+        event = EventsService.unarchive_event(event_id, current_user.id, new_status)
+
+        from app.sockets.emitters import emit_broadcast
+        emit_broadcast('event:changed', {
+            'action': 'unarchived',
+            'event_id': event_id,
+            'program_id': event.program_id,
+            'title': event.title,
+        })
+        return jsonify({"ok": True, "status": event.status}), 200
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# HOSTS / PRESENTADORES
+# ============================================================================
+
+@api_events.route('/<int:event_id>/hosts', methods=['GET'])
+@login_required
+def list_event_hosts(event_id: int):
+    """Lista hosts de un evento. Visible si el evento es accesible para el usuario."""
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+
+    # ACL: mismas reglas que eventos públicos + admins con permisos
+    accessible_pids = current_user.get_accessible_program_ids()
+    is_admin = accessible_pids is None or (event.program_id and event.program_id in (accessible_pids or set()))
+    is_public_accessible = (
+        event.visible_to_students
+        and event.status == 'published'
+        and event.capacity_type != 'single'
+    )
+    if not (is_admin or is_public_accessible):
+        return jsonify({"ok": False, "error": "Sin acceso al evento"}), 403
+
+    hosts = EventsService.get_event_hosts(event_id)
+    return jsonify({"ok": True, "hosts": hosts}), 200
+
+
+@api_events.route('/<int:event_id>/hosts/photo', methods=['POST'])
+@login_required
+@permission_required('events.api.manage_hosts')
+def upload_host_photo(event_id: int):
+    """
+    Sube foto para un host externo. Retorna el path relativo para usar en
+    `external_photo_path` al llamar PUT /hosts.
+    """
+    event, err = _check_event_access(event_id)
+    if err:
+        return err
+
+    file_storage = request.files.get('file')
+    if not file_storage:
+        return jsonify({"ok": False, "error": "Archivo 'file' es requerido"}), 400
+
+    try:
+        from app.utils.files import save_event_image
+        path = save_event_image(file_storage, event_id, 'host')
+        return jsonify({"ok": True, "path": path}), 201
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@api_events.route('/<int:event_id>/hosts', methods=['PUT'])
+@login_required
+@permission_required('events.api.manage_hosts')
+def set_event_hosts(event_id: int):
+    """Reemplaza la lista completa de hosts de un evento."""
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
+    data = request.get_json() or {}
+    hosts_data = data.get('hosts', [])
+    if not isinstance(hosts_data, list):
+        return jsonify({"ok": False, "error": "'hosts' debe ser una lista"}), 400
+
+    try:
+        hosts = EventsService.set_event_hosts(event_id, hosts_data)
+        return jsonify({"ok": True, "count": len(hosts)}), 200
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# IMÁGENES (COVER + GALLERY)
+# ============================================================================
+
+@api_events.route('/<int:event_id>/images', methods=['GET'])
+@login_required
+def list_event_images(event_id: int):
+    """Lista imágenes de un evento (cover + gallery)."""
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    is_admin = accessible_pids is None or (event.program_id and event.program_id in (accessible_pids or set()))
+    is_public_accessible = (
+        event.visible_to_students
+        and event.status == 'published'
+        and event.capacity_type != 'single'
+    )
+    if not (is_admin or is_public_accessible):
+        return jsonify({"ok": False, "error": "Sin acceso al evento"}), 403
+
+    data = EventsService.get_event_images(event_id)
+    return jsonify({"ok": True, **data}), 200
+
+
+@api_events.route('/<int:event_id>/cover', methods=['POST'])
+@login_required
+@permission_required('events.api.manage_images')
+def upload_event_cover(event_id: int):
+    """Sube (o reemplaza) la imagen de portada del evento."""
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
+    file_storage = request.files.get('file')
+    if not file_storage:
+        return jsonify({"ok": False, "error": "Archivo 'file' es requerido"}), 400
+
+    try:
+        image = EventsService.upload_event_cover(event_id, file_storage)
+        return jsonify({"ok": True, "image": image.to_dict()}), 201
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@api_events.route('/<int:event_id>/images', methods=['POST'])
+@login_required
+@permission_required('events.api.manage_images')
+def upload_event_gallery_image(event_id: int):
+    """Agrega imagen a la galería del evento."""
+    event = db.session.get(Event, event_id)
+    if not event:
+        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
+    file_storage = request.files.get('file')
+    if not file_storage:
+        return jsonify({"ok": False, "error": "Archivo 'file' es requerido"}), 400
+
+    caption = request.form.get('caption')
+    try:
+        image = EventsService.upload_event_gallery_image(event_id, file_storage, caption)
+        return jsonify({"ok": True, "image": image.to_dict()}), 201
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@api_events.route('/images/<int:image_id>', methods=['DELETE'])
+@login_required
+@permission_required('events.api.manage_images')
+def delete_event_image(image_id: int):
+    """Elimina imagen (cover o galería) + archivo físico."""
+    from app.models.event import EventImage
+    image = db.session.get(EventImage, image_id)
+    if not image:
+        return jsonify({"ok": False, "error": "Imagen no encontrada"}), 404
+
+    event = db.session.get(Event, image.event_id)
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
+    try:
+        EventsService.delete_event_image(image_id)
+        return jsonify({"ok": True, "deleted": image_id}), 200
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500

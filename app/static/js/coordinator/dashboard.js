@@ -270,6 +270,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Subida de archivos por coordinador
     setupCoordinatorUpload();
+
+    // ==================== TIEMPO REAL ====================
+    // Estrategia: partial refresh (loadStudents) en lugar de reload completo,
+    // para preservar filtros activos y no interrumpir workflow del coordinador.
+    // Se debounces para evitar ráfagas si llegan muchos eventos juntos.
+    //
+    // Eventos que SÍ llegan a la sala role:coordinator:
+    //   - submission:new         → aspirante/estudiante subió documento
+    //   - acceptance:updated     → receipt_submitted (aspirante subió boleta)
+    //   - deliberation:updated   → sólo si el coordinador entró a la sala deliberation:{pid}
+    // Otros eventos (submission:reviewed, admission:status_changed, permanence:status_changed,
+    // extension:decided) se emiten sólo al usuario afectado; ver PLAN_SOCKETS.md Fase 5
+    // para agregar canal coordinator:feed si se requiere propagar todos los cambios.
+    const refreshDebounced = debounce(loadStudents, 800);
+
+    window.addEventListener('siiap:submission:new', (e) => {
+      const d = e.detail || {};
+      emitFlash('info', `Nuevo documento: ${d.archive_name || 'documento'}`);
+      refreshDebounced();
+    });
+
+    window.addEventListener('siiap:acceptance:updated',   refreshDebounced);
+    window.addEventListener('siiap:deliberation:updated', refreshDebounced);
   }
 
   function updateFilters() {

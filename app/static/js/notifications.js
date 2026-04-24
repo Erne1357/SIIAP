@@ -486,10 +486,3 @@ if (document.readyState === 'loading') {
 } else {
     initNotifications();
 }
-
-// Reiniciar con Swup — socket-client.js mantiene la conexión WS activa
-if (typeof swup !== 'undefined') {
-    swup.on('contentReplaced', () => {
-        initNotifications();
-    });
-}

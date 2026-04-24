@@ -332,7 +332,7 @@
 {% block scripts %}
 {{ super() }}
 <script>
-  window.currentUserRole = "{{ current_user.role.name }}";
+  window.canForceReset = {{ has_perm('admin_users.api.reset_password')|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/coordinator/deliberation.js') }}?v={{ static_version }}"></script>
 {% endblock %}

@@ -58,11 +58,10 @@
               <div class="d-flex gap-2">
                 <a
                   href="{{ url_for('program.view_program', slug = p.slug) }}"
-                  class="btn btn-primary btn-ver-mas flex-grow-1"
-                  data-swup-animation="zoom-card">
+                  class="btn btn-primary btn-ver-mas flex-grow-1">
                   Ver detalles <i class="fas fa-arrow-right ms-1"></i>
                 </a>
-                {% if current_user.role.name == 'postgraduate_admin' or (current_user.role.name == 'program_admin' and p.coordinator_id == current_user.id) %}
+                {% if has_perm('academic_periods.api.create') or p.coordinator_id == current_user.id %}
                 <a
                   href="{{ url_for('pages_admin.pages_settings.config_program', slug=p.slug) }}"
                   class="btn btn-outline-secondary"

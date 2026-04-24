@@ -17,6 +17,8 @@ class Archive(db.Model):
     validity_months = db.Column(db.Integer, nullable=True)
     # False = desactivado (no visible para estudiantes/coordinadores, pero conservado por historial)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    # Clave única para identificar archives especiales por código (ej. 'leave_request')
+    archive_key = db.Column(db.String(50), unique=True, nullable=True)
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
@@ -44,6 +46,7 @@ class Archive(db.Model):
             'allow_extension_request': self.allow_extension_request,
             'validity_months': self.validity_months,
             'is_active': self.is_active,
+            'archive_key': self.archive_key,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

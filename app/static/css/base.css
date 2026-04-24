@@ -9,6 +9,51 @@
   --azulFuerte: #1a71cf;
 }
 
+/* === LAYOUT HELPERS === */
+/* Botón hamburguesa — icono grande (reemplaza inline style="font-size:1.75rem") */
+.btn-menu-toggle i {
+  font-size: 1.75rem;
+}
+
+/* Oculta el footer mientras el offcanvas está abierto (lo manejaba JS antes) */
+body.offcanvas-open footer {
+  display: none;
+}
+
+/* === UTILITY: column widths en tablas (reemplazan style="width:Xpx") === */
+.w-px-32  { width: 32px; }
+.w-px-50  { width: 50px; }
+.w-px-60  { width: 60px; }
+.w-px-80  { width: 80px; }
+.w-px-90  { width: 90px; }
+.w-px-100 { width: 100px; }
+.w-px-110 { width: 110px; }
+.w-px-120 { width: 120px; }
+.w-px-130 { width: 130px; }
+.w-px-140 { width: 140px; }
+.w-px-150 { width: 150px; }
+.w-px-160 { width: 160px; }
+.w-px-180 { width: 180px; }
+.w-px-200 { width: 200px; }
+
+/* Avatar circular mediano */
+.avatar-md {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+}
+
+/* Cursor pointer para switches/labels interactivos */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* Modal-body con scroll propio */
+.modal-body-scroll {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
 /* === RESET BASE === */
 html {
   height: 100%;

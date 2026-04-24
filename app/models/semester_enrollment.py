@@ -42,9 +42,6 @@ class SemesterEnrollment(db.Model):
     # Notas del coordinador
     notes = db.Column(db.Text, nullable=True)
 
-    # Fecha limite para entrega de documentos de permanencia
-    documents_deadline = db.Column(db.DateTime, nullable=True)
-
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     updated_at = db.Column(
         db.DateTime, default=now_local, onupdate=now_local, nullable=False
@@ -70,7 +67,6 @@ class SemesterEnrollment(db.Model):
             'confirmed_by': self.confirmed_by,
             'confirmed_at': self.confirmed_at.isoformat() if self.confirmed_at else None,
             'notes': self.notes,
-            'documents_deadline': self.documents_deadline.isoformat() if self.documents_deadline else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

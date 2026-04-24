@@ -53,6 +53,16 @@ def init_celery(app):
                 'task': 'app.tasks.maintenance.notify_pending_permanence_docs',
                 'schedule': crontab(hour=9, minute=0, day_of_week=1),
             },
+            # Recordatorio 24h antes de cada evento — diario a las 09:00
+            'event-reminders-24h': {
+                'task': 'app.tasks.events.dispatch_reminders_24h',
+                'schedule': crontab(hour=9, minute=0),
+            },
+            # Recordatorio 2h antes de cada evento — cada 15 minutos
+            'event-reminders-2h': {
+                'task': 'app.tasks.events.dispatch_reminders_2h',
+                'schedule': crontab(minute='*/15'),
+            },
         },
     )
 
@@ -62,6 +72,7 @@ def init_celery(app):
     celery.conf.include = [
         'app.tasks.maintenance',
         'app.tasks.notifications',
+        'app.tasks.events',
     ]
 
     # Hace que cada tarea se ejecute dentro del contexto de la app Flask

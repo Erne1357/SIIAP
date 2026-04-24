@@ -33,7 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!pendingAction) return;
 
       if (pendingAction === 'reject') {
-        const ok = confirm('¿Estás seguro de rechazar este documento?');
+        const ok = await siiapConfirm({
+          type: 'danger',
+          title: 'Rechazar documento',
+          message: '¿Estás seguro de rechazar este documento?',
+          confirmLabel: 'Sí, rechazar',
+        });
         if (!ok) return;
       }
 
@@ -242,7 +247,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Rechazar prórroga
   document.getElementById('rejectExtensionBtn')?.addEventListener('click', async () => {
-    if (!confirm('¿Estás seguro de rechazar esta solicitud?')) return;
+    const ok = await siiapConfirm({
+      type: 'danger',
+      title: 'Rechazar solicitud',
+      message: '¿Estás seguro de rechazar esta solicitud?',
+      confirmLabel: 'Sí, rechazar',
+    });
+    if (!ok) return;
 
     const extId = document.getElementById('reviewExtensionId').value;
     const conditions = document.getElementById('extensionConditions').value.trim() || 
@@ -303,6 +314,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
     if (submissionsTable) {
       setTimeout(() => { window.location.reload(); }, 3000);
+    }
+  });
+
+  // ==================== TIEMPO REAL: DOCUMENTO REVISADO POR OTRO ADMIN ====================
+  // Se emite a role:coordinator cuando cualquier revisor decide sobre una submission.
+  window.addEventListener('siiap:submission:reviewed', (e) => {
+    const data = e.detail;
+    if (!data) return;
+
+    // Caso 1: estamos en la página de detalle de la misma submission
+    const decisionForm = document.querySelector('[data-review-form]');
+    if (decisionForm) {
+      const subId = parseInt(decisionForm.dataset.subId);
+      if (subId === data.submission_id) {
+        emitFlash('warning', 'Otro revisor ya decidió este documento. Redirigiendo al listado...');
+        setTimeout(() => {
+          const next = decisionForm.dataset.nextUrl || '/admin/submissions';
+          window.location.href = next;
+        }, 2500);
+        return;
+      }
+    }
+
+    // Caso 2: estamos en la lista → reload para eliminar la fila resuelta
+    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
+    if (submissionsTable) {
+      const action = data.status === 'approved' ? 'aprobado' : 'rechazado';
+      emitFlash('info', `Un documento fue ${action} por otro revisor. Actualizando...`);
+      setTimeout(() => { window.location.reload(); }, 1500);
     }
   });
 });

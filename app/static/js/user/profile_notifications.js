@@ -287,9 +287,13 @@ class ProfileNotificationsManager {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const id = parseInt(btn.dataset.id);
-                if (confirm('¿Eliminar esta notificación?')) {
-                    await this.deleteNotification(id);
-                }
+                const ok = await siiapConfirm({
+                    type: 'danger',
+                    title: 'Eliminar notificación',
+                    message: '¿Eliminar esta notificación?',
+                    confirmLabel: 'Eliminar',
+                });
+                if (ok) await this.deleteNotification(id);
             });
         });
 
@@ -429,9 +433,13 @@ class ProfileNotificationsManager {
     }
 
     async clearReadNotifications() {
-        if (!confirm('¿Eliminar todas las notificaciones leídas? Esta acción no se puede deshacer.')) {
-            return;
-        }
+        const ok = await siiapConfirm({
+            type: 'danger',
+            title: 'Limpiar notificaciones leídas',
+            message: '¿Eliminar todas las notificaciones leídas? Esta acción no se puede deshacer.',
+            confirmLabel: 'Sí, eliminar todas',
+        });
+        if (!ok) return;
 
         try {
             const res = await window.apiClient.post(`/api/v1/notifications/clear-read`);

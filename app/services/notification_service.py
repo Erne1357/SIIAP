@@ -17,6 +17,10 @@ class NotificationService:
         'document_rejected',
         'extension_rejected',
         'event_invitation',
+        'event_cancelled',
+        'event_archived',
+        'event_reminder_24h',
+        'event_reminder_2h',
         'password_reset',
         'profile_incomplete',
         'extension_deadline_near',
@@ -453,28 +457,123 @@ class NotificationService:
             },
             related_invitation_id=invitation_id
         )
-        
-        # NUEVO: Enviar correo
+
         try:
             from app.models.user import User
             from app.services.email_service import EmailService
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
-            if user:
+            if not user:
+                raise ValueError(f"Usuario {user_id} no existe para notify_event_invitation")
+            if not user.email:
+                raise ValueError(f"Usuario {user_id} no tiene email configurado")
+
+            try:
                 event_url = url_for('pages_events_public.view_event', event_id=event_id, _external=True)
-                subject, html = EmailTemplates.event_invitation(
-                    user_name=f"{user.first_name} {user.last_name}",
-                    event_title=event_title,
-                    event_date=event_date,
-                    description=description or "Evento importante del sistema de posgrado",
-                    event_url=event_url
-                )
-                EmailService.queue_email(user_id, subject, html, notification.id)
+            except RuntimeError:
+                # Fuera de request context (p.ej. desde Celery): fallback relativo
+                event_url = f"/events/{event_id}"
+
+            subject, html = EmailTemplates.event_invitation(
+                user_name=f"{user.first_name} {user.last_name}",
+                event_title=event_title,
+                event_date=event_date,
+                description=description or "Evento importante del sistema de posgrado",
+                event_url=event_url
+            )
+            EmailService.queue_email(user_id, subject, html, notification.id)
         except Exception as e:
             import logging
-            logging.error(f"Error queueing email for event_invitation: {e}")
-        
+            logging.exception(f"Error queueing email for event_invitation (user_id={user_id}, event_id={event_id}): {e}")
+            raise
+
         return notification
+
+    @staticmethod
+    def notify_event_cancelled_invitation(user_id: int, event_title: str, event_id: int) -> Notification:
+        """Notifica al invitado que el evento fue cerrado y su invitación cancelada."""
+        return NotificationService.create_notification(
+            user_id=user_id,
+            notification_type='event_cancelled',
+            title='Evento cancelado',
+            message=f'El evento "{event_title}" fue cerrado y tu invitación quedó sin efecto.',
+            priority='normal',
+            action_url=f'/events/{event_id}',
+            data={'event_id': event_id, 'event_title': event_title}
+        )
+
+    @staticmethod
+    def notify_event_reminder(user_id, event, reminder_type: str, slot_datetime: str) -> Notification:
+        """
+        Recordatorio automático de evento (24h o 2h antes).
+        reminder_type: '24h' | '2h'
+        slot_datetime: string ya formateado 'dd/mm/yyyy HH:MM'
+        """
+        label_map = {
+            '24h': ('Recordatorio: evento mañana', 'mañana'),
+            '2h':  ('Recordatorio: evento en 2 horas', 'en unas horas'),
+        }
+        title, when = label_map.get(reminder_type, ('Recordatorio de evento', 'pronto'))
+
+        notification_type = f'event_reminder_{reminder_type}'
+        message = f'Tu evento "{event.title}" comienza {when} ({slot_datetime}).'
+
+        notification = NotificationService.create_notification(
+            user_id=user_id,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            priority='high',
+            action_url=f'/events/{event.id}',
+            data={
+                'event_id': event.id,
+                'event_title': event.title,
+                'reminder_type': reminder_type,
+                'slot_datetime': slot_datetime,
+            }
+        )
+
+        try:
+            from app.models.user import User
+            from app.services.email_service import EmailService
+            from app.services.email_templates import EmailTemplates
+
+            user = User.query.get(user_id)
+            if not user or not user.email:
+                return notification
+
+            try:
+                event_url = url_for('pages_events_public.view_event', event_id=event.id, _external=True)
+            except RuntimeError:
+                event_url = f"/events/{event.id}"
+
+            subject, html = EmailTemplates.event_reminder(
+                user_name=f"{user.first_name} {user.last_name}",
+                event_title=event.title,
+                slot_datetime=slot_datetime,
+                reminder_type=reminder_type,
+                location=event.location or 'Por definir',
+                event_url=event_url
+            )
+            EmailService.queue_email(user_id, subject, html, notification.id)
+        except Exception as e:
+            import logging
+            logging.exception(f"Error queueing email for event_reminder: {e}")
+
+        return notification
+
+    @staticmethod
+    def notify_event_archived(user_id: int, event_title: str, event_id: int) -> Notification:
+        """Notifica a registrados que el evento fue archivado/retirado."""
+        return NotificationService.create_notification(
+            user_id=user_id,
+            notification_type='event_archived',
+            title='Evento archivado',
+            message=f'El evento "{event_title}" fue archivado por la coordinación.',
+            priority='normal',
+            action_url=f'/events/{event_id}',
+            data={'event_id': event_id, 'event_title': event_title}
+        )
     
     # ==================== ADMINISTRATIVAS ====================
     

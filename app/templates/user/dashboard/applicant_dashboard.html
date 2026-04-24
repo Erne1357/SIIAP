@@ -5,7 +5,7 @@
         <div class="card shadow border-0">
             <div class="card-body text-center py-5">
                 <div class="mb-4">
-                    <i class="bi bi-folder-x text-muted" style="font-size: 5rem;"></i>
+                    <i class="bi bi-folder-x text-muted icon-5xl"></i>
                 </div>
                 <h3 class="mb-3">No estás registrado en ningún programa</h3>
                 <p class="text-muted mb-4 lead">
@@ -36,7 +36,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-file-earmark-arrow-up text-primary icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Subir Documentos</h6>
                             <small class="text-muted">Envía tus requisitos</small>
@@ -52,7 +52,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-book text-success" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-book text-success icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Ver Programa</h6>
                             <small class="text-muted">Detalles del programa</small>
@@ -68,7 +68,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-person-circle text-info" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-person-circle text-info icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Mi Perfil</h6>
                             <small class="text-muted">Información personal</small>
@@ -84,7 +84,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-mortarboard text-warning" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-mortarboard text-warning icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Otros Programas</h6>
                             <small class="text-muted">Explorar catálogo</small>
@@ -109,10 +109,10 @@
             </div>
             <div class="card-body">
                 <!-- Nombre del Programa -->
-                <div class="mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #e7f1ff 0%, #f8f9fa 100%); border-left: 4px solid #0d6efd;">
+                <div class="mb-4 p-3 rounded-3 applicant-banner">
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0 me-3">
-                            <i class="bi bi-mortarboard-fill text-primary" style="font-size: 2rem;"></i>
+                            <i class="bi bi-mortarboard-fill text-primary icon-xl"></i>
                         </div>
                         <div class="flex-grow-1">
                             <h5 class="mb-0 fw-bold text-primary">{{ program.name }}</h5>
@@ -138,7 +138,7 @@
                 </div>
 
                 <!-- Barra de progreso -->
-                <div class="progress mb-3" style="height: 25px; border-radius: 8px;">
+                <div class="progress mb-3 progress-admission">
                     {% if progress_segments %}
                         {% for seg in progress_segments %}
                         <div class="progress-bar bg-{{ seg.class }} {% if seg.class == 'warning' %}text-dark{% endif %}"
@@ -300,7 +300,7 @@
     <div class="col-12">
         <div class="card border-0 shadow bg-success bg-opacity-10">
             <div class="card-body text-center py-4">
-                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <i class="bi bi-check-circle-fill text-success icon-3xl"></i>
                 <h5 class="mt-3 mb-2 text-success fw-bold">¡Excelente!</h5>
                 <p class="text-muted mb-0">No tienes documentos pendientes. Tu solicitud está en revisión.</p>
             </div>
@@ -313,7 +313,7 @@
 {% if admission_status == 'deferred' %}
 <div class="row mt-4" id="deferral-section">
   <div class="col-12">
-    <div class="card border-0 shadow" style="border-left: 4px solid #fd7e14 !important;">
+    <div class="card border-0 shadow card-accent-warning">
       <div class="card-header bg-white border-0 pt-4 pb-3">
         <div class="d-flex align-items-center justify-content-between">
           <div class="d-flex align-items-center">
@@ -398,37 +398,6 @@
             Cargando carta de aceptación...
           </div>
         </div>
-        <script>
-        (function() {
-            const userId = {{ current_user.id }};
-            const programId = {{ user_program_id }};
-
-            async function loadLetter() {
-                try {
-                    const resp = await fetch('/api/v1/acceptance/user/' + userId + '/program/' + programId + '/status');
-                    const result = await resp.json();
-                    const container = document.getElementById('deferralAcceptanceLetterSection');
-                    if (!container || result.error) return;
-
-                    const letter = result.data.acceptance_letter;
-                    if (letter && letter.file_path) {
-                        const parts = letter.file_path.split('/');
-                        const url = '/files/doc/' + parts[0] + '/' + parts[1] + '/' + parts.slice(2).join('/');
-                        container.innerHTML = `
-                            <a href="${url}" target="_blank" class="btn btn-outline-success btn-sm">
-                                <i class="bi bi-download me-1"></i>Descargar Carta de Aceptación
-                            </a>`;
-                    } else {
-                        container.innerHTML = '';
-                    }
-                } catch(e) {
-                    const container = document.getElementById('deferralAcceptanceLetterSection');
-                    if (container) container.innerHTML = '';
-                }
-            }
-            document.addEventListener('DOMContentLoaded', loadLetter);
-        })();
-        </script>
         {% endif %}
 
       </div>
@@ -441,7 +410,7 @@
 {% if admission_status == 'accepted' %}
 <div class="row mt-4" id="acceptance-section">
   <div class="col-12">
-    <div class="card border-0 shadow" style="border-left: 4px solid #198754 !important;">
+    <div class="card border-0 shadow card-accent-success">
       <div class="card-header bg-white border-0 pt-4 pb-3">
         <div class="d-flex align-items-center justify-content-between">
           <div class="d-flex align-items-center">
@@ -466,207 +435,5 @@
   </div>
 </div>
 
-<script>
-(function() {
-    const userId = {{ current_user.id }};
-    const programId = {{ user_program_id }};
-
-    async function loadAcceptanceDocs() {
-        try {
-            const resp = await fetch('/api/v1/acceptance/user/' + userId + '/program/' + programId + '/status');
-            const result = await resp.json();
-
-            const container = document.getElementById('acceptanceDocsContent');
-            if (!container) return;
-
-            if (result.error) {
-                container.innerHTML = '<p class="text-danger">Error al cargar documentos.</p>';
-                return;
-            }
-
-            const docs = result.data;
-            const letter = docs.acceptance_letter;
-            const schedule = docs.course_schedule;
-            const receipt = docs.enrollment_receipt;
-
-            const hasLetter = letter && letter.file_path;
-            const hasSchedule = schedule && schedule.file_path;
-            const receiptApproved = receipt && receipt.status === 'approved';
-            const receiptRejected = receipt && receipt.status === 'rejected';
-            const receiptUploaded = receipt && receipt.status === 'uploaded';
-
-            function buildDownloadUrl(filePath) {
-                if (!filePath) return '#';
-                const parts = filePath.split('/');
-                return '/files/doc/' + parts[0] + '/' + parts[1] + '/' + parts.slice(2).join('/');
-            }
-
-            let letterCard = buildDocCard(
-                'Carta de Aceptacion', 'bi-file-earmark-text',
-                hasLetter, 'Para formalizar tu admision al programa',
-                hasLetter ? buildDownloadBtn(buildDownloadUrl(letter.file_path)) : ''
-            );
-
-            let scheduleCard = buildDocCard(
-                'Tira de Materias', 'bi-list-check',
-                hasSchedule, 'Materias que cursaras este semestre',
-                hasSchedule ? buildDownloadBtn(buildDownloadUrl(schedule.file_path)) : ''
-            );
-
-            let receiptAction = '';
-            let receiptStatus = 'pending';
-            let receiptNote = 'Pendiente de subir';
-
-            if (receiptApproved) {
-                receiptStatus = 'approved';
-                receiptNote = 'Aprobada por el coordinador';
-                receiptAction = '<span class="badge bg-success fs-6"><i class="bi bi-check-circle me-1"></i>Aprobada</span>';
-            } else if (receiptUploaded) {
-                receiptStatus = 'uploaded';
-                receiptNote = 'Subida, en revision por el coordinador';
-                receiptAction = '<span class="badge bg-info fs-6">En revision</span>';
-            } else if (receiptRejected) {
-                receiptStatus = 'rejected';
-                receiptNote = 'Rechazada: ' + (receipt.review_notes || 'Sin especificar');
-                if (hasLetter && hasSchedule) {
-                    receiptAction = '<button class="btn btn-danger btn-sm" id="uploadReceiptBtn"><i class="bi bi-upload me-1"></i>Volver a Subir</button>';
-                }
-            } else {
-                if (hasLetter && hasSchedule) {
-                    receiptAction = '<button class="btn btn-primary btn-sm" id="uploadReceiptBtn"><i class="bi bi-upload me-1"></i>Subir Boleta</button>';
-                } else {
-                    receiptAction = '<small class="text-muted">Disponible cuando el coordinador suba la carta y tira</small>';
-                }
-            }
-
-            let receiptCard = buildReceiptCard(receiptStatus, receiptNote, receiptAction);
-
-            container.innerHTML = '<div class="row g-3">' + letterCard + scheduleCard + receiptCard + '</div>';
-
-            const btn = document.getElementById('uploadReceiptBtn');
-            if (btn) {
-                btn.addEventListener('click', () => triggerReceiptUpload(userId, programId));
-            }
-
-        } catch (err) {
-            console.error('Error loading acceptance docs:', err);
-            const container = document.getElementById('acceptanceDocsContent');
-            if (container) container.innerHTML = '<p class="text-danger">Error al cargar documentos.</p>';
-        }
-    }
-
-    function buildDocCard(title, icon, isAvailable, subtitle, actionHtml) {
-        const borderClass = isAvailable ? 'border-success' : 'border-secondary';
-        const iconClass = isAvailable ? 'text-success' : 'text-secondary';
-        const statusBadge = isAvailable ? '' : '<span class="badge bg-secondary mb-2">Pendiente</span>';
-        return '<div class="col-md-4">' +
-            '<div class="card h-100 border ' + borderClass + '">' +
-            '<div class="card-body text-center py-3">' +
-            '<i class="bi ' + icon + ' ' + iconClass + '" style="font-size:2.5rem;"></i>' +
-            '<h6 class="fw-bold mt-2 mb-1">' + title + '</h6>' +
-            '<p class="text-muted small mb-2">' + subtitle + '</p>' +
-            statusBadge +
-            actionHtml +
-            '</div></div></div>';
-    }
-
-    function buildReceiptCard(status, note, actionHtml) {
-        const colors = { approved: 'success', uploaded: 'info', rejected: 'danger', pending: 'warning' };
-        const icons = { approved: 'text-success', uploaded: 'text-info', rejected: 'text-danger', pending: 'text-warning' };
-        const borders = { approved: 'border-success', uploaded: 'border-info', rejected: 'border-danger', pending: 'border-warning' };
-        const c = colors[status] || 'secondary';
-        const ic = icons[status] || 'text-secondary';
-        const bc = borders[status] || 'border-secondary';
-        return '<div class="col-md-4">' +
-            '<div class="card h-100 border ' + bc + '">' +
-            '<div class="card-body text-center py-3">' +
-            '<i class="bi bi-receipt ' + ic + '" style="font-size:2.5rem;"></i>' +
-            '<h6 class="fw-bold mt-2 mb-1">Boleta de Inscripcion</h6>' +
-            '<p class="text-muted small mb-2">' + note + '</p>' +
-            actionHtml +
-            '</div></div></div>';
-    }
-
-    function buildDownloadBtn(url) {
-        return '<a href="' + url + '" target="_blank" class="btn btn-success btn-sm">' +
-               '<i class="bi bi-download me-1"></i>Descargar</a>';
-    }
-
-    function triggerReceiptUpload(userId, programId) {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.pdf,.doc,.docx';
-        input.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const btn = document.getElementById('uploadReceiptBtn');
-            if (btn) { btn.disabled = true; btn.textContent = 'Subiendo...'; }
-
-            try {
-                const resp = await fetch(
-                    '/api/v1/acceptance/user/' + userId + '/program/' + programId + '/submit-receipt',
-                    {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
-                        body: formData
-                    }
-                );
-                const result = await resp.json();
-                if (result.flash) result.flash.forEach(f => showSimpleToast(f.message, f.level));
-                if (!result.error) loadAcceptanceDocs();
-            } catch (err) {
-                showSimpleToast('Error al subir la boleta', 'danger');
-                if (btn) { btn.disabled = false; btn.textContent = 'Subir Boleta'; }
-            }
-        };
-        input.click();
-    }
-
-    function showSimpleToast(message, level) {
-        let cont = document.getElementById('toast-container');
-        if (!cont) {
-            cont = document.createElement('div');
-            cont.id = 'toast-container';
-            cont.className = 'toast-container position-fixed top-0 end-0 p-3';
-            cont.style.zIndex = '1100';
-            document.body.appendChild(cont);
-        }
-        const id = 'toast-' + Date.now();
-        cont.insertAdjacentHTML('beforeend',
-            '<div id="' + id + '" class="toast align-items-center text-bg-' + level + ' border-0" role="alert">' +
-            '<div class="d-flex"><div class="toast-body">' + message + '</div>' +
-            '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>' +
-            '</div></div>'
-        );
-        const el = document.getElementById(id);
-        new bootstrap.Toast(el, { autohide: true, delay: 4000 }).show();
-        el.addEventListener('hidden.bs.toast', () => el.remove());
-    }
-
-    document.addEventListener('DOMContentLoaded', loadAcceptanceDocs);
-
-    // Tiempo real: recargar documentos de aceptación cuando hay cambios
-    window.addEventListener('siiap:acceptance:updated', () => {
-        loadAcceptanceDocs();
-    });
-})();
-</script>
 {% endif %}
-
-<!-- Estilos CSS adicionales para las tarjetas de acciones rápidas -->
-<style>
-.quick-action-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.quick-action-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
-</style>
 {% endif %}

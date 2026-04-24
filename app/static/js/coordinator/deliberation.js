@@ -377,7 +377,7 @@ class DeliberationManager {
                 `;
 
             case 'accepted': {
-                const forceResetBtn = window.currentUserRole === 'postgraduate_admin'
+                const forceResetBtn = window.canForceReset
                     ? `<button class="btn btn-sm btn-outline-secondary btn-action"
                                title="Reiniciar estado a En Proceso (solo admin)"
                                onclick="deliberationManager.forceResetApplicant(${user.id}, ${up.program_id}, '${user.full_name}')">

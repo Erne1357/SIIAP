@@ -18,6 +18,45 @@
                     </button>
                 </div>
                 <div class="card-body">
+                    <div class="row g-2 mb-3" id="eventsFilters">
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="filterAcademicPeriod">
+                                <option value="">Todos los periodos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="filterProgram">
+                                <option value="">Todos los programas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select form-select-sm" id="filterType">
+                                <option value="">Todos los tipos</option>
+                                <option value="interview">Entrevista</option>
+                                <option value="defense">Defensa</option>
+                                <option value="workshop">Taller</option>
+                                <option value="seminar">Seminario</option>
+                                <option value="conference">Conferencia</option>
+                                <option value="info_session">Sesión Informativa</option>
+                                <option value="other">Otro</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select form-select-sm" id="filterStatus">
+                                <option value="">Activos (sin archivados)</option>
+                                <option value="draft">Borrador</option>
+                                <option value="published">Publicado</option>
+                                <option value="ongoing">En curso</option>
+                                <option value="completed">Concluido</option>
+                                <option value="archived">Archivados</option>
+                                <option value="cancelled">Cancelado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="search" class="form-control form-control-sm" id="filterSearch"
+                                placeholder="Buscar...">
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm" id="eventsTable">
                             <thead class="table-light">
@@ -69,6 +108,12 @@
                                     data-bs-target="#pane-change-requests" type="button" role="tab">
                                     <i class="fas fa-exchange-alt"></i> Solicitudes de Cambio
                                     <span class="badge bg-danger ms-1" id="changeRequestsBadge" style="display:none">0</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link tab-content-media" id="tab-content-single" data-bs-toggle="tab"
+                                    data-bs-target="#pane-content-single" type="button" role="tab">
+                                    <i class="bi bi-image"></i> Contenido
                                 </button>
                             </li>
                         </ul>
@@ -173,6 +218,11 @@
                                     </table>
                                 </div>
                             </div>
+
+                            <!-- TAB: CONTENIDO (single) -->
+                            <div class="tab-pane fade" id="pane-content-single" role="tabpanel">
+                                <div id="sharedContentPaneAnchorSingle"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -216,6 +266,12 @@
                                 <button class="nav-link" id="tab-invitations" data-bs-toggle="tab"
                                     data-bs-target="#pane-invitations" type="button" role="tab">
                                     <i class="fas fa-envelope"></i> Invitaciones (<span id="countInvitations">0</span>)
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link tab-content-media" id="tab-content-multi" data-bs-toggle="tab"
+                                    data-bs-target="#pane-content-multi" type="button" role="tab">
+                                    <i class="bi bi-image"></i> Contenido
                                 </button>
                             </li>
                         </ul>
@@ -276,8 +332,108 @@
                                 </div>
                             </div>
 
+                            <!-- TAB: CONTENIDO (multiple) -->
+                            <div class="tab-pane fade" id="pane-content-multi" role="tabpanel">
+                                <div id="sharedContentPaneAnchorMulti"></div>
+                            </div>
+
                         </div>
                     </div>
+
+                    <!-- Panel de Contenido compartido (portada, galería, ponentes) -->
+                    <!-- Se muestra cuando el tab "Contenido" está activo en single o multiple -->
+                    <div id="pane-content-media" style="display:none;" class="mt-3">
+                        <div class="accordion" id="contentAccordion">
+
+                            <!-- A) PORTADA -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                        data-bs-target="#accordionCover" aria-expanded="true">
+                                        <i class="bi bi-image me-2"></i> Portada
+                                    </button>
+                                </h2>
+                                <div id="accordionCover" class="accordion-collapse collapse show">
+                                    <div class="accordion-body">
+                                        <div class="event-cover-preview empty mb-3" id="coverPreview">
+                                            <div class="text-center">
+                                                <i class="bi bi-image fs-1 d-block mb-2"></i>
+                                                <span class="text-muted small">Sin portada</span>
+                                            </div>
+                                        </div>
+                                        <div class="event-dropzone" id="coverDropzone">
+                                            <i class="bi bi-cloud-upload fs-4 text-muted d-block mb-2"></i>
+                                            <span class="text-muted">Arrastra una imagen aquí o </span>
+                                            <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="coverSelectBtn">selecciona archivo</button>
+                                            <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" class="d-none">
+                                            <div class="text-muted small mt-1">JPG, PNG, WebP — máx. 5 MB</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-danger mt-2 d-none" id="coverDeleteBtn">
+                                            <i class="bi bi-trash me-1"></i> Eliminar portada
+                                        </button>
+                                        <input type="hidden" id="coverImageId">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- B) GALERÍA -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                        data-bs-target="#accordionGallery" aria-expanded="false">
+                                        <i class="bi bi-images me-2"></i> Galería
+                                    </button>
+                                </h2>
+                                <div id="accordionGallery" class="accordion-collapse collapse">
+                                    <div class="accordion-body">
+                                        <div class="event-gallery mb-3" id="galleryGrid"></div>
+                                        <div id="galleryEmpty" class="text-center text-muted py-3">
+                                            <i class="bi bi-images fs-3 d-block mb-1"></i>
+                                            Sin imágenes en la galería
+                                        </div>
+                                        <div class="event-dropzone" id="galleryDropzone">
+                                            <i class="bi bi-cloud-upload fs-4 text-muted d-block mb-2"></i>
+                                            <span class="text-muted">Arrastra imágenes aquí o </span>
+                                            <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="gallerySelectBtn">selecciona archivos</button>
+                                            <input type="file" id="galleryFileInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">
+                                            <div class="text-muted small mt-1">JPG, PNG, WebP — máx. 5 MB por archivo</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- C) PONENTES -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                        data-bs-target="#accordionHosts" aria-expanded="false">
+                                        <i class="bi bi-mic-fill me-2"></i> Ponentes
+                                    </button>
+                                </h2>
+                                <div id="accordionHosts" class="accordion-collapse collapse">
+                                    <div class="accordion-body">
+                                        <div id="hostsList">
+                                            <div class="text-center text-muted py-3" id="hostsEmpty">
+                                                <i class="bi bi-person-x fs-3 d-block mb-1"></i>
+                                                Sin ponentes registrados
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-success mt-2" id="addHostBtn">
+                                            <i class="bi bi-person-plus me-1"></i> Agregar ponente
+                                        </button>
+                                        <hr>
+                                        <div class="d-flex justify-content-end">
+                                            <button type="button" class="btn btn-primary btn-sm" id="saveHostsBtn">
+                                                <i class="bi bi-floppy me-1"></i> Guardar cambios
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                    <!-- fin pane-content-media -->
 
                 </div>
             </div>
@@ -312,28 +468,60 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Modal: Crear Evento -->
+<!-- Modal: Crear Evento (Wizard 2 etapas) -->
 <div class="modal fade" id="createEventModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Crear Evento</h5>
+                <div>
+                    <h5 class="modal-title" id="wizardModalTitle">Crear Evento</h5>
+                    <small class="text-muted" id="wizardStepIndicator">Paso 1 de 2 — Selecciona el propósito</small>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="createEventForm">
                 <div class="modal-body">
 
-                    <!-- Información básica -->
-                    <h6 class="mb-3">Información Básica</h6>
+                    <!-- ========== STAGE 1: Propósito ========== -->
+                    <div class="wizard-stage active" id="wizardStage1">
+                        <p class="text-muted mb-4">¿Qué tipo de evento quieres crear? Esto configurará el formulario automáticamente.</p>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="wizard-purpose-card" data-purpose="single" id="purposeCardSingle">
+                                    <i class="bi bi-person-lines-fill"></i>
+                                    <h6 class="fw-semibold mt-2 mb-1">Entrevista / Defensa 1:1</h6>
+                                    <p class="text-muted small mb-0">Citas individuales con agenda. Ej: entrevistas de admisión, defensas de protocolo.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="wizard-purpose-card" data-purpose="multiple" id="purposeCardMultiple">
+                                    <i class="bi bi-people-fill"></i>
+                                    <h6 class="fw-semibold mt-2 mb-1">Charla / Taller / Sesión</h6>
+                                    <p class="text-muted small mb-0">Evento grupal con cupo definido. Ej: taller de inducción, seminario, sesión informativa.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="wizard-purpose-card" data-purpose="other" id="purposeCardOther">
+                                    <i class="bi bi-gear-fill"></i>
+                                    <h6 class="fw-semibold mt-2 mb-1">Otro</h6>
+                                    <p class="text-muted small mb-0">Configura todos los parámetros manualmente según tus necesidades.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-8">
+                    <!-- ========== STAGE 2: Configuración ========== -->
+                    <div class="wizard-stage" id="wizardStage2">
+
+                        <!-- Título -->
+                        <div class="mb-3">
                             <label class="form-label">Título del evento *</label>
                             <input type="text" class="form-control" id="eventTitle" required
                                 placeholder="Ej: Entrevistas de Admisión 2025-1">
                         </div>
 
-                        <div class="col-md-4">
+                        <!-- Tipo (visible según purpose) -->
+                        <div class="mb-3" id="fieldEventType">
                             <label class="form-label">Tipo *</label>
                             <select class="form-select" id="eventType">
                                 <option value="interview">Entrevista</option>
@@ -345,92 +533,136 @@
                                 <option value="other">Otro</option>
                             </select>
                         </div>
-                    </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Programa</label>
-                        <select class="form-select" id="eventProgram">
-                            <option value="">Todos los programas</option>
-                        </select>
-                        <div class="form-text">
-                            Deja en "Todos los programas" para eventos informativos o generales
+                        <!-- Programa y Periodo -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Programa</label>
+                                <select class="form-select" id="eventProgram">
+                                    <option value="">Todos los programas</option>
+                                </select>
+                                <div class="form-text">Deja vacío para eventos generales o informativos.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Periodo académico</label>
+                                <select class="form-select" id="eventAcademicPeriod">
+                                    <option value="">Sin periodo (atemporal)</option>
+                                </select>
+                                <div class="form-text">Sin periodo: el evento siempre será visible.</div>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label">Lugar</label>
-                            <input type="text" class="form-control" id="eventLocation"
-                                placeholder="Ej: Salón 301, Edificio de Posgrado">
+                        <!-- Lugar y Estado -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Lugar</label>
+                                <input type="text" class="form-control" id="eventLocation"
+                                    placeholder="Ej: Salón 301, Edificio de Posgrado">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Estado</label>
+                                <select class="form-select" id="eventStatus">
+                                    <option value="draft">Borrador</option>
+                                    <option value="published" selected>Publicado</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Estado</label>
-                            <select class="form-select" id="eventStatus">
-                                <option value="draft">Borrador</option>
-                                <option value="published" selected>Publicado</option>
+                        <!-- Fechas (ocultas para purpose=single) -->
+                        <div class="row g-3 mb-3" id="fieldEventDates">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha del evento</label>
+                                <input type="datetime-local" class="form-control" id="eventDateCreate">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha de fin <span class="text-muted">(opcional)</span></label>
+                                <input type="datetime-local" class="form-control" id="eventEndDateCreate">
+                            </div>
+                        </div>
+
+                        <!-- Capacidad máxima (visible solo para purpose=multiple u other con capacity_type multiple) -->
+                        <div class="mb-3 d-none" id="fieldMaxCapacity">
+                            <label class="form-label">Capacidad máxima *</label>
+                            <input type="number" class="form-control" id="eventMaxCapacity" min="1" placeholder="Ej: 30">
+                            <div class="form-text">Número máximo de participantes permitidos.</div>
+                        </div>
+
+                        <!-- Tipo de capacidad (solo visible para purpose=other) -->
+                        <div class="mb-3 d-none" id="fieldCapacityType">
+                            <label class="form-label">Tipo de capacidad *</label>
+                            <select class="form-select" id="eventCapacityType" required>
+                                <option value="single" selected>Individual (1:1) — requiere agenda de citas</option>
+                                <option value="multiple">Múltiple — cupo limitado</option>
+                                <option value="unlimited">Sin límite — registro abierto</option>
                             </select>
+                            <div class="form-text">
+                                <strong>Individual:</strong> para entrevistas y defensas. &nbsp;
+                                <strong>Múltiple:</strong> talleres y seminarios. &nbsp;
+                                <strong>Sin límite:</strong> conferencias abiertas.
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="mb-4">
-                        <label class="form-label">Descripción</label>
-                        <textarea class="form-control" id="eventDescription" rows="2"
-                            placeholder="Información adicional sobre el evento..."></textarea>
-                    </div>
-
-                    <hr>
-
-                    <!-- Configuración de capacidad -->
-                    <h6 class="mb-3">Configuración de Capacidad</h6>
-
-                    <div class="mb-3">
-                        <label class="form-label">Tipo de capacidad *</label>
-                        <select class="form-select" id="eventCapacityType" required>
-                            <option value="single" selected>Capacidad Individual (1:1) - Requiere asignación de slots
-                            </option>
-                            <option value="multiple">Capacidad Múltiple - Límite de participantes</option>
-                            <option value="unlimited">Sin Límite - Cualquiera puede registrarse</option>
-                        </select>
-                        <div class="form-text">
-                            <strong>Individual:</strong> Para entrevistas, defensas (requiere crear ventanas y
-                            slots)<br>
-                            <strong>Múltiple:</strong> Para talleres, seminarios con cupo limitado<br>
-                            <strong>Sin límite:</strong> Para conferencias, webinars abiertos
+                        <!-- Descripción -->
+                        <div class="mb-3">
+                            <label class="form-label">Descripción</label>
+                            <textarea class="form-control" id="eventDescription" rows="2"
+                                placeholder="Información adicional sobre el evento..."></textarea>
                         </div>
-                    </div>
 
-                    <div class="mb-3" id="maxCapacityGroup" style="display: none;">
-                        <label class="form-label">Capacidad máxima *</label>
-                        <input type="number" class="form-control" id="eventMaxCapacity" min="1" placeholder="Ej: 30">
-                        <div class="form-text">Número máximo de participantes permitidos</div>
-                    </div>
+                        <!-- Visibilidad -->
+                        <div class="mb-3">
+                            <label class="form-label">Visibilidad</label>
+                            <div class="btn-group w-100" role="group" aria-label="Visibilidad">
+                                <input type="radio" class="btn-check" name="eventVisibility" id="visPublic"
+                                    value="public" checked>
+                                <label class="btn btn-outline-primary" for="visPublic">
+                                    <i class="bi bi-globe me-1"></i> Público
+                                    <small class="d-block text-muted">Todos los estudiantes pueden verlo</small>
+                                </label>
 
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="eventRequiresRegistration" checked>
-                        <label class="form-check-label" for="eventRequiresRegistration">
-                            Requiere registro previo
-                        </label>
-                    </div>
+                                <input type="radio" class="btn-check" name="eventVisibility" id="visPrivate"
+                                    value="private">
+                                <label class="btn btn-outline-warning" for="visPrivate">
+                                    <i class="bi bi-lock-fill me-1"></i> Privado
+                                    <small class="d-block text-muted">Solo aparece a invitados</small>
+                                </label>
+                            </div>
+                        </div>
 
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="eventAllowsAttendance">
-                        <label class="form-check-label" for="eventAllowsAttendance">
-                            Permitir control de asistencia
-                        </label>
-                    </div>
+                        <!-- Checkboxes -->
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="eventRequiresRegistration" checked>
+                            <label class="form-check-label" for="eventRequiresRegistration">Requiere registro previo</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="eventAllowsAttendance">
+                            <label class="form-check-label" for="eventAllowsAttendance">Permitir control de asistencia</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="eventVisibleToStudents" checked>
+                            <label class="form-check-label" for="eventVisibleToStudents">Visible para estudiantes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="eventRemindersEnabled" checked>
+                            <label class="form-check-label" for="eventRemindersEnabled">
+                                Enviar recordatorios automáticos (24h y 2h antes)
+                            </label>
+                        </div>
 
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="eventVisibleToStudents" checked>
-                        <label class="form-check-label" for="eventVisibleToStudents">
-                            Visible para estudiantes
-                        </label>
                     </div>
+                    <!-- fin Stage 2 -->
 
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Crear Evento</button>
+                    <!-- Stage 1: solo Cancelar -->
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="wizardBtnCancel">Cancelar</button>
+                    <!-- Stage 2: Atrás + Cancelar + Crear -->
+                    <button type="button" class="btn btn-outline-secondary d-none" id="wizardBtnBack">
+                        <i class="bi bi-arrow-left me-1"></i> Atrás
+                    </button>
+                    <button type="submit" class="btn btn-primary d-none" id="wizardBtnSubmit">
+                        <i class="bi bi-check-lg me-1"></i> Crear Evento
+                    </button>
                 </div>
             </form>
         </div>
@@ -851,6 +1083,96 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-success" id="confirmAcceptChangeBtn">
                     <i class="fas fa-check me-1"></i> Aprobar y Reasignar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editor de Ponente -->
+<div class="modal fade" id="hostEditorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hostEditorModalTitle">Agregar Ponente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Toggle Interno / Externo -->
+                <div class="d-flex gap-2 mb-4">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeInternal" value="internal" checked>
+                        <label class="form-check-label fw-semibold" for="hostTypeInternal">
+                            <i class="bi bi-building me-1"></i> Interno (usuario del sistema)
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeExternal" value="external">
+                        <label class="form-check-label fw-semibold" for="hostTypeExternal">
+                            <i class="bi bi-person-badge me-1"></i> Externo (invitado)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Panel Interno -->
+                <div id="hostInternalPanel">
+                    <div class="mb-3">
+                        <label class="form-label">Buscar usuario *</label>
+                        <input type="text" class="form-control" id="hostUserSearch" autocomplete="off"
+                            placeholder="Escribe nombre o correo para buscar...">
+                        <div id="hostUserDropdown" class="list-group mt-1 shadow-sm" style="display:none; max-height:220px; overflow-y:auto; position:absolute; z-index:1050; width:calc(100% - 3rem);"></div>
+                    </div>
+                    <div id="hostSelectedUserCard" class="d-none">
+                        <div class="d-flex align-items-center gap-3 p-3 border rounded bg-light">
+                            <img id="hostSelectedAvatar" src="" alt="Avatar" class="rounded-circle" width="48" height="48" style="object-fit:cover;">
+                            <div>
+                                <div class="fw-semibold" id="hostSelectedName"></div>
+                                <div class="text-muted small" id="hostSelectedEmail"></div>
+                                <div class="text-muted small" id="hostSelectedRole"></div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="hostClearUserBtn">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="hostUserId">
+                </div>
+
+                <!-- Panel Externo -->
+                <div id="hostExternalPanel" class="d-none">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre completo *</label>
+                        <input type="text" class="form-control" id="hostExternalName" placeholder="Nombre del ponente invitado">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Semblanza / Bio <span class="text-muted">(opcional)</span></label>
+                        <textarea class="form-control" id="hostExternalBio" rows="3"
+                            placeholder="Breve descripción del ponente..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Foto <span class="text-muted">(opcional)</span></label>
+                        <input type="file" class="form-control" id="hostExternalPhoto" accept="image/jpeg,image/png,image/webp">
+                        <div class="form-text">JPG, PNG o WebP. Se sube al guardar.</div>
+                    </div>
+                    <input type="hidden" id="hostExternalPhotoPath">
+                </div>
+
+                <hr>
+
+                <!-- Campo compartido: rol/etiqueta -->
+                <div class="mb-3">
+                    <label class="form-label">Rol o etiqueta *</label>
+                    <input type="text" class="form-control" id="hostRoleLabel" required
+                        placeholder="Ej: Coordinador del programa, Ponente invitado, Moderador...">
+                </div>
+
+                <!-- Índice oculto para edición -->
+                <input type="hidden" id="hostEditIndex" value="-1">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="hostEditorSaveBtn">
+                    <i class="bi bi-check-lg me-1"></i> Guardar Ponente
                 </button>
             </div>
         </div>

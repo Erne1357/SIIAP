@@ -19,7 +19,7 @@
                             <div class="position-relative d-inline-block">
                                 <img src="{{ current_user.avatar_url }}" alt="Foto de perfil"
                                     class="rounded-circle border border-3 border-light shadow profile-avatar">
-                                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+                                {% if has_perm('coordinator.page.view') %}
                                 <span
                                     class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                                     Admin
@@ -43,19 +43,7 @@
                                         {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{%
                                         endif %}
                                     </h2>
-                                    <p class="text-muted mb-2">
-                                        {% if current_user.role.name == 'applicant' %}
-                                        Aspirante
-                                        {% elif current_user.role.name == 'social_service' %}
-                                        Servicio Social
-                                        {% elif current_user.role.name == 'program_admin' %}
-                                        Administrador de Programa
-                                        {% elif current_user.role.name == 'postgraduate_admin' %}
-                                        Administrador de Posgrado
-                                        {% elif current_user.role.name == 'coordinator' %}
-                                        Coordinador de Programa
-                                        {% endif %}
-                                    </p>
+                                    <p class="text-muted mb-2">{{ role_label or '—' }}</p>
                                 </div>
                                 <!-- Botón de editar en desktop -->
                                 <div class="d-none d-md-block">
@@ -78,7 +66,7 @@
                                 {% if current_user.is_internal %}
                                 <span class="badge bg-info me-2">Usuario Interno</span>
                                 {% endif %}
-                                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+                                {% if has_perm('coordinator.page.view') %}
                                 <span class="badge bg-danger me-2">Admin</span>
                                 {% endif %}
                                 {% if current_user.scolarship_type and current_user.scolarship_type != 'none'%}
@@ -116,7 +104,7 @@
                                         <small class="text-muted">Fecha de registro</small>
                                     </div>
                                 </div>
-                                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+                                {% if has_perm('coordinator.page.view') %}
                                 <div class="col-6 col-md-3">
                                     <div class="border rounded p-2 p-md-3 text-center">
                                         <h5 class="mb-1 h6 h-md-5">

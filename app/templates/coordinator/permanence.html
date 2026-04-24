@@ -432,13 +432,37 @@
   </div>
 </div>
 
+<!-- Modal: Confirmar eliminación de ventana -->
+<div class="modal fade" id="deleteDeadlineModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-trash3 me-2 text-danger"></i>Eliminar ventana
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">¿Eliminar la ventana <strong id="deleteDeadlineLabel"></strong>?</p>
+        <p class="text-muted small mb-0">Esta acción no puede deshacerse.</p>
+        <input type="hidden" id="deleteDeadlineId">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger btn-sm" id="btnConfirmDeleteDeadline">
+          <i class="bi bi-trash3 me-1"></i>Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
   const PROGRAM_ID = {{ selected_program.id if selected_program else 'null' }};
   const ACTIVE_PERIOD_ID = {{ active_period.id if active_period else 'null' }};
-  const ACTIVE_PERIOD_NAME = {{ active_period.name | tojson if active_period else 'null' }};
 </script>
 <script src="{{ url_for('static', filename='js/coordinator/permanence.js') }}?v={{ static_version }}"></script>
 {% endblock %}

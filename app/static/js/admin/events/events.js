@@ -61,26 +61,6 @@
         const meta = document.querySelector('meta[name="csrf-token"]');
         return meta ? meta.getAttribute('content') : '';
     }
-    function setupCapacityTypeHandler() {
-        const capacityTypeSelect = document.getElementById('eventCapacityType');
-        const maxCapacityGroup = document.getElementById('maxCapacityGroup');
-        const maxCapacityInput = document.getElementById('eventMaxCapacity');
-
-        if (!capacityTypeSelect) return;
-
-        capacityTypeSelect.addEventListener('change', (e) => {
-            const type = e.target.value;
-
-            if (type === 'multiple') {
-                maxCapacityGroup.style.display = 'block';
-                maxCapacityInput.required = true;
-            } else {
-                maxCapacityGroup.style.display = 'none';
-                maxCapacityInput.required = false;
-                maxCapacityInput.value = '';
-            }
-        });
-    }
     async function apiRequest(url, options = {}) {
         const defaultOptions = {
             credentials: "same-origin",
@@ -126,10 +106,18 @@
     // ========== CARGA INICIAL ==========
     async function init() {
         await loadPrograms();
+        await loadAcademicPeriods();
         await loadEvents();
         await loadEligibleStudents();
         setupEventListeners();
-        setupCapacityTypeHandler();
+        setupFiltersHandler();
+        // New UX features (Fase 4)
+        setupWizard();
+        setupCoverDropzone();
+        setupGalleryDropzone();
+        setupHostsPanel();
+        setupHostEditor();
+        setupContentTabVisibility();
     }
 
     async function loadPrograms() {
@@ -140,7 +128,8 @@
 
             const programSelects = [
                 document.getElementById("eventProgram"),
-                document.getElementById("programFilter")
+                document.getElementById("programFilter"),
+                document.getElementById("filterProgram")
             ];
 
             programSelects.forEach(select => {
@@ -157,9 +146,57 @@
         }
     }
 
+    async function loadAcademicPeriods() {
+        try {
+            const { data } = await apiRequest(`${API}/academic-periods`);
+            const periods = data.data || data.items || [];
+
+            const formSelect = document.getElementById('eventAcademicPeriod');
+            const filterSelect = document.getElementById('filterAcademicPeriod');
+
+            if (formSelect) {
+                let html = '<option value="">Sin periodo (atemporal)</option>';
+                html += periods.map(p => {
+                    const tag = p.status === 'active' ? ' (activo)' : '';
+                    const selected = p.status === 'active' ? 'selected' : '';
+                    return `<option value="${p.id}" ${selected}>${p.code} — ${p.name}${tag}</option>`;
+                }).join('');
+                formSelect.innerHTML = html;
+            }
+
+            if (filterSelect) {
+                let html = '<option value="">Todos los periodos</option>';
+                html += periods.map(p => {
+                    const tag = p.status === 'active' ? ' (activo)' : '';
+                    return `<option value="${p.id}">${p.code}${tag}</option>`;
+                }).join('');
+                filterSelect.innerHTML = html;
+            }
+        } catch (err) {
+            console.error('Error loading academic periods:', err);
+        }
+    }
+
+    function buildFilterQuery() {
+        const params = new URLSearchParams();
+        const map = {
+            academic_period_id: document.getElementById('filterAcademicPeriod')?.value,
+            program_id: document.getElementById('filterProgram')?.value,
+            type: document.getElementById('filterType')?.value,
+            status: document.getElementById('filterStatus')?.value,
+            search: document.getElementById('filterSearch')?.value?.trim(),
+        };
+        Object.entries(map).forEach(([k, v]) => {
+            if (v) params.append(k, v);
+        });
+        const qs = params.toString();
+        return qs ? `?${qs}` : '';
+    }
+
     async function loadEvents() {
         try {
-            const { data } = await apiRequest(`${API}/events`);
+            const qs = buildFilterQuery();
+            const { data } = await apiRequest(`${API}/events${qs}`);
             currentEvents = data.items || [];
             renderEventsTable();
 
@@ -167,6 +204,18 @@
             console.error('Error loading events:', err);
             flash(`Error cargando eventos: ${err.message}`, 'danger');
         }
+    }
+
+    function setupFiltersHandler() {
+        const ids = ['filterAcademicPeriod', 'filterProgram', 'filterType', 'filterStatus'];
+        ids.forEach(id => {
+            document.getElementById(id)?.addEventListener('change', () => loadEvents());
+        });
+        let searchTimer = null;
+        document.getElementById('filterSearch')?.addEventListener('input', () => {
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => loadEvents(), 350);
+        });
     }
 
     function renderEventsTable() {
@@ -194,6 +243,25 @@
                 ? `<span class="badge bg-primary">${event.program_name}</span>`
                 : `<span class="badge bg-secondary">Todos los programas</span>`;
 
+            const statusMap = {
+                draft:      { label: 'Borrador',   cls: 'bg-secondary' },
+                published:  { label: 'Publicado',  cls: 'bg-success'   },
+                ongoing:    { label: 'En curso',   cls: 'bg-info'      },
+                completed:  { label: 'Concluido',  cls: 'bg-dark'      },
+                archived:   { label: 'Archivado',  cls: 'bg-warning text-dark' },
+                cancelled:  { label: 'Cancelado',  cls: 'bg-danger'    }
+            };
+            const s = statusMap[event.status] || { label: event.status || '?', cls: 'bg-light text-dark' };
+            const statusBadge = `<span class="badge ${s.cls}">${s.label}</span>`;
+
+            const privacyBadge = event.visibility === 'private'
+                ? '<span class="badge bg-warning text-dark ms-1" title="Privado — solo invitados"><i class="bi bi-lock-fill"></i> Privado</span>'
+                : '';
+
+            const canConclude = ['published', 'ongoing'].includes(event.status);
+            const canArchive = event.status !== 'archived';
+            const canUnarchive = event.status === 'archived';
+
             return `
       <tr data-event-id="${event.id}" class="event-row">
         <td>
@@ -206,7 +274,7 @@
                                 event.type === 'conference' ? 'Conferencia' :
                                     event.type === 'info_session' ? 'Sesión Info' : 'Otro'}
           </small>
-          ${capacityBadge}
+          <div class="mt-1">${capacityBadge}${statusBadge}${privacyBadge}</div>
         </td>
         <td>
           ${programBadge}
@@ -219,18 +287,50 @@
           </span>
         </td>
         <td class="text-end">
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary btn-view-slots" title="Ver horarios">
-              <i class="fas fa-calendar-alt"></i>
+          <div class="d-inline-flex gap-1 align-items-center event-actions-primary">
+            <button class="btn btn-outline-primary btn-sm btn-view-slots" title="Ver / gestionar horarios">
+              <i class="bi bi-calendar-week me-1"></i>Gestionar
             </button>
             ${event.capacity_type !== 'single' ? `
-              <button class="btn btn-outline-success btn-view-registrations" title="Ver registros">
-                <i class="fas fa-users"></i>
+              <button class="btn btn-outline-success btn-sm btn-view-registrations" title="Ver registros">
+                <i class="bi bi-people"></i>
               </button>
             ` : ''}
-            <button class="btn btn-outline-danger btn-delete-event" title="Eliminar">
-              <i class="fas fa-trash"></i>
-            </button>
+            <div class="dropdown event-actions-dropdown">
+              <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                      data-bs-toggle="dropdown" aria-expanded="false" title="Más acciones">
+                <i class="bi bi-three-dots-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                ${canConclude ? `
+                  <li>
+                    <button class="dropdown-item btn-conclude-event">
+                      <i class="bi bi-flag-fill me-2 text-dark"></i>Concluir evento
+                    </button>
+                  </li>
+                ` : ''}
+                ${canArchive ? `
+                  <li>
+                    <button class="dropdown-item btn-archive-event">
+                      <i class="bi bi-archive me-2 text-warning"></i>Archivar
+                    </button>
+                  </li>
+                ` : ''}
+                ${canUnarchive ? `
+                  <li>
+                    <button class="dropdown-item btn-unarchive-event">
+                      <i class="bi bi-arrow-counterclockwise me-2 text-success"></i>Reactivar
+                    </button>
+                  </li>
+                ` : ''}
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <button class="dropdown-item text-danger btn-delete-event">
+                    <i class="bi bi-trash me-2"></i>Eliminar
+                  </button>
+                </li>
+              </ul>
+            </div>
           </div>
         </td>
       </tr>
@@ -394,6 +494,44 @@
         addWindowForm?.addEventListener('submit', handleAddWindow);
         assignSlotForm?.addEventListener('submit', handleAssignSlot);
         cancelAppointmentForm?.addEventListener('submit', handleCancelAppointment);
+
+        // ==================== TIEMPO REAL ====================
+        // Partial refresh: recarga eventos/slots cuando cambia una cita en cualquier
+        // evento. Debounce 700ms para evitar ráfagas si varios aspirantes reservan
+        // al mismo tiempo.
+        let refreshTimer = null;
+        const refreshEvents = () => {
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(() => {
+                loadEvents();
+                if (selectedEventId) loadSlots(selectedEventId);
+            }, 700);
+        };
+
+        window.addEventListener('siiap:appointment:changed', (e) => {
+            const d = e.detail || {};
+            if (typeof showFlash === 'function') {
+                const msg = d.action === 'booked' ? 'Nueva cita reservada' : 'Cita cancelada';
+                showFlash('info', msg);
+            }
+            refreshEvents();
+        });
+
+        window.addEventListener('siiap:appointment:change_requested', () => {
+            if (typeof showFlash === 'function') {
+                showFlash('info', 'Nueva solicitud de cambio de cita');
+            }
+            refreshEvents();
+        });
+
+        window.addEventListener('siiap:event:changed', (e) => {
+            const d = e.detail || {};
+            if (typeof showFlash === 'function') {
+                const labels = { created: 'Nuevo evento creado', updated: 'Evento actualizado', deleted: 'Evento eliminado' };
+                showFlash('info', labels[d.action] || 'Evento modificado');
+            }
+            refreshEvents();
+        });
         document.getElementById('btnGenerateSlots')?.addEventListener('click', handleGenerateSlots);
         document.getElementById('confirmDeleteEventBtn')?.addEventListener('click', handleDeleteEvent);
         document.getElementById('btnExportAttendance')?.addEventListener('click', exportAttendance);
@@ -429,6 +567,21 @@
 
             const eventId = parseInt(row.dataset.eventId);
 
+            if (e.target.closest('.btn-conclude-event')) {
+                e.stopPropagation();
+                handleConcludeEvent(eventId);
+                return;
+            }
+            if (e.target.closest('.btn-archive-event')) {
+                e.stopPropagation();
+                handleArchiveEvent(eventId);
+                return;
+            }
+            if (e.target.closest('.btn-unarchive-event')) {
+                e.stopPropagation();
+                handleUnarchiveEvent(eventId);
+                return;
+            }
             if (e.target.closest('.btn-view-slots') || e.target.closest('.event-row')) {
                 selectEvent(eventId);
             } else if (e.target.closest('.btn-delete-event')) {
@@ -524,31 +677,47 @@
     // ========== HANDLERS ==========
     async function handleCreateEvent(e) {
         e.preventDefault();
+
+        // Enforce stage 2 is active (user must have selected a purpose)
+        if (!wizardState.purpose) {
+            flash('Selecciona el tipo de evento antes de continuar', 'warning');
+            showWizardStage(1);
+            return;
+        }
+
         const capacityType = document.getElementById('eventCapacityType').value;
-        const maxCapacity = document.getElementById('eventMaxCapacity').value;
-        const programId = document.getElementById('eventProgram').value;
-        
-        // Validar capacidad máxima si es requerida
+        const maxCapacity  = document.getElementById('eventMaxCapacity').value;
+        const programId    = document.getElementById('eventProgram').value;
+
+        // Validate max_capacity for multiple-capacity events
         if (capacityType === 'multiple' && (!maxCapacity || parseInt(maxCapacity) < 1)) {
             flash('Debes especificar una capacidad máxima válida para eventos de capacidad múltiple', 'warning');
             return;
         }
 
+        const periodId    = document.getElementById('eventAcademicPeriod')?.value;
+        const eventDate   = document.getElementById('eventDateCreate')?.value || null;
+        const eventEndDate = document.getElementById('eventEndDateCreate')?.value || null;
+
         const payload = {
             title: document.getElementById('eventTitle').value.trim(),
-            program_id: programId ? parseInt(programId) : null,  // CAMBIAR: Permitir null
+            program_id: programId ? parseInt(programId) : null,
+            academic_period_id: periodId ? parseInt(periodId) : null,
             type: document.getElementById('eventType').value,
             location: document.getElementById('eventLocation').value,
             description: document.getElementById('eventDescription').value,
             capacity_type: capacityType,
             max_capacity: capacityType === 'multiple' ? parseInt(maxCapacity) : null,
+            event_date: eventDate || null,
+            event_end_date: eventEndDate || null,
             requires_registration: document.getElementById('eventRequiresRegistration').checked,
             allows_attendance_tracking: document.getElementById('eventAllowsAttendance').checked,
             visible_to_students: document.getElementById('eventVisibleToStudents').checked,
+            visibility: document.querySelector('input[name="eventVisibility"]:checked')?.value || 'public',
+            reminders_enabled: document.getElementById('eventRemindersEnabled').checked,
             status: document.getElementById('eventStatus').value
         };
-        
-        // CAMBIAR: Ya no requerir programa
+
         if (!payload.title) {
             flash('El título es requerido', 'warning');
             return;
@@ -563,7 +732,7 @@
             flash('Evento creado correctamente', 'success');
             createEventModal.hide();
             createEventForm.reset();
-            document.getElementById('maxCapacityGroup').style.display = 'none';
+            resetWizard();
             await loadEvents();
 
         } catch (err) {
@@ -700,6 +869,69 @@
         }
     }
 
+    async function handleConcludeEvent(eventId) {
+        const event = currentEvents.find(ev => ev.id === eventId);
+        const title = event ? event.title : `evento #${eventId}`;
+
+        const ok = await siiapConfirm({
+            type: 'warning',
+            title: 'Concluir evento',
+            message: `¿Concluir "${title}"?\n\nSe marcará como completado, se cancelarán las invitaciones pendientes y se eliminarán sus imágenes del servidor. Esta acción no se puede revertir.`,
+            confirmLabel: 'Sí, concluir',
+        });
+        if (!ok) return;
+
+        try {
+            await apiRequest(`${API}/events/${eventId}/conclude`, { method: 'POST' });
+            flash('Evento concluido correctamente', 'success');
+            await loadEvents();
+        } catch (err) {
+            flash(`Error al concluir: ${err.message}`, 'danger');
+        }
+    }
+
+    async function handleArchiveEvent(eventId) {
+        const event = currentEvents.find(ev => ev.id === eventId);
+        const title = event ? event.title : `evento #${eventId}`;
+
+        const ok = await siiapConfirm({
+            type: 'warning',
+            title: 'Archivar evento',
+            message: `¿Archivar "${title}"?\n\nSe ocultará del listado público, se notificará a los registrados, se cancelarán las invitaciones pendientes y se eliminarán sus imágenes.`,
+            confirmLabel: 'Sí, archivar',
+        });
+        if (!ok) return;
+
+        try {
+            await apiRequest(`${API}/events/${eventId}/archive`, { method: 'POST' });
+            flash('Evento archivado', 'success');
+            await loadEvents();
+        } catch (err) {
+            flash(`Error al archivar: ${err.message}`, 'danger');
+        }
+    }
+
+    async function handleUnarchiveEvent(eventId) {
+        const ok = await siiapConfirm({
+            type: 'info',
+            title: 'Reactivar evento',
+            message: '¿Volver a publicar este evento? Reaparecerá en el listado público.',
+            confirmLabel: 'Sí, reactivar',
+        });
+        if (!ok) return;
+
+        try {
+            await apiRequest(`${API}/events/${eventId}/unarchive`, {
+                method: 'POST',
+                body: JSON.stringify({ new_status: 'published' })
+            });
+            flash('Evento reactivado', 'success');
+            await loadEvents();
+        } catch (err) {
+            flash(`Error al reactivar: ${err.message}`, 'danger');
+        }
+    }
+
     async function handleDeleteEvent() {
         const eventId = parseInt(document.getElementById('deleteEventId').value);
         if (!eventId) return;
@@ -712,7 +944,12 @@
 
             // Si tiene citas, requerir force
             if (data.requires_force) {
-                const confirmed = confirm(data.message + '\n\n¿Deseas eliminar el evento de todas formas?');
+                const confirmed = await siiapConfirm({
+                    type: 'danger',
+                    title: 'Eliminar evento con citas',
+                    message: data.message + '\n\n¿Deseas eliminar el evento de todas formas?',
+                    confirmLabel: 'Sí, eliminar',
+                });
                 if (confirmed) {
                     await apiRequest(`${API}/events/${eventId}?force=true`, { method: 'DELETE' });
                 } else {
@@ -744,6 +981,12 @@
         selectedEventId = eventId;
         selectedEventTitle.textContent = event.title;
 
+        // Reset and prefetch media / hosts in background
+        currentEventImages = { cover: null, gallery: [] };
+        currentEventHosts  = [];
+        loadEventMedia(eventId).catch(() => {});
+        loadEventHosts(eventId).catch(() => {});
+
         // Actualizar badge de tipo
         const typeBadge = document.getElementById('selectedEventTypeBadge');
         if (event.capacity_type === 'single') {
@@ -760,6 +1003,21 @@
         document.querySelectorAll('.event-row').forEach(row => {
             row.classList.toggle('table-active', parseInt(row.dataset.eventId) === eventId);
         });
+
+        // Colorear cabecera del panel según tipo de evento
+        const managementCardHeader = document.querySelector('#eventManagementCard .card-header');
+        if (managementCardHeader) {
+            const headerTypeClasses = [
+                'event-management-header-interview', 'event-management-header-defense',
+                'event-management-header-workshop',  'event-management-header-seminar',
+                'event-management-header-conference', 'event-management-header-info_session',
+                'event-management-header-other',
+            ];
+            managementCardHeader.classList.remove(...headerTypeClasses);
+            if (event.type) {
+                managementCardHeader.classList.add(`event-management-header-${event.type}`);
+            }
+        }
 
         // Mostrar contenido apropiado según tipo
         const singleContent = document.getElementById('singleCapacityContent');
@@ -1008,7 +1266,12 @@
             });
 
             if (data.requires_force) {
-                const confirmed = confirm(data.message + '\n\n¿Deseas eliminar la ventana de todas formas?');
+                const confirmed = await siiapConfirm({
+                    type: 'danger',
+                    title: 'Eliminar ventana',
+                    message: data.message + '\n\n¿Deseas eliminar la ventana de todas formas?',
+                    confirmLabel: 'Sí, eliminar',
+                });
                 if (confirmed) {
                     await apiRequest(`${API}/events/windows/${windowId}?force=true`, {
                         method: 'DELETE'
@@ -1072,7 +1335,12 @@
             });
 
             if (data.requires_force) {
-                const confirmed = confirm(data.message + '\n\n¿Deseas eliminar el slot de todas formas?');
+                const confirmed = await siiapConfirm({
+                    type: 'danger',
+                    title: 'Eliminar slot',
+                    message: data.message + '\n\n¿Deseas eliminar el slot de todas formas?',
+                    confirmLabel: 'Sí, eliminar',
+                });
                 if (confirmed) {
                     await apiRequest(`${API}/events/slots/${slotId}?force=true`, {
                         method: 'DELETE'
@@ -1483,7 +1751,13 @@
     }
 
     async function cancelInvitation(invitationId) {
-        if (!confirm('¿Cancelar esta invitación?')) return;
+        const ok = await siiapConfirm({
+            type: 'warning',
+            title: 'Cancelar invitación',
+            message: '¿Cancelar esta invitación?',
+            confirmLabel: 'Sí, cancelar',
+        });
+        if (!ok) return;
 
         try {
             await apiRequest(`${API}/invitations/${invitationId}`, {
@@ -1652,7 +1926,13 @@
     }
 
     async function rejectChangeRequest(reqId) {
-        if (!confirm('¿Rechazar esta solicitud de cambio?')) return;
+        const ok = await siiapConfirm({
+            type: 'danger',
+            title: 'Rechazar solicitud',
+            message: '¿Rechazar esta solicitud de cambio?',
+            confirmLabel: 'Sí, rechazar',
+        });
+        if (!ok) return;
 
         try {
             await apiRequest(`${API}/appointments/change-requests/${reqId}/decision`, {
@@ -1665,6 +1945,731 @@
         } catch (err) {
             flash(`Error rechazando solicitud: ${err.message}`, 'danger');
         }
+    }
+
+    // ========== WIZARD DE CREACIÓN ==========
+
+    /** Internal wizard state */
+    const wizardState = { purpose: null, stage: 1, data: {} };
+
+    function showWizardStage(n) {
+        document.getElementById('wizardStage1').classList.toggle('active', n === 1);
+        document.getElementById('wizardStage2').classList.toggle('active', n === 2);
+
+        const indicator = document.getElementById('wizardStepIndicator');
+        indicator.textContent = n === 1
+            ? 'Paso 1 de 2 — Selecciona el propósito'
+            : 'Paso 2 de 2 — Configura el evento';
+
+        document.getElementById('wizardBtnBack').classList.toggle('d-none', n === 1);
+        document.getElementById('wizardBtnSubmit').classList.toggle('d-none', n === 1);
+        wizardState.stage = n;
+    }
+
+    /**
+     * selectPurpose — Applies field visibility rules for the chosen purpose and
+     * advances to stage 2.
+     *
+     * @param {'single'|'multiple'|'other'} purpose
+     */
+    function selectPurpose(purpose) {
+        wizardState.purpose = purpose;
+
+        // Highlight selected card
+        document.querySelectorAll('.wizard-purpose-card').forEach(c => {
+            c.classList.toggle('selected', c.dataset.purpose === purpose);
+        });
+
+        // Pre-set capacity type hidden field and control field visibility
+        const capTypeSelect = document.getElementById('eventCapacityType');
+        const fieldType    = document.getElementById('fieldEventType');
+        const fieldDates   = document.getElementById('fieldEventDates');
+        const fieldMaxCap  = document.getElementById('fieldMaxCapacity');
+        const fieldCapType = document.getElementById('fieldCapacityType');
+
+        if (purpose === 'single') {
+            capTypeSelect.value = 'single';
+            // Lock type to interview/defense — show the field but restrict
+            fieldType.classList.remove('d-none');
+            // Filter type options to 1:1 types
+            const typeSelect = document.getElementById('eventType');
+            Array.from(typeSelect.options).forEach(opt => {
+                opt.hidden = !['interview', 'defense'].includes(opt.value);
+            });
+            typeSelect.value = 'interview';
+
+            fieldDates.classList.add('d-none');
+            fieldMaxCap.classList.add('d-none');
+            fieldCapType.classList.add('d-none');
+        } else if (purpose === 'multiple') {
+            capTypeSelect.value = 'multiple';
+            // Show type select with group subtypes only
+            fieldType.classList.remove('d-none');
+            const typeSelect = document.getElementById('eventType');
+            Array.from(typeSelect.options).forEach(opt => {
+                opt.hidden = ['interview', 'defense'].includes(opt.value);
+            });
+            typeSelect.value = 'workshop';
+
+            fieldDates.classList.remove('d-none');
+            fieldMaxCap.classList.remove('d-none');
+            document.getElementById('eventMaxCapacity').required = true;
+            // Permitir override a 'unlimited' — mostrar selector de capacidad.
+            // Ocultar la opción 'single' para forzar multiple o unlimited.
+            fieldCapType.classList.remove('d-none');
+            Array.from(capTypeSelect.options).forEach(opt => {
+                opt.hidden = opt.value === 'single';
+            });
+        } else {
+            // 'other' — show everything
+            fieldType.classList.remove('d-none');
+            const typeSelect = document.getElementById('eventType');
+            Array.from(typeSelect.options).forEach(opt => { opt.hidden = false; });
+            typeSelect.value = 'other';
+
+            fieldDates.classList.remove('d-none');
+            fieldMaxCap.classList.add('d-none');  // shown dynamically via capType change
+            document.getElementById('eventMaxCapacity').required = false;
+            fieldCapType.classList.remove('d-none');
+        }
+
+        showWizardStage(2);
+    }
+
+    function setupWizard() {
+        // Card click
+        document.querySelectorAll('.wizard-purpose-card').forEach(card => {
+            card.addEventListener('click', () => selectPurpose(card.dataset.purpose));
+        });
+
+        // Back button
+        document.getElementById('wizardBtnBack')?.addEventListener('click', () => {
+            showWizardStage(1);
+        });
+
+        // Capacity type change: visible tanto en 'multiple' como 'other'
+        document.getElementById('eventCapacityType')?.addEventListener('change', (e) => {
+            if (!['multiple', 'other'].includes(wizardState.purpose)) return;
+            const fieldMaxCap = document.getElementById('fieldMaxCapacity');
+            const maxInput    = document.getElementById('eventMaxCapacity');
+            if (e.target.value === 'multiple') {
+                fieldMaxCap.classList.remove('d-none');
+                maxInput.required = true;
+            } else {
+                fieldMaxCap.classList.add('d-none');
+                maxInput.required = false;
+                maxInput.value = '';
+            }
+        });
+
+        // Reset wizard when modal closes
+        const modalEl = document.getElementById('createEventModal');
+        modalEl?.addEventListener('hidden.bs.modal', resetWizard);
+    }
+
+    function resetWizard() {
+        wizardState.purpose = null;
+        wizardState.stage   = 1;
+        wizardState.data    = {};
+
+        // Reset card selection
+        document.querySelectorAll('.wizard-purpose-card').forEach(c => c.classList.remove('selected'));
+
+        // Reset type options visibility
+        const typeSelect = document.getElementById('eventType');
+        if (typeSelect) {
+            Array.from(typeSelect.options).forEach(opt => { opt.hidden = false; });
+            typeSelect.value = 'interview';
+        }
+
+        // Reset field visibility to defaults (all hidden except what stage1 needs)
+        document.getElementById('fieldEventDates')?.classList.remove('d-none');
+        document.getElementById('fieldMaxCapacity')?.classList.add('d-none');
+        document.getElementById('fieldCapacityType')?.classList.add('d-none');
+        document.getElementById('eventMaxCapacity').required = false;
+        document.getElementById('eventMaxCapacity').value = '';
+
+        showWizardStage(1);
+    }
+
+    // ========== PANEL CONTENIDO: PORTADA ==========
+
+    /** Currently loaded images for the selected event */
+    let currentEventImages = { cover: null, gallery: [] };
+    /** Currently loaded hosts for the selected event */
+    let currentEventHosts  = [];
+
+    async function loadEventMedia(eventId) {
+        try {
+            const { data } = await apiRequest(`${API}/events/${eventId}/images`);
+            currentEventImages = {
+                cover:   data.cover   || null,
+                gallery: data.gallery || []
+            };
+            renderCoverPreview();
+            renderGalleryGrid();
+        } catch (err) {
+            console.error('Error loading event images:', err);
+        }
+    }
+
+    function renderCoverPreview() {
+        const preview  = document.getElementById('coverPreview');
+        const delBtn   = document.getElementById('coverDeleteBtn');
+        const coverId  = document.getElementById('coverImageId');
+        if (!preview) return;
+
+        if (currentEventImages.cover) {
+            preview.style.backgroundImage = `url('${currentEventImages.cover.url}')`;
+            preview.classList.remove('empty');
+            preview.innerHTML = '';
+            delBtn?.classList.remove('d-none');
+            if (coverId) coverId.value = currentEventImages.cover.id;
+        } else {
+            preview.style.backgroundImage = '';
+            preview.classList.add('empty');
+            preview.innerHTML = `
+                <div class="text-center">
+                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                    <span class="text-muted small">Sin portada</span>
+                </div>`;
+            delBtn?.classList.add('d-none');
+            if (coverId) coverId.value = '';
+        }
+    }
+
+    function renderGalleryGrid() {
+        const grid     = document.getElementById('galleryGrid');
+        const empty    = document.getElementById('galleryEmpty');
+        if (!grid) return;
+
+        const images = currentEventImages.gallery;
+        if (images.length === 0) {
+            grid.innerHTML = '';
+            empty?.classList.remove('d-none');
+            return;
+        }
+
+        empty?.classList.add('d-none');
+        grid.innerHTML = images.map(img => `
+            <div class="event-gallery-item">
+                <img src="${img.url}" alt="${img.caption || ''}">
+                <button type="button"
+                    class="btn btn-danger btn-sm btn-remove btn-delete-gallery-image"
+                    data-image-id="${img.id}"
+                    title="Eliminar imagen">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    function setupCoverDropzone() {
+        const dropzone  = document.getElementById('coverDropzone');
+        const selectBtn = document.getElementById('coverSelectBtn');
+        const fileInput = document.getElementById('coverFileInput');
+        const delBtn    = document.getElementById('coverDeleteBtn');
+
+        if (!dropzone) return;
+
+        selectBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        fileInput?.addEventListener('change', () => {
+            if (fileInput.files.length > 0) uploadCover(fileInput.files[0]);
+        });
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) uploadCover(file);
+        });
+
+        delBtn?.addEventListener('click', deleteCover);
+    }
+
+    async function uploadCover(file) {
+        if (!selectedEventId) { flash('Selecciona un evento primero', 'warning'); return; }
+        if (file.size > 5 * 1024 * 1024) { flash('La imagen supera el límite de 5 MB', 'warning'); return; }
+
+        const fd = new FormData();
+        fd.append('file', file);
+
+        try {
+            const res = await fetch(`${API}/events/${selectedEventId}/cover`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
+                credentials: 'same-origin',
+                body: fd
+            });
+            const data = await res.json();
+            if (!res.ok) { flash(data.error?.message || 'Error al subir la portada', 'danger'); return; }
+            flash('Portada actualizada correctamente', 'success');
+            await loadEventMedia(selectedEventId);
+        } catch (err) {
+            flash(`Error al subir portada: ${err.message}`, 'danger');
+        }
+    }
+
+    async function deleteCover() {
+        const imageId = document.getElementById('coverImageId')?.value;
+        if (!imageId) return;
+        const ok = await siiapConfirm({ type: 'danger', title: 'Eliminar portada', message: '¿Eliminar la portada de este evento?', confirmLabel: 'Sí, eliminar' });
+        if (!ok) return;
+        try {
+            await apiRequest(`${API}/events/images/${imageId}`, { method: 'DELETE' });
+            flash('Portada eliminada', 'success');
+            currentEventImages.cover = null;
+            renderCoverPreview();
+        } catch (err) {
+            flash(`Error al eliminar portada: ${err.message}`, 'danger');
+        }
+    }
+
+    // ========== PANEL CONTENIDO: GALERÍA ==========
+
+    function setupGalleryDropzone() {
+        const dropzone  = document.getElementById('galleryDropzone');
+        const selectBtn = document.getElementById('gallerySelectBtn');
+        const fileInput = document.getElementById('galleryFileInput');
+
+        if (!dropzone) return;
+
+        selectBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        fileInput?.addEventListener('change', () => {
+            if (fileInput.files.length > 0) uploadGalleryImages(Array.from(fileInput.files));
+        });
+
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            uploadGalleryImages(Array.from(e.dataTransfer.files));
+        });
+
+        // Delete buttons (event delegation on grid)
+        document.getElementById('galleryGrid')?.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-delete-gallery-image');
+            if (!btn) return;
+            const imageId = parseInt(btn.dataset.imageId);
+            const ok = await siiapConfirm({ type: 'danger', title: 'Eliminar imagen', message: '¿Eliminar esta imagen de la galería?', confirmLabel: 'Sí, eliminar' });
+            if (!ok) return;
+            try {
+                await apiRequest(`${API}/events/images/${imageId}`, { method: 'DELETE' });
+                flash('Imagen eliminada', 'success');
+                await loadEventMedia(selectedEventId);
+            } catch (err) {
+                flash(`Error al eliminar imagen: ${err.message}`, 'danger');
+            }
+        });
+    }
+
+    async function uploadGalleryImages(files) {
+        if (!selectedEventId) { flash('Selecciona un evento primero', 'warning'); return; }
+
+        let uploaded = 0;
+        for (const file of files) {
+            if (file.size > 5 * 1024 * 1024) {
+                flash(`"${file.name}" supera el límite de 5 MB y fue omitida`, 'warning');
+                continue;
+            }
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const res = await fetch(`${API}/events/${selectedEventId}/images`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() },
+                    credentials: 'same-origin',
+                    body: fd
+                });
+                if (res.ok) uploaded++;
+                else {
+                    const d = await res.json();
+                    flash(d.error?.message || `Error subiendo "${file.name}"`, 'danger');
+                }
+            } catch (err) {
+                flash(`Error al subir "${file.name}": ${err.message}`, 'danger');
+            }
+        }
+        if (uploaded > 0) {
+            flash(`${uploaded} imagen${uploaded > 1 ? 'es' : ''} subida${uploaded > 1 ? 's' : ''} correctamente`, 'success');
+            await loadEventMedia(selectedEventId);
+        }
+    }
+
+    // ========== PANEL CONTENIDO: PONENTES ==========
+
+    /**
+     * loadEventHosts — Fetches hosts from API and populates the in-memory list.
+     * @param {number} eventId
+     */
+    async function loadEventHosts(eventId) {
+        try {
+            const { data } = await apiRequest(`${API}/events/${eventId}/hosts`);
+            currentEventHosts = data.hosts || [];
+            renderHostsList();
+        } catch (err) {
+            console.error('Error loading hosts:', err);
+        }
+    }
+
+    /**
+     * renderHostsList — Renders the host cards from `currentEventHosts`.
+     */
+    function renderHostsList() {
+        const list  = document.getElementById('hostsList');
+        const empty = document.getElementById('hostsEmpty');
+        if (!list) return;
+
+        if (currentEventHosts.length === 0) {
+            list.innerHTML = '';
+            list.appendChild(empty || document.createElement('div'));
+            empty?.classList.remove('d-none');
+            return;
+        }
+        empty?.classList.add('d-none');
+
+        list.innerHTML = currentEventHosts.map((host, idx) => {
+            const isInternal = !!host.user_id;
+            const typeBadge  = isInternal
+                ? '<span class="badge bg-info text-dark">Interno</span>'
+                : '<span class="badge bg-secondary">Externo</span>';
+            const avatarSrc  = host.avatar_url || host.external_photo_url || '/static/assets/images/default.jpg';
+            const name       = host.full_name || host.external_name || 'Sin nombre';
+
+            return `
+            <div class="event-host-card" data-host-idx="${idx}">
+                <img src="${avatarSrc}" alt="Avatar" class="avatar">
+                <div class="host-info">
+                    <div class="fw-semibold">${name}</div>
+                    <div class="text-muted small">${host.role_label || ''} ${typeBadge}</div>
+                </div>
+                <div class="host-actions d-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-up"
+                        data-idx="${idx}" title="Subir" ${idx === 0 ? 'disabled' : ''}>
+                        <i class="bi bi-arrow-up"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-down"
+                        data-idx="${idx}" title="Bajar" ${idx === currentEventHosts.length - 1 ? 'disabled' : ''}>
+                        <i class="bi bi-arrow-down"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-edit-host"
+                        data-idx="${idx}" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-host"
+                        data-idx="${idx}" title="Eliminar">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function setupHostsPanel() {
+        document.getElementById('addHostBtn')?.addEventListener('click', () => openHostEditor(-1));
+        document.getElementById('saveHostsBtn')?.addEventListener('click', saveHosts);
+        document.getElementById('hostsList')?.addEventListener('click', (e) => {
+            const up   = e.target.closest('.btn-move-host-up');
+            const down = e.target.closest('.btn-move-host-down');
+            const edit = e.target.closest('.btn-edit-host');
+            const del  = e.target.closest('.btn-remove-host');
+
+            if (up)   { const i = parseInt(up.dataset.idx);   moveHost(i, i - 1); }
+            if (down) { const i = parseInt(down.dataset.idx); moveHost(i, i + 1); }
+            if (edit) { openHostEditor(parseInt(edit.dataset.idx)); }
+            if (del)  { removeHost(parseInt(del.dataset.idx)); }
+        });
+    }
+
+    function moveHost(fromIdx, toIdx) {
+        if (toIdx < 0 || toIdx >= currentEventHosts.length) return;
+        const arr = [...currentEventHosts];
+        [arr[fromIdx], arr[toIdx]] = [arr[toIdx], arr[fromIdx]];
+        currentEventHosts = arr;
+        renderHostsList();
+    }
+
+    function removeHost(idx) {
+        currentEventHosts = currentEventHosts.filter((_, i) => i !== idx);
+        renderHostsList();
+    }
+
+    /**
+     * openHostEditor — Opens #hostEditorModal for adding (idx=-1) or editing an existing host.
+     * @param {number} idx  Index in currentEventHosts (-1 = new)
+     */
+    function openHostEditor(idx) {
+        const isNew = idx === -1;
+        document.getElementById('hostEditorModalTitle').textContent = isNew ? 'Agregar Ponente' : 'Editar Ponente';
+        document.getElementById('hostEditIndex').value = idx;
+
+        // Reset form
+        document.getElementById('hostTypeInternal').checked = true;
+        document.getElementById('hostUserSearch').value    = '';
+        document.getElementById('hostUserId').value        = '';
+        document.getElementById('hostSelectedUserCard').classList.add('d-none');
+        document.getElementById('hostExternalName').value  = '';
+        document.getElementById('hostExternalBio').value   = '';
+        document.getElementById('hostExternalPhoto').value = '';
+        document.getElementById('hostExternalPhotoPath').value = '';
+        document.getElementById('hostRoleLabel').value     = '';
+        document.getElementById('hostInternalPanel').classList.remove('d-none');
+        document.getElementById('hostExternalPanel').classList.add('d-none');
+
+        if (!isNew) {
+            const host = currentEventHosts[idx];
+            if (host.user_id) {
+                document.getElementById('hostTypeInternal').checked = true;
+                document.getElementById('hostUserId').value = host.user_id;
+                showSelectedUser({
+                    id: host.user_id,
+                    full_name: host.full_name,
+                    email: host.email || '',
+                    role: host.role_display || '',
+                    avatar_url: host.avatar_url || ''
+                });
+            } else {
+                document.getElementById('hostTypeExternal').checked = true;
+                document.getElementById('hostInternalPanel').classList.add('d-none');
+                document.getElementById('hostExternalPanel').classList.remove('d-none');
+                document.getElementById('hostExternalName').value  = host.external_name || '';
+                document.getElementById('hostExternalBio').value   = host.external_bio  || '';
+                document.getElementById('hostExternalPhotoPath').value = host.external_photo_path || '';
+            }
+            document.getElementById('hostRoleLabel').value = host.role_label || '';
+        }
+
+        const modalEl = document.getElementById('hostEditorModal');
+        if (modalEl) new bootstrap.Modal(modalEl).show();
+    }
+
+    function showSelectedUser(user) {
+        document.getElementById('hostUserId').value         = user.id;
+        document.getElementById('hostSelectedName').textContent  = user.full_name || '';
+        document.getElementById('hostSelectedEmail').textContent = user.email || '';
+        document.getElementById('hostSelectedRole').textContent  = user.role || '';
+        const avatar = document.getElementById('hostSelectedAvatar');
+        avatar.src = user.avatar_url || '/static/assets/images/default.jpg';
+        document.getElementById('hostSelectedUserCard').classList.remove('d-none');
+        document.getElementById('hostUserSearch').value = '';
+        document.getElementById('hostUserDropdown').style.display = 'none';
+    }
+
+    function setupHostEditor() {
+        // Toggle internal / external
+        document.querySelectorAll('input[name="hostTypeRadio"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const isInternal = document.getElementById('hostTypeInternal').checked;
+                document.getElementById('hostInternalPanel').classList.toggle('d-none', !isInternal);
+                document.getElementById('hostExternalPanel').classList.toggle('d-none', isInternal);
+            });
+        });
+
+        // Typeahead user search
+        let searchTimer = null;
+        document.getElementById('hostUserSearch')?.addEventListener('input', (e) => {
+            clearTimeout(searchTimer);
+            const q = e.target.value.trim();
+            if (q.length < 2) {
+                document.getElementById('hostUserDropdown').style.display = 'none';
+                return;
+            }
+            searchTimer = setTimeout(() => searchUsers(q), 300);
+        });
+
+        document.getElementById('hostClearUserBtn')?.addEventListener('click', () => {
+            document.getElementById('hostUserId').value = '';
+            document.getElementById('hostSelectedUserCard').classList.add('d-none');
+        });
+
+        // Save host button
+        document.getElementById('hostEditorSaveBtn')?.addEventListener('click', saveHostFromModal);
+    }
+
+    async function searchUsers(query) {
+        try {
+            const { data } = await apiRequest(`${API}/admin/users?search=${encodeURIComponent(query)}&per_page=10`);
+            const users = data.users || data.items || [];
+            renderUserDropdown(users);
+        } catch (err) {
+            console.error('Error searching users:', err);
+        }
+    }
+
+    function renderUserDropdown(users) {
+        const dropdown = document.getElementById('hostUserDropdown');
+        if (!dropdown) return;
+
+        if (users.length === 0) {
+            dropdown.innerHTML = '<div class="list-group-item text-muted small">Sin resultados</div>';
+            dropdown.style.display = 'block';
+            return;
+        }
+
+        dropdown.innerHTML = users.map(u => `
+            <button type="button" class="list-group-item list-group-item-action py-2"
+                data-user-id="${u.id}"
+                data-full-name="${u.full_name || u.name || ''}"
+                data-email="${u.email || ''}"
+                data-role="${u.role_name || u.role || ''}"
+                data-avatar="${u.avatar_url || ''}">
+                <div class="d-flex align-items-center gap-2">
+                    <img src="${u.avatar_url || '/static/assets/images/default.jpg'}" width="28" height="28"
+                        class="rounded-circle" style="object-fit:cover">
+                    <div>
+                        <div class="fw-semibold small">${u.full_name || u.name || ''}</div>
+                        <div class="text-muted small">${u.email || ''} &bull; ${u.role_name || u.role || ''}</div>
+                    </div>
+                </div>
+            </button>`).join('');
+
+        dropdown.querySelectorAll('button[data-user-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                showSelectedUser({
+                    id: parseInt(btn.dataset.userId),
+                    full_name: btn.dataset.fullName,
+                    email: btn.dataset.email,
+                    role: btn.dataset.role,
+                    avatar_url: btn.dataset.avatar
+                });
+            });
+        });
+
+        dropdown.style.display = 'block';
+    }
+
+    async function saveHostFromModal() {
+        const isInternal = document.getElementById('hostTypeInternal').checked;
+        const roleLabel  = document.getElementById('hostRoleLabel').value.trim();
+        const editIdx    = parseInt(document.getElementById('hostEditIndex').value);
+
+        if (!roleLabel) {
+            flash('El rol o etiqueta del ponente es requerido', 'warning');
+            return;
+        }
+
+        let hostObj = { role_label: roleLabel };
+
+        if (isInternal) {
+            const userId = parseInt(document.getElementById('hostUserId').value);
+            if (!userId) {
+                flash('Selecciona un usuario del sistema', 'warning');
+                return;
+            }
+            hostObj.user_id    = userId;
+            hostObj.full_name  = document.getElementById('hostSelectedName').textContent;
+            hostObj.email      = document.getElementById('hostSelectedEmail').textContent;
+            hostObj.avatar_url = document.getElementById('hostSelectedAvatar').src;
+        } else {
+            const externalName  = document.getElementById('hostExternalName').value.trim();
+            const externalBio   = document.getElementById('hostExternalBio').value.trim();
+            const photoFile     = document.getElementById('hostExternalPhoto').files[0];
+            const existingPath  = document.getElementById('hostExternalPhotoPath').value;
+
+            if (!externalName) {
+                flash('El nombre del ponente externo es requerido', 'warning');
+                return;
+            }
+
+            // Upload photo if selected
+            let photoPath = existingPath;
+            if (photoFile && selectedEventId) {
+                try {
+                    const fd = new FormData();
+                    fd.append('file', photoFile);
+                    const res = await fetch(`${API}/events/${selectedEventId}/hosts/photo`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCsrfToken() },
+                        credentials: 'same-origin',
+                        body: fd
+                    });
+                    const d = await res.json();
+                    if (res.ok && d.path) photoPath = d.path;
+                } catch (err) {
+                    flash('Error al subir la foto del ponente', 'warning');
+                }
+            }
+
+            hostObj.external_name       = externalName;
+            hostObj.external_bio        = externalBio;
+            hostObj.external_photo_path = photoPath || null;
+        }
+
+        if (editIdx === -1) {
+            currentEventHosts.push(hostObj);
+        } else {
+            currentEventHosts[editIdx] = hostObj;
+        }
+
+        renderHostsList();
+
+        const modalEl = document.getElementById('hostEditorModal');
+        const modal   = bootstrap.Modal.getInstance(modalEl);
+        modal?.hide();
+    }
+
+    /**
+     * saveHosts — Sends PUT /api/v1/events/<id>/hosts with the full hosts array.
+     */
+    async function saveHosts() {
+        if (!selectedEventId) { flash('Selecciona un evento primero', 'warning'); return; }
+        try {
+            await apiRequest(`${API}/events/${selectedEventId}/hosts`, {
+                method: 'PUT',
+                body: JSON.stringify({ hosts: currentEventHosts })
+            });
+            flash('Ponentes guardados correctamente', 'success');
+        } catch (err) {
+            flash(`Error al guardar ponentes: ${err.message}`, 'danger');
+        }
+    }
+
+    // ========== CONTENT PANE VISIBILITY ==========
+
+    /**
+     * setupContentTabVisibility — Listens for Bootstrap tab events on the
+     * "Contenido" buttons and shows/hides #pane-content-media accordingly.
+     */
+    function setupContentTabVisibility() {
+        const contentPane = document.getElementById('pane-content-media');
+        if (!contentPane) return;
+
+        // When a content tab is shown → reveal the shared pane
+        document.querySelectorAll('.tab-content-media').forEach(btn => {
+            btn.addEventListener('shown.bs.tab', () => {
+                contentPane.style.display = 'block';
+                if (selectedEventId) {
+                    loadEventMedia(selectedEventId);
+                    loadEventHosts(selectedEventId);
+                }
+            });
+            btn.addEventListener('hide.bs.tab', () => {
+                contentPane.style.display = 'none';
+            });
+        });
+
+        // Also hide when another tab (non-content) is shown
+        document.querySelectorAll('[data-bs-toggle="tab"]:not(.tab-content-media)').forEach(btn => {
+            btn.addEventListener('shown.bs.tab', () => {
+                contentPane.style.display = 'none';
+            });
+        });
     }
 
     // ========== INICIALIZACIÓN ==========

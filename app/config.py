@@ -3,7 +3,7 @@ from pathlib import Path
 
 class Config:
     # Versión estática (actualízala cuando cambies CSS/JS)
-    STATIC_VERSION = '1.0.41111174'
+    STATIC_VERSION = '1.0.41111186'
     
     # Directorios base
     BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,10 +22,13 @@ class Config:
     # Sub-rutas útiles
     AVATAR_FOLDER = UPLOAD_FOLDER / 'avatars'
     USER_DOCS_FOLDER = UPLOAD_FOLDER / 'documents'
+    EVENTS_FOLDER = UPLOAD_FOLDER / 'events'
 
     # Límites y tipos permitidos
     ALLOWED_DOC_EXT = {'pdf', 'doc', 'docx'}
-    MAX_CONTENT_LENGTH = 3 * 1024 * 1024  # 3 MB
+    ALLOWED_IMAGE_EXT = {'jpg', 'jpeg', 'png', 'webp'}
+    MAX_EVENT_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+    MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB (antes 3 MB, subido por imágenes de eventos)
 
     # ===== SEGURIDAD =====
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-CHANGE-IN-PRODUCTION')

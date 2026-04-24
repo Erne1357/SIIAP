@@ -35,17 +35,7 @@
             <div class="card-body">
                 <div class="mb-3">
                     <label class="form-label text-muted small">Rol</label>
-                    <p class="mb-0">
-                        {% if current_user.role.name == 'applicant' %}
-                            Aspirante
-                        {% elif current_user.role.name == 'social_service' %}
-                            Servicio Social
-                        {% elif current_user.role.name == 'program_admin' %}
-                            Administrador de Programa
-                        {% elif current_user.role.name == 'postgraduate_admin' %}
-                            Administrador de Posgrado
-                        {% endif %}
-                    </p>
+                    <p class="mb-0">{{ role_label or '—' }}</p>
                 </div>
                 <div class="mb-3">
                     <label class="form-label text-muted small">Tipo de Usuario</label>
@@ -108,7 +98,7 @@
                 <h5 class="mb-0">Próximos Eventos</h5>
             </div>
             <div class="card-body">
-                {% if current_user.role.name == 'applicant' %}
+                {% if has_perm('programs.api.enroll') %}
                 <div class="d-flex mb-3">
                     <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
                         <i class="bi bi-calendar text-primary"></i>

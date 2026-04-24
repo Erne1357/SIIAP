@@ -4,6 +4,7 @@
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/user/profile.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/user/dashboard.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -14,16 +15,15 @@
     <p class="lead text-muted">Panel de Control</p>
   </div>
 
-  {% if current_user.role.name == 'applicant' %}
+  {% if has_perm('programs.api.enroll') %}
     {% include 'user/dashboard/applicant_dashboard.html' %}
-  {% elif current_user.role.name == 'student' %}
+  {% elif has_perm('permanence.api.view_status') %}
     {% include 'user/dashboard/student_dashboard.html' %}
-  {% elif current_user.role.name == 'program_admin' %}
+  {% elif has_perm('coordinator.page.view') and not has_perm('academic_periods.api.create') %}
     {% include 'user/dashboard/program_admin_dashboard.html' %}
-  {% elif current_user.role.name == 'postgraduate_admin' %}
+  {% elif has_perm('academic_periods.api.create') %}
     {% include 'user/dashboard/postgraduate_admin_dashboard.html' %}
   {% else %}
-    <!-- Mensaje para otros roles -->
     <div class="row justify-content-center">
       <div class="col-md-8">
         <div class="alert alert-info text-center">
@@ -34,4 +34,35 @@
     </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if has_perm('programs.api.enroll') %}
+  <script>
+    window.SIIAP_APPLICANT_DASH = {
+      userId:          {{ current_user.id|tojson }},
+      userProgramId:   {{ (user_program_id or 0)|tojson }},
+      admissionStatus: {{ (admission_status or '')|tojson }},
+      programId:       {{ (program.id if program else 0)|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/user/applicant_dashboard.js') }}?v={{ static_version }}"></script>
+{% elif has_perm('permanence.api.view_status') %}
+  {% if up and up.id %}
+  <script>
+    window.SIIAP_STUDENT_DASH = { upId: {{ up.id|tojson }} };
+  </script>
+  <script src="{{ url_for('static', filename='js/user/student_dashboard.js') }}?v={{ static_version }}"></script>
+  {% endif %}
+{% elif has_perm('coordinator.page.view') and not has_perm('academic_periods.api.create') %}
+  <script src="{{ url_for('static', filename='js/user/program_admin_dashboard.js') }}?v={{ static_version }}"></script>
+{% elif has_perm('academic_periods.api.create') %}
+  <script>
+    window.SIIAP_POSTGRAD_DASH = {
+      emailConfigUrl:  {{ url_for('pages_admin.pages_emails.email_config')|tojson }},
+      pendingReviews:  {{ (metrics.pending_reviews if metrics else 0)|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/user/postgraduate_admin_dashboard.js') }}?v={{ static_version }}"></script>
+{% endif %}
 {% endblock %}

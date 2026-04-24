@@ -1,12 +1,13 @@
 from datetime import datetime, date, time, timedelta
 from app import db
 from app.models.event import Event, EventWindow, EventSlot,EventAttendance
-from sqlalchemy import and_
+from app.models.academic_period import AcademicPeriod
+from sqlalchemy import and_, or_
 from datetime import timezone
 from app.utils.datetime_utils import now_local
 
 class EventsService:
-    
+
     @staticmethod
     def create_event(
         program_id: int | None,
@@ -20,33 +21,211 @@ class EventsService:
         max_capacity: int | None = None,
         requires_registration: bool = True,
         allows_attendance_tracking: bool = False,
-        status: str = 'published'
+        status: str = 'published',
+        academic_period_id: int | None = None,
+        visibility: str = 'public',
+        reminders_enabled: bool = True
     ) -> Event:
-        """Crear evento con nuevos parámetros de capacidad"""
-        
+        """Crear evento con parámetros de capacidad, visibilidad y recordatorios."""
+
         if capacity_type not in ('single', 'multiple', 'unlimited'):
             raise ValueError("capacity_type debe ser 'single', 'multiple' o 'unlimited'")
-        
+
         if capacity_type == 'multiple' and not max_capacity:
             raise ValueError("max_capacity es requerido para eventos de capacidad múltiple")
-        
+
+        if visibility not in ('public', 'private'):
+            raise ValueError("visibility debe ser 'public' o 'private'")
+
+        if academic_period_id is None:
+            active = AcademicPeriod.get_active_period()
+            if active:
+                academic_period_id = active.id
+
         ev = Event(
             program_id=program_id,
+            academic_period_id=academic_period_id,
             type=type_ or 'interview',
             title=title,
             description=description,
             location=location,
             created_by=created_by,
             visible_to_students=visible_to_students,
+            visibility=visibility,
             capacity_type=capacity_type,
             max_capacity=max_capacity,
             requires_registration=requires_registration,
             allows_attendance_tracking=allows_attendance_tracking,
+            reminders_enabled=reminders_enabled,
             status=status
         )
         db.session.add(ev)
         db.session.commit()
         return ev
+
+    @staticmethod
+    def update_event(event_id: int, data: dict) -> Event:
+        """Actualiza campos de un evento con validaciones."""
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+
+        mutable_fields = (
+            'title', 'description', 'location', 'type', 'status',
+            'visible_to_students', 'allows_attendance_tracking',
+            'max_capacity', 'academic_period_id', 'program_id',
+            'requires_registration', 'visibility', 'reminders_enabled'
+        )
+        for field in mutable_fields:
+            if field in data:
+                setattr(event, field, data[field])
+
+        if 'capacity_type' in data and data['capacity_type'] != event.capacity_type:
+            from app.models.event import EventAttendance as _EA
+            has_slots = EventSlot.query.join(EventWindow).filter(
+                EventWindow.event_id == event_id
+            ).count() > 0
+            has_registrations = _EA.query.filter_by(event_id=event_id).count() > 0
+            if has_slots or has_registrations:
+                raise ValueError(
+                    "No se puede cambiar el tipo de capacidad de un evento con slots o registros existentes"
+                )
+            event.capacity_type = data['capacity_type']
+
+        db.session.commit()
+        return event
+
+    @staticmethod
+    def list_public_events(user_id: int) -> list[Event]:
+        """
+        Lista eventos visibles para un estudiante:
+        - visible_to_students = True
+        - status = 'published'
+        - capacity_type != 'single'
+        - academic_period_id = periodo activo OR NULL (atemporales)
+        - Públicos: program_id = programa del usuario OR NULL (globales)
+        - Privados: solo si tiene EventInvitation (cualquier status)
+        """
+        from app.models.user_program import UserProgram
+        from app.models.event import EventInvitation
+
+        active_period = AcademicPeriod.get_active_period()
+        active_pid = active_period.id if active_period else None
+        user_program = UserProgram.query.filter_by(user_id=user_id).first()
+        user_pid = user_program.program_id if user_program else None
+
+        # IDs de eventos privados donde el usuario tiene invitación
+        invited_event_ids = [
+            row[0] for row in db.session.query(EventInvitation.event_id).filter(
+                EventInvitation.user_id == user_id
+            ).all()
+        ]
+
+        base = Event.query.filter(
+            Event.visible_to_students == True,
+            Event.status == 'published',
+            Event.capacity_type != 'single'
+        )
+
+        # Filtro periodo activo (o NULL si atemporal)
+        if active_pid is not None:
+            base = base.filter(
+                or_(
+                    Event.academic_period_id == active_pid,
+                    Event.academic_period_id.is_(None)
+                )
+            )
+        else:
+            base = base.filter(Event.academic_period_id.is_(None))
+
+        # Reglas de visibilidad:
+        # - public + programa match (o global)
+        # - private + invited
+        if user_pid:
+            public_clause = and_(
+                Event.visibility == 'public',
+                or_(Event.program_id == user_pid, Event.program_id.is_(None))
+            )
+        else:
+            public_clause = and_(
+                Event.visibility == 'public',
+                Event.program_id.is_(None)
+            )
+
+        private_clause = and_(
+            Event.visibility == 'private',
+            Event.id.in_(invited_event_ids) if invited_event_ids else False
+        )
+
+        query = base.filter(or_(public_clause, private_clause))
+
+        return query.order_by(
+            Event.event_date.desc().nullslast(),
+            Event.created_at.desc()
+        ).all()
+
+    @staticmethod
+    def get_public_events_with_invitation_status(user_id: int) -> list[dict]:
+        """
+        Retorna list_public_events anotados con my_invitation_status.
+        status posibles: None | 'pending' | 'accepted' | 'rejected' | 'cancelled'
+        """
+        from app.models.event import EventInvitation
+
+        events = EventsService.list_public_events(user_id)
+        invs = {
+            inv.event_id: inv.status
+            for inv in EventInvitation.query.filter(
+                EventInvitation.user_id == user_id,
+                EventInvitation.event_id.in_([e.id for e in events]) if events else False
+            ).all()
+        }
+
+        return [
+            {'event': ev, 'my_invitation_status': invs.get(ev.id)}
+            for ev in events
+        ]
+
+    @staticmethod
+    def list_admin_events(accessible_pids: set | None, filters: dict | None = None) -> list[Event]:
+        """
+        Lista eventos administrables. accessible_pids = None significa acceso global.
+        filters: academic_period_id, program_id, type, status, capacity_type, search.
+        """
+        filters = filters or {}
+        query = Event.query
+
+        if accessible_pids is not None:
+            if not accessible_pids:
+                query = query.filter(Event.program_id.is_(None))
+            else:
+                query = query.filter(
+                    or_(
+                        Event.program_id.in_(accessible_pids),
+                        Event.program_id.is_(None)
+                    )
+                )
+
+        if filters.get('academic_period_id'):
+            query = query.filter(Event.academic_period_id == filters['academic_period_id'])
+        if filters.get('program_id'):
+            query = query.filter(Event.program_id == filters['program_id'])
+        if filters.get('type'):
+            query = query.filter(Event.type == filters['type'])
+        if filters.get('status'):
+            query = query.filter(Event.status == filters['status'])
+        else:
+            # Por default ocultar archivados; admin debe pedir explícito "archived" para verlos.
+            query = query.filter(Event.status != 'archived')
+        if filters.get('capacity_type'):
+            query = query.filter(Event.capacity_type == filters['capacity_type'])
+        if filters.get('search'):
+            term = f"%{filters['search']}%"
+            query = query.filter(
+                or_(Event.title.ilike(term), Event.description.ilike(term))
+            )
+
+        return query.order_by(Event.created_at.desc()).all()
 
     @staticmethod
     def add_window(
@@ -421,11 +600,21 @@ class EventsService:
                 event_id=event_id,
                 user_id=user_id
             ).first()
-            
+
             if existing_inv:
-                results['already_invited'].append(user_id)
+                # Si rechazó o fue cancelada, reabrir (permite "reconsiderar")
+                if existing_inv.status in ('rejected', 'cancelled'):
+                    existing_inv.status = 'pending'
+                    existing_inv.responded_at = None
+                    existing_inv.invited_by = invited_by
+                    existing_inv.invited_at = now_local()
+                    if notes:
+                        existing_inv.notes = notes
+                    results['invited'].append(user_id)
+                else:
+                    results['already_invited'].append(user_id)
                 continue
-            
+
             # Crear invitación
             invitation = EventInvitation(
                 event_id=event_id,
@@ -438,65 +627,107 @@ class EventsService:
             results['invited'].append(user_id)
         
         db.session.commit()
-        
-        # NUEVO: Enviar notificaciones y registrar en historial después del commit
-        try:
-            from app.services.user_history_service import UserHistoryService
-            from app.services.notification_service import NotificationService
-            
-            for user_id in results['invited']:
-                # Obtener la invitación recién creada
+
+        # Post-commit: notificaciones + historial + email_queue — aislar fallos por usuario
+        # para que un error en un user_id no aborte el resto del batch.
+        from flask import current_app
+        from app.services.user_history_service import UserHistoryService
+        from app.services.notification_service import NotificationService
+        from app.models.email_queue import EmailQueue
+
+        notified_users = []
+        failed_notifications = []
+
+        for user_id in results['invited']:
+            try:
                 invitation = EventInvitation.query.filter_by(
                     event_id=event_id,
                     user_id=user_id,
                     invited_by=invited_by
                 ).first()
-                
-                if invitation:
-                    # Registrar en historial del admin
-                    UserHistoryService.log_event_invitation(
-                        user_id=user_id,
-                        event_title=event.title,
-                        event_id=event_id,
-                        invitation_id=invitation.id,
-                        event_date=event.event_date.strftime('%d/%m/%Y') if event.event_date else 'Por definir',
-                        invited_by=invited_by
+
+                if not invitation:
+                    current_app.logger.warning(
+                        f"[invite_students] Invitación no encontrada tras commit para user_id={user_id}, event_id={event_id}"
                     )
-                    
-                    # Enviar notificación al estudiante
-                    NotificationService.notify_event_invitation(
-                        user_id=user_id,
-                        event_title=event.title,
-                        event_id=event_id,
-                        invitation_id=invitation.id,
-                        event_date=event.event_date.strftime('%d/%m/%Y') if event.event_date else 'Por definir',
-                        description=event.description
+                    continue
+
+                event_date_str = (
+                    event.event_date.strftime('%d/%m/%Y') if event.event_date else 'Por definir'
+                )
+
+                UserHistoryService.log_event_invitation(
+                    user_id=user_id,
+                    event_title=event.title,
+                    event_id=event_id,
+                    invitation_id=invitation.id,
+                    event_date=event_date_str,
+                    invited_by=invited_by
+                )
+
+                notification = NotificationService.notify_event_invitation(
+                    user_id=user_id,
+                    event_title=event.title,
+                    event_id=event_id,
+                    invitation_id=invitation.id,
+                    event_date=event_date_str,
+                    description=event.description
+                )
+
+                # Commit por usuario para que la notificación + email_queue
+                # sobrevivan aunque el siguiente usuario falle.
+                db.session.commit()
+
+                # Verificación explícita: confirmar que el EmailQueue row se creó
+                email_row = EmailQueue.query.filter_by(
+                    user_id=user_id,
+                    notification_id=notification.id
+                ).first()
+                if not email_row:
+                    current_app.logger.warning(
+                        f"[invite_students] EmailQueue NO creado para user_id={user_id}, notification_id={notification.id}. "
+                        f"Revisar notify_event_invitation y EmailService.queue_email."
                     )
-                    
-            db.session.commit()
-            
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error enviando notificaciones de invitación: {e}")
-        
+                else:
+                    current_app.logger.info(
+                        f"[invite_students] Email encolado id={email_row.id} para user_id={user_id}, event_id={event_id}"
+                    )
+                notified_users.append(user_id)
+
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.exception(
+                    f"[invite_students] Fallo al notificar user_id={user_id} en event_id={event_id}: {e}"
+                )
+                failed_notifications.append({'user_id': user_id, 'error': str(e)})
+
+        results['notified'] = notified_users
+        results['failed_notifications'] = failed_notifications
         return results
     
     @staticmethod
     def respond_to_invitation(invitation_id: int, user_id: int, accept: bool):
         """
-        Responder a una invitación (aceptar/rechazar)
+        Responder a una invitación (aceptar/rechazar).
+        Si ya fue rechazada y se acepta ahora → reconsiderar (permitido).
         """
         from app.models.event import EventInvitation
-        
+
         invitation = db.session.get(EventInvitation, invitation_id)
         if not invitation:
             raise ValueError("Invitación no encontrada")
-        
+
         if invitation.user_id != user_id:
             raise ValueError("Esta invitación no es para ti")
-        
-        if invitation.status != 'pending':
-            raise ValueError("Esta invitación ya fue respondida")
+
+        if invitation.status == 'cancelled':
+            raise ValueError("Esta invitación fue cancelada por el organizador")
+
+        # Permitir reconsiderar: accept sobre 'rejected' → 'accepted'.
+        # Si ya está accepted y vuelve a aceptar → noop.
+        # Si está accepted y rechaza → cambiar a rejected.
+        if invitation.status == 'accepted' and accept:
+            return invitation
         
         invitation.status = 'accepted' if accept else 'rejected'
         invitation.responded_at = now_local()
@@ -601,12 +832,359 @@ class EventsService:
         event = db.session.get(Event, event_id)
         if not event:
             raise ValueError("Evento no encontrado")
-        
+
         if event.capacity_type == 'single':
             raise ValueError("Los eventos de capacidad individual usan ventanas de horarios")
-        
+
         event.event_date = event_date
         event.event_end_date = event_end_date
-        
+
         db.session.commit()
         return event
+
+    # ============================================================
+    # STATUS TRANSITIONS (conclude / archive / unarchive)
+    # ============================================================
+
+    @staticmethod
+    def _cancel_pending_invitations(event_id: int, event_title: str):
+        """Cancela invitaciones pending y notifica a los invitados."""
+        from app.models.event import EventInvitation
+        from app.services.notification_service import NotificationService
+
+        pending = EventInvitation.query.filter_by(
+            event_id=event_id, status='pending'
+        ).all()
+
+        for inv in pending:
+            inv.status = 'cancelled'
+            inv.responded_at = now_local()
+            try:
+                NotificationService.notify_event_cancelled_invitation(
+                    user_id=inv.user_id,
+                    event_title=event_title,
+                    event_id=event_id
+                )
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception(
+                    f"[cancel_invitation] fallo notif user_id={inv.user_id} event_id={event_id}"
+                )
+
+    @staticmethod
+    def _notify_registered_archived(event_id: int, event_title: str):
+        """Notifica a registrados (status='registered') que el evento fue archivado."""
+        from app.models.event import EventAttendance
+        from app.services.notification_service import NotificationService
+
+        registrations = EventAttendance.query.filter_by(
+            event_id=event_id, status='registered'
+        ).all()
+
+        for reg in registrations:
+            try:
+                NotificationService.notify_event_archived(
+                    user_id=reg.user_id,
+                    event_title=event_title,
+                    event_id=event_id
+                )
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception(
+                    f"[notify_archived] fallo user_id={reg.user_id} event_id={event_id}"
+                )
+
+    @staticmethod
+    def conclude_event(event_id: int, acting_user_id: int) -> Event:
+        """
+        Marca evento como 'completed'. Cancela invitaciones pending (con notif),
+        purga imágenes, registra en historial del admin.
+        """
+        from app.services.user_history_service import UserHistoryService
+
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+
+        if event.status in ('completed', 'archived'):
+            raise ValueError(f"El evento ya está en estado '{event.status}'")
+
+        event_title = event.title
+        event.status = 'completed'
+        db.session.commit()
+
+        EventsService._cancel_pending_invitations(event_id, event_title)
+        EventsService.purge_event_media(event_id)
+
+        UserHistoryService.log_action(
+            user_id=acting_user_id,
+            action='event_concluded',
+            details={'event_id': event_id, 'event_title': event_title}
+        )
+        db.session.commit()
+
+        return event
+
+    @staticmethod
+    def archive_event(event_id: int, acting_user_id: int) -> Event:
+        """
+        Archiva evento (oculto del público). Cancela invitaciones pending,
+        notifica a registrados, purga imágenes, registra en historial.
+        """
+        from app.services.user_history_service import UserHistoryService
+
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+
+        if event.status == 'archived':
+            raise ValueError("El evento ya está archivado")
+
+        event_title = event.title
+        event.status = 'archived'
+        db.session.commit()
+
+        EventsService._cancel_pending_invitations(event_id, event_title)
+        EventsService._notify_registered_archived(event_id, event_title)
+        EventsService.purge_event_media(event_id)
+
+        UserHistoryService.log_action(
+            user_id=acting_user_id,
+            action='event_archived',
+            details={'event_id': event_id, 'event_title': event_title}
+        )
+        db.session.commit()
+
+        return event
+
+    @staticmethod
+    def unarchive_event(event_id: int, acting_user_id: int, new_status: str = 'published') -> Event:
+        """Reactiva evento archivado. Por defecto lo republica."""
+        from app.services.user_history_service import UserHistoryService
+
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+
+        if event.status != 'archived':
+            raise ValueError("Solo se puede desarchivar un evento archivado")
+
+        if new_status not in ('draft', 'published'):
+            raise ValueError("new_status debe ser 'draft' o 'published'")
+
+        event.status = new_status
+        db.session.commit()
+
+        UserHistoryService.log_action(
+            user_id=acting_user_id,
+            action='event_unarchived',
+            details={'event_id': event_id, 'event_title': event.title, 'new_status': new_status}
+        )
+        db.session.commit()
+
+        return event
+
+    # ============================================================
+    # HOSTS / PRESENTADORES
+    # ============================================================
+
+    @staticmethod
+    def set_event_hosts(event_id: int, hosts_data: list[dict]) -> list:
+        """
+        Reemplaza atómicamente la lista de hosts de un evento.
+        hosts_data: [{user_id?, external_name?, external_bio?, external_photo_path?, role_label, display_order?}]
+        Cada item debe tener `user_id` O `external_name`.
+        """
+        from app.models.event import EventHost
+
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+
+        # Validar antes de borrar
+        for idx, item in enumerate(hosts_data):
+            has_user = bool(item.get('user_id'))
+            has_external = bool(item.get('external_name'))
+            if not (has_user or has_external):
+                raise ValueError(f"Host #{idx}: debe tener user_id o external_name")
+            if not item.get('role_label'):
+                raise ValueError(f"Host #{idx}: role_label es requerido")
+
+        try:
+            # Reemplazo total: borrar previos
+            EventHost.query.filter_by(event_id=event_id).delete()
+
+            new_hosts = []
+            for idx, item in enumerate(hosts_data):
+                host = EventHost(
+                    event_id=event_id,
+                    user_id=item.get('user_id'),
+                    external_name=item.get('external_name') if not item.get('user_id') else None,
+                    external_bio=item.get('external_bio') if not item.get('user_id') else None,
+                    external_photo_path=item.get('external_photo_path') if not item.get('user_id') else None,
+                    role_label=item['role_label'],
+                    display_order=item.get('display_order', idx)
+                )
+                db.session.add(host)
+                new_hosts.append(host)
+
+            db.session.commit()
+            return new_hosts
+        except Exception:
+            db.session.rollback()
+            raise
+
+    @staticmethod
+    def get_event_hosts(event_id: int) -> list[dict]:
+        """Lista hosts con info de foto/nombre resuelta."""
+        from app.models.event import EventHost
+        from app.models.user import User
+
+        hosts = EventHost.query.filter_by(event_id=event_id).order_by(
+            EventHost.display_order.asc()
+        ).all()
+
+        result = []
+        for h in hosts:
+            if h.user_id:
+                user = db.session.get(User, h.user_id)
+                name = f"{user.first_name} {user.last_name}" if user else "Usuario eliminado"
+                photo = getattr(user, 'profile_photo', None) if user else None
+                bio = None  # para internos bio viene del perfil (si existe)
+            else:
+                name = h.external_name
+                photo = h.external_photo_path
+                bio = h.external_bio
+
+            result.append({
+                'id': h.id,
+                'user_id': h.user_id,
+                'name': name,
+                'bio': bio,
+                'photo_path': photo,
+                'role_label': h.role_label,
+                'display_order': h.display_order,
+                'is_external': h.user_id is None,
+            })
+        return result
+
+    # ============================================================
+    # IMÁGENES (COVER + GALLERY)
+    # ============================================================
+
+    @staticmethod
+    def upload_event_cover(event_id: int, file_storage) -> 'EventImage':
+        """
+        Guarda cover. Reemplaza el cover anterior (unicidad is_cover=True por evento).
+        """
+        from app.models.event import EventImage
+        from app.utils.files import save_event_image, delete_event_image_file
+
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+
+        try:
+            # Buscar y eliminar cover previo (DB + disco)
+            previous = EventImage.query.filter_by(event_id=event_id, is_cover=True).first()
+            if previous:
+                delete_event_image_file(previous.path)
+                db.session.delete(previous)
+                db.session.flush()
+
+            path = save_event_image(file_storage, event_id, 'cover')
+            image = EventImage(
+                event_id=event_id,
+                path=path,
+                is_cover=True,
+                display_order=0
+            )
+            db.session.add(image)
+            db.session.commit()
+            return image
+        except Exception:
+            db.session.rollback()
+            raise
+
+    @staticmethod
+    def upload_event_gallery_image(event_id: int, file_storage, caption: str = None) -> 'EventImage':
+        """Agrega imagen a la galería (no cover)."""
+        from app.models.event import EventImage
+        from app.utils.files import save_event_image
+
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+
+        try:
+            last_order = db.session.query(db.func.max(EventImage.display_order)).filter_by(
+                event_id=event_id, is_cover=False
+            ).scalar() or 0
+
+            path = save_event_image(file_storage, event_id, 'gallery')
+            image = EventImage(
+                event_id=event_id,
+                path=path,
+                caption=caption,
+                is_cover=False,
+                display_order=last_order + 1
+            )
+            db.session.add(image)
+            db.session.commit()
+            return image
+        except Exception:
+            db.session.rollback()
+            raise
+
+    @staticmethod
+    def delete_event_image(image_id: int) -> bool:
+        """Borra imagen (DB + disco). Si era cover, el evento queda sin cover (fallback a icono)."""
+        from app.models.event import EventImage
+        from app.utils.files import delete_event_image_file
+
+        image = db.session.get(EventImage, image_id)
+        if not image:
+            raise ValueError("Imagen no encontrada")
+
+        try:
+            delete_event_image_file(image.path)
+            db.session.delete(image)
+            db.session.commit()
+            return True
+        except Exception:
+            db.session.rollback()
+            raise
+
+    @staticmethod
+    def get_event_images(event_id: int) -> dict:
+        """Retorna {cover: {...} | None, gallery: [...]}."""
+        from app.models.event import EventImage
+
+        images = EventImage.query.filter_by(event_id=event_id).order_by(
+            EventImage.is_cover.desc(), EventImage.display_order.asc()
+        ).all()
+
+        cover = None
+        gallery = []
+        for img in images:
+            data = img.to_dict()
+            if img.is_cover:
+                cover = data
+            else:
+                gallery.append(data)
+
+        return {'cover': cover, 'gallery': gallery}
+
+    @staticmethod
+    def purge_event_media(event_id: int) -> dict:
+        """
+        Borra TODAS las imágenes de un evento (DB + disco).
+        Se usa al concluir/archivar evento o al cambiar de periodo para liberar espacio.
+        """
+        from app.models.event import EventImage
+        from app.utils.files import delete_all_event_files
+
+        deleted_rows = EventImage.query.filter_by(event_id=event_id).delete()
+        deleted_files = delete_all_event_files(event_id)
+        db.session.commit()
+        return {'db_rows_deleted': deleted_rows, 'files_deleted': deleted_files}
