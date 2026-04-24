@@ -11,6 +11,141 @@ class DashboardService:
     """Servicio para obtener métricas y datos de los dashboards"""
 
     @staticmethod
+    def build_dashboard_context(user, program_id_param=None):
+        """
+        Construye el contexto para el template del dashboard según el tipo de usuario.
+
+        El dispatch por role.name aquí selecciona la variante de template/contexto,
+        no controla acceso (eso lo hace @login_required y los permisos a nivel de datos).
+        """
+        role_name = user.role.name if user.role else None
+
+        if role_name == 'applicant':
+            return DashboardService._applicant_context(user)
+        if role_name == 'student':
+            return DashboardService._student_context(user)
+        if role_name == 'program_admin':
+            return DashboardService._program_admin_context(user, program_id_param)
+        if role_name == 'postgraduate_admin':
+            return {"metrics": DashboardService.get_postgraduate_admin_metrics()}
+        return {}
+
+    @staticmethod
+    def _applicant_context(user):
+        from app.services.admission_service import get_admission_state
+
+        up = user.user_program[0] if user.user_program else None
+        program = up.program if up else None
+
+        if program:
+            adm_state = get_admission_state(user.id, program.id, up)
+        else:
+            adm_state = {
+                "progress_segments": [],
+                "status_count": {},
+                "progress_pct": 0,
+                "pending_items": [],
+                "timeline": []
+            }
+
+        deferral_status = None
+        if up and up.admission_status == 'deferred':
+            from app.services.deferral_service import get_deferral_status
+            try:
+                deferral_status = get_deferral_status(up.id)
+            except Exception:
+                deferral_status = None
+
+        return {
+            "program": program,
+            **adm_state,
+            "admission_status": up.admission_status if up else None,
+            "user_program_id": up.id if up else None,
+            "deferral_status": deferral_status,
+        }
+
+    @staticmethod
+    def _student_context(user):
+        up = user.user_program[0] if user.user_program else None
+        program = up.program if up else None
+
+        permanence_data = None
+        if up:
+            from app.services.permanence_service import get_student_permanence
+            try:
+                permanence_data = get_student_permanence(up.id)
+            except Exception:
+                permanence_data = None
+
+        pending_admission_docs = []
+        pending_permanence_docs = []
+        if up and program:
+            pending = DashboardService.get_student_pending_docs(
+                user_id=user.id,
+                program_id=program.id,
+            )
+            pending_admission_docs = pending['admission']
+            pending_permanence_docs = pending['permanence']
+
+        return {
+            'program': program,
+            'up': up,
+            'permanence_data': permanence_data,
+            'pending_admission_docs': pending_admission_docs,
+            'pending_permanence_docs': pending_permanence_docs,
+        }
+
+    @staticmethod
+    def _program_admin_context(user, program_id_param):
+        coordinated_programs = user.coordinated_programs
+
+        if not coordinated_programs:
+            return {
+                "program": None,
+                "coordinated_programs": [],
+                "selected_program_id": None,
+                "selected_program": None,
+                "show_program_selector": False,
+                "show_all_programs": False,
+                "metrics": None,
+                "recent_submissions": []
+            }
+
+        show_all = program_id_param == 'all'
+        selected_program_id = None if show_all else (
+            int(program_id_param) if program_id_param and program_id_param.isdigit() else None
+        )
+
+        if show_all:
+            program_ids = [p.id for p in coordinated_programs]
+            return {
+                "program": None,
+                "coordinated_programs": coordinated_programs,
+                "selected_program_id": "all",
+                "selected_program": None,
+                "show_program_selector": len(coordinated_programs) > 1,
+                "show_all_programs": True,
+                "metrics": DashboardService.get_combined_program_metrics(program_ids),
+                "recent_submissions": DashboardService.get_recent_submissions_multiple(program_ids, limit=5),
+            }
+
+        selected_program = (
+            next((p for p in coordinated_programs if p.id == selected_program_id), coordinated_programs[0])
+            if selected_program_id else coordinated_programs[0]
+        )
+
+        return {
+            "program": selected_program,
+            "coordinated_programs": coordinated_programs,
+            "selected_program_id": selected_program.id,
+            "selected_program": selected_program,
+            "show_program_selector": len(coordinated_programs) > 1,
+            "show_all_programs": False,
+            "metrics": DashboardService.get_program_admin_metrics(selected_program.id),
+            "recent_submissions": DashboardService.get_recent_submissions(selected_program.id, limit=5),
+        }
+
+    @staticmethod
     def get_program_admin_metrics(program_id):
         """
         Obtiene métricas para el dashboard del coordinador/admin de programa
@@ -327,3 +462,53 @@ class DashboardService:
             })
 
         return result
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Dashboard del estudiante
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def get_student_pending_docs(user_id, program_id):
+        """
+        Documentos de admisión y permanencia que el estudiante no ha aprobado aún.
+
+        Returns:
+            dict con claves 'admission' y 'permanence', cada una lista de
+            {'name': str, 'status': 'pending'|'rejected'|'review'|...}.
+        """
+        from app.models.archive import Archive
+
+        def _pending_for_phase(phase_name):
+            archives = (
+                Archive.query
+                .join(Step, Archive.step_id == Step.id)
+                .join(ProgramStep, Step.id == ProgramStep.step_id)
+                .join(Phase, Step.phase_id == Phase.id)
+                .filter(
+                    and_(
+                        ProgramStep.program_id == program_id,
+                        Phase.name == phase_name,
+                        Archive.is_uploadable.is_(True),
+                    )
+                )
+                .all()
+            )
+            pending = []
+            for arch in archives:
+                sub = (
+                    Submission.query
+                    .filter_by(user_id=user_id, archive_id=arch.id)
+                    .order_by(Submission.upload_date.desc())
+                    .first()
+                )
+                if not sub or sub.status not in ('approved', 'review'):
+                    pending.append({
+                        'name': arch.name,
+                        'status': sub.status if sub else 'pending',
+                    })
+            return pending
+
+        return {
+            'admission':  _pending_for_phase('admission'),
+            'permanence': _pending_for_phase('permanence'),
+        }

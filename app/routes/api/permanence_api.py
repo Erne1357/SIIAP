@@ -700,7 +700,7 @@ def api_create_conacyt_monthly_deadlines(program_id):
 
 @api_permanence.patch('/user-program/<int:user_program_id>/conacyt-scholarship')
 @login_required
-@permission_required('permanence.api.confirm_enrollment')
+@permission_required('permanence.api.manage_students')
 def api_toggle_conacyt_scholarship(user_program_id):
     """Activa o desactiva la beca CONACyT de un estudiante."""
     up = db.session.get(UserProgram, user_program_id)
@@ -737,7 +737,16 @@ def api_toggle_conacyt_scholarship(user_program_id):
     except Exception:
         pass
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al actualizar beca CONACyT"}],
+            "error": {"code": "SERVER_ERROR", "message": "Error interno"},
+            "meta": {}
+        }), 500
 
     label = 'activada' if new_value else 'desactivada'
     return jsonify({

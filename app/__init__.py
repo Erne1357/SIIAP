@@ -53,9 +53,18 @@ def create_app(test_config=None):
         app.logger.warning('[SocketIO] Redis no disponible — message_queue=None (single-worker mode)')
         _mq = None
 
+    if app.config.get('TESTING'):
+        _async_mode = 'threading'
+        _mq = None
+    else:
+        try:
+            import eventlet  # noqa: F401
+            _async_mode = 'eventlet'
+        except ImportError:
+            _async_mode = 'threading'
     socketio.init_app(
         app,
-        async_mode='eventlet',
+        async_mode=_async_mode,
         message_queue=_mq,
         cors_allowed_origins='*',
         logger=False,
@@ -233,10 +242,33 @@ def create_app(test_config=None):
                 return False
             return current_user.has_permission(codename, program_id=program_id)
 
+        def _role_info():
+            """
+            (label, badge_class) para el rol visible del usuario.
+            Centraliza la lógica que antes vivía duplicada en base.html, profile.html, dashboard.html.
+            """
+            if not current_user.is_authenticated:
+                return (None, None)
+            if current_user.has_permission('academic_periods.api.create'):
+                return ('Admin. Posgrado', 'bg-danger')
+            if current_user.has_permission('coordinator.page.view'):
+                return ('Admin. Programa', 'bg-success')
+            if current_user.has_permission('admin_review.page.view'):
+                return ('Servicio Social', 'bg-warning text-dark')
+            if current_user.has_permission('permanence.api.view_status'):
+                return ('Estudiante', 'bg-primary')
+            if current_user.has_permission('programs.api.enroll'):
+                return ('Aspirante', 'bg-info text-dark')
+            return (None, None)
+
+        role_label, role_badge_class = _role_info()
+
         return {
             "static_version": app.config.get("STATIC_VERSION", "1.0.0"),
             "csrf_token": generate_csrf_token,
             "has_perm": has_perm,
+            "role_label": role_label,
+            "role_badge_class": role_badge_class,
         }
 
     @app.route('/')

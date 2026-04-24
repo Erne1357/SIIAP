@@ -37,6 +37,7 @@ def register_api_blueprints(app):
     from app.routes.api.admin.celery_api import api_celery_admin
     from app.routes.api.admin.cleanup_api import api_cleanup
     from app.routes.api.admin.document_template_api import api_document_templates
+    from app.routes.api.permissions_api import api_permissions
 
     blueprints = [
         # Auth
@@ -72,6 +73,7 @@ def register_api_blueprints(app):
         api_notifications,
         api_emails,
         api_health,
+        api_permissions,
     ]
 
     for bp in blueprints:

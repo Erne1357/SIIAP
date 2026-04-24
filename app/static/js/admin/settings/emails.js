@@ -54,7 +54,13 @@ class EmailConfigManager {
     // ── Acciones ──────────────────────────────────────────────────────────────
 
     async disconnect() {
-        if (!confirm('¿Desconectar la cuenta de Microsoft? Los correos pendientes no se enviarán hasta que vuelvas a conectar.')) return;
+        const ok = await siiapConfirm({
+            type: 'warning',
+            title: 'Desconectar cuenta',
+            message: '¿Desconectar la cuenta de Microsoft? Los correos pendientes no se enviarán hasta que vuelvas a conectar.',
+            confirmLabel: 'Sí, desconectar',
+        });
+        if (!ok) return;
 
         try {
             const res = await fetch('/admin/emails/logout', {
@@ -248,12 +254,4 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initEmailConfig);
 } else {
     initEmailConfig();
-}
-
-if (typeof swup !== 'undefined') {
-    swup.on('contentReplaced', () => {
-        if (document.getElementById('pendingEmailsList')) {
-            initEmailConfig();
-        }
-    });
 }

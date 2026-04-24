@@ -1,0 +1,28 @@
+/* app/static/css/admin/settings/permissions.css
+   Estilos para la página de gestión de permisos por rol. */
+
+.audit-log-body {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.audit-meta {
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.toast-stack-top {
+  z-index: 9999;
+}
+
+#roleList .list-group-item.active {
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+  color: #fff;
+}
+
+#selectCodename option {
+  padding: 0.25rem 0.5rem;
+  font-family: var(--bs-font-monospace);
+  font-size: 0.85rem;
+}

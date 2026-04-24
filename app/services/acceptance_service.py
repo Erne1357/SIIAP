@@ -251,6 +251,7 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
 
     # Crear o actualizar el registro del documento
     doc = _get_or_create_doc(up.id, document_type)
+    was_pending = doc.status != 'uploaded'  # False si ya estaba subido (re-subida)
     doc.file_path = file_path
     doc.uploaded_by_id = coordinator_id
     doc.uploaded_at = now_local()
@@ -261,10 +262,11 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
     schedule = AcceptanceDocument.query.filter_by(user_program_id=up.id, document_type='course_schedule').first()
 
     # Determinar si con este documento se completaron ambos
-    letter_ok = (letter and letter.status == 'uploaded') or document_type == 'acceptance_letter'
-    schedule_ok = (schedule and schedule.status == 'uploaded') or document_type == 'course_schedule'
+    letter_ok = (letter and letter.status in ('uploaded', 'approved')) or document_type == 'acceptance_letter'
+    schedule_ok = (schedule and schedule.status in ('uploaded', 'approved')) or document_type == 'course_schedule'
 
-    if letter_ok and schedule_ok:
+    # Solo notificar si el doc acaba de pasar de pendiente a subido (evita re-notificación)
+    if letter_ok and schedule_ok and was_pending:
         program = Program.query.get(program_id)
         from flask import url_for
         try:

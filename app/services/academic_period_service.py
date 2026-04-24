@@ -248,6 +248,22 @@ def activate_period(period_id: int):
     period.activate()
     db.session.commit()
 
+    # Notificar a todos los admins en tiempo real
+    try:
+        from app.extensions import socketio
+        socketio.emit(
+            'academic_period:changed',
+            {'period_id': period.id, 'code': period.code, 'name': period.name, 'action': 'activated'},
+            room='role:postgraduate_admin',
+        )
+        socketio.emit(
+            'academic_period:changed',
+            {'period_id': period.id, 'code': period.code, 'name': period.name, 'action': 'activated'},
+            room='role:coordinator',
+        )
+    except Exception:
+        pass
+
     return period
 
 
@@ -267,6 +283,22 @@ def deactivate_period(period_id: int):
     period = get_academic_period_by_id(period_id)
     period.is_active = False
     db.session.commit()
+
+    # Notificar a todos los admins en tiempo real
+    try:
+        from app.extensions import socketio
+        socketio.emit(
+            'academic_period:changed',
+            {'period_id': period.id, 'code': period.code, 'name': period.name, 'action': 'deactivated'},
+            room='role:postgraduate_admin',
+        )
+        socketio.emit(
+            'academic_period:changed',
+            {'period_id': period.id, 'code': period.code, 'name': period.name, 'action': 'deactivated'},
+            room='role:coordinator',
+        )
+    except Exception:
+        pass
 
     return period
 

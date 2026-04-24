@@ -243,7 +243,13 @@
     document.getElementById('btnDeleteTemplate')?.addEventListener('click', async () => {
       const id   = document.getElementById('editId').value;
       const name = document.getElementById('editName').value;
-      if (!confirm(`¿Eliminar la plantilla "${name}"? Esta acción no se puede deshacer.`)) return;
+      const ok = await siiapConfirm({
+        type: 'danger',
+        title: 'Eliminar plantilla',
+        message: `¿Eliminar la plantilla "${name}"? Esta acción no se puede deshacer.`,
+        confirmLabel: 'Sí, eliminar',
+      });
+      if (!ok) return;
       try {
         const res  = await fetch(`${API}/${id}`, {
           method: 'DELETE',

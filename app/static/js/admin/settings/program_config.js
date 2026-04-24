@@ -98,15 +98,20 @@
     renderCurriculumEditor();
   };
 
-  window.removeSemester = function(index) {
-    if (confirm('¿Eliminar este semestre y todas sus materias?')) {
-      curriculumData.semesters.splice(index, 1);
-      // Reindexar semestres
-      curriculumData.semesters.forEach((sem, idx) => {
-        sem.semester = idx + 1;
-      });
-      renderCurriculumEditor();
-    }
+  window.removeSemester = async function(index) {
+    const ok = await siiapConfirm({
+      type: 'danger',
+      title: 'Eliminar semestre',
+      message: '¿Eliminar este semestre y todas sus materias?',
+      confirmLabel: 'Sí, eliminar',
+    });
+    if (!ok) return;
+    curriculumData.semesters.splice(index, 1);
+    // Reindexar semestres
+    curriculumData.semesters.forEach((sem, idx) => {
+      sem.semester = idx + 1;
+    });
+    renderCurriculumEditor();
   };
 
   window.addCourse = function(semesterIndex) {
@@ -245,11 +250,16 @@
     renderResearchEditor();
   };
 
-  window.removeResearchLine = function(index) {
-    if (confirm('¿Eliminar esta línea de investigación?')) {
-      researchLinesData.splice(index, 1);
-      renderResearchEditor();
-    }
+  window.removeResearchLine = async function(index) {
+    const ok = await siiapConfirm({
+      type: 'danger',
+      title: 'Eliminar línea de investigación',
+      message: '¿Eliminar esta línea de investigación?',
+      confirmLabel: 'Sí, eliminar',
+    });
+    if (!ok) return;
+    researchLinesData.splice(index, 1);
+    renderResearchEditor();
   };
 
   window.updateResearchLine = function(index, field, value) {

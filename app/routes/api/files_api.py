@@ -45,9 +45,8 @@ def avatar(user_id: int, filename: str):
 @api_files.route('/doc/<int:user_id>/<phase>/<path:filename>', methods=['GET'])
 @login_required
 def user_doc(user_id: int, phase: str, filename: str):
-    # Control de acceso: dueño o roles privilegiados
-    allowed_roles = {'postgraduate_admin', 'program_admin', 'social_service'}
-    if user_id != current_user.id and current_user.role.name not in allowed_roles:
+    # Control de acceso: dueño del archivo o quien tenga permiso explícito
+    if user_id != current_user.id and not current_user.has_permission('files.api.view_doc_others'):
         abort(403)
 
     # Fases válidas
@@ -70,3 +69,44 @@ def template(filename: str):
     # Aquí tus plantillas viven "flat" (sin user_id/phase)
     base: Path = current_app.config['TEMPLATE_STORE']
     return _send_safe(base, filename, inline=False)  # siempre como descarga
+
+
+@api_files.route('/event/<int:event_id>/<kind>/<path:filename>', methods=['GET'])
+@login_required
+def event_image(event_id: int, kind: str, filename: str):
+    """
+    Sirve imágenes de eventos. ACL: mismas reglas que la visibilidad del evento público
+    o admin del programa.
+    kind: 'cover' (archivo directo en <event_id>/) | 'gallery' | 'hosts'
+    Para cover, filename ej: cover.webp → rel = <event_id>/cover.webp
+    Para gallery/hosts, rel = <event_id>/<kind>/<filename>
+    """
+    from app.models.event import Event
+    from app import db as _db
+
+    if kind not in ('cover', 'gallery', 'hosts'):
+        abort(400)
+
+    event = _db.session.get(Event, event_id)
+    if not event:
+        abort(404)
+
+    # ACL
+    accessible_pids = current_user.get_accessible_program_ids()
+    is_admin = accessible_pids is None or (event.program_id and event.program_id in (accessible_pids or set()))
+    is_public_accessible = (
+        event.visible_to_students
+        and event.status == 'published'
+        and event.capacity_type != 'single'
+    )
+    if not (is_admin or is_public_accessible):
+        abort(403)
+
+    filename = secure_filename(filename)
+    if kind == 'cover':
+        rel = f"{event_id}/{filename}"
+    else:
+        rel = f"{event_id}/{kind}/{filename}"
+
+    base: Path = current_app.config['EVENTS_FOLDER']
+    return _send_safe(base, rel, inline=True)

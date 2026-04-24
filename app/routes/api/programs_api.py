@@ -95,15 +95,15 @@ def api_update_program(slug):
             "meta": {}
         }), 404
 
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if program.coordinator_id != current_user.id:
-            return jsonify({
-                "data": None,
-                "flash": [{"level": "danger", "message": "No tienes permiso para editar este programa."}],
-                "error": {"code": "FORBIDDEN", "message": "No autorizado"},
-                "meta": {}
-            }), 403
+    # Verificar permisos: scoped users solo pueden editar sus programas accesibles
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and program.id not in accessible_pids:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "No tienes permiso para editar este programa."}],
+            "error": {"code": "FORBIDDEN", "message": "No autorizado"},
+            "meta": {}
+        }), 403
 
     # Obtener datos del request
     data = request.get_json()

@@ -1,6 +1,7 @@
 # app/routes/api/submissions_api.py
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
+from app.utils.permissions import permission_required
 from app import db
 from app.models import Program, Archive, Submission, UserProgram, ProgramStep
 from app.utils.files import save_user_doc
@@ -12,6 +13,7 @@ api_submissions = Blueprint("api_submissions", __name__, url_prefix="/api/v1/sub
 
 @api_submissions.post("")
 @login_required
+@permission_required('submissions.api.create')
 def upload_submission():
     """
     multipart/form-data:
@@ -169,6 +171,7 @@ def upload_submission():
 
 @api_submissions.delete("/<int:sub_id>")
 @login_required
+@permission_required('submissions.api.delete_own')
 def delete_submission(sub_id: int):
     sub = Submission.query.get(sub_id)
     if not sub:

@@ -46,19 +46,15 @@ def list_students():
         User.role.has(name='applicant') | User.role.has(name='student')
     )
     
-    # Programas que puede gestionar el coordinador
-    managed_programs = []
-    if current_user.role.name == 'program_admin':
-        managed_programs = list(db.session.execute(
-            select(Program.id).where(Program.coordinator_id == current_user.id)
-        ).scalars().all())
-        
+    # Programas que puede gestionar el coordinador (propios + delegados)
+    accessible_pids = current_user.get_accessible_program_ids()
+    managed_programs = list(accessible_pids) if accessible_pids is not None else None
+
+    if managed_programs is not None:
         if not show_other:
-            # Solo sus programas
             if not managed_programs:
                 return jsonify({"students": []}), 200
             query = query.filter(Program.id.in_(managed_programs))
-    # Admin puede ver todos los programas
     
     # Filtros adicionales
     if program_id:
@@ -88,9 +84,8 @@ def list_students():
             continue
         
         # Puede gestionar este estudiante?
-        # postgraduate_admin puede gestionar todos
-        # program_admin solo los de sus programas
-        if current_user.role.name == 'postgraduate_admin':
+        # managed_programs None = acceso global (jefe de posgrado)
+        if managed_programs is None:
             can_manage = True
         else:
             can_manage = program.id in managed_programs
@@ -139,17 +134,13 @@ def manageable_students():
     """
     Lista solo estudiantes que el coordinador puede gestionar (para selects)
     """
-    if current_user.role.name == 'program_admin':
-        managed_programs = db.session.execute(
-            select(Program.id).where(Program.coordinator_id == current_user.id)
-        ).scalars().all()
-        
-        if not managed_programs:
-            return jsonify({"students": []}), 200
-            
-        program_filter = Program.id.in_(managed_programs)
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is None:
+        program_filter = True  # acceso global
     else:
-        program_filter = True  # Admin puede gestionar todos
+        if not accessible_pids:
+            return jsonify({"students": []}), 200
+        program_filter = Program.id.in_(accessible_pids)
     
     query = db.session.query(User, Program).join(
         UserProgram, User.id == UserProgram.user_id
@@ -190,11 +181,10 @@ def student_uploadable_archives(student_id: int):
         return jsonify({"error": "Estudiante no inscrito en programa"}), 404
     
     # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        program = db.session.get(Program, user_program.program_id)
-        if program.coordinator_id != current_user.id:
-            return jsonify({"error": "No tienes permiso para gestionar este estudiante"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and user_program.program_id not in accessible_pids:
+        return jsonify({"error": "No tienes permiso para gestionar este estudiante"}), 403
+
     # Obtener archivos que permiten subida por coordinador
     query = db.session.query(Archive, Step, Phase).join(
         Step, Archive.step_id == Step.id
@@ -256,11 +246,10 @@ def upload_for_student():
     if not user_program:
         return jsonify({"error": "Estudiante no inscrito"}), 404
     
-    if current_user.role.name == 'program_admin':
-        program = db.session.get(Program, user_program.program_id)
-        if program.coordinator_id != current_user.id:
-            return jsonify({"error": "No tienes permiso para este estudiante"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and user_program.program_id not in accessible_pids:
+        return jsonify({"error": "No tienes permiso para este estudiante"}), 403
+
     # Verificar que el archivo permite subida por coordinador
     archive = db.session.get(Archive, archive_id)
     if not archive or not archive.allow_coordinator_upload:
@@ -344,11 +333,13 @@ def upload_for_student():
 @permission_required('coordinator.api.list_students')
 def list_coordinator_programs():
     """Lista programas que el coordinador puede gestionar"""
-    if current_user.role.name == 'program_admin':
-        programs = Program.query.filter_by(coordinator_id=current_user.id).all()
-    else:
-        # Admin puede ver todos
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is None:
         programs = Program.query.all()
+    elif not accessible_pids:
+        programs = []
+    else:
+        programs = Program.query.filter(Program.id.in_(accessible_pids)).all()
     
     items = [{
         "id": p.id,
@@ -381,13 +372,8 @@ def get_student_permanence_details(student_id: int):
 
     program = db.session.get(Program, user_program.program_id)
 
-    if current_user.role.name == 'postgraduate_admin':
-        can_manage = True
-    else:
-        managed_programs = list(db.session.execute(
-            select(Program.id).where(Program.coordinator_id == current_user.id)
-        ).scalars().all())
-        can_manage = program.id in managed_programs
+    accessible_pids = current_user.get_accessible_program_ids()
+    can_manage = accessible_pids is None or program.id in accessible_pids
 
     # Periodo activo y enrollment del periodo actual
     active_period = AcademicPeriod.get_active_period()
@@ -484,14 +470,9 @@ def get_student_details(student_id: int):
     program = db.session.get(Program, user_program.program_id)
     
     # Determinar si el coordinador puede gestionar este estudiante
-    if current_user.role.name == 'postgraduate_admin':
-        can_manage = True
-    else:
-        managed_programs = list(db.session.execute(
-            select(Program.id).where(Program.coordinator_id == current_user.id)
-        ).scalars().all())
-        can_manage = program.id in managed_programs
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    can_manage = accessible_pids is None or program.id in accessible_pids
+
     # 3. Obtener estado de admisión completo
     admission_state = get_admission_state(student_id, program.id, user_program)
     
@@ -740,13 +721,11 @@ def get_student_history(student_id):
                 'message': 'Estudiante no encontrado'
             }), 404
         
-        # Verificar permisos según el rol
-        if current_user.role.name == 'program_admin':
-            # Los program_admin solo pueden ver estudiantes de sus programas
+        # Verificar permisos: programas accesibles del coordinador (propios + delegados)
+        accessible_pids = current_user.get_accessible_program_ids()
+        if accessible_pids is not None:
             user_programs = UserProgram.query.filter_by(user_id=student_id).all()
-            managed_programs = [p.id for p in Program.query.filter_by(coordinator_id=current_user.id).all()]
-            
-            if not any(up.program_id in managed_programs for up in user_programs):
+            if not any(up.program_id in accessible_pids for up in user_programs):
                 return jsonify({
                     'success': False,
                     'message': 'No tienes permisos para ver el historial de este estudiante'

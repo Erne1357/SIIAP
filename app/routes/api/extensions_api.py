@@ -49,9 +49,7 @@ def create_extension_request():
             "error": "La fecha solicitada debe ser futura"
         }), 400
 
-    role = 'student'
-    if current_user.role and current_user.role.name in ('postgraduate_admin', 'program_admin'):
-        role = 'coordinator'
+    role = 'coordinator' if current_user.has_permission('extensions.api.list_for_review') else 'student'
 
     try:
         er = ExtensionsService.create_request(
@@ -109,7 +107,7 @@ def list_extension_requests():
     program_id = request.args.get('program_id', type=int)
 
     # Restricción de permisos
-    if current_user.role.name not in ('postgraduate_admin', 'program_admin'):
+    if not current_user.has_permission('extensions.api.list_for_review'):
         user_id = current_user.id  # Los estudiantes solo ven las suyas
 
     try:
@@ -276,7 +274,7 @@ def get_archive_extension_status(archive_id: int):
     
 @api_extensions.route('/requests/for-review', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('extensions.api.list_for_review')
 def list_extension_requests_for_review():
     """
     Lista solicitudes con información adicional del usuario para revisión administrativa.

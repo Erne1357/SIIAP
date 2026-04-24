@@ -128,15 +128,6 @@ class User(db.Model, UserMixin):
             return url_for('api_files.avatar', user_id=self.id, filename=self.avatar)
         return url_for('static', filename='assets/images/default.jpg')
     
-    def has_role(self, *role_names):
-        """
-        Comprueba si el usuario tiene **todos** los roles pasados.
-        Si sólo hay uno, verifica su existencia en self.roles.
-        """
-        if not self.role:
-            return False
-        return self.role.name in role_names
-
     def has_permission(self, codename, program_id=None):
         """
         Evalúa si el usuario tiene el permiso indicado.
@@ -208,6 +199,48 @@ class User(db.Model, UserMixin):
 
         return codename in getattr(g, cache_key)
     
+    def get_accessible_program_ids(self):
+        """
+        Retorna el conjunto de program_ids sobre los que este usuario puede operar.
+
+        Reglas:
+          - Si el usuario tiene 'academic_periods.api.create' (jefe de posgrado):
+            retorna None → puede operar sobre cualquier programa.
+          - Si es coordinador: incluye sus programas coordinados.
+          - Si tiene UserPermission delegado con program_id: incluye ese programa.
+          - La unión de ambas fuentes es el conjunto accesible.
+
+        Returns:
+          set[int] | None  — None significa "todos los programas" (acceso global).
+        """
+        if self.has_permission('academic_periods.api.create'):
+            return None
+
+        pids = set()
+        for p in self.coordinated_programs:
+            pids.add(p.id)
+
+        from app.models.user_permission import UserPermission
+        from app.utils.datetime_utils import now_local
+        now = now_local()
+        delegated = (
+            db.session.query(UserPermission)
+            .filter(
+                UserPermission.user_id == self.id,
+                UserPermission.is_active == True,
+                UserPermission.program_id.isnot(None),
+                db.or_(
+                    UserPermission.expires_at == None,
+                    UserPermission.expires_at > now
+                ),
+            )
+            .all()
+        )
+        for up in delegated:
+            pids.add(up.program_id)
+
+        return pids
+
     def deactivate(self):
         """Desactiva el usuario"""
         self.is_active = False

@@ -195,11 +195,16 @@ def defer_applicant(user_id: int, program_id: int,
         )
 
     next_period = _get_next_period(original_period_id)
+    if not next_period:
+        raise DeferralNotAllowed(
+            "No hay periodo académico futuro disponible para diferir la inscripción. "
+            "Crea el siguiente periodo académico en Configuración antes de continuar."
+        )
 
     deferral = EnrollmentDeferral(
         user_program_id=up.id,
         original_period_id=original_period_id,
-        deferred_to_period_id=next_period.id if next_period else None,
+        deferred_to_period_id=next_period.id,
         deferral_number=count + 1,
         status='pending',           # _apply_deferral lo pondrá en 'active'
         requested_by='coordinator',
@@ -253,11 +258,16 @@ def request_deferral(user_id: int, program_id: int,
         )
 
     next_period = _get_next_period(original_period_id)
+    if not next_period:
+        raise DeferralNotAllowed(
+            "No hay periodo académico futuro disponible para diferir la inscripción. "
+            "Contacta al coordinador para que configure el siguiente periodo."
+        )
 
     deferral = EnrollmentDeferral(
         user_program_id=up.id,
         original_period_id=original_period_id,
-        deferred_to_period_id=next_period.id if next_period else None,
+        deferred_to_period_id=next_period.id,
         deferral_number=count + 1,
         status='pending',
         requested_by='applicant',

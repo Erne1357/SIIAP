@@ -922,6 +922,9 @@ class UserHistoryService:
         'extension_decided': 'Decidió sobre prórroga',
         'appointment_assigned': 'Asignó cita a estudiante',
         'event_invited': 'Invitó estudiante a evento',
+        'event_concluded': 'Concluyó evento',
+        'event_archived': 'Archivó evento',
+        'event_unarchived': 'Reactivó evento archivado',
         'document_purged': 'Eliminó documento por retención',
         
         # ACCIONES ADMINISTRATIVAS - Gestión de Archivos (se guardan en el historial del administrador)
@@ -947,6 +950,13 @@ class UserHistoryService:
         # ACCIONES DE PERMANENCIA SEMESTRAL (Fase 6)
         'semester_enrollment_confirmed': 'Confirmó inscripción semestral del estudiante',
         'semester_enrollment_status_updated': 'Actualizó estado de inscripción semestral',
+
+        # ACCIONES DEL SISTEMA DE PERMISOS GRANULARES (Fase 7-8)
+        'social_service_created': 'Creó usuario de servicio social con delegación',
+        'permission_delegated': 'Delegó permiso a usuario',
+        'permission_revoked': 'Revocó delegación de permiso',
+        'role_override_granted': 'Agregó override de permiso a rol',
+        'role_override_reverted': 'Revirtió override de permiso de rol',
     }
 
     @staticmethod

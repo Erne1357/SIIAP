@@ -115,6 +115,24 @@ class ExtensionsService:
         er.condition_text = condition_text
 
         db.session.commit()
+
+        # Notificar al solicitante + coordinadores del programa en tiempo real
+        from app.sockets.emitters import emit_user_and_coordinators
+        program_id = er.program_step.program_id if er.program_step else None
+        emit_user_and_coordinators(
+            'extension:decided',
+            {
+                'user_id': er.user_id,
+                'extension_request_id': er.id,
+                'archive_id': er.archive_id,
+                'program_id': program_id,
+                'status': status,
+                'granted_until': er.granted_until.isoformat() if er.granted_until else None,
+            },
+            user_id=er.user_id,
+            program_id=program_id,
+        )
+
         return er
 
     @staticmethod

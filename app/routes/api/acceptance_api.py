@@ -65,9 +65,7 @@ def api_get_acceptance_status(user_id, program_id):
     """Obtiene el estado de los documentos de aceptacion de un aspirante."""
     # El aspirante puede ver los suyos; coordinadores pueden ver cualquiera
     if current_user.id != user_id:
-        if not hasattr(current_user, 'role') or current_user.role.name not in (
-            'coordinator', 'program_admin', 'postgraduate_admin'
-        ):
+        if not current_user.has_permission('acceptance.api.list_applicants'):
             return jsonify({
                 "data": None,
                 "error": {"code": "FORBIDDEN", "message": "No tienes permiso"},
@@ -489,16 +487,9 @@ def api_defer_applicant(user_id, program_id):
 
 @api_acceptance.post('/program/<int:program_id>/request-deferral')
 @login_required
+@permission_required('acceptance.api.request_deferral')
 def api_request_deferral(program_id):
     """El aspirante solicita diferir su inscripción."""
-    if current_user.role.name not in ('applicant',):
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Solo aspirantes pueden solicitar diferimiento"}],
-            "error": {"code": "FORBIDDEN", "message": "No autorizado"},
-            "meta": {}
-        }), 403
-
     data = request.get_json() or {}
     reason = (data.get('reason') or '').strip() or None
 
@@ -683,9 +674,7 @@ def api_reactivate_deferred(user_id, program_id):
 def api_get_deferral_status(user_id, program_id):
     """Obtiene el estado de diferimiento de un aspirante."""
     if current_user.id != user_id:
-        if not hasattr(current_user, 'role') or current_user.role.name not in (
-            'coordinator', 'program_admin', 'postgraduate_admin'
-        ):
+        if not current_user.has_permission('acceptance.api.list_deferred'):
             return jsonify({
                 "data": None,
                 "error": {"code": "FORBIDDEN", "message": "No tienes permiso"},

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.program_changes_service import ProgramChangesService
 from app.services.user_history_service import UserHistoryService
 from app.models.program_change_request import ProgramChangeRequest
@@ -46,7 +46,7 @@ def create_request():
 @login_required
 def list_requests():
     # simple: propios si es alumno; todos si es admin
-    if current_user.role and current_user.role.name in ('postgraduate_admin','program_admin'):
+    if current_user.has_permission('program_changes.api.decide'):
         items = ProgramChangeRequest.query.order_by(ProgramChangeRequest.created_at.desc()).all()
     else:
         items = ProgramChangeRequest.query.filter_by(applicant_id=current_user.id).order_by(ProgramChangeRequest.created_at.desc()).all()
@@ -55,7 +55,7 @@ def list_requests():
 
 @api_program_changes.route('/requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin','program_admin')
+@permission_required('program_changes.api.decide')
 def decide(req_id:int):
     data = request.get_json() or {}
     try:

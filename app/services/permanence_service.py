@@ -55,26 +55,33 @@ def get_enrolled_students(program_id: int) -> list:
         .all()
     )
 
+    all_user_program_ids = [up.id for up in user_programs]
+
+    # Batch load all enrollments in one query
+    all_enrollments = (
+        SemesterEnrollment.query
+        .filter(SemesterEnrollment.user_program_id.in_(all_user_program_ids))
+        .join(AcademicPeriod, SemesterEnrollment.academic_period_id == AcademicPeriod.id)
+        .order_by(SemesterEnrollment.semester_number)
+        .all()
+    ) if all_user_program_ids else []
+
+    # Group by user_program_id in Python
+    enrollments_by_up: dict = {}
+    for se in all_enrollments:
+        enrollments_by_up.setdefault(se.user_program_id, []).append(se)
+
     result = []
     for up in user_programs:
         user = up.user
+        up_enrollments = enrollments_by_up.get(up.id, [])
 
-        # Inscripcion semestral para el periodo activo
         current_enrollment = None
         if active_period:
-            current_enrollment = SemesterEnrollment.query.filter_by(
-                user_program_id=up.id,
-                academic_period_id=active_period.id
-            ).first()
-
-        # Historial de semestres (todos los periodos)
-        history = (
-            SemesterEnrollment.query
-            .filter_by(user_program_id=up.id)
-            .join(AcademicPeriod, SemesterEnrollment.academic_period_id == AcademicPeriod.id)
-            .order_by(SemesterEnrollment.semester_number)
-            .all()
-        )
+            current_enrollment = next(
+                (se for se in up_enrollments if se.academic_period_id == active_period.id),
+                None,
+            )
 
         result.append({
             'user_program': up.to_dict(),
@@ -92,7 +99,7 @@ def get_enrolled_students(program_id: int) -> list:
                     'period_name': se.academic_period.name,
                     'period_code': se.academic_period.code,
                 }
-                for se in history
+                for se in up_enrollments
             ],
         })
 
@@ -122,22 +129,29 @@ def get_permanence_stats(program_id: int) -> dict:
             'has_active_period': False,
         }
 
-    ups = UserProgram.query.filter_by(
-        program_id=program_id,
-        admission_status='enrolled'
-    ).all()
+    from sqlalchemy import func as _func
 
-    confirmed = 0
-    on_leave = 0
-    for up in ups:
-        se = SemesterEnrollment.query.filter_by(
-            user_program_id=up.id,
-            academic_period_id=active_period.id
-        ).first()
-        if se and se.enrollment_confirmed:
-            confirmed += 1
-        elif se and se.status == 'on_leave':
-            on_leave += 1
+    enrollment_counts = (
+        db.session.query(
+            SemesterEnrollment.enrollment_confirmed,
+            SemesterEnrollment.status,
+            _func.count(SemesterEnrollment.id),
+        )
+        .join(UserProgram, SemesterEnrollment.user_program_id == UserProgram.id)
+        .filter(
+            UserProgram.program_id == program_id,
+            UserProgram.admission_status == 'enrolled',
+            SemesterEnrollment.academic_period_id == active_period.id,
+        )
+        .group_by(SemesterEnrollment.enrollment_confirmed, SemesterEnrollment.status)
+        .all()
+    )
+
+    confirmed = sum(count for conf, _status, count in enrollment_counts if conf)
+    on_leave = sum(
+        count for conf, _status, count in enrollment_counts
+        if not conf and _status == 'on_leave'
+    )
 
     return {
         'total_students': total_students,
@@ -246,6 +260,23 @@ def confirm_semester_enrollment(
     )
 
     db.session.commit()
+
+    # Notificar al estudiante + coordinadores del programa en tiempo real
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'permanence:status_changed',
+        {
+            'user_id': user.id,
+            'user_program_id': up.id,
+            'program_id': up.program_id,
+            'action': 'semester_confirmed',
+            'semester_number': se.semester_number,
+            'period_name': period.name,
+        },
+        user_id=user.id,
+        program_id=up.program_id,
+    )
+
     return se
 
 
@@ -408,7 +439,11 @@ def create_document_deadline(
         created_by=coordinator_id,
     )
     db.session.add(dl)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
     # Notificar a los estudiantes inscritos del programa (vía Celery)
     try:
@@ -446,7 +481,11 @@ def toggle_document_deadline(deadline_id: int, is_open: bool, coordinator_id: in
         action='deadline_opened' if is_open else 'deadline_closed',
         details=f'{"Abrió" if is_open else "Cerró"} ventana "{dl.label}"',
     )
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
     # Notificar a estudiantes solo cuando se ABRE la ventana
     if is_open:
@@ -493,7 +532,11 @@ def delete_document_deadline(deadline_id: int, coordinator_id: int):
         action='deadline_deleted',
         details=f'Eliminó ventana "{label}"',
     )
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def get_student_documents_for_period(user_program_id: int) -> list:
@@ -630,20 +673,25 @@ def submit_permanence_document(
     except Exception as e:
         logging.error(f"Error notifying coordinator of permanence doc: {e}")
 
-    # WebSocket: notificar a coordinadores en tiempo real
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    # WebSocket: fire-and-forget DESPUÉS del commit
     try:
         from app.extensions import socketio
         socketio.emit('submission:new', {
             'user_id': student_id,
-            'submission_id': sub.id if hasattr(sub, 'id') else None,
+            'submission_id': sub.id,
             'archive_name': dl.archive.name,
             'program_id': up.program_id,
             'context': 'permanence',
-        }, room=f'role:coordinator')
+        }, room='role:coordinator')
     except Exception:
         pass
 
-    db.session.commit()
     return sub.to_dict()
 
 
@@ -770,22 +818,39 @@ def review_permanence_document(
         action=f'permanence_document_{status}',
         details=f'{"Aprobó" if status == "approved" else "Rechazó"} "{dl_label}". {notes or ""}',
     )
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    # Notificar al estudiante + coordinadores del programa en tiempo real
+    from app.sockets.emitters import emit_user_and_coordinators
+    program_id = sub.program_step.program_id if sub.program_step else None
+    emit_user_and_coordinators(
+        'permanence:status_changed',
+        {
+            'user_id': sub.user_id,
+            'submission_id': sub.id,
+            'program_id': program_id,
+            'action': 'doc_reviewed',
+            'status': status,
+            'document_label': dl_label,
+        },
+        user_id=sub.user_id,
+        program_id=program_id,
+    )
+
     return sub.to_dict()
 
 
 def _get_leave_request_archive():
-    """Retorna el archive 'Solicitud de Baja Temporal' (step_id=9, is_active=True)."""
+    """Retorna el archive de baja temporal identificado por archive_key='leave_request'."""
     from app.models.archive import Archive
-    return (
-        Archive.query
-        .filter(
-            Archive.step_id == 9,
-            Archive.is_active == True,
-            Archive.name.ilike('%baja temporal%'),
-        )
-        .first()
-    )
+    return Archive.query.filter_by(
+        archive_key='leave_request',
+        is_active=True,
+    ).first()
 
 
 def get_student_leave_request(user_program_id: int) -> dict:
@@ -907,19 +972,25 @@ def submit_leave_request(
     except Exception as e:
         logging.error(f"Error notifying coordinator of leave request: {e}")
 
-    # WebSocket: notificar a coordinadores en tiempo real
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    # WebSocket: fire-and-forget DESPUÉS del commit
     try:
         from app.extensions import socketio
         socketio.emit('submission:new', {
             'user_id': student_id,
+            'submission_id': sub.id,
             'archive_name': archive.name,
             'program_id': up.program_id,
             'context': 'leave_request',
-        }, room=f'role:coordinator')
+        }, room='role:coordinator')
     except Exception:
         pass
 
-    db.session.commit()
     return sub.to_dict()
 
 
@@ -952,12 +1023,20 @@ def get_pending_leave_requests(program_id: int) -> list:
         .all()
     )
 
+    # Batch load user_programs to avoid N+1
+    user_ids = [sub.user_id for sub in subs]
+    ups_by_user_id = {
+        up.user_id: up for up in
+        UserProgram.query.filter(
+            UserProgram.user_id.in_(user_ids),
+            UserProgram.program_id == program_id,
+        ).all()
+    } if user_ids else {}
+
     result = []
     for sub in subs:
         user = sub.user
-        up = UserProgram.query.filter_by(
-            user_id=user.id, program_id=program_id
-        ).first()
+        up = ups_by_user_id.get(user.id)
         result.append({
             'submission': sub.to_dict(),
             'file_url': f'/files/doc/{sub.file_path}' if sub.file_path else None,
@@ -988,7 +1067,7 @@ def process_leave_request(
     if not sub:
         raise StudentNotFound(f"Submission {submission_id} no encontrada")
 
-    if not sub.archive or 'baja temporal' not in sub.archive.name.lower():
+    if not sub.archive or sub.archive.archive_key != 'leave_request':
         raise InvalidStateTransition("Este documento no es una solicitud de baja temporal")
 
     if sub.status != 'review':
@@ -1072,6 +1151,23 @@ def process_leave_request(
         logging.error(f"Error queueing email for leave_request_result: {e}")
 
     db.session.commit()
+
+    # Notificar al estudiante + coordinadores del programa en tiempo real
+    from app.sockets.emitters import emit_user_and_coordinators
+    program_id = sub.program_step.program_id if sub.program_step else None
+    emit_user_and_coordinators(
+        'permanence:status_changed',
+        {
+            'user_id': sub.user_id,
+            'submission_id': sub.id,
+            'program_id': program_id,
+            'action': 'leave_decided',
+            'approved': bool(approve),
+            'new_enrollment_status': 'on_leave' if approve else None,
+        },
+        user_id=sub.user_id,
+        program_id=program_id,
+    )
 
     return {
         'submission': sub.to_dict(),

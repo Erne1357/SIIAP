@@ -1,26 +1,28 @@
 # app/routes/pages/coordinator_pages.py
 from flask import Blueprint, render_template, current_app
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.models.program import Program
 import logging
 
 pages_coordinator = Blueprint('pages_coordinator', __name__, url_prefix='/coordinator')
 
+def _accessible_programs():
+    """Programas visibles para el usuario: coordinados + delegados (o todos si postgrad)."""
+    pids = current_user.get_accessible_program_ids()
+    if pids is None:
+        return Program.query.order_by(Program.name).all()
+    if not pids:
+        return []
+    return Program.query.filter(Program.id.in_(pids)).order_by(Program.name).all()
+
+
 @pages_coordinator.route('/dashboard')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('coordinator.page.view')
 def dashboard():
     """Dashboard principal del coordinador"""
-    # Obtener programas que puede gestionar
-    if current_user.role.name == 'program_admin':
-        coordinator_programs = Program.query.filter_by(coordinator_id=current_user.id).all()
-        current_app.logger.warning(f"Coordinator {current_user.id} manages programs: {[p.id for p in coordinator_programs]}")
-    else:
-        # Admin puede ver todos
-        current_app.logger.warning(f"Admin {current_user.id} accessing all programs")
-        coordinator_programs = Program.query.all()
-    
+    coordinator_programs = _accessible_programs()
     return render_template('coordinator/dashboard.html',
                          coordinator_programs=coordinator_programs)
 
@@ -28,20 +30,16 @@ def dashboard():
 @pages_coordinator.route('/deliberation')
 @pages_coordinator.route('/deliberation/<int:program_id>')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('deliberation.page.view')
 def deliberation(program_id=None):
     """Vista de deliberación de aspirantes"""
-    # Obtener programas que puede gestionar
-    if current_user.role.name == 'program_admin':
-        coordinator_programs = Program.query.filter_by(coordinator_id=current_user.id).all()
-    else:
-        coordinator_programs = Program.query.all()
+    coordinator_programs = _accessible_programs()
+    accessible_pids = current_user.get_accessible_program_ids()
 
-    # Si se especifica un programa, validar que el usuario tenga acceso
     selected_program = None
     if program_id:
         selected_program = Program.query.get_or_404(program_id)
-        if current_user.role.name == 'program_admin' and selected_program.coordinator_id != current_user.id:
+        if accessible_pids is not None and selected_program.id not in accessible_pids:
             from flask import abort
             abort(403)
     elif coordinator_programs:
@@ -55,18 +53,16 @@ def deliberation(program_id=None):
 @pages_coordinator.route('/acceptance')
 @pages_coordinator.route('/acceptance/<int:program_id>')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('acceptance.page.view')
 def acceptance(program_id=None):
     """Vista de documentos de aceptacion e inscripcion."""
-    if current_user.role.name == 'program_admin':
-        coordinator_programs = Program.query.filter_by(coordinator_id=current_user.id).all()
-    else:
-        coordinator_programs = Program.query.all()
+    coordinator_programs = _accessible_programs()
+    accessible_pids = current_user.get_accessible_program_ids()
 
     selected_program = None
     if program_id:
         selected_program = Program.query.get_or_404(program_id)
-        if current_user.role.name == 'program_admin' and selected_program.coordinator_id != current_user.id:
+        if accessible_pids is not None and selected_program.id not in accessible_pids:
             from flask import abort
             abort(403)
     elif coordinator_programs:
@@ -80,19 +76,17 @@ def acceptance(program_id=None):
 @pages_coordinator.route('/permanence')
 @pages_coordinator.route('/permanence/<int:program_id>')
 @login_required
-@roles_required('coordinator', 'program_admin', 'postgraduate_admin')
+@permission_required('permanence.page.view')
 def permanence(program_id=None):
     """Vista de permanencia semestral de estudiantes."""
     from app.models.academic_period import AcademicPeriod
-    if current_user.role.name == 'program_admin':
-        coordinator_programs = Program.query.filter_by(coordinator_id=current_user.id).all()
-    else:
-        coordinator_programs = Program.query.all()
+    coordinator_programs = _accessible_programs()
+    accessible_pids = current_user.get_accessible_program_ids()
 
     selected_program = None
     if program_id:
         selected_program = Program.query.get_or_404(program_id)
-        if current_user.role.name == 'program_admin' and selected_program.coordinator_id != current_user.id:
+        if accessible_pids is not None and selected_program.id not in accessible_pids:
             from flask import abort
             abort(403)
     elif coordinator_programs:

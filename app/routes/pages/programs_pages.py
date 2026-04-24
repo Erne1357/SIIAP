@@ -1,7 +1,7 @@
 # app/routes/pages/programs_pages.py
 from flask import Blueprint, render_template, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services import programs_service as svc
 from app.routes.pages.admission_pages import admission_bp
 
@@ -35,7 +35,7 @@ def view_program(slug):
 
 @program_bp.route('/<int:program_id>/inscription', methods=['POST'])
 @login_required
-@roles_required('applicant')
+@permission_required('programs.api.enroll')
 def inscription_program(program_id):
     # SSR: mantiene flash + redirect sin JS
     try:

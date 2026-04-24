@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
 from app import db
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.models import Submission, ProgramStep, User, Program
 from app.services.user_history_service import UserHistoryService
 from app.services.notification_service import NotificationService
@@ -37,7 +37,7 @@ def _sub_to_dict(sub: Submission) -> dict:
 
 @api_review.get("/submissions")
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('admin_review.api.decide')
 def list_submissions():
     applicant_id = request.args.get('applicant_id', type=int)
     program_id   = request.args.get('program_id',   type=int)
@@ -62,7 +62,7 @@ def list_submissions():
 
 @api_review.get("/submissions/<int:sub_id>")
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('admin_review.api.decide')
 def get_submission(sub_id: int):
     sub = (
         Submission.query
@@ -78,7 +78,7 @@ def get_submission(sub_id: int):
 
 @api_review.post("/submissions/<int:sub_id>/decision")
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('admin_review.api.decide')
 def decide_submission(sub_id: int):
     """
     JSON:
@@ -134,17 +134,21 @@ def decide_submission(sub_id: int):
         from flask import current_app
         current_app.logger.error(f"Error al enviar notificación de revisión: {e}")
 
-    # WebSocket: actualizar dashboard del aspirante en tiempo real
-    try:
-        from app.extensions import socketio
-        socketio.emit('submission:reviewed', {
+    # WebSocket: actualizar dashboard del aspirante + coordinadores scoped del programa
+    from app.sockets.emitters import emit_user_and_coordinators
+    program_id = sub.program_step.program_id if sub.program_step else None
+    emit_user_and_coordinators(
+        'submission:reviewed',
+        {
             'user_id': sub.user_id,
             'submission_id': sub.id,
             'archive_id': sub.archive_id,
+            'program_id': program_id,
             'status': sub.status,
-        }, room=f'user:{sub.user_id}')
-    except Exception:
-        pass
+        },
+        user_id=sub.user_id,
+        program_id=program_id,
+    )
 
     return jsonify({
         "data": {"submission": _sub_to_dict(sub)},

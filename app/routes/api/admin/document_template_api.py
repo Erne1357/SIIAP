@@ -15,7 +15,7 @@ import os
 
 from flask import Blueprint, jsonify, request, send_file, current_app
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app import db
 from app.models.document_template import (
     DocumentTemplate, DOCUMENT_TYPES, TEMPLATE_FILE_TYPES
@@ -59,7 +59,7 @@ def _templates_sys_dir():
 
 @api_document_templates.get('')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_templates.api.list')
 def list_templates():
     """Lista todas las plantillas. Filtros opcionales: document_type, program_id, is_active."""
     q = DocumentTemplate.query
@@ -86,7 +86,7 @@ def list_templates():
 
 @api_document_templates.post('')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_templates.api.create')
 def upload_template():
     """
     Sube un archivo de plantilla (HTML o DOCX) y registra la plantilla en BD.
@@ -157,7 +157,7 @@ def upload_template():
 
 @api_document_templates.get('/<int:template_id>')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_templates.api.list')
 def get_template(template_id):
     t = DocumentTemplate.query.get_or_404(template_id)
     return _ok(t.to_dict())
@@ -169,7 +169,7 @@ def get_template(template_id):
 
 @api_document_templates.patch('/<int:template_id>')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_templates.api.manage')
 def update_template(template_id):
     t = DocumentTemplate.query.get_or_404(template_id)
     body = request.get_json(silent=True) or {}
@@ -191,7 +191,7 @@ def update_template(template_id):
 
 @api_document_templates.delete('/<int:template_id>')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_templates.api.delete')
 def delete_template(template_id):
     t = DocumentTemplate.query.get_or_404(template_id)
 
@@ -215,7 +215,7 @@ def delete_template(template_id):
 
 @api_document_templates.get('/variables')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_templates.api.list')
 def list_variables():
     """Retorna la lista de variables disponibles para usar en plantillas."""
     variables = [
@@ -240,7 +240,7 @@ def list_variables():
 
 @api_document_templates.post('/generate')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_templates.api.list')
 def generate_document():
     """
     Genera un documento relleno para un estudiante y lo retorna como descarga.

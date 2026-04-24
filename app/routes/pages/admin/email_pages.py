@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, request, jsonify, flash
 from flask_login import login_required
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.utils.ms_graph import build_auth_url, process_auth_code, clear_account_and_cache, read_account_info
 from app.services.email_service import EmailService
 
@@ -9,7 +9,7 @@ pages_emails = Blueprint('pages_emails', __name__)
 
 @pages_emails.route('/emails')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def email_config():
     """Página de configuración de correos"""
     account = read_account_info()
@@ -22,7 +22,7 @@ def email_config():
 
 @pages_emails.route('/emails/login')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def ms_login():
     """Inicia el flujo de autenticación con Microsoft"""
     try:
@@ -57,7 +57,7 @@ def ms_callback():
 
 @pages_emails.post('/emails/logout')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def ms_logout():
     """Cierra sesión de Microsoft"""
     clear_account_and_cache()
@@ -66,7 +66,7 @@ def ms_logout():
 
 @pages_emails.post('/emails/process-queue')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def process_email_queue():
     """Procesa la cola de correos manualmente"""
     try:
@@ -84,7 +84,7 @@ def process_email_queue():
 
 @pages_emails.get('/emails/queue')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def get_email_queue():
     """Obtiene el estado actual de la cola de correos"""
     try:
@@ -110,7 +110,7 @@ def get_email_queue():
 
 @pages_emails.post('/emails/retry-failed')
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_emails.api.manage')
 def retry_failed_emails():
     """Reintenta enviar correos fallidos"""
     try:

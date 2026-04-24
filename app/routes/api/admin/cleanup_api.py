@@ -7,7 +7,7 @@ Estos endpoints sólo permiten previsualizar candidatos antes de ejecutar.
 """
 from flask import Blueprint, jsonify
 from flask_login import login_required
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 
 api_cleanup = Blueprint('api_cleanup', __name__, url_prefix='/api/admin/cleanup')
 
@@ -25,7 +25,7 @@ def _err(msg, code=400):
 
 @api_cleanup.get('/expired-candidates')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_cleanup.api.expired_candidates')
 def get_expired_candidates():
     """
     Lista aspirantes que serían marcados como 'expired' en la próxima
@@ -43,7 +43,7 @@ def get_expired_candidates():
 
 @api_cleanup.get('/inactive-students')
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_cleanup.api.inactive_students')
 def get_inactive_students():
     """
     Lista estudiantes activos sin inscripción semestral confirmada

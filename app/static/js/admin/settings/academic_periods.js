@@ -340,6 +340,16 @@ let academicPeriodsManager = null;
 function initAcademicPeriods() {
     if (document.getElementById('periodsContainer')) {
         academicPeriodsManager = new AcademicPeriodsManager();
+
+        // Tiempo real: otro admin activó/desactivó un periodo → refrescar lista
+        window.addEventListener('siiap:academic_period:changed', (e) => {
+            const d = e.detail || {};
+            if (typeof showFlash === 'function') {
+                const action = d.action === 'activated' ? 'activado' : 'desactivado';
+                showFlash('info', `Periodo "${d.name || d.code}" ${action} por otro admin. Actualizando lista...`);
+            }
+            if (academicPeriodsManager) academicPeriodsManager.loadPeriods();
+        });
     }
 }
 
@@ -347,13 +357,4 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initAcademicPeriods);
 } else {
     initAcademicPeriods();
-}
-
-// Reiniciar con Swup si esta disponible
-if (typeof swup !== 'undefined') {
-    swup.on('contentReplaced', () => {
-        if (document.getElementById('periodsContainer')) {
-            initAcademicPeriods();
-        }
-    });
 }

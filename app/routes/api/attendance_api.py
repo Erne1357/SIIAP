@@ -1,7 +1,7 @@
 # app/routes/api/attendance_api.py
 from flask import Blueprint, request, jsonify,current_app
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.events_service import EventsService
 from app.services.user_history_service import UserHistoryService
 from app.models.event import Event
@@ -77,20 +77,17 @@ def unregister_from_event(event_id: int):
 
 @api_attendance.route('/event/<int:event_id>/registrations', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('attendance.api.list_registrations')
 def get_event_registrations(event_id: int):
     """Obtener lista de registros de un evento"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     try:
         registrations = EventsService.get_event_registrations(event_id)
         
@@ -107,20 +104,17 @@ def get_event_registrations(event_id: int):
 
 @api_attendance.route('/event/<int:event_id>/mark-attendance', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('attendance.api.mark')
 def mark_attendance(event_id: int):
     """Marcar asistencia de un usuario"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     data = request.get_json() or {}
     user_id = data.get('user_id')
     attended = data.get('attended')

@@ -15,7 +15,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.extensions import celery as celery_app
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def _err(msg, code=400):
 
 @api_celery_admin.route('/status', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_celery.api.status')
 def worker_status():
     """
     Hace ping al worker y devuelve:
@@ -79,7 +79,7 @@ def worker_status():
 
 @api_celery_admin.route('/tasks', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_celery.api.list_tasks')
 def task_history():
     """
     Devuelve el historial de TaskLog paginado.
@@ -142,7 +142,7 @@ _RUNNABLE_TASKS = {
 
 @api_celery_admin.route('/tasks/run', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_celery.api.run_task')
 def run_task():
     """
     Encola una tarea para ejecución inmediata.
@@ -204,7 +204,7 @@ def run_task():
 
 @api_celery_admin.route('/schedules', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_celery.api.manage')
 def list_schedules():
     """
     Lee los schedules almacenados en Redis por redbeat y los serializa.
@@ -293,7 +293,7 @@ def _serialize_schedule(entry):
 
 @api_celery_admin.route('/schedules/<path:entry_name>', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_celery.api.manage')
 def update_schedule(entry_name):
     """
     Actualiza el schedule de una tarea en redbeat.

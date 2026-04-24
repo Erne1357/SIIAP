@@ -143,6 +143,19 @@ def mark_interview_completed(user_id: int, program_id: int):
 
     db.session.commit()
 
+    # Notificar al aspirante + coordinadores del programa en tiempo real
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'admission:status_changed',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'new_status': 'interview_completed',
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
+
     return up
 
 
@@ -189,6 +202,19 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
     )
 
     db.session.commit()
+
+    # Notificar al aspirante + coordinadores del programa en tiempo real
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'admission:status_changed',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'new_status': 'deliberation',
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
 
     return up
 
@@ -243,6 +269,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     db.session.commit()
 
     # Emitir actualización en tiempo real (fire-and-forget, fuera de la transaccion)
+    from app.sockets.emitters import emit_to_coordinators, emit_user_and_coordinators
     try:
         from app.extensions import socketio
         socketio.emit(
@@ -257,6 +284,30 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         )
     except Exception:
         pass
+
+    # Eco a coordinadores del programa (no dependen del join manual a deliberation:{pid})
+    emit_to_coordinators(
+        'deliberation:updated',
+        {
+            'user_id': user_id,
+            'user_name': f'{user.first_name} {user.last_name}',
+            'program_id': program_id,
+            'status': 'accepted',
+        },
+        program_id=program_id,
+    )
+
+    emit_user_and_coordinators(
+        'admission:status_changed',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'new_status': 'accepted',
+            'decision_notes': notes,
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
 
     return up
 
@@ -348,6 +399,8 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     db.session.commit()
 
     # Emitir actualización en tiempo real (fire-and-forget, fuera de la transaccion)
+    from app.sockets.emitters import emit_to_coordinators, emit_user_and_coordinators
+    deliberation_status = rejection_type if rejection_type == 'partial' else 'rejected'
     try:
         from app.extensions import socketio
         socketio.emit(
@@ -356,12 +409,38 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
                 'user_id': user_id,
                 'user_name': f'{user.first_name} {user.last_name}',
                 'program_id': program_id,
-                'status': rejection_type if rejection_type == 'partial' else 'rejected',
+                'status': deliberation_status,
             },
             room=f'deliberation:{program_id}',
         )
     except Exception:
         pass
+
+    # Eco a coordinadores del programa
+    emit_to_coordinators(
+        'deliberation:updated',
+        {
+            'user_id': user_id,
+            'user_name': f'{user.first_name} {user.last_name}',
+            'program_id': program_id,
+            'status': deliberation_status,
+        },
+        program_id=program_id,
+    )
+
+    emit_user_and_coordinators(
+        'admission:status_changed',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'new_status': 'rejected',
+            'rejection_type': rejection_type,
+            'decision_notes': notes,
+            'correction_required': correction_required,
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
 
     return up
 
@@ -424,6 +503,19 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
 
     db.session.commit()
 
+    # Notificar al aspirante + coordinadores del programa en tiempo real
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'admission:status_changed',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'new_status': 'in_progress',
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
+
     return up
 
 
@@ -473,6 +565,20 @@ def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: 
     )
 
     db.session.commit()
+
+    # Notificar al aspirante + coordinadores del programa en tiempo real
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'admission:status_changed',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'new_status': 'in_progress',
+            'forced_reset': True,
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
 
     return up
 

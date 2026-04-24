@@ -2,21 +2,21 @@
 from flask import Blueprint, render_template, request, redirect, url_for
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.models import Submission, ProgramStep, User, Program
 
 pages_review = Blueprint("pages_review", __name__, url_prefix="/review")
 
 @pages_review.route("/")
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('admin_review.page.view')
 def index():
     # redirige al listado
     return redirect(url_for("pages_admin.pages_review.submissions"))
 
 @pages_review.route("/submissions")
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('admin_review.page.view')
 def submissions():
     applicant_id = request.args.get('applicant_id', type=int)
     program_id   = request.args.get('program_id',   type=int)
@@ -28,7 +28,7 @@ def submissions():
 
     # Obtener programas que el coordinador gestiona
     managed_program_ids = []
-    is_program_admin = current_user.role.name == 'program_admin'
+    is_program_admin = not current_user.has_permission('academic_periods.api.create')
     
     if is_program_admin:
         managed_program_ids = [p.id for p in Program.query.filter_by(coordinator_id=current_user.id).all()]
@@ -94,7 +94,7 @@ def submissions():
 
 @pages_review.route("/submission/<int:sub_id>")
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('admin_review.page.view')
 def submission_detail(sub_id: int):
     sub = (
         Submission.query
