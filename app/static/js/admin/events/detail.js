@@ -1045,6 +1045,565 @@
     }
 
     // =================================================================
+    // CONTENT VISUAL (cover / gallery / hosts)
+    // =================================================================
+    let currentEventImages = { cover: null, gallery: [], eventId: null };
+    let currentEventHosts = [];
+    let contentLoaded = false;
+
+    function buildEventImageUrl(imgEventId, image, kind) {
+        if (!image || !image.path) return '';
+        const filename = image.path.split('/').pop();
+        return `/files/event/${imgEventId}/${kind}/${filename}`;
+    }
+
+    async function loadEventMedia() {
+        try {
+            const { data } = await C.apiRequest(`${C.API}/events/${eventId}/images`);
+            currentEventImages = { cover: data.cover || null, gallery: data.gallery || [], eventId: eventId };
+            renderCoverPreview();
+            renderGalleryGrid();
+            renderSummaryCover();
+        } catch (err) {
+            console.error('Error loading event media:', err);
+        }
+    }
+
+    async function loadEventHosts() {
+        try {
+            const { data } = await C.apiRequest(`${C.API}/events/${eventId}/hosts`);
+            currentEventHosts = data.hosts || [];
+            renderHostsList();
+            renderSummaryHosts();
+        } catch (err) {
+            console.error('Error loading hosts:', err);
+        }
+    }
+
+    function renderCoverPreview() {
+        const preview = el('coverPreview');
+        const delBtn = el('coverDeleteBtn');
+        const coverIdEl = el('coverImageId');
+        if (!preview) return;
+        if (currentEventImages.cover) {
+            const url = buildEventImageUrl(currentEventImages.eventId, currentEventImages.cover, 'cover');
+            preview.style.backgroundImage = `url('${url}')`;
+            preview.classList.remove('empty');
+            preview.innerHTML = '';
+            delBtn?.classList.remove('d-none');
+            if (coverIdEl) coverIdEl.value = currentEventImages.cover.id;
+        } else {
+            preview.style.backgroundImage = '';
+            preview.classList.add('empty');
+            preview.innerHTML = `
+                <div class="text-center">
+                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                    <span class="text-muted small">Sin portada</span>
+                </div>`;
+            delBtn?.classList.add('d-none');
+            if (coverIdEl) coverIdEl.value = '';
+        }
+    }
+
+    function renderSummaryCover() {
+        const preview = el('summaryCoverPreview');
+        if (!preview) return;
+        if (currentEventImages.cover) {
+            const url = buildEventImageUrl(currentEventImages.eventId, currentEventImages.cover, 'cover');
+            preview.style.backgroundImage = `url('${url}')`;
+            preview.classList.remove('empty');
+            preview.innerHTML = '';
+        } else {
+            preview.style.backgroundImage = '';
+            preview.classList.add('empty');
+            preview.innerHTML = `
+                <div class="text-center">
+                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                    <span class="text-muted small">Sin portada</span>
+                </div>`;
+        }
+    }
+
+    function renderGalleryGrid() {
+        const grid = el('galleryGrid');
+        const empty = el('galleryEmpty');
+        if (!grid) return;
+        const images = currentEventImages.gallery;
+        if (images.length === 0) {
+            grid.innerHTML = '';
+            empty?.classList.remove('d-none');
+            return;
+        }
+        empty?.classList.add('d-none');
+        grid.innerHTML = images.map(img => {
+            const url = buildEventImageUrl(currentEventImages.eventId, img, 'gallery');
+            return `
+                <div class="event-gallery-item">
+                    <img src="${url}" alt="${C.escapeHtml(img.caption || '')}">
+                    <button type="button" class="btn btn-danger btn-sm btn-remove btn-delete-gallery-image"
+                        data-image-id="${img.id}" title="Eliminar imagen">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>`;
+        }).join('');
+    }
+
+    function renderHostsList() {
+        const list = el('hostsList');
+        const empty = el('hostsEmpty');
+        if (!list) return;
+        if (currentEventHosts.length === 0) {
+            list.innerHTML = '';
+            if (empty) {
+                list.appendChild(empty);
+                empty.classList.remove('d-none');
+            }
+            return;
+        }
+        empty?.classList.add('d-none');
+        list.innerHTML = currentEventHosts.map((host, idx) => {
+            const isInternal = !!host.user_id;
+            const typeBadge = isInternal
+                ? '<span class="badge bg-info text-dark">Interno</span>'
+                : '<span class="badge bg-secondary">Externo</span>';
+            const avatarSrc = host.avatar_url || host.photo_url || '/static/assets/images/default.jpg';
+            const name = host.full_name || host.name || host.external_name || 'Sin nombre';
+            return `
+                <div class="event-host-card" data-host-idx="${idx}">
+                    <img src="${avatarSrc}" alt="Avatar" class="avatar">
+                    <div class="host-info">
+                        <div class="fw-semibold">${C.escapeHtml(name)}</div>
+                        <div class="text-muted small">${C.escapeHtml(host.role_label || '')} ${typeBadge}</div>
+                    </div>
+                    <div class="host-actions d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-up"
+                            data-idx="${idx}" title="Subir" ${idx === 0 ? 'disabled' : ''}>
+                            <i class="bi bi-arrow-up"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-move-host-down"
+                            data-idx="${idx}" title="Bajar" ${idx === currentEventHosts.length - 1 ? 'disabled' : ''}>
+                            <i class="bi bi-arrow-down"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-host"
+                            data-idx="${idx}" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-host"
+                            data-idx="${idx}" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function renderSummaryHosts() {
+        const node = el('summaryHosts');
+        if (!node) return;
+        if (currentEventHosts.length === 0) {
+            node.innerHTML = `
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-person-x fs-3 d-block mb-1"></i>
+                    Sin ponentes registrados
+                </div>`;
+            return;
+        }
+        node.innerHTML = currentEventHosts.map(host => {
+            const isInternal = !!host.user_id;
+            const avatarSrc = host.avatar_url || host.photo_url || '/static/assets/images/default.jpg';
+            const name = host.full_name || host.name || host.external_name || 'Sin nombre';
+            const typeBadge = isInternal
+                ? '<span class="badge bg-info text-dark">Interno</span>'
+                : '<span class="badge bg-secondary">Externo</span>';
+            return `
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <img src="${avatarSrc}" class="rounded-circle" width="36" height="36" style="object-fit:cover" alt="">
+                    <div class="flex-grow-1 min-width-0">
+                        <div class="fw-semibold small text-truncate">${C.escapeHtml(name)}</div>
+                        <div class="text-muted small text-truncate">${C.escapeHtml(host.role_label || '')} ${typeBadge}</div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function setupCoverDropzone() {
+        const dropzone = el('coverDropzone');
+        const selectBtn = el('coverSelectBtn');
+        const fileInput = el('coverFileInput');
+        const delBtn = el('coverDeleteBtn');
+        if (!dropzone) return;
+
+        selectBtn?.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput?.addEventListener('change', () => {
+            if (fileInput.files.length > 0) uploadCover(fileInput.files[0]);
+        });
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) uploadCover(file);
+        });
+        delBtn?.addEventListener('click', deleteCover);
+    }
+
+    async function uploadCover(file) {
+        if (file.size > 5 * 1024 * 1024) {
+            C.flash('La imagen supera el límite de 5 MB', 'warning');
+            return;
+        }
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            const res = await fetch(`${C.API}/events/${eventId}/cover`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': C.getCsrfToken() },
+                credentials: 'same-origin',
+                body: fd
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                C.flash(data.error?.message || 'Error al subir la portada', 'danger');
+                return;
+            }
+            C.flash('Portada actualizada', 'success');
+            await loadEventMedia();
+        } catch (err) {
+            C.flash(`Error al subir portada: ${err.message}`, 'danger');
+        }
+    }
+
+    async function deleteCover() {
+        const imageId = el('coverImageId')?.value;
+        if (!imageId) return;
+        const ok = await siiapConfirm({
+            type: 'danger', title: 'Eliminar portada',
+            message: '¿Eliminar la portada de este evento?', confirmLabel: 'Sí, eliminar'
+        });
+        if (!ok) return;
+        try {
+            await C.apiRequest(`${C.API}/events/images/${imageId}`, { method: 'DELETE' });
+            C.flash('Portada eliminada', 'success');
+            currentEventImages.cover = null;
+            renderCoverPreview();
+            renderSummaryCover();
+        } catch (err) {
+            C.flash(`Error al eliminar portada: ${err.message}`, 'danger');
+        }
+    }
+
+    function setupGalleryDropzone() {
+        const dropzone = el('galleryDropzone');
+        const selectBtn = el('gallerySelectBtn');
+        const fileInput = el('galleryFileInput');
+        if (!dropzone) return;
+
+        selectBtn?.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput?.addEventListener('change', () => {
+            if (fileInput.files.length > 0) uploadGalleryImages(Array.from(fileInput.files));
+        });
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            uploadGalleryImages(Array.from(e.dataTransfer.files));
+        });
+
+        el('galleryGrid')?.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-delete-gallery-image');
+            if (!btn) return;
+            const imageId = parseInt(btn.dataset.imageId);
+            const ok = await siiapConfirm({
+                type: 'danger', title: 'Eliminar imagen',
+                message: '¿Eliminar esta imagen de la galería?', confirmLabel: 'Sí, eliminar'
+            });
+            if (!ok) return;
+            try {
+                await C.apiRequest(`${C.API}/events/images/${imageId}`, { method: 'DELETE' });
+                C.flash('Imagen eliminada', 'success');
+                await loadEventMedia();
+            } catch (err) {
+                C.flash(`Error al eliminar imagen: ${err.message}`, 'danger');
+            }
+        });
+    }
+
+    async function uploadGalleryImages(files) {
+        let uploaded = 0;
+        for (const file of files) {
+            if (file.size > 5 * 1024 * 1024) {
+                C.flash(`"${file.name}" supera el límite de 5 MB y fue omitida`, 'warning');
+                continue;
+            }
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const res = await fetch(`${C.API}/events/${eventId}/images`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': C.getCsrfToken() },
+                    credentials: 'same-origin',
+                    body: fd
+                });
+                if (res.ok) uploaded++;
+                else {
+                    const d = await res.json();
+                    C.flash(d.error?.message || `Error subiendo "${file.name}"`, 'danger');
+                }
+            } catch (err) {
+                C.flash(`Error al subir "${file.name}": ${err.message}`, 'danger');
+            }
+        }
+        if (uploaded > 0) {
+            C.flash(`${uploaded} imagen(es) subida(s)`, 'success');
+            await loadEventMedia();
+        }
+    }
+
+    function setupHostsPanel() {
+        el('addHostBtn')?.addEventListener('click', () => openHostEditor(-1));
+        el('saveHostsBtn')?.addEventListener('click', saveHosts);
+        el('hostsList')?.addEventListener('click', (e) => {
+            const up = e.target.closest('.btn-move-host-up');
+            const down = e.target.closest('.btn-move-host-down');
+            const edit = e.target.closest('.btn-edit-host');
+            const del = e.target.closest('.btn-remove-host');
+            if (up)   { const i = parseInt(up.dataset.idx);   moveHost(i, i - 1); }
+            if (down) { const i = parseInt(down.dataset.idx); moveHost(i, i + 1); }
+            if (edit) openHostEditor(parseInt(edit.dataset.idx));
+            if (del)  removeHost(parseInt(del.dataset.idx));
+        });
+    }
+
+    function moveHost(fromIdx, toIdx) {
+        if (toIdx < 0 || toIdx >= currentEventHosts.length) return;
+        const arr = [...currentEventHosts];
+        [arr[fromIdx], arr[toIdx]] = [arr[toIdx], arr[fromIdx]];
+        currentEventHosts = arr;
+        renderHostsList();
+    }
+
+    function removeHost(idx) {
+        currentEventHosts = currentEventHosts.filter((_, i) => i !== idx);
+        renderHostsList();
+    }
+
+    function openHostEditor(idx) {
+        const isNew = idx === -1;
+        el('hostEditorModalTitle').textContent = isNew ? 'Agregar ponente' : 'Editar ponente';
+        el('hostEditIndex').value = idx;
+
+        el('hostTypeInternal').checked = true;
+        el('hostUserSearch').value = '';
+        el('hostUserId').value = '';
+        el('hostSelectedUserCard').classList.add('d-none');
+        el('hostExternalName').value = '';
+        el('hostExternalBio').value = '';
+        el('hostExternalPhoto').value = '';
+        el('hostExternalPhotoPath').value = '';
+        el('hostRoleLabel').value = '';
+        el('hostInternalPanel').classList.remove('d-none');
+        el('hostExternalPanel').classList.add('d-none');
+
+        if (!isNew) {
+            const host = currentEventHosts[idx];
+            if (host.user_id) {
+                el('hostTypeInternal').checked = true;
+                el('hostUserId').value = host.user_id;
+                showSelectedUser({
+                    id: host.user_id,
+                    full_name: host.full_name || host.name || '',
+                    email: host.email || '',
+                    role: host.role_display || host.role || '',
+                    avatar_url: host.avatar_url || host.photo_url || ''
+                });
+            } else {
+                el('hostTypeExternal').checked = true;
+                el('hostInternalPanel').classList.add('d-none');
+                el('hostExternalPanel').classList.remove('d-none');
+                el('hostExternalName').value = host.external_name || host.name || '';
+                el('hostExternalBio').value = host.external_bio || host.bio || '';
+                el('hostExternalPhotoPath').value = host.external_photo_path || '';
+            }
+            el('hostRoleLabel').value = host.role_label || '';
+        }
+        modal('hostEditorModal')?.show();
+    }
+
+    function showSelectedUser(user) {
+        el('hostUserId').value = user.id;
+        el('hostSelectedName').textContent = user.full_name || '';
+        el('hostSelectedEmail').textContent = user.email || '';
+        el('hostSelectedRole').textContent = user.role || '';
+        el('hostSelectedAvatar').src = user.avatar_url || '/static/assets/images/default.jpg';
+        el('hostSelectedUserCard').classList.remove('d-none');
+        el('hostUserSearch').value = '';
+        el('hostUserDropdown').style.display = 'none';
+    }
+
+    function setupHostEditor() {
+        document.querySelectorAll('input[name="hostTypeRadio"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const isInternal = el('hostTypeInternal').checked;
+                el('hostInternalPanel').classList.toggle('d-none', !isInternal);
+                el('hostExternalPanel').classList.toggle('d-none', isInternal);
+            });
+        });
+
+        let searchTimer = null;
+        el('hostUserSearch')?.addEventListener('input', (e) => {
+            clearTimeout(searchTimer);
+            const q = e.target.value.trim();
+            if (q.length < 2) {
+                el('hostUserDropdown').style.display = 'none';
+                return;
+            }
+            searchTimer = setTimeout(() => searchUsers(q), 300);
+        });
+
+        el('hostClearUserBtn')?.addEventListener('click', () => {
+            el('hostUserId').value = '';
+            el('hostSelectedUserCard').classList.add('d-none');
+        });
+
+        el('hostEditorSaveBtn')?.addEventListener('click', saveHostFromModal);
+    }
+
+    async function searchUsers(query) {
+        try {
+            const { data } = await C.apiRequest(`${C.API}/admin/users/?search=${encodeURIComponent(query)}&per_page=10&active=true`);
+            const users = data?.data?.users || data?.users || data?.items || [];
+            renderUserDropdown(users);
+        } catch (err) {
+            console.error('Error searching users:', err);
+            renderUserDropdown([]);
+        }
+    }
+
+    function renderUserDropdown(users) {
+        const dropdown = el('hostUserDropdown');
+        if (!dropdown) return;
+        if (users.length === 0) {
+            dropdown.innerHTML = '<div class="list-group-item text-muted small">Sin resultados</div>';
+            dropdown.style.display = 'block';
+            return;
+        }
+        const fullNameOf = (u) => u.full_name || u.name ||
+            [u.first_name, u.last_name, u.mother_last_name].filter(Boolean).join(' ');
+        dropdown.innerHTML = users.map(u => {
+            const fullName = fullNameOf(u);
+            const role = u.role_name || u.role || '';
+            return `
+                <button type="button" class="list-group-item list-group-item-action py-2"
+                    data-user-id="${u.id}"
+                    data-full-name="${C.escapeHtml(fullName)}"
+                    data-email="${C.escapeHtml(u.email || '')}"
+                    data-role="${C.escapeHtml(role)}"
+                    data-avatar="${C.escapeHtml(u.avatar_url || '')}">
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="${u.avatar_url || '/static/assets/images/default.jpg'}" width="28" height="28"
+                            class="rounded-circle" style="object-fit:cover">
+                        <div>
+                            <div class="fw-semibold small">${C.escapeHtml(fullName)}</div>
+                            <div class="text-muted small">${C.escapeHtml(u.email || '')} &bull; ${C.escapeHtml(role)}</div>
+                        </div>
+                    </div>
+                </button>`;
+        }).join('');
+        dropdown.querySelectorAll('button[data-user-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                showSelectedUser({
+                    id: parseInt(btn.dataset.userId),
+                    full_name: btn.dataset.fullName,
+                    email: btn.dataset.email,
+                    role: btn.dataset.role,
+                    avatar_url: btn.dataset.avatar
+                });
+            });
+        });
+        dropdown.style.display = 'block';
+    }
+
+    async function saveHostFromModal() {
+        const isInternal = el('hostTypeInternal').checked;
+        const roleLabel = el('hostRoleLabel').value.trim();
+        const editIdx = parseInt(el('hostEditIndex').value);
+        if (!roleLabel) {
+            C.flash('El rol o etiqueta es requerido', 'warning');
+            return;
+        }
+        let hostObj = { role_label: roleLabel };
+        if (isInternal) {
+            const userId = parseInt(el('hostUserId').value);
+            if (!userId) {
+                C.flash('Selecciona un usuario del sistema', 'warning');
+                return;
+            }
+            hostObj.user_id = userId;
+            hostObj.full_name = el('hostSelectedName').textContent;
+            hostObj.email = el('hostSelectedEmail').textContent;
+            hostObj.avatar_url = el('hostSelectedAvatar').src;
+        } else {
+            const externalName = el('hostExternalName').value.trim();
+            const externalBio = el('hostExternalBio').value.trim();
+            const photoFile = el('hostExternalPhoto').files[0];
+            const existingPath = el('hostExternalPhotoPath').value;
+            if (!externalName) {
+                C.flash('El nombre del ponente externo es requerido', 'warning');
+                return;
+            }
+            let photoPath = existingPath;
+            if (photoFile) {
+                try {
+                    const fd = new FormData();
+                    fd.append('file', photoFile);
+                    const res = await fetch(`${C.API}/events/${eventId}/hosts/photo`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': C.getCsrfToken() },
+                        credentials: 'same-origin',
+                        body: fd
+                    });
+                    const d = await res.json();
+                    if (res.ok && d.path) photoPath = d.path;
+                } catch (err) {
+                    C.flash('Error al subir foto del ponente', 'warning');
+                }
+            }
+            hostObj.external_name = externalName;
+            hostObj.external_bio = externalBio;
+            hostObj.external_photo_path = photoPath || null;
+        }
+        if (editIdx === -1) currentEventHosts.push(hostObj);
+        else currentEventHosts[editIdx] = hostObj;
+        renderHostsList();
+        modal('hostEditorModal')?.hide();
+    }
+
+    async function saveHosts() {
+        try {
+            await C.apiRequest(`${C.API}/events/${eventId}/hosts`, {
+                method: 'PUT', body: JSON.stringify({ hosts: currentEventHosts })
+            });
+            C.flash('Ponentes guardados correctamente', 'success');
+            renderSummaryHosts();
+        } catch (err) {
+            C.flash(`Error al guardar ponentes: ${err.message}`, 'danger');
+        }
+    }
+
+    function openContentVisualModal() {
+        modal('contentVisualModal')?.show();
+        if (!contentLoaded) {
+            loadEventMedia();
+            loadEventHosts();
+            contentLoaded = true;
+        }
+    }
+
+    // =================================================================
     // HEADER ACTIONS (conclude/archive/unarchive/delete/toggle privacy)
     // =================================================================
     async function handleConcludeEvent() {
@@ -1169,9 +1728,15 @@
         el('btnUnarchiveEvent')?.addEventListener('click', handleUnarchiveEvent);
         el('btnDeleteEvent')?.addEventListener('click', openDeleteEventModal);
 
-        // Phase 4-5 placeholders
+        // Phase 5 placeholder
         el('btnEditInfo')?.addEventListener('click', () => C.flash('Editar info: pendiente (Fase 5)', 'info'));
-        el('btnEditContent')?.addEventListener('click', () => C.flash('Contenido visual: pendiente (Fase 4)', 'info'));
+        el('btnEditContent')?.addEventListener('click', openContentVisualModal);
+
+        // Content visual setup (drop zones + hosts panel + editor)
+        setupCoverDropzone();
+        setupGalleryDropzone();
+        setupHostsPanel();
+        setupHostEditor();
 
         // Confirm buttons
         el('confirmDeleteEventBtn')?.addEventListener('click', handleDeleteEvent);
@@ -1316,10 +1881,14 @@
         const ev = await loadEventDetails();
         if (!ev) return;
         await loadPrograms();
-        if (ev.capacity_type === 'single' && ev.program_id) {
-            await loadEligibleStudents(ev.program_id);
+        if (ev.capacity_type === 'single') {
+            await loadEligibleStudents(ev.program_id || null);
         }
         setupEventListeners();
+        // Background load for summary (cover + hosts)
+        loadEventMedia().catch(() => {});
+        loadEventHosts().catch(() => {});
+        contentLoaded = true;
     }
 
     document.addEventListener('DOMContentLoaded', init);

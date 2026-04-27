@@ -725,6 +725,186 @@
     </div>
 </div>
 
+<!-- Modal: Contenido visual (portada / galer铆a / ponentes) -->
+<div class="modal fade" id="contentVisualModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-images me-2"></i>Contenido visual del evento
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-pills mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#cv-pane-cover"
+                            type="button" role="tab">
+                            <i class="bi bi-image me-1"></i>Portada
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#cv-pane-gallery"
+                            type="button" role="tab">
+                            <i class="bi bi-images me-1"></i>Galer铆a
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#cv-pane-hosts"
+                            type="button" role="tab">
+                            <i class="bi bi-mic-fill me-1"></i>Ponentes
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Portada -->
+                    <div class="tab-pane fade show active" id="cv-pane-cover" role="tabpanel">
+                        <div class="event-cover-preview empty mb-3" id="coverPreview">
+                            <div class="text-center">
+                                <i class="bi bi-image fs-1 d-block mb-2"></i>
+                                <span class="text-muted small">Sin portada</span>
+                            </div>
+                        </div>
+                        <div class="event-dropzone" id="coverDropzone">
+                            <i class="bi bi-cloud-upload fs-4 text-muted d-block mb-2"></i>
+                            <span class="text-muted">Arrastra una imagen o </span>
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="coverSelectBtn">selecciona archivo</button>
+                            <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" class="d-none">
+                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; m谩x. 5 MB</div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-2 d-none" id="coverDeleteBtn">
+                            <i class="bi bi-trash me-1"></i>Eliminar portada
+                        </button>
+                        <input type="hidden" id="coverImageId">
+                    </div>
+
+                    <!-- Galer铆a -->
+                    <div class="tab-pane fade" id="cv-pane-gallery" role="tabpanel">
+                        <div class="event-gallery mb-3" id="galleryGrid"></div>
+                        <div id="galleryEmpty" class="text-center text-muted py-3">
+                            <i class="bi bi-images fs-3 d-block mb-1"></i>
+                            Sin im谩genes en la galer铆a
+                        </div>
+                        <div class="event-dropzone" id="galleryDropzone">
+                            <i class="bi bi-cloud-upload fs-4 text-muted d-block mb-2"></i>
+                            <span class="text-muted">Arrastra im谩genes o </span>
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="gallerySelectBtn">selecciona archivos</button>
+                            <input type="file" id="galleryFileInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">
+                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; m谩x. 5 MB por archivo</div>
+                        </div>
+                    </div>
+
+                    <!-- Ponentes -->
+                    <div class="tab-pane fade" id="cv-pane-hosts" role="tabpanel">
+                        <div id="hostsList">
+                            <div class="text-center text-muted py-3" id="hostsEmpty">
+                                <i class="bi bi-person-x fs-3 d-block mb-1"></i>
+                                Sin ponentes registrados
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-success mt-2" id="addHostBtn">
+                            <i class="bi bi-person-plus me-1"></i>Agregar ponente
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="saveHostsBtn">
+                    <i class="bi bi-floppy me-1"></i>Guardar ponentes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editor de Ponente -->
+<div class="modal fade" id="hostEditorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hostEditorModalTitle">Agregar ponente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex gap-2 mb-4">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeInternal" value="internal" checked>
+                        <label class="form-check-label fw-semibold" for="hostTypeInternal">
+                            <i class="bi bi-building me-1"></i>Interno
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="hostTypeRadio" id="hostTypeExternal" value="external">
+                        <label class="form-check-label fw-semibold" for="hostTypeExternal">
+                            <i class="bi bi-person-badge me-1"></i>Externo
+                        </label>
+                    </div>
+                </div>
+
+                <div id="hostInternalPanel">
+                    <div class="mb-3">
+                        <label class="form-label">Buscar usuario *</label>
+                        <input type="text" class="form-control" id="hostUserSearch" autocomplete="off"
+                            placeholder="Escribe nombre o correo...">
+                        <div id="hostUserDropdown" class="list-group mt-1 shadow-sm"
+                            style="display:none; max-height:220px; overflow-y:auto; position:absolute; z-index:1080; width:calc(100% - 3rem);"></div>
+                    </div>
+                    <div id="hostSelectedUserCard" class="d-none">
+                        <div class="d-flex align-items-center gap-3 p-3 border rounded bg-light">
+                            <img id="hostSelectedAvatar" src="" alt="Avatar" class="rounded-circle" width="48" height="48" style="object-fit:cover;">
+                            <div>
+                                <div class="fw-semibold" id="hostSelectedName"></div>
+                                <div class="text-muted small" id="hostSelectedEmail"></div>
+                                <div class="text-muted small" id="hostSelectedRole"></div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="hostClearUserBtn">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="hostUserId">
+                </div>
+
+                <div id="hostExternalPanel" class="d-none">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre completo *</label>
+                        <input type="text" class="form-control" id="hostExternalName" placeholder="Nombre del ponente invitado">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Semblanza / Bio <span class="text-muted">(opcional)</span></label>
+                        <textarea class="form-control" id="hostExternalBio" rows="3"
+                            placeholder="Breve descripci贸n del ponente..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Foto <span class="text-muted">(opcional)</span></label>
+                        <input type="file" class="form-control" id="hostExternalPhoto" accept="image/jpeg,image/png,image/webp">
+                        <div class="form-text">JPG, PNG o WebP. Se sube al guardar.</div>
+                    </div>
+                    <input type="hidden" id="hostExternalPhotoPath">
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label">Rol o etiqueta *</label>
+                    <input type="text" class="form-control" id="hostRoleLabel" required
+                        placeholder="Ej: Coordinador del programa, Ponente invitado, Moderador...">
+                </div>
+
+                <input type="hidden" id="hostEditIndex" value="-1">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="hostEditorSaveBtn">
+                    <i class="bi bi-check-lg me-1"></i>Guardar ponente
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Invitar estudiantes -->
 <div class="modal fade" id="inviteStudentsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
