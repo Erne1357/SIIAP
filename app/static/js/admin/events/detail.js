@@ -1141,7 +1141,7 @@
             if (currentEvent.capacity_type === 'multiple') {
                 const cap = parseInt(el('editMaxCapacity').value);
                 if (!cap || cap < 1) {
-                    C.flash('Capacidad m谩xima inv谩lida', 'warning');
+                    C.flash('Capacidad máxima inválida', 'warning');
                     return;
                 }
                 payload.max_capacity = cap;
@@ -1149,7 +1149,7 @@
         }
 
         if (!payload.title) {
-            C.flash('El t铆tulo es requerido', 'warning');
+            C.flash('El título es requerido', 'warning');
             return;
         }
 

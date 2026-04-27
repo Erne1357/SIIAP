@@ -725,13 +725,13 @@
     </div>
 </div>
 
-<!-- Modal: Editar informaci贸n del evento -->
+<!-- Modal: Editar información del evento -->
 <div class="modal fade" id="editEventInfoModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-pencil-square me-2"></i>Editar informaci贸n del evento
+                    <i class="bi bi-pencil-square me-2"></i>Editar información del evento
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -745,7 +745,7 @@
                     </h6>
                     <div class="row g-3 mb-3">
                         <div class="col-md-8">
-                            <label class="form-label">T铆tulo *</label>
+                            <label class="form-label">Título *</label>
                             <input type="text" class="form-control" id="editTitle" required>
                         </div>
                         <div class="col-md-4">
@@ -756,14 +756,14 @@
                                 <option value="workshop">Taller</option>
                                 <option value="seminar">Seminario</option>
                                 <option value="conference">Conferencia</option>
-                                <option value="info_session">Sesi贸n Informativa</option>
+                                <option value="info_session">Sesión Informativa</option>
                                 <option value="other">Otro</option>
                             </select>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Descripci贸n</label>
+                            <label class="form-label">Descripción</label>
                             <textarea class="form-control" id="editDescription" rows="3"
-                                placeholder="Descripci贸n detallada del evento..."></textarea>
+                                placeholder="Descripción detallada del evento..."></textarea>
                         </div>
                     </div>
 
@@ -779,7 +779,7 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Periodo acad茅mico</label>
+                            <label class="form-label">Periodo académico</label>
                             <select class="form-select" id="editAcademicPeriod">
                                 <option value="">Sin periodo (atemporal)</option>
                             </select>
@@ -787,7 +787,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Visibilidad</label>
                             <select class="form-select" id="editVisibility">
-                                <option value="public">P煤blico</option>
+                                <option value="public">Público</option>
                                 <option value="private">Privado (solo invitados)</option>
                             </select>
                         </div>
@@ -804,14 +804,14 @@
                         </div>
                     </div>
 
-                    <!-- Bloque: Cu谩ndo / D贸nde -->
+                    <!-- Bloque: Cuándo / Dónde -->
                     <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
-                        <i class="bi bi-calendar-event me-1"></i>Cu谩ndo y d贸nde
+                        <i class="bi bi-calendar-event me-1"></i>Cuándo y dónde
                     </h6>
                     <div class="row g-3 mb-3">
                         <div class="col-md-12">
                             <label class="form-label">Lugar</label>
-                            <input type="text" class="form-control" id="editLocation" placeholder="Ej: Sal贸n 301">
+                            <input type="text" class="form-control" id="editLocation" placeholder="Ej: Salón 301">
                         </div>
                         <div class="col-md-6 d-none" id="editDatesRow">
                             <label class="form-label">Fecha del evento</label>
@@ -822,7 +822,7 @@
                             <input type="datetime-local" class="form-control" id="editEventEndDate">
                         </div>
                         <div class="col-md-6 d-none" id="editMaxCapacityRow">
-                            <label class="form-label">Capacidad m谩xima</label>
+                            <label class="form-label">Capacidad máxima</label>
                             <input type="number" min="1" class="form-control" id="editMaxCapacity">
                         </div>
                     </div>
@@ -846,7 +846,7 @@
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="editRemindersEnabled">
-                            <label class="form-check-label" for="editRemindersEnabled">Recordatorios autom谩ticos</label>
+                            <label class="form-check-label" for="editRemindersEnabled">Recordatorios automáticos</label>
                         </div>
                     </div>
                 </div>
@@ -864,7 +864,7 @@
     </div>
 </div>
 
-<!-- Modal: Contenido visual (portada / galer铆a / ponentes) -->
+<!-- Modal: Contenido visual (portada / galería / ponentes) -->
 <div class="modal fade" id="contentVisualModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -885,7 +885,7 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" data-bs-toggle="pill" data-bs-target="#cv-pane-gallery"
                             type="button" role="tab">
-                            <i class="bi bi-images me-1"></i>Galer铆a
+                            <i class="bi bi-images me-1"></i>Galería
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -910,7 +910,7 @@
                             <span class="text-muted">Arrastra una imagen o </span>
                             <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="coverSelectBtn">selecciona archivo</button>
                             <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" class="d-none">
-                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; m谩x. 5 MB</div>
+                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; máx. 5 MB</div>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-danger mt-2 d-none" id="coverDeleteBtn">
                             <i class="bi bi-trash me-1"></i>Eliminar portada
@@ -918,19 +918,19 @@
                         <input type="hidden" id="coverImageId">
                     </div>
 
-                    <!-- Galer铆a -->
+                    <!-- Galería -->
                     <div class="tab-pane fade" id="cv-pane-gallery" role="tabpanel">
                         <div class="event-gallery mb-3" id="galleryGrid"></div>
                         <div id="galleryEmpty" class="text-center text-muted py-3">
                             <i class="bi bi-images fs-3 d-block mb-1"></i>
-                            Sin im谩genes en la galer铆a
+                            Sin imágenes en la galería
                         </div>
                         <div class="event-dropzone" id="galleryDropzone">
                             <i class="bi bi-cloud-upload fs-4 text-muted d-block mb-2"></i>
-                            <span class="text-muted">Arrastra im谩genes o </span>
+                            <span class="text-muted">Arrastra imágenes o </span>
                             <button type="button" class="btn btn-sm btn-outline-primary ms-1" id="gallerySelectBtn">selecciona archivos</button>
                             <input type="file" id="galleryFileInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">
-                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; m谩x. 5 MB por archivo</div>
+                            <div class="text-muted small mt-1">JPG, PNG, WebP &mdash; máx. 5 MB por archivo</div>
                         </div>
                     </div>
 
@@ -1014,7 +1014,7 @@
                     <div class="mb-3">
                         <label class="form-label">Semblanza / Bio <span class="text-muted">(opcional)</span></label>
                         <textarea class="form-control" id="hostExternalBio" rows="3"
-                            placeholder="Breve descripci贸n del ponente..."></textarea>
+                            placeholder="Breve descripción del ponente..."></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Foto <span class="text-muted">(opcional)</span></label>
