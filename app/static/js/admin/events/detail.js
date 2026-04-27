@@ -482,6 +482,18 @@
         el('assignStudentSearch').value = '';
         el('assignNotes').value = '';
         el('btnConfirmAssign').disabled = true;
+
+        const filter = el('assignProgramFilter');
+        if (filter) {
+            if (currentEvent?.program_id) {
+                filter.value = currentEvent.program_id;
+                filter.disabled = true;
+            } else {
+                filter.value = '';
+                filter.disabled = false;
+            }
+        }
+
         renderAssignStudentsList();
         modal('assignSlotModal')?.show();
     }
@@ -500,7 +512,10 @@
             });
         }
         if (filtered.length === 0) {
-            list.innerHTML = '<div class="list-group-item text-center text-muted py-3">Sin estudiantes elegibles</div>';
+            const msg = eligibleStudents.length === 0
+                ? 'No hay estudiantes elegibles registrados'
+                : 'Sin coincidencias para los filtros actuales';
+            list.innerHTML = `<div class="list-group-item text-center text-muted py-3">${msg}</div>`;
             return;
         }
         const selectedId = el('assignStudentId').value;
@@ -520,13 +535,20 @@
     }
 
     async function loadEligibleStudents(programId) {
-        if (!programId) {
-            eligibleStudents = [];
-            return;
-        }
         try {
-            const { data } = await C.apiRequest(`${C.API}/interviews/eligible-students/${programId}`);
-            eligibleStudents = data.eligible_students || [];
+            if (programId) {
+                const { data } = await C.apiRequest(`${C.API}/interviews/eligible-students/${programId}`);
+                eligibleStudents = (data.eligible_students || []).map(s => ({ ...s, program_id: programId }));
+            } else {
+                const { data } = await C.apiRequest(`${C.API}/interviews/eligible-students`);
+                const groups = data.programs || [];
+                eligibleStudents = [];
+                groups.forEach(g => {
+                    (g.eligible_students || []).forEach(s => {
+                        eligibleStudents.push({ ...s, program_id: g.program_id, program_name: g.program_name });
+                    });
+                });
+            }
         } catch (err) {
             console.error('Error loading eligible students:', err);
             eligibleStudents = [];

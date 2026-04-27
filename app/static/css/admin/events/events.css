@@ -315,3 +315,36 @@
 .min-width-0 {
     min-width: 0;
 }
+
+/* ====================================================
+   ASSIGN SLOT MODAL
+   ==================================================== */
+
+.assign-student-item {
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.assign-student-item:hover {
+    background-color: var(--bs-tertiary-bg);
+}
+
+.assign-student-item.active {
+    background-color: var(--bs-primary-bg-subtle);
+    border-left-color: var(--bs-primary);
+    color: inherit;
+}
+
+/* ====================================================
+   STAT CHIP COLOR HINTS
+   ==================================================== */
+
+.event-stat-chip.text-warning {
+    background: var(--bs-warning-bg-subtle);
+}
+
+.event-stat-chip.text-warning i,
+.event-stat-chip.text-warning strong {
+    color: var(--bs-warning-text-emphasis);
+}
