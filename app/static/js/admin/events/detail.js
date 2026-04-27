@@ -1045,6 +1045,127 @@
     }
 
     // =================================================================
+    // EDIT EVENT INFO
+    // =================================================================
+    let academicPeriods = [];
+
+    async function loadAcademicPeriods() {
+        try {
+            const { data } = await C.apiRequest(`${C.API}/academic-periods`);
+            academicPeriods = data.data || data.items || [];
+        } catch (err) {
+            console.error('Error loading academic periods:', err);
+        }
+    }
+
+    function populateEditFormSelects() {
+        const programSel = el('editProgram');
+        if (programSel) {
+            programSel.innerHTML = '<option value="">Todos los programas</option>' +
+                programs.map(p => `<option value="${p.id}">${C.escapeHtml(p.name)}</option>`).join('');
+        }
+        const periodSel = el('editAcademicPeriod');
+        if (periodSel) {
+            periodSel.innerHTML = '<option value="">Sin periodo (atemporal)</option>' +
+                academicPeriods.map(p => `<option value="${p.id}">${C.escapeHtml(p.code || p.name || `Periodo ${p.id}`)}</option>`).join('');
+        }
+    }
+
+    function populateEditFormFromEvent(ev) {
+        if (!ev) return;
+        el('editEventId').value = ev.id;
+        el('editTitle').value = ev.title || '';
+        el('editType').value = ev.type || 'interview';
+        el('editDescription').value = ev.description || '';
+        el('editProgram').value = ev.program_id || '';
+        el('editAcademicPeriod').value = ev.academic_period_id || '';
+        el('editVisibility').value = ev.visibility || 'public';
+        el('editStatus').value = ev.status || 'published';
+        el('editLocation').value = ev.location || '';
+
+        const isMulti = ev.capacity_type !== 'single';
+        el('editDatesRow').classList.toggle('d-none', !isMulti);
+        el('editDatesRow2').classList.toggle('d-none', !isMulti);
+        el('editMaxCapacityRow').classList.toggle('d-none', ev.capacity_type !== 'multiple');
+
+        if (ev.event_date) {
+            try { el('editEventDate').value = new Date(ev.event_date).toISOString().slice(0, 16); }
+            catch (e) { el('editEventDate').value = ''; }
+        } else {
+            el('editEventDate').value = '';
+        }
+        if (ev.event_end_date) {
+            try { el('editEventEndDate').value = new Date(ev.event_end_date).toISOString().slice(0, 16); }
+            catch (e) { el('editEventEndDate').value = ''; }
+        } else {
+            el('editEventEndDate').value = '';
+        }
+        el('editMaxCapacity').value = ev.max_capacity || '';
+
+        el('editRequiresRegistration').checked = !!ev.requires_registration;
+        el('editAllowsAttendance').checked = !!ev.allows_attendance_tracking;
+        el('editVisibleToStudents').checked = !!ev.visible_to_students;
+        el('editRemindersEnabled').checked = !!ev.reminders_enabled;
+    }
+
+    function openEditEventInfoModal() {
+        if (!currentEvent) return;
+        populateEditFormSelects();
+        populateEditFormFromEvent(currentEvent);
+        modal('editEventInfoModal')?.show();
+    }
+
+    async function handleEditEvent(e) {
+        e.preventDefault();
+        const evId = el('editEventId').value;
+        const isSingle = currentEvent?.capacity_type === 'single';
+
+        const payload = {
+            title: el('editTitle').value.trim(),
+            type: el('editType').value,
+            description: el('editDescription').value,
+            program_id: el('editProgram').value ? parseInt(el('editProgram').value) : null,
+            academic_period_id: el('editAcademicPeriod').value ? parseInt(el('editAcademicPeriod').value) : null,
+            location: el('editLocation').value,
+            visibility: el('editVisibility').value,
+            status: el('editStatus').value,
+            requires_registration: el('editRequiresRegistration').checked,
+            allows_attendance_tracking: el('editAllowsAttendance').checked,
+            visible_to_students: el('editVisibleToStudents').checked,
+            reminders_enabled: el('editRemindersEnabled').checked
+        };
+
+        if (!isSingle) {
+            payload.event_date = el('editEventDate').value || null;
+            payload.event_end_date = el('editEventEndDate').value || null;
+            if (currentEvent.capacity_type === 'multiple') {
+                const cap = parseInt(el('editMaxCapacity').value);
+                if (!cap || cap < 1) {
+                    C.flash('Capacidad m谩xima inv谩lida', 'warning');
+                    return;
+                }
+                payload.max_capacity = cap;
+            }
+        }
+
+        if (!payload.title) {
+            C.flash('El t铆tulo es requerido', 'warning');
+            return;
+        }
+
+        try {
+            await C.apiRequest(`${C.API}/events/${evId}`, {
+                method: 'PUT', body: JSON.stringify(payload)
+            });
+            C.flash('Evento actualizado correctamente', 'success');
+            modal('editEventInfoModal')?.hide();
+            await loadEventDetails();
+        } catch (err) {
+            C.flash(`Error actualizando evento: ${err.message}`, 'danger');
+        }
+    }
+
+    // =================================================================
     // CONTENT VISUAL (cover / gallery / hosts)
     // =================================================================
     let currentEventImages = { cover: null, gallery: [], eventId: null };
@@ -1728,9 +1849,12 @@
         el('btnUnarchiveEvent')?.addEventListener('click', handleUnarchiveEvent);
         el('btnDeleteEvent')?.addEventListener('click', openDeleteEventModal);
 
-        // Phase 5 placeholder
-        el('btnEditInfo')?.addEventListener('click', () => C.flash('Editar info: pendiente (Fase 5)', 'info'));
+        el('btnEditInfo')?.addEventListener('click', openEditEventInfoModal);
         el('btnEditContent')?.addEventListener('click', openContentVisualModal);
+
+        // Edit info form
+        el('editEventForm')?.addEventListener('submit', handleEditEvent);
+        el('btnRevertEdit')?.addEventListener('click', () => populateEditFormFromEvent(currentEvent));
 
         // Content visual setup (drop zones + hosts panel + editor)
         setupCoverDropzone();
@@ -1880,7 +2004,7 @@
         }
         const ev = await loadEventDetails();
         if (!ev) return;
-        await loadPrograms();
+        await Promise.all([loadPrograms(), loadAcademicPeriods()]);
         if (ev.capacity_type === 'single') {
             await loadEligibleStudents(ev.program_id || null);
         }

@@ -725,6 +725,145 @@
     </div>
 </div>
 
+<!-- Modal: Editar informaci贸n del evento -->
+<div class="modal fade" id="editEventInfoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil-square me-2"></i>Editar informaci贸n del evento
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editEventForm">
+                <div class="modal-body">
+                    <input type="hidden" id="editEventId">
+
+                    <!-- Bloque: Identidad -->
+                    <h6 class="text-muted text-uppercase small fw-bold mb-2">
+                        <i class="bi bi-tag me-1"></i>Identidad
+                    </h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">T铆tulo *</label>
+                            <input type="text" class="form-control" id="editTitle" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Tipo</label>
+                            <select class="form-select" id="editType">
+                                <option value="interview">Entrevista</option>
+                                <option value="defense">Defensa</option>
+                                <option value="workshop">Taller</option>
+                                <option value="seminar">Seminario</option>
+                                <option value="conference">Conferencia</option>
+                                <option value="info_session">Sesi贸n Informativa</option>
+                                <option value="other">Otro</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripci贸n</label>
+                            <textarea class="form-control" id="editDescription" rows="3"
+                                placeholder="Descripci贸n detallada del evento..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Bloque: Alcance -->
+                    <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+                        <i class="bi bi-bullseye me-1"></i>Alcance
+                    </h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Programa</label>
+                            <select class="form-select" id="editProgram">
+                                <option value="">Todos los programas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Periodo acad茅mico</label>
+                            <select class="form-select" id="editAcademicPeriod">
+                                <option value="">Sin periodo (atemporal)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Visibilidad</label>
+                            <select class="form-select" id="editVisibility">
+                                <option value="public">P煤blico</option>
+                                <option value="private">Privado (solo invitados)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Estado</label>
+                            <select class="form-select" id="editStatus">
+                                <option value="draft">Borrador</option>
+                                <option value="published">Publicado</option>
+                                <option value="ongoing">En curso</option>
+                                <option value="completed">Concluido</option>
+                                <option value="archived">Archivado</option>
+                                <option value="cancelled">Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Bloque: Cu谩ndo / D贸nde -->
+                    <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+                        <i class="bi bi-calendar-event me-1"></i>Cu谩ndo y d贸nde
+                    </h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Lugar</label>
+                            <input type="text" class="form-control" id="editLocation" placeholder="Ej: Sal贸n 301">
+                        </div>
+                        <div class="col-md-6 d-none" id="editDatesRow">
+                            <label class="form-label">Fecha del evento</label>
+                            <input type="datetime-local" class="form-control" id="editEventDate">
+                        </div>
+                        <div class="col-md-6 d-none" id="editDatesRow2">
+                            <label class="form-label">Fecha de fin <span class="text-muted">(opcional)</span></label>
+                            <input type="datetime-local" class="form-control" id="editEventEndDate">
+                        </div>
+                        <div class="col-md-6 d-none" id="editMaxCapacityRow">
+                            <label class="form-label">Capacidad m谩xima</label>
+                            <input type="number" min="1" class="form-control" id="editMaxCapacity">
+                        </div>
+                    </div>
+
+                    <!-- Bloque: Comportamiento -->
+                    <h6 class="text-muted text-uppercase small fw-bold mb-2 mt-4">
+                        <i class="bi bi-gear me-1"></i>Comportamiento
+                    </h6>
+                    <div class="d-flex flex-wrap gap-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editRequiresRegistration">
+                            <label class="form-check-label" for="editRequiresRegistration">Requiere registro</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editAllowsAttendance">
+                            <label class="form-check-label" for="editAllowsAttendance">Control de asistencia</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editVisibleToStudents">
+                            <label class="form-check-label" for="editVisibleToStudents">Visible para estudiantes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editRemindersEnabled">
+                            <label class="form-check-label" for="editRemindersEnabled">Recordatorios autom谩ticos</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="btnRevertEdit">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Descartar cambios
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-floppy me-1"></i>Guardar cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Contenido visual (portada / galer铆a / ponentes) -->
 <div class="modal fade" id="contentVisualModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
