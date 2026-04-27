@@ -919,6 +919,16 @@ def delete_event_image(image_id: int):
 # FASE 6 — PROMOCIÓN & DESCUBRIMIENTO
 # ============================================================================
 
+@api_events.route('/admin-stats', methods=['GET'])
+@login_required
+@permission_required('events.api.list')
+def get_admin_dashboard_stats():
+    """KPIs para el dashboard de administración de eventos."""
+    accessible_pids = current_user.get_accessible_program_ids()
+    stats = EventsService.get_admin_dashboard_stats(accessible_pids)
+    return jsonify({"ok": True, **stats}), 200
+
+
 @api_events.route('/new-count', methods=['GET'])
 @login_required
 def get_new_events_count():

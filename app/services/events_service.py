@@ -290,6 +290,91 @@ class EventsService:
         return query.order_by(Event.created_at.desc()).all()
 
     @staticmethod
+    def get_admin_dashboard_stats(accessible_pids: set | None) -> dict:
+        """KPIs para encabezado de la vista de administración de eventos."""
+        from app.models.appointment import AppointmentChangeRequest, Appointment
+
+        today_start = datetime.combine(date.today(), time.min)
+        today_end = datetime.combine(date.today(), time.max)
+        in_seven_days = today_end + timedelta(days=7)
+
+        def scope_event_query():
+            q = Event.query
+            if accessible_pids is not None:
+                if not accessible_pids:
+                    q = q.filter(Event.program_id.is_(None))
+                else:
+                    q = q.filter(or_(
+                        Event.program_id.in_(accessible_pids),
+                        Event.program_id.is_(None)
+                    ))
+            return q.filter(Event.status != 'archived')
+
+        def scope_event_ids():
+            return [e.id for e in scope_event_query().with_entities(Event.id).all()]
+
+        scoped_ids = scope_event_ids()
+
+        today_count = 0
+        upcoming_count = 0
+        if scoped_ids:
+            today_appts = db.session.query(Appointment).join(
+                EventSlot, EventSlot.id == Appointment.slot_id
+            ).filter(
+                Appointment.status != 'cancelled',
+                Appointment.event_id.in_(scoped_ids),
+                EventSlot.starts_at >= today_start,
+                EventSlot.starts_at <= today_end
+            ).count()
+            today_multi = scope_event_query().filter(
+                Event.event_date >= today_start,
+                Event.event_date <= today_end
+            ).count()
+            today_count = today_appts + today_multi
+
+            upcoming_appts = db.session.query(Appointment).join(
+                EventSlot, EventSlot.id == Appointment.slot_id
+            ).filter(
+                Appointment.status != 'cancelled',
+                Appointment.event_id.in_(scoped_ids),
+                EventSlot.starts_at > today_end,
+                EventSlot.starts_at <= in_seven_days
+            ).count()
+            upcoming_multi = scope_event_query().filter(
+                Event.event_date > today_end,
+                Event.event_date <= in_seven_days
+            ).count()
+            upcoming_count = upcoming_appts + upcoming_multi
+
+        active_count = scope_event_query().filter(
+            Event.status.in_(['published', 'ongoing', 'draft'])
+        ).count()
+
+        pending_changes = 0
+        free_slots = 0
+        if scoped_ids:
+            pending_changes = db.session.query(AppointmentChangeRequest).join(
+                Appointment, Appointment.id == AppointmentChangeRequest.appointment_id
+            ).filter(
+                Appointment.event_id.in_(scoped_ids),
+                AppointmentChangeRequest.status == 'pending'
+            ).count()
+            free_slots = db.session.query(EventSlot).join(
+                EventWindow, EventWindow.id == EventSlot.event_window_id
+            ).filter(
+                EventWindow.event_id.in_(scoped_ids),
+                EventSlot.status == 'free'
+            ).count()
+
+        return {
+            'today': today_count,
+            'upcoming_7d': upcoming_count,
+            'active': active_count,
+            'pending_change_requests': pending_changes,
+            'free_slots': free_slots
+        }
+
+    @staticmethod
     def add_window(
         event_id: int,
         window_date: date,
