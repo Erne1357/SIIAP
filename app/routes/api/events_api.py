@@ -201,26 +201,41 @@ def delete_event(event_id: int):
 @permission_required('events.api.manage')
 def get_event_details(event_id: int):
     """Obtiene detalles completos de un evento incluyendo sus ventanas"""
+    from app.models.academic_period import AcademicPeriod
+    from app.models.event import EventAttendance, EventInvitation
+
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
-    
-    # Verificar permisos: scoped users solo pueden ver eventos de sus programas
+
     accessible_pids = current_user.get_accessible_program_ids()
     if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
         return jsonify({"ok": False, "error": "No tienes permiso"}), 403
 
-    # Obtener ventanas
     windows = EventWindow.query.filter_by(event_id=event_id).all()
-    
-    return jsonify({
+
+    program = db.session.get(Program, event.program_id) if event.program_id else None
+    period = db.session.get(AcademicPeriod, event.academic_period_id) if event.academic_period_id else None
+
+    slots_query = db.session.query(EventSlot).join(
+        EventWindow, EventWindow.id == EventSlot.event_window_id
+    ).filter(EventWindow.event_id == event_id)
+    slots_total = slots_query.count()
+    slots_booked = slots_query.filter(EventSlot.status == 'booked').count()
+
+    registrations_count = EventAttendance.query.filter_by(event_id=event_id).count()
+    invitations_pending = EventInvitation.query.filter_by(event_id=event_id, status='pending').count()
+
+    payload = event.to_dict()
+    payload.update({
         "ok": True,
-        "id": event.id,
-        "title": event.title,
-        "type": event.type,
-        "location": event.location,
-        "description": event.description,
-        "program_id": event.program_id,
+        "program_name": program.name if program else None,
+        "academic_period_code": period.code if period else None,
+        "windows_count": len(windows),
+        "slots_total": slots_total,
+        "slots_booked": slots_booked,
+        "registrations_count": registrations_count,
+        "invitations_pending": invitations_pending,
         "windows": [{
             "id": w.id,
             "date": w.date.isoformat(),
@@ -228,7 +243,8 @@ def get_event_details(event_id: int):
             "end_time": w.end_time.isoformat(),
             "slot_minutes": w.slot_minutes
         } for w in windows]
-    }), 200
+    })
+    return jsonify(payload), 200
 @api_events.route('/windows/<int:window_id>', methods=['DELETE'])
 @login_required
 @permission_required('events.api.manage')

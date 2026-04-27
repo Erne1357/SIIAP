@@ -235,3 +235,83 @@
 #eventsTable tbody tr {
     border-bottom: 1px solid var(--bs-border-color-translucent);
 }
+
+/* ====================================================
+   EVENT DETAIL PAGE
+   ==================================================== */
+
+.event-detail-page {
+    max-width: 1280px;
+}
+
+.event-detail-header {
+    border-left: 4px solid var(--bs-primary);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bs-body-bg);
+}
+
+.event-detail-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    background: var(--bs-primary-bg-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.event-detail-icon i {
+    font-size: 1.75rem;
+    color: var(--bs-primary);
+}
+
+.event-detail-border-interview    { border-left-color: #0d6efd; }
+.event-detail-border-defense      { border-left-color: #dc3545; }
+.event-detail-border-workshop     { border-left-color: #198754; }
+.event-detail-border-seminar      { border-left-color: #0dcaf0; }
+.event-detail-border-conference   { border-left-color: #ffc107; }
+.event-detail-border-info_session { border-left-color: #6c757d; }
+.event-detail-border-other        { border-left-color: #6c757d; }
+
+.event-detail-border-interview .event-detail-icon    { background: #cfe2ff; }
+.event-detail-border-interview .event-detail-icon i  { color: #0a58ca; }
+.event-detail-border-defense .event-detail-icon      { background: #f8d7da; }
+.event-detail-border-defense .event-detail-icon i    { color: #b02a37; }
+.event-detail-border-workshop .event-detail-icon     { background: #d1e7dd; }
+.event-detail-border-workshop .event-detail-icon i   { color: #146c43; }
+.event-detail-border-seminar .event-detail-icon      { background: #cff4fc; }
+.event-detail-border-seminar .event-detail-icon i    { color: #087990; }
+.event-detail-border-conference .event-detail-icon   { background: #fff3cd; }
+.event-detail-border-conference .event-detail-icon i { color: #997404; }
+
+.event-stat-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.event-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: var(--bs-tertiary-bg);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: var(--bs-body-color);
+}
+
+.event-stat-chip i {
+    color: var(--bs-secondary);
+}
+
+.event-stat-chip strong {
+    color: var(--bs-primary);
+}
+
+.min-width-0 {
+    min-width: 0;
+}

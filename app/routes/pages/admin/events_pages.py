@@ -15,3 +15,11 @@ pages_events = Blueprint(
 def index():
     """Vista principal de gestión de eventos"""
     return render_template('admin/events/index.html')
+
+
+@pages_events.route('/<int:event_id>')
+@login_required
+@permission_required('events.page.view')
+def detail(event_id: int):
+    """Vista de detalle de un evento (gestión completa)"""
+    return render_template('admin/events/detail.html', event_id=event_id)

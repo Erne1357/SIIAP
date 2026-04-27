@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+{% block title %}Detalle de Evento{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 event-detail-page">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('pages_admin.pages_events.index') }}">
+                    <i class="bi bi-calendar-event me-1"></i>Eventos
+                </a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page" id="breadcrumbEventTitle">
+                Cargando&hellip;
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Header sticky -->
+    <div class="event-detail-header card mb-3" id="eventDetailHeader">
+        <div class="card-body">
+            <div class="d-flex flex-wrap align-items-start gap-3">
+                <div class="event-detail-icon" id="eventDetailIcon">
+                    <i class="bi bi-calendar-event"></i>
+                </div>
+                <div class="flex-grow-1 min-width-0">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                        <h1 class="h4 mb-0 text-truncate" id="eventDetailTitle">Cargando&hellip;</h1>
+                        <span class="badge" id="eventDetailTypeBadge"></span>
+                        <span class="badge bg-secondary d-none" id="eventDetailStatusBadge"></span>
+                        <span class="badge bg-dark d-none" id="eventDetailVisibilityBadge">
+                            <i class="bi bi-lock-fill me-1"></i>Privado
+                        </span>
+                    </div>
+                    <div class="text-muted small" id="eventDetailSubtitle"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex flex-wrap gap-2 align-items-start">
+                    <button class="btn btn-outline-primary btn-sm" id="btnEditInfo" type="button">
+                        <i class="bi bi-pencil-square me-1"></i>Editar info
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnEditContent" type="button">
+                        <i class="bi bi-images me-1"></i>Contenido visual
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-dark btn-sm dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <button class="dropdown-item" id="btnTogglePrivacy" type="button">
+                                    <i class="bi bi-arrow-left-right me-2"></i>
+                                    <span id="togglePrivacyLabel">Hacer privado</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item" id="btnConcludeEvent" type="button">
+                                    <i class="bi bi-check2-circle me-2"></i>Concluir evento
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item" id="btnArchiveEvent" type="button">
+                                    <i class="bi bi-archive me-2"></i>Archivar
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item d-none" id="btnUnarchiveEvent" type="button">
+                                    <i class="bi bi-arrow-counterclockwise me-2"></i>Desarchivar
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item text-danger" id="btnDeleteEvent" type="button">
+                                    <i class="bi bi-trash me-2"></i>Eliminar evento
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stat chips -->
+            <div class="event-stat-chips mt-3" id="eventStatChips"></div>
+        </div>
+    </div>
+
+    <!-- Tabs (dinámicos según capacity_type) -->
+    <ul class="nav nav-tabs mb-3" role="tablist" id="eventDetailTabs">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-summary" data-bs-toggle="tab"
+                data-bs-target="#pane-summary" type="button" role="tab">
+                <i class="bi bi-info-circle me-1"></i>Resumen
+            </button>
+        </li>
+        <!-- Tabs single-only -->
+        <li class="nav-item single-only d-none" role="presentation">
+            <button class="nav-link" id="tab-windows" data-bs-toggle="tab"
+                data-bs-target="#pane-windows" type="button" role="tab">
+                <i class="bi bi-clock-history me-1"></i>Horarios
+            </button>
+        </li>
+        <li class="nav-item single-only d-none" role="presentation">
+            <button class="nav-link" id="tab-slots" data-bs-toggle="tab"
+                data-bs-target="#pane-slots" type="button" role="tab">
+                <i class="bi bi-calendar2-check me-1"></i>Asignaciones
+            </button>
+        </li>
+        <li class="nav-item single-only d-none" role="presentation">
+            <button class="nav-link" id="tab-change-requests" data-bs-toggle="tab"
+                data-bs-target="#pane-change-requests" type="button" role="tab">
+                <i class="bi bi-arrow-left-right me-1"></i>Solicitudes
+                <span class="badge bg-danger ms-1 d-none" id="changeRequestsBadge">0</span>
+            </button>
+        </li>
+        <!-- Tabs multi-only -->
+        <li class="nav-item multi-only d-none" role="presentation">
+            <button class="nav-link" id="tab-attendees" data-bs-toggle="tab"
+                data-bs-target="#pane-attendees" type="button" role="tab">
+                <i class="bi bi-people me-1"></i>Asistentes
+                <span class="badge bg-secondary ms-1" id="attendeesBadge">0</span>
+            </button>
+        </li>
+        <li class="nav-item multi-only d-none" role="presentation">
+            <button class="nav-link" id="tab-invitations" data-bs-toggle="tab"
+                data-bs-target="#pane-invitations" type="button" role="tab">
+                <i class="bi bi-envelope me-1"></i>Invitaciones
+                <span class="badge bg-secondary ms-1" id="invitationsBadge">0</span>
+            </button>
+        </li>
+        <li class="nav-item multi-only d-none" role="presentation">
+            <button class="nav-link" id="tab-attendance" data-bs-toggle="tab"
+                data-bs-target="#pane-attendance" type="button" role="tab">
+                <i class="bi bi-clipboard-check me-1"></i>Asistencia
+            </button>
+        </li>
+    </ul>
+
+    <!-- Panes -->
+    <div class="tab-content" id="eventDetailTabsContent">
+        <!-- Resumen -->
+        <div class="tab-pane fade show active" id="pane-summary" role="tabpanel">
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <strong><i class="bi bi-card-text me-1"></i>Información general</strong>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row mb-0 small">
+                                <dt class="col-sm-4 text-muted">Programa</dt>
+                                <dd class="col-sm-8" id="summaryProgram">&mdash;</dd>
+
+                                <dt class="col-sm-4 text-muted">Periodo académico</dt>
+                                <dd class="col-sm-8" id="summaryPeriod">&mdash;</dd>
+
+                                <dt class="col-sm-4 text-muted">Tipo de capacidad</dt>
+                                <dd class="col-sm-8" id="summaryCapacity">&mdash;</dd>
+
+                                <dt class="col-sm-4 text-muted">Lugar</dt>
+                                <dd class="col-sm-8" id="summaryLocation">&mdash;</dd>
+
+                                <dt class="col-sm-4 text-muted">Fechas</dt>
+                                <dd class="col-sm-8" id="summaryDates">&mdash;</dd>
+
+                                <dt class="col-sm-4 text-muted">Comportamiento</dt>
+                                <dd class="col-sm-8" id="summaryFlags">&mdash;</dd>
+                            </dl>
+                            <hr>
+                            <div class="text-muted small mb-1">Descripción</div>
+                            <p class="mb-0" id="summaryDescription">
+                                <span class="text-muted fst-italic">Sin descripción</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <strong><i class="bi bi-mic me-1"></i>Ponentes</strong>
+                        </div>
+                        <div class="card-body" id="summaryHosts">
+                            <div class="text-center text-muted py-3">
+                                <i class="bi bi-person-x fs-3 d-block mb-1"></i>
+                                Sin ponentes registrados
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <strong><i class="bi bi-image me-1"></i>Portada</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="event-cover-preview empty" id="summaryCoverPreview">
+                                <div class="text-center">
+                                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                                    <span class="text-muted small">Sin portada</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Horarios -->
+        <div class="tab-pane fade" id="pane-windows" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button class="btn btn-success btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#addWindowModal" type="button">
+                    <i class="bi bi-plus-lg me-1"></i>Agregar plazo
+                </button>
+                <button class="btn btn-info btn-sm" id="btnGenerateSlotsFromWindows" type="button">
+                    <i class="bi bi-gear me-1"></i>Generar todos los horarios
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm" id="windowsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Horario</th>
+                            <th>Duración</th>
+                            <th class="text-center">Generado</th>
+                            <th class="text-center">Cupos</th>
+                            <th class="text-center">Libres</th>
+                            <th class="text-center">Ocupados</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-3">Cargando&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Asignaciones -->
+        <div class="tab-pane fade" id="pane-slots" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de slots">
+                    <input type="radio" class="btn-check" name="slotFilter" id="slotFilterAll" value="all" checked>
+                    <label class="btn btn-outline-secondary" for="slotFilterAll">Todos</label>
+                    <input type="radio" class="btn-check" name="slotFilter" id="slotFilterFree" value="free">
+                    <label class="btn btn-outline-success" for="slotFilterFree">Libres</label>
+                    <input type="radio" class="btn-check" name="slotFilter" id="slotFilterBooked" value="booked">
+                    <label class="btn btn-outline-primary" for="slotFilterBooked">Ocupados</label>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <span class="badge bg-success"><span id="freeSlots">0</span> Libres</span>
+                    <span class="badge bg-primary"><span id="bookedSlots">0</span> Ocupados</span>
+                    <span class="badge bg-secondary"><span id="totalSlots">0</span> Total</span>
+                    <button class="btn btn-info btn-sm" id="btnGenerateSlots" type="button">
+                        <i class="bi bi-gear me-1"></i>Regenerar faltantes
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnRefreshSlots" type="button">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm" id="slotsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th class="text-center">Estado</th>
+                            <th>Estudiante</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">Cargando&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Solicitudes de cambio -->
+        <div class="tab-pane fade" id="pane-change-requests" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table table-sm" id="changeRequestsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Estudiante</th>
+                            <th>Horario actual</th>
+                            <th>Motivo</th>
+                            <th>Sugerencias</th>
+                            <th>Fecha</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Asistentes (multi) -->
+        <div class="tab-pane fade" id="pane-attendees" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button class="btn btn-success btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#inviteStudentsModal" type="button">
+                    <i class="bi bi-person-plus me-1"></i>Invitar estudiantes
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm" id="quickRegistrationsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Estudiante</th>
+                            <th>Email</th>
+                            <th>Origen</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">Cargando&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Invitaciones (multi) -->
+        <div class="tab-pane fade" id="pane-invitations" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table table-sm" id="invitationsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Estudiante</th>
+                            <th>Invitado por</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">Cargando&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Asistencia (multi) -->
+        <div class="tab-pane fade" id="pane-attendance" role="tabpanel">
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="card bg-light">
+                        <div class="card-body text-center py-2">
+                            <h3 class="mb-0" id="statsTotal">0</h3>
+                            <small class="text-muted">Registrados</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center py-2">
+                            <h3 class="mb-0" id="statsAttended">0</h3>
+                            <small>Asistieron</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning">
+                        <div class="card-body text-center py-2">
+                            <h3 class="mb-0" id="statsNoShow">0</h3>
+                            <small>No asistieron</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center py-2">
+                            <h3 class="mb-0" id="statsRegistered">0</h3>
+                            <small>Pendientes</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="attendanceFilter" id="attFilterAll" value="" checked>
+                    <label class="btn btn-outline-secondary btn-sm" for="attFilterAll">Todos</label>
+                    <input type="radio" class="btn-check" name="attendanceFilter" id="attFilterRegistered" value="registered">
+                    <label class="btn btn-outline-info btn-sm" for="attFilterRegistered">Pendientes</label>
+                    <input type="radio" class="btn-check" name="attendanceFilter" id="attFilterAttended" value="attended">
+                    <label class="btn btn-outline-success btn-sm" for="attFilterAttended">Asistieron</label>
+                    <input type="radio" class="btn-check" name="attendanceFilter" id="attFilterNoShow" value="no_show">
+                    <label class="btn btn-outline-warning btn-sm" for="attFilterNoShow">No asistieron</label>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" id="btnExportAttendance" type="button">
+                    <i class="bi bi-download me-1"></i>Exportar
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover" id="registrationsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Estudiante</th>
+                            <th>Email</th>
+                            <th>Fecha de registro</th>
+                            <th class="text-center">Estado</th>
+                            <th>Asistió</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="alertsEvents" class="mt-3"></div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{# Modales se irán incluyendo en fases siguientes (assign, content, edit info, etc.) #}
+{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/admin/events/events.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    window.EVENT_DETAIL = {
+        eventId: {{ event_id|tojson }},
+        listUrl: "{{ url_for('pages_admin.pages_events.index') }}"
+    };
+</script>
+<script src="{{ url_for('static', filename='js/admin/events/_common.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/admin/events/detail.js') }}?v={{ static_version }}"></script>
+{% endblock %}
