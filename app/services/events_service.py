@@ -206,17 +206,21 @@ class EventsService:
         else:
             base = base.filter(Event.academic_period_id.is_(None))
 
-        # Público
+        # Público: el usuario lo ve si...
+        public_subfilters = [Event.program_id.is_(None)]  # eventos generales
         if user_pid:
-            public_clause = and_(
-                Event.visibility == 'public',
-                or_(Event.program_id == user_pid, Event.program_id.is_(None))
-            )
-        else:
-            public_clause = and_(
-                Event.visibility == 'public',
-                Event.program_id.is_(None)
-            )
+            public_subfilters.append(Event.program_id == user_pid)
+        if accessible_pids is None:
+            # Admin global (postgraduate_admin sin scope) ve todos los públicos
+            public_subfilters.append(Event.id.isnot(None))
+        elif accessible_pids:
+            # Coordinador / admin con scope ve públicos de programas accesibles
+            public_subfilters.append(Event.program_id.in_(accessible_pids))
+
+        public_clause = and_(
+            Event.visibility == 'public',
+            or_(*public_subfilters)
+        )
 
         # Privado: invitado OR creador OR admin del programa OR ya registrado
         private_filters = [Event.created_by == user_id]
