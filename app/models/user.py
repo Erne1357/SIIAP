@@ -81,6 +81,9 @@ class User(db.Model, UserMixin):
     # Campo para marcar perfil completo (calculado automáticamente)
     profile_completed = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Tracks when the user last opened the public events list (null = never viewed)
+    last_events_seen_at = db.Column(db.DateTime, nullable=True)
+
 
     def __init__(self, first_name, last_name, mother_last_name, username, password, email, is_internal, role_id, avatar='default.jpg', must_change_password=True):
         self.first_name = first_name

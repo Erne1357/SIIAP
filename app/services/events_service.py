@@ -61,6 +61,56 @@ class EventsService:
         )
         db.session.add(ev)
         db.session.commit()
+
+        # Fase 6.2: broadcast a usuarios potencialmente interesados cuando el evento
+        # se publica directamente como público y de capacidad múltiple/ilimitada.
+        if (
+            status == 'published'
+            and visible_to_students
+            and capacity_type != 'single'
+            and visibility == 'public'
+        ):
+            try:
+                from app.services.notification_service import NotificationService
+                from app.models.user_program import UserProgram
+                from app.models.user import User
+                from app.models.role import Role
+
+                target_roles = Role.query.filter(Role.name.in_(['student', 'applicant'])).all()
+                target_role_ids = [r.id for r in target_roles]
+
+                if program_id:
+                    target_user_ids = [
+                        u.id for u in db.session.query(User).join(
+                            UserProgram, UserProgram.user_id == User.id
+                        ).filter(
+                            UserProgram.program_id == program_id,
+                            User.role_id.in_(target_role_ids),
+                            User.is_active == True
+                        ).all()
+                    ]
+                else:
+                    target_user_ids = [
+                        u.id for u in User.query.filter(
+                            User.role_id.in_(target_role_ids),
+                            User.is_active == True
+                        ).all()
+                    ]
+
+                # Excluir creador
+                target_user_ids = [uid for uid in target_user_ids if uid != created_by]
+
+                if target_user_ids:
+                    NotificationService.notify_event_published(
+                        user_ids=target_user_ids,
+                        event_title=ev.title,
+                        event_id=ev.id
+                    )
+                    db.session.commit()
+            except Exception as e:
+                from flask import current_app
+                current_app.logger.exception(f"[create_event] Broadcast fallo event_id={ev.id}: {e}")
+
         return ev
 
     @staticmethod
@@ -98,28 +148,33 @@ class EventsService:
     @staticmethod
     def list_public_events(user_id: int) -> list[Event]:
         """
-        Lista eventos visibles para un estudiante:
-        - visible_to_students = True
-        - status = 'published'
-        - capacity_type != 'single'
-        - academic_period_id = periodo activo OR NULL (atemporales)
-        - Públicos: program_id = programa del usuario OR NULL (globales)
-        - Privados: solo si tiene EventInvitation (cualquier status)
+        Lista eventos visibles para un usuario en /events:
+        - visible_to_students=True, status='published', capacity_type != 'single'
+        - academic_period_id = periodo activo OR NULL
+        - Público + (programa del usuario OR global)
+        - Privado:
+            * tiene invitación (cualquier status), OR
+            * es el creador (preview), OR
+            * es program_admin/postgraduate_admin con acceso al programa (preview)
         """
         from app.models.user_program import UserProgram
         from app.models.event import EventInvitation
+        from app.models.user import User
 
         active_period = AcademicPeriod.get_active_period()
         active_pid = active_period.id if active_period else None
         user_program = UserProgram.query.filter_by(user_id=user_id).first()
         user_pid = user_program.program_id if user_program else None
 
-        # IDs de eventos privados donde el usuario tiene invitación
         invited_event_ids = [
             row[0] for row in db.session.query(EventInvitation.event_id).filter(
                 EventInvitation.user_id == user_id
             ).all()
         ]
+
+        # Programas accesibles para preview de privados (si es admin)
+        user = db.session.get(User, user_id)
+        accessible_pids = user.get_accessible_program_ids() if user else set()
 
         base = Event.query.filter(
             Event.visible_to_students == True,
@@ -127,7 +182,6 @@ class EventsService:
             Event.capacity_type != 'single'
         )
 
-        # Filtro periodo activo (o NULL si atemporal)
         if active_pid is not None:
             base = base.filter(
                 or_(
@@ -138,9 +192,7 @@ class EventsService:
         else:
             base = base.filter(Event.academic_period_id.is_(None))
 
-        # Reglas de visibilidad:
-        # - public + programa match (o global)
-        # - private + invited
+        # Público
         if user_pid:
             public_clause = and_(
                 Event.visibility == 'public',
@@ -152,9 +204,19 @@ class EventsService:
                 Event.program_id.is_(None)
             )
 
+        # Privado: invitado OR creador OR admin del programa
+        private_filters = [Event.created_by == user_id]
+        if invited_event_ids:
+            private_filters.append(Event.id.in_(invited_event_ids))
+        if accessible_pids is None:
+            # Acceso global (postgraduate_admin sin scope)
+            private_filters.append(Event.id.isnot(None))  # match all
+        elif accessible_pids:
+            private_filters.append(Event.program_id.in_(accessible_pids))
+
         private_clause = and_(
             Event.visibility == 'private',
-            Event.id.in_(invited_event_ids) if invited_event_ids else False
+            or_(*private_filters)
         )
 
         query = base.filter(or_(public_clause, private_clause))
@@ -694,6 +756,10 @@ class EventsService:
                     )
                 notified_users.append(user_id)
 
+                from app.sockets.emitters import emit_to_user
+                pending_count = EventInvitation.query.filter_by(user_id=user_id, status='pending').count()
+                emit_to_user('invitations:count_changed', {'count': pending_count}, user_id)
+
             except Exception as e:
                 db.session.rollback()
                 current_app.logger.exception(
@@ -747,8 +813,14 @@ class EventsService:
                 raise
         
         db.session.commit()
+
+        from app.sockets.emitters import emit_to_user
+        from app.models.event import EventInvitation as _EI
+        pending_count = _EI.query.filter_by(user_id=user_id, status='pending').count()
+        emit_to_user('invitations:count_changed', {'count': pending_count}, user_id)
+
         return invitation
-    
+
     @staticmethod
     def get_event_invitations(event_id: int):
         """
@@ -807,21 +879,161 @@ class EventsService:
         } for inv, event in invitations]
     
     @staticmethod
+    def get_dashboard_widget(user_id: int) -> dict:
+        """
+        Datos para el widget de Eventos en dashboards (applicant + student).
+
+        Returns:
+            {
+              'pending_invitations': [{...}],   # status='pending' del usuario
+              'accepted_invitations': [{...}],  # status='accepted' del usuario, evento futuro
+              'upcoming_events': [{...}],       # max 3 eventos públicos visibles, futuros, no registrado
+              'my_registrations': [{...}],      # EventAttendance status='registered'/'attended', evento futuro
+            }
+        """
+        from app.models.event import EventInvitation, EventAttendance, EventImage
+
+        now = now_local()
+
+        # Pending + accepted invitations
+        invitations_q = db.session.query(EventInvitation, Event).join(
+            Event, EventInvitation.event_id == Event.id
+        ).filter(
+            EventInvitation.user_id == user_id,
+            EventInvitation.status.in_(('pending', 'accepted'))
+        ).order_by(Event.event_date.asc().nullslast()).all()
+
+        pending_invitations = []
+        accepted_invitations = []
+        for inv, ev in invitations_q:
+            entry = {
+                'invitation_id': inv.id,
+                'event_id': ev.id,
+                'event_title': ev.title,
+                'event_type': ev.type,
+                'event_location': ev.location,
+                'event_date': ev.event_date.isoformat() if ev.event_date else None,
+                'event_status': ev.status,
+                'invited_at': inv.invited_at.isoformat() if inv.invited_at else None,
+                'notes': inv.notes,
+            }
+            if inv.status == 'pending':
+                pending_invitations.append(entry)
+            elif ev.event_date is None or ev.event_date >= now:
+                accepted_invitations.append(entry)
+
+        # My registrations (status registered/attended), evento futuro
+        registrations_q = db.session.query(EventAttendance, Event).join(
+            Event, EventAttendance.event_id == Event.id
+        ).filter(
+            EventAttendance.user_id == user_id,
+            EventAttendance.status.in_(('registered', 'attended')),
+            Event.status == 'published'
+        ).order_by(Event.event_date.asc().nullslast()).all()
+
+        registered_event_ids = set()
+        my_registrations = []
+        for att, ev in registrations_q:
+            if ev.event_date and ev.event_date < now:
+                continue
+            registered_event_ids.add(ev.id)
+            my_registrations.append({
+                'attendance_id': att.id,
+                'event_id': ev.id,
+                'event_title': ev.title,
+                'event_type': ev.type,
+                'event_location': ev.location,
+                'event_date': ev.event_date.isoformat() if ev.event_date else None,
+                'attendance_status': att.status,
+            })
+
+        # Upcoming events: visibles para el usuario, futuros, sin registrar
+        invited_event_ids = {entry['event_id'] for entry in pending_invitations}
+        invited_event_ids.update(entry['event_id'] for entry in accepted_invitations)
+
+        upcoming_events = []
+        try:
+            visible = EventsService.list_public_events(user_id)
+        except Exception:
+            visible = []
+
+        for ev in visible:
+            if ev.event_date and ev.event_date < now:
+                continue
+            if ev.id in registered_event_ids or ev.id in invited_event_ids:
+                continue
+            cover = EventImage.query.filter_by(event_id=ev.id, is_cover=True).first()
+            upcoming_events.append({
+                'event_id': ev.id,
+                'event_title': ev.title,
+                'event_type': ev.type,
+                'event_location': ev.location,
+                'event_date': ev.event_date.isoformat() if ev.event_date else None,
+                'cover_path': cover.path if cover else None,
+            })
+            if len(upcoming_events) >= 3:
+                break
+
+        return {
+            'pending_invitations': pending_invitations,
+            'accepted_invitations': accepted_invitations,
+            'upcoming_events': upcoming_events,
+            'my_registrations': my_registrations,
+        }
+
+    @staticmethod
+    def count_new_events(user_id: int) -> int:
+        """
+        Cuenta eventos públicos creados desde la última vez que el usuario abrió
+        la lista de eventos (User.last_events_seen_at). Si nunca ha visto la lista,
+        cuenta los publicados en los últimos 7 días.
+        """
+        from app.models.user import User
+
+        user = db.session.get(User, user_id)
+        if not user:
+            return 0
+
+        threshold = user.last_events_seen_at
+        if threshold is None:
+            threshold = now_local() - timedelta(days=7)
+
+        visible_events = EventsService.list_public_events(user_id)
+        return sum(1 for ev in visible_events if ev.created_at and ev.created_at > threshold)
+
+    @staticmethod
+    def mark_events_seen(user_id: int) -> None:
+        """Actualiza User.last_events_seen_at = now."""
+        from app.models.user import User
+
+        user = db.session.get(User, user_id)
+        if not user:
+            return
+        user.last_events_seen_at = now_local()
+        db.session.commit()
+
+    @staticmethod
     def cancel_invitation(invitation_id: int):
         """
         Cancela una invitación (solo si está pendiente)
         """
         from app.models.event import EventInvitation
-        
+
         invitation = db.session.get(EventInvitation, invitation_id)
         if not invitation:
             raise ValueError("Invitación no encontrada")
-        
+
         if invitation.status != 'pending':
             raise ValueError("Solo se pueden cancelar invitaciones pendientes")
-        
+
+        target_user_id = invitation.user_id
         db.session.delete(invitation)
         db.session.commit()
+
+        from app.sockets.emitters import emit_to_user
+        pending_count = EventInvitation.query.filter_by(user_id=target_user_id, status='pending').count()
+        emit_to_user('invitations:count_changed', {'count': pending_count}, target_user_id)
+
         return True
     
     @staticmethod
@@ -1036,9 +1248,14 @@ class EventsService:
 
     @staticmethod
     def get_event_hosts(event_id: int) -> list[dict]:
-        """Lista hosts con info de foto/nombre resuelta."""
+        """
+        Lista hosts con info completa para admin y público.
+        Para internos resuelve foto vía `User.avatar_url`; para externos
+        construye URL servida `/files/event/<id>/hosts/<filename>`.
+        """
         from app.models.event import EventHost
         from app.models.user import User
+        from flask import url_for
 
         hosts = EventHost.query.filter_by(event_id=event_id).order_by(
             EventHost.display_order.asc()
@@ -1048,20 +1265,56 @@ class EventsService:
         for h in hosts:
             if h.user_id:
                 user = db.session.get(User, h.user_id)
-                name = f"{user.first_name} {user.last_name}" if user else "Usuario eliminado"
-                photo = getattr(user, 'profile_photo', None) if user else None
-                bio = None  # para internos bio viene del perfil (si existe)
+                if user:
+                    name  = f"{user.first_name} {user.last_name}".strip()
+                    email = user.email
+                    role_display = user.role.name if user.role else None
+                    try:
+                        photo_url = user.avatar_url
+                    except Exception:
+                        photo_url = None
+                else:
+                    name = "Usuario eliminado"
+                    email = None
+                    role_display = None
+                    photo_url = None
+                external_name = None
+                external_bio = None
+                external_photo_path = None
+                bio = None
             else:
                 name = h.external_name
-                photo = h.external_photo_path
+                email = None
+                role_display = None
                 bio = h.external_bio
+                external_name = h.external_name
+                external_bio = h.external_bio
+                external_photo_path = h.external_photo_path
+                if h.external_photo_path:
+                    filename = h.external_photo_path.split('/')[-1]
+                    try:
+                        photo_url = url_for(
+                            'api_files.event_image',
+                            event_id=event_id, kind='hosts', filename=filename
+                        )
+                    except Exception:
+                        photo_url = f"/files/event/{event_id}/hosts/{filename}"
+                else:
+                    photo_url = None
 
             result.append({
                 'id': h.id,
                 'user_id': h.user_id,
                 'name': name,
+                'full_name': name,
+                'email': email,
+                'role_display': role_display,
                 'bio': bio,
-                'photo_path': photo,
+                'photo_url': photo_url,
+                'avatar_url': photo_url,
+                'external_name': external_name,
+                'external_bio': external_bio,
+                'external_photo_path': external_photo_path,
                 'role_label': h.role_label,
                 'display_order': h.display_order,
                 'is_external': h.user_id is None,

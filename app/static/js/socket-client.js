@@ -184,4 +184,14 @@
         window.dispatchEvent(new CustomEvent('siiap:event:changed', { detail: data }));
     });
 
+    /**
+     * invitations:count_changed
+     * Emitido al usuario cuando cambia su contador de invitaciones pendientes
+     * (recibe nueva, responde, cancelan, etc.).
+     * Payload: { count: number }
+     */
+    socket.on('invitations:count_changed', (data) => {
+        window.dispatchEvent(new CustomEvent('siiap:invitations:count_changed', { detail: data }));
+    });
+
 })();

@@ -80,11 +80,20 @@
             </div>
 
             <div class="card" id="eventManagementCard" style="display: none;">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="mb-0">
                         Gestión - <span id="selectedEventTitle"></span>
                         <span class="badge" id="selectedEventTypeBadge"></span>
+                        <span class="badge bg-dark d-none" id="selectedEventVisibilityBadge">
+                            <i class="bi bi-lock-fill me-1"></i>Privado
+                        </span>
                     </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary" id="btnTogglePrivacy">
+                            <i class="bi bi-arrow-left-right me-1"></i>
+                            <span id="togglePrivacyLabel">Hacer privado</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
 
@@ -92,7 +101,13 @@
                     <div id="singleCapacityContent" style="display: none;">
                         <ul class="nav nav-tabs mb-3" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="tab-windows" data-bs-toggle="tab"
+                                <button class="nav-link active tab-event-info" id="tab-info-single" data-bs-toggle="tab"
+                                    data-bs-target="#pane-event-info" type="button" role="tab">
+                                    <i class="bi bi-info-circle"></i> Información
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tab-windows" data-bs-toggle="tab"
                                     data-bs-target="#pane-windows" type="button" role="tab">
                                     <i class="fas fa-window-maximize"></i> Gestión de Horarios
                                 </button>
@@ -120,7 +135,7 @@
 
                         <div class="tab-content">
                             <!-- TAB: VENTANAS (código existente) -->
-                            <div class="tab-pane fade show active" id="pane-windows" role="tabpanel">
+                            <div class="tab-pane fade" id="pane-windows" role="tabpanel">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <button class="btn btn-success btn-sm" data-bs-toggle="modal"
                                         data-bs-target="#addWindowModal">
@@ -254,10 +269,16 @@
                             </div>
                         </div>
 
-                        <!-- Tabs: Registrados e Invitaciones -->
+                        <!-- Tabs: Información, Registrados, Invitaciones -->
                         <ul class="nav nav-tabs mb-3" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="tab-registrations" data-bs-toggle="tab"
+                                <button class="nav-link active tab-event-info" id="tab-info-multi" data-bs-toggle="tab"
+                                    data-bs-target="#pane-event-info" type="button" role="tab">
+                                    <i class="bi bi-info-circle"></i> Información
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tab-registrations" data-bs-toggle="tab"
                                     data-bs-target="#pane-registrations-multi" type="button" role="tab">
                                     <i class="fas fa-users"></i> Registrados (<span id="countRegistered">0</span>)
                                 </button>
@@ -279,7 +300,7 @@
                         <div class="tab-content">
 
                             <!-- TAB: Registrados -->
-                            <div class="tab-pane fade show active" id="pane-registrations-multi" role="tabpanel">
+                            <div class="tab-pane fade" id="pane-registrations-multi" role="tabpanel">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <button class="btn btn-success btn-sm" data-bs-toggle="modal"
                                         data-bs-target="#inviteStudentsModal">
@@ -342,6 +363,115 @@
 
                     <!-- Panel de Contenido compartido (portada, galería, ponentes) -->
                     <!-- Se muestra cuando el tab "Contenido" está activo en single o multiple -->
+                    <!-- Pane compartido: Información del evento (editor) -->
+                    <div id="pane-event-info" style="display:none;" class="mt-3">
+                        <form id="editEventForm" class="row g-3">
+                            <input type="hidden" id="editEventId">
+
+                            <div class="col-md-8">
+                                <label class="form-label">Título *</label>
+                                <input type="text" class="form-control" id="editTitle" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" id="editType">
+                                    <option value="interview">Entrevista</option>
+                                    <option value="defense">Defensa</option>
+                                    <option value="workshop">Taller</option>
+                                    <option value="seminar">Seminario</option>
+                                    <option value="conference">Conferencia</option>
+                                    <option value="info_session">Sesión Informativa</option>
+                                    <option value="other">Otro</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Programa</label>
+                                <select class="form-select" id="editProgram">
+                                    <option value="">Todos los programas</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Periodo académico</label>
+                                <select class="form-select" id="editAcademicPeriod">
+                                    <option value="">Sin periodo (atemporal)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Lugar</label>
+                                <input type="text" class="form-control" id="editLocation"
+                                    placeholder="Ej: Salón 301">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Estado</label>
+                                <select class="form-select" id="editStatus">
+                                    <option value="draft">Borrador</option>
+                                    <option value="published">Publicado</option>
+                                    <option value="ongoing">En curso</option>
+                                    <option value="completed">Concluido</option>
+                                    <option value="archived">Archivado</option>
+                                    <option value="cancelled">Cancelado</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 d-none" id="editDatesRow">
+                                <label class="form-label">Fecha del evento</label>
+                                <input type="datetime-local" class="form-control" id="editEventDate">
+                            </div>
+                            <div class="col-md-6 d-none" id="editDatesRow2">
+                                <label class="form-label">Fecha de fin (opcional)</label>
+                                <input type="datetime-local" class="form-control" id="editEventEndDate">
+                            </div>
+
+                            <div class="col-md-6 d-none" id="editMaxCapacityRow">
+                                <label class="form-label">Capacidad máxima</label>
+                                <input type="number" min="1" class="form-control" id="editMaxCapacity">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Visibilidad</label>
+                                <select class="form-select" id="editVisibility">
+                                    <option value="public">🌐 Público</option>
+                                    <option value="private">🔒 Privado (solo invitados)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Descripción</label>
+                                <textarea class="form-control" id="editDescription" rows="4"
+                                    placeholder="Descripción detallada del evento..."></textarea>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="editRequiresRegistration">
+                                    <label class="form-check-label" for="editRequiresRegistration">Requiere registro</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="editAllowsAttendance">
+                                    <label class="form-check-label" for="editAllowsAttendance">Control de asistencia</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="editVisibleToStudents">
+                                    <label class="form-check-label" for="editVisibleToStudents">Visible para estudiantes</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="editRemindersEnabled">
+                                    <label class="form-check-label" for="editRemindersEnabled">Recordatorios automáticos</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12 d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-outline-secondary" id="btnRevertEdit">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Descartar cambios
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-save me-1"></i> Guardar cambios
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
                     <div id="pane-content-media" style="display:none;" class="mt-3">
                         <div class="accordion" id="contentAccordion">
 

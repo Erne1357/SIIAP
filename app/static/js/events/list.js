@@ -373,6 +373,12 @@
         const privateBadge = ev.visibility === 'private'
             ? `<span class="badge bg-dark"><i class="bi bi-lock-fill me-1"></i>Privado</span>`
             : '';
+        const previewBadge = ev.is_preview
+            ? `<span class="badge bg-info"><i class="bi bi-eye me-1"></i>Vista previa</span>`
+            : '';
+        const creatorBadge = ev.is_creator
+            ? `<span class="badge bg-warning text-dark"><i class="bi bi-person-fill-gear me-1"></i>Tú lo creaste</span>`
+            : '';
 
         // Meta (fecha, lugar)
         const dateLine = ev.event_date
@@ -431,7 +437,7 @@
                     ${coverHtml}
                     <div class="card-body">
                         <div class="d-flex flex-wrap gap-1 mb-1">
-                            ${typeBadge}${programBadge}${privateBadge}
+                            ${typeBadge}${programBadge}${privateBadge}${previewBadge}${creatorBadge}
                         </div>
                         <h5 class="card-title">${escapeHtml(ev.title)}</h5>
                         ${dateLine}
@@ -548,21 +554,11 @@
     }
 
     /**
-     * Construye URL de foto de host.
-     * - Interno (is_external=false): photo_path es relativo a avatars → /files/avatar/<user_id>/<file>.
-     *   Como no tenemos user_id aquí, devolvemos el path raw (si es URL absoluta funciona).
-     * - Externo: photo_path relativo a instance/uploads/events/<event_id>/hosts/<uuid>.<ext>.
+     * Resuelve URL de foto de host. Backend ya devuelve `photo_url` listo.
+     * Mantiene fallback a `avatar_url` o construcción manual si falta.
      */
     function buildHostPhotoUrl(eventId, host) {
-        if (!host.photo_path) return '';
-        const path = host.photo_path;
-        if (path.startsWith('http') || path.startsWith('/')) return path;
-        if (host.is_external) {
-            const filename = path.split('/').pop();
-            return `/files/event/${eventId}/hosts/${filename}`;
-        }
-        // Interno: path tipo "42/avatar.webp" — usar /files/avatar/<user_id>/<filename>
-        return `/files/avatar/${path}`;
+        return host.photo_url || host.avatar_url || '';
     }
 
     // ── Mis Registros (modal) ──────────────────────────────────────────
@@ -725,6 +721,29 @@
         modal.show();
     });
 
+    // ── Mark events seen ──────────────────────────────────────────────
+
+    /**
+     * Notifica al servidor que el usuario visitó la lista de eventos.
+     * Fire-and-forget: actualiza User.last_events_seen_at y limpia el flag
+     * de sessionStorage para que promo-toast.js empiece limpio la próxima sesión.
+     */
+    async function markEventsSeen() {
+        try {
+            await fetch(`${API}/events/mark-seen`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'Content-Type': 'application/json',
+                },
+            });
+            sessionStorage.removeItem('eventsPromoShown');
+        } catch (err) {
+            console.warn('[events/list] mark-seen fallo:', err);
+        }
+    }
+
     // ── Tiempo real ────────────────────────────────────────────────────
 
     let reloadTimer = null;
@@ -746,5 +765,6 @@
 
     // ── Init ───────────────────────────────────────────────────────────
 
+    markEventsSeen(); // fire-and-forget: marca visita y limpia flag de promo-toast
     loadEvents();
 })();

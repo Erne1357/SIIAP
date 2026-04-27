@@ -70,3 +70,12 @@ def emit_broadcast(event: str, payload: dict):
         socketio.emit(event, payload)
     except Exception as exc:
         logger.warning(f'[WS] emit_broadcast fallo ({event}): {exc}')
+
+
+def emit_to_user(event: str, payload: dict, user_id: int):
+    """Emite un evento solo a la sala user:{user_id}."""
+    try:
+        from app.extensions import socketio
+        socketio.emit(event, payload, room=f'user:{user_id}')
+    except Exception as exc:
+        logger.warning(f'[WS] emit_to_user fallo ({event}): {exc}')

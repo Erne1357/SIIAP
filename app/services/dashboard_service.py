@@ -56,12 +56,19 @@ class DashboardService:
             except Exception:
                 deferral_status = None
 
+        from app.services.events_service import EventsService
+        try:
+            events_widget = EventsService.get_dashboard_widget(user.id)
+        except Exception:
+            events_widget = None
+
         return {
             "program": program,
             **adm_state,
             "admission_status": up.admission_status if up else None,
             "user_program_id": up.id if up else None,
             "deferral_status": deferral_status,
+            "events_widget": events_widget,
         }
 
     @staticmethod
@@ -87,12 +94,19 @@ class DashboardService:
             pending_admission_docs = pending['admission']
             pending_permanence_docs = pending['permanence']
 
+        from app.services.events_service import EventsService
+        try:
+            events_widget = EventsService.get_dashboard_widget(user.id)
+        except Exception:
+            events_widget = None
+
         return {
             'program': program,
             'up': up,
             'permanence_data': permanence_data,
             'pending_admission_docs': pending_admission_docs,
             'pending_permanence_docs': pending_permanence_docs,
+            'events_widget': events_widget,
         }
 
     @staticmethod

@@ -396,7 +396,8 @@ def list_public_events():
         cover = EventImage.query.filter_by(event_id=event.id, is_cover=True).first()
         cover_path = cover.path if cover else None
 
-        # Hosts summary: máximo 3 para evitar payload excesivo
+        # Hosts summary: máximo 3 con URL de foto ya construida (sin N+1 frontend)
+        from flask import url_for as _url_for
         hosts_summary = []
         hosts = EventHost.query.filter_by(event_id=event.id).order_by(
             EventHost.display_order.asc()
@@ -404,21 +405,38 @@ def list_public_events():
         for h in hosts:
             if h.user_id:
                 u = db.session.get(User, h.user_id)
+                photo_url = None
+                if u:
+                    try:
+                        photo_url = u.avatar_url
+                    except Exception:
+                        photo_url = None
                 hosts_summary.append({
                     'name': f"{u.first_name} {u.last_name}" if u else 'Ponente',
-                    'photo_path': getattr(u, 'profile_photo', None) if u else None,
+                    'photo_url': photo_url,
                     'is_external': False,
                     'role_label': h.role_label,
                 })
             else:
+                photo_url = None
+                if h.external_photo_path:
+                    filename = h.external_photo_path.split('/')[-1]
+                    photo_url = f"/files/event/{event.id}/hosts/{filename}"
                 hosts_summary.append({
                     'name': h.external_name,
-                    'photo_path': h.external_photo_path,
+                    'photo_url': photo_url,
                     'is_external': True,
                     'role_label': h.role_label,
                 })
 
         hosts_total = EventHost.query.filter_by(event_id=event.id).count()
+
+        # Es preview si es privado y NO tiene invitación (lo ve por ser creador/admin)
+        is_preview = (
+            event.visibility == 'private'
+            and not entry['my_invitation_status']
+        )
+        is_creator = event.created_by == current_user.id
 
         items.append({
             "id": event.id,
@@ -434,6 +452,8 @@ def list_public_events():
             "academic_period_id": event.academic_period_id,
             "visibility": event.visibility,
             "my_invitation_status": entry['my_invitation_status'],
+            "is_preview": is_preview,
+            "is_creator": is_creator,
             "event_date": event.event_date.isoformat() if event.event_date else None,
             "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
             "created_at": event.created_at.isoformat(),
@@ -469,16 +489,30 @@ def get_public_event_detail(event_id: int):
     if not event.visible_to_students or event.status != 'published':
         return jsonify({"ok": False, "error": "Evento no disponible"}), 403
 
-    # Si tiene program_id, validar que coincida con el programa del usuario
-    # o sea un evento global (program_id=None)
-    if event.program_id is not None:
+    # ACL — permitir acceso si:
+    # 1. Es el creador
+    # 2. Tiene invitación (cualquier status)
+    # 3. Es admin del programa (preview)
+    # 4. (Públicos) coincide programa o es global
+    accessible_pids = current_user.get_accessible_program_ids()
+    is_creator = event.created_by == current_user.id
+    is_admin = accessible_pids is None or (
+        event.program_id and event.program_id in (accessible_pids or set())
+    )
+
+    from app.models.event import EventInvitation as _EI
+    has_invitation = _EI.query.filter_by(
+        event_id=event.id, user_id=current_user.id
+    ).first() is not None
+
+    if event.visibility == 'private':
+        if not (is_creator or is_admin or has_invitation):
+            return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
+    elif event.program_id is not None:
         user_program = UserProgram.query.filter_by(user_id=current_user.id).first()
-        if not user_program or user_program.program_id != event.program_id:
-            # Permitir acceso a coordinadores del programa aunque no sean estudiantes
-            accessible_pids = current_user.get_accessible_program_ids()
-            allowed = accessible_pids is None or event.program_id in (accessible_pids or set())
-            if not allowed:
-                return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
+        program_match = user_program and user_program.program_id == event.program_id
+        if not (program_match or is_admin or is_creator):
+            return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
 
     program = db.session.get(Program, event.program_id) if event.program_id else None
 
@@ -577,6 +611,8 @@ def get_public_event_detail(event_id: int):
             "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
             "program_id": event.program_id,
             "program_name": program.name if program else None,
+            "is_creator": is_creator,
+            "is_preview": event.visibility == 'private' and not has_invitation,
             "created_at": event.created_at.isoformat(),
         },
         "my_registration": my_registration,
@@ -861,3 +897,30 @@ def delete_event_image(image_id: int):
         return jsonify({"ok": False, "error": str(e)}), 400
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# FASE 6 — PROMOCIÓN & DESCUBRIMIENTO
+# ============================================================================
+
+@api_events.route('/new-count', methods=['GET'])
+@login_required
+def get_new_events_count():
+    """Cuenta eventos públicos creados desde la última visita del usuario."""
+    try:
+        count = EventsService.count_new_events(current_user.id)
+        return jsonify({"data": {"count": count}, "error": None, "meta": {}}), 200
+    except Exception as e:
+        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+
+
+@api_events.route('/mark-seen', methods=['POST'])
+@login_required
+def mark_events_seen():
+    """Marca los eventos como vistos por el usuario actual."""
+    try:
+        EventsService.mark_events_seen(current_user.id)
+        return jsonify({"data": {"ok": True}, "error": None, "meta": {}}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500

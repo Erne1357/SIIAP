@@ -118,6 +118,7 @@
         setupHostsPanel();
         setupHostEditor();
         setupContentTabVisibility();
+        setupEventEditor();
     }
 
     async function loadPrograms() {
@@ -129,7 +130,8 @@
             const programSelects = [
                 document.getElementById("eventProgram"),
                 document.getElementById("programFilter"),
-                document.getElementById("filterProgram")
+                document.getElementById("filterProgram"),
+                document.getElementById("editProgram")
             ];
 
             programSelects.forEach(select => {
@@ -171,6 +173,16 @@
                     return `<option value="${p.id}">${p.code}${tag}</option>`;
                 }).join('');
                 filterSelect.innerHTML = html;
+            }
+
+            const editSelect = document.getElementById('editAcademicPeriod');
+            if (editSelect) {
+                let html = '<option value="">Sin periodo (atemporal)</option>';
+                html += periods.map(p => {
+                    const tag = p.status === 'active' ? ' (activo)' : '';
+                    return `<option value="${p.id}">${p.code} — ${p.name}${tag}</option>`;
+                }).join('');
+                editSelect.innerHTML = html;
             }
         } catch (err) {
             console.error('Error loading academic periods:', err);
@@ -986,6 +998,8 @@
         currentEventHosts  = [];
         loadEventMedia(eventId).catch(() => {});
         loadEventHosts(eventId).catch(() => {});
+        populateEditForm(event);
+        updatePrivacyToggle(event);
 
         // Actualizar badge de tipo
         const typeBadge = document.getElementById('selectedEventTypeBadge');
@@ -2099,12 +2113,23 @@
     /** Currently loaded hosts for the selected event */
     let currentEventHosts  = [];
 
+    /**
+     * Construye URL de imagen de evento. Backend devuelve `path` relativo
+     * tipo "42/cover.webp" o "42/gallery/uuid.png". Se sirve via /files/event/<id>/<kind>/<filename>.
+     */
+    function buildEventImageUrl(eventId, image, kind) {
+        if (!image || !image.path) return '';
+        const filename = image.path.split('/').pop();
+        return `/files/event/${eventId}/${kind}/${filename}`;
+    }
+
     async function loadEventMedia(eventId) {
         try {
             const { data } = await apiRequest(`${API}/events/${eventId}/images`);
             currentEventImages = {
                 cover:   data.cover   || null,
-                gallery: data.gallery || []
+                gallery: data.gallery || [],
+                eventId: eventId
             };
             renderCoverPreview();
             renderGalleryGrid();
@@ -2120,7 +2145,8 @@
         if (!preview) return;
 
         if (currentEventImages.cover) {
-            preview.style.backgroundImage = `url('${currentEventImages.cover.url}')`;
+            const url = buildEventImageUrl(currentEventImages.eventId, currentEventImages.cover, 'cover');
+            preview.style.backgroundImage = `url('${url}')`;
             preview.classList.remove('empty');
             preview.innerHTML = '';
             delBtn?.classList.remove('d-none');
@@ -2151,17 +2177,19 @@
         }
 
         empty?.classList.add('d-none');
-        grid.innerHTML = images.map(img => `
+        grid.innerHTML = images.map(img => {
+            const url = buildEventImageUrl(currentEventImages.eventId, img, 'gallery');
+            return `
             <div class="event-gallery-item">
-                <img src="${img.url}" alt="${img.caption || ''}">
+                <img src="${url}" alt="${escapeAttr(img.caption || '')}">
                 <button type="button"
                     class="btn btn-danger btn-sm btn-remove btn-delete-gallery-image"
                     data-image-id="${img.id}"
                     title="Eliminar imagen">
                     <i class="bi bi-x-lg"></i>
                 </button>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     }
 
     function setupCoverDropzone() {
@@ -2349,8 +2377,8 @@
             const typeBadge  = isInternal
                 ? '<span class="badge bg-info text-dark">Interno</span>'
                 : '<span class="badge bg-secondary">Externo</span>';
-            const avatarSrc  = host.avatar_url || host.external_photo_url || '/static/assets/images/default.jpg';
-            const name       = host.full_name || host.external_name || 'Sin nombre';
+            const avatarSrc  = host.avatar_url || host.photo_url || '/static/assets/images/default.jpg';
+            const name       = host.full_name || host.name || host.external_name || 'Sin nombre';
 
             return `
             <div class="event-host-card" data-host-idx="${idx}">
@@ -2439,17 +2467,17 @@
                 document.getElementById('hostUserId').value = host.user_id;
                 showSelectedUser({
                     id: host.user_id,
-                    full_name: host.full_name,
+                    full_name: host.full_name || host.name || '',
                     email: host.email || '',
-                    role: host.role_display || '',
-                    avatar_url: host.avatar_url || ''
+                    role: host.role_display || host.role || '',
+                    avatar_url: host.avatar_url || host.photo_url || ''
                 });
             } else {
                 document.getElementById('hostTypeExternal').checked = true;
                 document.getElementById('hostInternalPanel').classList.add('d-none');
                 document.getElementById('hostExternalPanel').classList.remove('d-none');
-                document.getElementById('hostExternalName').value  = host.external_name || '';
-                document.getElementById('hostExternalBio').value   = host.external_bio  || '';
+                document.getElementById('hostExternalName').value  = host.external_name || host.name || '';
+                document.getElementById('hostExternalBio').value   = host.external_bio  || host.bio || '';
                 document.getElementById('hostExternalPhotoPath').value = host.external_photo_path || '';
             }
             document.getElementById('hostRoleLabel').value = host.role_label || '';
@@ -2502,13 +2530,19 @@
         document.getElementById('hostEditorSaveBtn')?.addEventListener('click', saveHostFromModal);
     }
 
+    function escapeAttr(s) {
+        return String(s ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
     async function searchUsers(query) {
         try {
-            const { data } = await apiRequest(`${API}/admin/users?search=${encodeURIComponent(query)}&per_page=10`);
-            const users = data.users || data.items || [];
+            const { data } = await apiRequest(`${API}/admin/users/?search=${encodeURIComponent(query)}&per_page=10&active=true`);
+            // Endpoint retorna {data: {users: [...], pagination: ...}, error, meta}
+            const users = data?.data?.users || data?.users || data?.items || [];
             renderUserDropdown(users);
         } catch (err) {
             console.error('Error searching users:', err);
+            renderUserDropdown([]);
         }
     }
 
@@ -2522,22 +2556,32 @@
             return;
         }
 
-        dropdown.innerHTML = users.map(u => `
+        const fullNameOf = (u) => {
+            if (u.full_name) return u.full_name;
+            if (u.name) return u.name;
+            return [u.first_name, u.last_name, u.mother_last_name].filter(Boolean).join(' ');
+        };
+
+        dropdown.innerHTML = users.map(u => {
+            const fullName = fullNameOf(u);
+            const role     = u.role_name || u.role || '';
+            return `
             <button type="button" class="list-group-item list-group-item-action py-2"
                 data-user-id="${u.id}"
-                data-full-name="${u.full_name || u.name || ''}"
-                data-email="${u.email || ''}"
-                data-role="${u.role_name || u.role || ''}"
-                data-avatar="${u.avatar_url || ''}">
+                data-full-name="${escapeAttr(fullName)}"
+                data-email="${escapeAttr(u.email || '')}"
+                data-role="${escapeAttr(role)}"
+                data-avatar="${escapeAttr(u.avatar_url || '')}">
                 <div class="d-flex align-items-center gap-2">
                     <img src="${u.avatar_url || '/static/assets/images/default.jpg'}" width="28" height="28"
                         class="rounded-circle" style="object-fit:cover">
                     <div>
-                        <div class="fw-semibold small">${u.full_name || u.name || ''}</div>
-                        <div class="text-muted small">${u.email || ''} &bull; ${u.role_name || u.role || ''}</div>
+                        <div class="fw-semibold small">${escapeAttr(fullName)}</div>
+                        <div class="text-muted small">${escapeAttr(u.email || '')} &bull; ${escapeAttr(role)}</div>
                     </div>
                 </div>
-            </button>`).join('');
+            </button>`;
+        }).join('');
 
         dropdown.querySelectorAll('button[data-user-id]').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -2648,28 +2692,206 @@
      */
     function setupContentTabVisibility() {
         const contentPane = document.getElementById('pane-content-media');
-        if (!contentPane) return;
+        const infoPane    = document.getElementById('pane-event-info');
 
-        // When a content tab is shown → reveal the shared pane
-        document.querySelectorAll('.tab-content-media').forEach(btn => {
-            btn.addEventListener('shown.bs.tab', () => {
-                contentPane.style.display = 'block';
-                if (selectedEventId) {
-                    loadEventMedia(selectedEventId);
-                    loadEventHosts(selectedEventId);
-                }
+        if (contentPane) {
+            document.querySelectorAll('.tab-content-media').forEach(btn => {
+                btn.addEventListener('shown.bs.tab', () => {
+                    contentPane.style.display = 'block';
+                    if (infoPane) infoPane.style.display = 'none';
+                    if (selectedEventId) {
+                        loadEventMedia(selectedEventId);
+                        loadEventHosts(selectedEventId);
+                    }
+                });
+                btn.addEventListener('hide.bs.tab', () => {
+                    contentPane.style.display = 'none';
+                });
             });
-            btn.addEventListener('hide.bs.tab', () => {
-                contentPane.style.display = 'none';
+        }
+
+        if (infoPane) {
+            document.querySelectorAll('.tab-event-info').forEach(btn => {
+                btn.addEventListener('shown.bs.tab', () => {
+                    infoPane.style.display = 'block';
+                    if (contentPane) contentPane.style.display = 'none';
+                    if (selectedEventId) {
+                        const ev = currentEvents.find(e => e.id === selectedEventId);
+                        if (ev) populateEditForm(ev);
+                    }
+                });
+                btn.addEventListener('hide.bs.tab', () => {
+                    infoPane.style.display = 'none';
+                });
+            });
+        }
+
+        // Hide both when other tabs are shown
+        document.querySelectorAll('[data-bs-toggle="tab"]:not(.tab-content-media):not(.tab-event-info)').forEach(btn => {
+            btn.addEventListener('shown.bs.tab', () => {
+                if (contentPane) contentPane.style.display = 'none';
+                if (infoPane)    infoPane.style.display    = 'none';
             });
         });
+    }
 
-        // Also hide when another tab (non-content) is shown
-        document.querySelectorAll('[data-bs-toggle="tab"]:not(.tab-content-media)').forEach(btn => {
-            btn.addEventListener('shown.bs.tab', () => {
-                contentPane.style.display = 'none';
+    // ========== EDITOR DE INFORMACIÓN ==========
+
+    function populateEditForm(event) {
+        const f = (id) => document.getElementById(id);
+        if (!f('editEventId')) return;
+
+        f('editEventId').value          = event.id;
+        f('editTitle').value            = event.title || '';
+        f('editType').value             = event.type || 'interview';
+        f('editLocation').value         = event.location || '';
+        f('editDescription').value      = event.description || '';
+        f('editStatus').value           = event.status || 'published';
+        f('editVisibility').value       = event.visibility || 'public';
+        f('editProgram').value          = event.program_id || '';
+        f('editAcademicPeriod').value   = event.academic_period_id || '';
+        f('editRequiresRegistration').checked = !!event.requires_registration;
+        f('editAllowsAttendance').checked     = !!event.allows_attendance_tracking;
+        f('editVisibleToStudents').checked    = event.visible_to_students !== false;
+        f('editRemindersEnabled').checked     = event.reminders_enabled !== false;
+
+        // Filas condicionales por capacity_type
+        const showDates    = event.capacity_type !== 'single';
+        const showMaxCap   = event.capacity_type === 'multiple';
+        f('editDatesRow').classList.toggle('d-none', !showDates);
+        f('editDatesRow2').classList.toggle('d-none', !showDates);
+        f('editMaxCapacityRow').classList.toggle('d-none', !showMaxCap);
+
+        if (event.event_date) {
+            f('editEventDate').value = event.event_date.slice(0, 16);
+        } else {
+            f('editEventDate').value = '';
+        }
+        if (event.event_end_date) {
+            f('editEventEndDate').value = event.event_end_date.slice(0, 16);
+        } else {
+            f('editEventEndDate').value = '';
+        }
+        if (event.max_capacity) {
+            f('editMaxCapacity').value = event.max_capacity;
+        }
+    }
+
+    async function handleEditEvent(e) {
+        e.preventDefault();
+        const eventId = parseInt(document.getElementById('editEventId').value);
+        if (!eventId) return;
+
+        const f = (id) => document.getElementById(id);
+        const payload = {
+            title: f('editTitle').value.trim(),
+            type:  f('editType').value,
+            location: f('editLocation').value.trim(),
+            description: f('editDescription').value,
+            status: f('editStatus').value,
+            visibility: f('editVisibility').value,
+            program_id: f('editProgram').value ? parseInt(f('editProgram').value) : null,
+            academic_period_id: f('editAcademicPeriod').value ? parseInt(f('editAcademicPeriod').value) : null,
+            requires_registration: f('editRequiresRegistration').checked,
+            allows_attendance_tracking: f('editAllowsAttendance').checked,
+            visible_to_students: f('editVisibleToStudents').checked,
+            reminders_enabled: f('editRemindersEnabled').checked,
+        };
+
+        const eventDate    = f('editEventDate').value;
+        const eventEndDate = f('editEventEndDate').value;
+        if (eventDate)    payload.event_date    = eventDate;
+        if (eventEndDate) payload.event_end_date = eventEndDate;
+
+        const maxCap = f('editMaxCapacity').value;
+        if (maxCap) payload.max_capacity = parseInt(maxCap);
+
+        if (!payload.title) {
+            flash('El título es requerido', 'warning');
+            return;
+        }
+
+        try {
+            await apiRequest(`${API}/events/${eventId}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload),
             });
+            flash('Evento actualizado', 'success');
+            await loadEvents();
+            // Re-seleccionar para reflejar cambios
+            const updated = currentEvents.find(e => e.id === eventId);
+            if (updated) {
+                populateEditForm(updated);
+                updatePrivacyToggle(updated);
+            }
+        } catch (err) {
+            flash(`Error al actualizar: ${err.message}`, 'danger');
+        }
+    }
+
+    function updatePrivacyToggle(event) {
+        const btn   = document.getElementById('btnTogglePrivacy');
+        const label = document.getElementById('togglePrivacyLabel');
+        const badge = document.getElementById('selectedEventVisibilityBadge');
+        if (!btn || !label) return;
+
+        if (event.visibility === 'private') {
+            label.textContent = 'Hacer público';
+            btn.classList.remove('btn-outline-warning');
+            btn.classList.add('btn-outline-success');
+            badge?.classList.remove('d-none');
+        } else {
+            label.textContent = 'Hacer privado';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-outline-warning');
+            badge?.classList.add('d-none');
+        }
+    }
+
+    async function handleTogglePrivacy() {
+        if (!selectedEventId) return;
+        const ev = currentEvents.find(e => e.id === selectedEventId);
+        if (!ev) return;
+        const newVis = ev.visibility === 'private' ? 'public' : 'private';
+
+        if (newVis === 'public') {
+            const ok = await siiapConfirm({
+                type: 'warning',
+                title: 'Hacer evento público',
+                message: `Este evento será visible a todos los usuarios elegibles. ¿Continuar?`,
+                confirmLabel: 'Sí, hacer público',
+            });
+            if (!ok) return;
+        }
+
+        try {
+            await apiRequest(`${API}/events/${selectedEventId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ visibility: newVis }),
+            });
+            flash(`Evento ahora es ${newVis === 'private' ? 'privado' : 'público'}`, 'success');
+            await loadEvents();
+            const updated = currentEvents.find(e => e.id === selectedEventId);
+            if (updated) {
+                populateEditForm(updated);
+                updatePrivacyToggle(updated);
+            }
+        } catch (err) {
+            flash(`Error: ${err.message}`, 'danger');
+        }
+    }
+
+    function setupEventEditor() {
+        document.getElementById('editEventForm')?.addEventListener('submit', handleEditEvent);
+        document.getElementById('btnRevertEdit')?.addEventListener('click', () => {
+            if (!selectedEventId) return;
+            const ev = currentEvents.find(e => e.id === selectedEventId);
+            if (ev) populateEditForm(ev);
         });
+        document.getElementById('btnTogglePrivacy')?.addEventListener('click', handleTogglePrivacy);
+
+        // Poblar selects de programa/periodo en form de edición
+        // (reusa los datos cargados por loadPrograms / loadAcademicPeriods)
     }
 
     // ========== INICIALIZACIÓN ==========

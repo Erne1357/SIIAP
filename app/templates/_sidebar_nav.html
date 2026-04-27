@@ -57,6 +57,9 @@
        class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
        data-dropdown="{{ prefix }}events-menu">
       <i class="fas fa-calendar-check me-2"></i>Eventos
+      <span class="badge bg-danger ms-2 d-none invitations-badge"
+            data-role="invitations-badge"
+            aria-label="Invitaciones pendientes"></span>
       <i class="fas fa-chevron-right ms-auto dropdown-arrow"></i>
     </a>
     <div class="dropdown-submenu" id="{{ prefix }}events-menu">

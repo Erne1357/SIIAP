@@ -468,12 +468,7 @@
      * Externo: `/files/event/<event_id>/hosts/<filename>`.
      */
     function resolveHostPhotoUrl(eventId, host) {
-        const path = host.photo_path || host.photo_url || host.avatar_url || '';
-        if (!path) return '';
-        if (path.startsWith('http') || path.startsWith('/')) return path;
-        const filename = path.split('/').pop();
-        if (host.is_external) return `/files/event/${eventId}/hosts/${filename}`;
-        return `/files/avatar/${path}`;
+        return host.photo_url || host.avatar_url || '';
     }
 
     // ── Render: details list ─────────────────────────────────

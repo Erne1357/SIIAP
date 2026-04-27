@@ -935,6 +935,35 @@ class NotificationService:
         db.session.flush()
         return count
 
+    # ==================== EVENTOS — BROADCAST ====================
+
+    @staticmethod
+    def notify_event_published(user_ids: list, event_title: str, event_id: int) -> int:
+        """
+        Crea notificación in-app para múltiples usuarios cuando un evento se publica.
+        NO encola correos (broadcast de alto volumen).
+
+        Returns:
+            Cantidad de notificaciones creadas exitosamente.
+        """
+        created = 0
+        for uid in user_ids:
+            try:
+                NotificationService.create_notification(
+                    user_id=uid,
+                    notification_type='event_published',
+                    title='Nuevo evento disponible',
+                    message=f'Se publicó "{event_title}". Revísalo en la sección de eventos.',
+                    priority='normal',
+                    action_url=f'/events/{event_id}',
+                    data={'event_id': event_id, 'event_title': event_title}
+                )
+                created += 1
+            except Exception as e:
+                import logging
+                logging.exception(f"notify_event_published fallo user_id={uid}: {e}")
+        return created
+
     # ==================== NOTIFICACIONES MASIVAS (VÍA CELERY) ====================
 
     @staticmethod

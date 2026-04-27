@@ -37,6 +37,9 @@
 {% endblock %}
 
 {% block scripts %}
+{% if has_perm('programs.api.enroll') or has_perm('permanence.api.view_status') %}
+  <script src="{{ url_for('static', filename='js/events/widget.js') }}?v={{ static_version }}"></script>
+{% endif %}
 {% if has_perm('programs.api.enroll') %}
   <script>
     window.SIIAP_APPLICANT_DASH = {
