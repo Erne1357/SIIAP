@@ -1,20 +1,5 @@
 /* app/static/css/admin/events/events.css */
 
-.student-card {
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-left: 3px solid transparent;
-}
-
-.student-card:hover {
-  background-color: #f8f9fa;
-}
-
-.student-card.selected {
-  background-color: #e3f2fd;
-  border-left-color: #1976d2;
-}
-
 #slotsTable tbody tr.slot-free {
   background-color: #f8fff8;
 }
@@ -210,15 +195,6 @@
     border-color: var(--bs-primary);
     outline: none;
 }
-
-/* Card header del panel gestión coloreado según tipo (aplicado vía JS) */
-.event-management-header-interview   { background: #cfe2ff; border-color: #b6d4fe; }
-.event-management-header-defense     { background: #f8d7da; border-color: #f1aeb5; }
-.event-management-header-workshop    { background: #d1e7dd; border-color: #a3cfbb; }
-.event-management-header-seminar     { background: #cff4fc; border-color: #9eeaf9; }
-.event-management-header-conference  { background: #fff3cd; border-color: #ffe69c; }
-.event-management-header-info_session { background: #e2e3e5; border-color: #c4c8cb; }
-.event-management-header-other       { background: #e2e3e5; border-color: #c4c8cb; }
 
 /* Botones de acción: separar primarios de secundarios */
 .event-actions-primary {
