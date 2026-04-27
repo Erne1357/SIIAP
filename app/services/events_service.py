@@ -2,7 +2,8 @@ from datetime import datetime, date, time, timedelta
 from app import db
 from app.models.event import Event, EventWindow, EventSlot,EventAttendance
 from app.models.academic_period import AcademicPeriod
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
+func_coalesce = func.coalesce
 from datetime import timezone
 from app.utils.datetime_utils import now_local
 
@@ -158,7 +159,7 @@ class EventsService:
             * es program_admin/postgraduate_admin con acceso al programa (preview)
         """
         from app.models.user_program import UserProgram
-        from app.models.event import EventInvitation
+        from app.models.event import EventInvitation, EventAttendance
         from app.models.user import User
 
         active_period = AcademicPeriod.get_active_period()
@@ -172,6 +173,12 @@ class EventsService:
             ).all()
         ]
 
+        registered_event_ids = [
+            row[0] for row in db.session.query(EventAttendance.event_id).filter(
+                EventAttendance.user_id == user_id
+            ).all()
+        ]
+
         # Programas accesibles para preview de privados (si es admin)
         user = db.session.get(User, user_id)
         accessible_pids = user.get_accessible_program_ids() if user else set()
@@ -180,6 +187,13 @@ class EventsService:
             Event.visible_to_students == True,
             Event.status == 'published',
             Event.capacity_type != 'single'
+        )
+
+        # Excluir eventos ya finalizados (end_date o event_date < ahora)
+        now = now_local()
+        end_or_start = func_coalesce(Event.event_end_date, Event.event_date)
+        base = base.filter(
+            or_(end_or_start.is_(None), end_or_start >= now)
         )
 
         if active_pid is not None:
@@ -204,10 +218,12 @@ class EventsService:
                 Event.program_id.is_(None)
             )
 
-        # Privado: invitado OR creador OR admin del programa
+        # Privado: invitado OR creador OR admin del programa OR ya registrado
         private_filters = [Event.created_by == user_id]
         if invited_event_ids:
             private_filters.append(Event.id.in_(invited_event_ids))
+        if registered_event_ids:
+            private_filters.append(Event.id.in_(registered_event_ids))
         if accessible_pids is None:
             # Acceso global (postgraduate_admin sin scope)
             private_filters.append(Event.id.isnot(None))  # match all
@@ -218,6 +234,9 @@ class EventsService:
             Event.visibility == 'private',
             or_(*private_filters)
         )
+
+        # Si user pasó a privado un evento donde está registrado, también verlo aún siendo público->privado:
+        # registered_event_ids ya cubre via private_clause cuando visibility='private'.
 
         query = base.filter(or_(public_clause, private_clause))
 
@@ -567,47 +586,63 @@ class EventsService:
     @staticmethod
     def register_to_event(event_id: int, user_id: int, notes: str = None) -> 'EventAttendance':
         """
-        Registra un usuario a un evento de capacidad múltiple/ilimitada
+        Registra un usuario a un evento de capacidad múltiple/ilimitada.
+        Si tiene una invitación pendiente para este evento, la marca automáticamente como 'accepted'.
         """
-        from app.models.event import EventAttendance
-        
+        from app.models.event import EventAttendance, EventInvitation
+
         event = db.session.get(Event, event_id)
         if not event:
             raise ValueError("Evento no encontrado")
-        
+
         if event.capacity_type == 'single':
             raise ValueError("Este evento requiere asignación de slot individual")
-        
-        # Verificar si ya está registrado
+
+        # No permitir registro si el evento ya finalizó
+        now = now_local()
+        end_dt = event.event_end_date or event.event_date
+        if end_dt and end_dt < now:
+            raise ValueError("El evento ya finalizó")
+
         existing = EventAttendance.query.filter_by(
             event_id=event_id,
             user_id=user_id
         ).first()
-        
+
         if existing:
             raise ValueError("El usuario ya está registrado en este evento")
-        
-        # Verificar capacidad para eventos múltiples
+
+        # Capacidad: contar registered + attended (todos los que ocupan cupo)
         if event.capacity_type == 'multiple' and event.max_capacity:
-            current_count = EventAttendance.query.filter_by(
-                event_id=event_id,
-                status='registered'
+            current_count = EventAttendance.query.filter(
+                EventAttendance.event_id == event_id,
+                EventAttendance.status.in_(['registered', 'attended'])
             ).count()
-            
+
             if current_count >= event.max_capacity:
                 raise ValueError(f"El evento ha alcanzado su capacidad máxima ({event.max_capacity})")
-        
-        # Crear registro
+
         attendance = EventAttendance(
             event_id=event_id,
             user_id=user_id,
             status='registered',
             notes=notes
         )
-        
+
         db.session.add(attendance)
+
+        # Si hay una invitación pendiente, marcarla como aceptada al registrarse
+        pending_inv = EventInvitation.query.filter_by(
+            event_id=event_id,
+            user_id=user_id,
+            status='pending'
+        ).first()
+        if pending_inv:
+            pending_inv.status = 'accepted'
+            pending_inv.responded_at = now_local()
+
         db.session.commit()
-        
+
         return attendance
     
     @staticmethod

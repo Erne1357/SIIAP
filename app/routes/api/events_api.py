@@ -530,8 +530,12 @@ def get_public_event_detail(event_id: int):
         event_id=event.id, user_id=current_user.id
     ).first() is not None
 
+    has_registration = EventAttendance.query.filter_by(
+        event_id=event.id, user_id=current_user.id
+    ).first() is not None
+
     if event.visibility == 'private':
-        if not (is_creator or is_admin or has_invitation):
+        if not (is_creator or is_admin or has_invitation or has_registration):
             return jsonify({"ok": False, "error": "Sin acceso a este evento"}), 403
     elif event.program_id is not None:
         user_program = UserProgram.query.filter_by(user_id=current_user.id).first()

@@ -114,6 +114,21 @@
     border: 2px solid var(--bs-warning);
 }
 
+.event-card.invitation-pending {
+    border: 2px solid var(--bs-warning);
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.18), 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+    animation: invitation-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes invitation-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.18), 0 0.5rem 1rem rgba(0, 0, 0, 0.08); }
+    50%      { box-shadow: 0 0 0 8px rgba(255, 193, 7, 0.10), 0 0.5rem 1rem rgba(0, 0, 0, 0.08); }
+}
+
+.event-card.invitation-accepted {
+    border: 2px solid var(--bs-success);
+}
+
 /* ── Portada ── */
 
 .event-card-cover {
@@ -147,6 +162,21 @@
     font-weight: 600;
     padding: 0.2rem 0.6rem;
     border-radius: 2rem;
+    box-shadow: 0 0.15rem 0.4rem rgba(0, 0, 0, 0.15);
+}
+
+.event-card-cover .cover-invitation-ribbon.ribbon-accepted {
+    background: var(--bs-success);
+    color: #fff;
+}
+
+.event-card-cover .cover-invitation-ribbon.ribbon-pending {
+    animation: ribbon-blink 2s ease-in-out infinite;
+}
+
+@keyframes ribbon-blink {
+    0%, 100% { transform: scale(1);   }
+    50%      { transform: scale(1.06); }
 }
 
 /* ── Body ── */

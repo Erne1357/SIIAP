@@ -349,20 +349,28 @@
         const typeMeta    = eventTypeMeta(ev.type);
         const isRegistered = myRegistrations.some(r => r.event_id === ev.id);
         const myReg        = myRegistrations.find(r => r.event_id === ev.id);
-        const myInv        = myInvitations.find(i => i.event_id === ev.id);
-        const hasInvitation = myInv && (myInv.status === 'pending' || myInv.status === 'accepted');
+        // Status de invitación viene del payload (cubre pending y accepted)
+        const invStatus    = ev.my_invitation_status || null;
+        const isPendingInvitation = invStatus === 'pending';
+        const isAcceptedInvitation = invStatus === 'accepted';
+        const hasInvitation = isPendingInvitation || isAcceptedInvitation;
         const isFull        = ev.capacity_type === 'multiple' && ev.current_registrations >= ev.max_capacity;
 
-        // Portada: usa cover_path del backend para construir URL servida por /files/event/<id>/cover/<filename>
+        // Portada
         const gradient      = getEventGradient(ev.type);
         const icon          = getEventIcon(ev.type);
         const coverStyle    = `background: ${gradient};`;
         const coverUrl      = buildCoverUrl(ev.id, ev.cover_path);
+        const ribbonHtml = isPendingInvitation
+            ? '<span class="cover-invitation-ribbon ribbon-pending"><i class="bi bi-envelope-paper-fill me-1"></i>Te invitaron</span>'
+            : isAcceptedInvitation
+            ? '<span class="cover-invitation-ribbon ribbon-accepted"><i class="bi bi-envelope-check-fill me-1"></i>Invitación aceptada</span>'
+            : '';
         const coverHtml     = `
             <div class="event-card-cover fallback" style="${coverStyle}"
                  data-event-id="${ev.id}" data-cover-url="${coverUrl}">
                 <i class="bi ${icon}"></i>
-                ${hasInvitation ? '<span class="cover-invitation-ribbon">Te invitaron</span>' : ''}
+                ${ribbonHtml}
             </div>`;
 
         // Badges
@@ -423,13 +431,26 @@
                             <i class="bi bi-person-dash"></i>
                          </button>`;
         } else if (!isRegistered && !isFull) {
-            actionBtn = `<button class="btn btn-primary btn-sm btn-register" data-event-id="${ev.id}">
-                            <i class="bi bi-person-plus me-1"></i>Registrarme
+            const label = isPendingInvitation
+                ? '<i class="bi bi-check2-circle me-1"></i>Aceptar y registrarme'
+                : '<i class="bi bi-person-plus me-1"></i>Registrarme';
+            const btnClass = isPendingInvitation ? 'btn btn-success' : 'btn btn-primary';
+            actionBtn = `<button class="${btnClass} btn-sm btn-register" data-event-id="${ev.id}">
+                            ${label}
                          </button>`;
         }
 
+        // Botón rechazar visible solo cuando hay invitación pendiente y no está registrado
+        const rejectBtn = isPendingInvitation && !isRegistered
+            ? `<button class="btn btn-outline-danger btn-sm btn-inv-reject-card" data-event-id="${ev.id}" title="Rechazar invitación">
+                    <i class="bi bi-x-lg"></i>
+               </button>`
+            : '';
+
         const hasInv   = hasInvitation;
-        const cardClass = hasInv ? 'event-card has-invitation' : 'event-card';
+        const cardClass = hasInv
+            ? `event-card has-invitation ${isPendingInvitation ? 'invitation-pending' : 'invitation-accepted'}`
+            : 'event-card';
 
         return `
             <div class="col-sm-6 col-lg-4">
@@ -452,6 +473,7 @@
                             <a href="/events/${ev.id}" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-eye me-1"></i>Ver detalle
                             </a>
+                            ${rejectBtn}
                             ${actionBtn}
                         </div>
                     </div>
@@ -614,8 +636,26 @@
             });
             flash('success', accept ? 'Invitación aceptada.' : 'Invitación rechazada.');
             await loadEvents();
+            refreshGlobalInvitationsBadge();
         } catch (err) {
             flash('danger', `Error al responder la invitación: ${err.message}`);
+        }
+    }
+
+    /**
+     * Refresca el badge global de invitaciones del sidebar tras cambios locales.
+     */
+    async function refreshGlobalInvitationsBadge() {
+        try {
+            const res = await fetch(`${API}/invitations/my-invitations`, { credentials: 'same-origin' });
+            if (!res.ok) return;
+            const data = await res.json();
+            const count = Number(data.total || 0);
+            window.dispatchEvent(new CustomEvent('siiap:invitations:count_changed', {
+                detail: { count }
+            }));
+        } catch (err) {
+            console.warn('[events/list] no se pudo refrescar badge invitaciones:', err);
         }
     }
 
@@ -648,6 +688,8 @@
             });
             flash('success', 'Te has registrado exitosamente al evento.');
             await loadEvents();
+            // Si tenía invitación pendiente, ahora está accepted -> refresh badge
+            refreshGlobalInvitationsBadge();
         } catch (err) {
             flash('danger', `Error al registrarse: ${err.message}`);
         }
@@ -694,6 +736,16 @@
 
         const btnUnreg = e.target.closest('.btn-unregister');
         if (btnUnreg) { unregisterFromEvent(parseInt(btnUnreg.dataset.eventId, 10)); return; }
+
+        const btnRejectCard = e.target.closest('.btn-inv-reject-card');
+        if (btnRejectCard) {
+            const eventId = parseInt(btnRejectCard.dataset.eventId, 10);
+            const ev = allEvents.find(x => x.id === eventId);
+            const inv = myInvitations.find(i => i.event_id === eventId);
+            const invId = inv?.id || inv?.invitation_id;
+            if (invId) respondToInvitation(invId, false);
+            return;
+        }
     });
 
     pendingList?.addEventListener('click', e => {
