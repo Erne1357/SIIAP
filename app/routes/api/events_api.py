@@ -100,6 +100,8 @@ def list_events():
         'search': request.args.get('search'),
     }
 
+    from app.models.event import EventAttendance, EventInvitation
+
     accessible_pids = current_user.get_accessible_program_ids()
     events = EventsService.list_admin_events(accessible_pids, filters)
 
@@ -113,6 +115,9 @@ def list_events():
 
         slots_total = slots_query.count()
         slots_booked = slots_query.filter(EventSlot.status == 'booked').count()
+
+        registrations_count = EventAttendance.query.filter_by(event_id=event.id).count()
+        invitations_pending = EventInvitation.query.filter_by(event_id=event.id, status='pending').count()
 
         program = db.session.get(Program, event.program_id) if event.program_id else None
         period = db.session.get(AcademicPeriod, event.academic_period_id) if event.academic_period_id else None
@@ -133,9 +138,13 @@ def list_events():
             "reminders_enabled": event.reminders_enabled,
             "capacity_type": event.capacity_type,
             "max_capacity": event.max_capacity,
+            "event_date": event.event_date.isoformat() if event.event_date else None,
+            "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
             "windows_count": windows_count,
             "slots_total": slots_total,
             "slots_booked": slots_booked,
+            "registrations_count": registrations_count,
+            "invitations_pending": invitations_pending,
             "created_at": event.created_at.isoformat()
         })
 

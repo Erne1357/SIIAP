@@ -130,6 +130,13 @@
         document.querySelectorAll('#eventDetailTabs .multi-only').forEach(li => li.classList.toggle('d-none', isSingle));
     }
 
+    function updateTabBadges(ev) {
+        const att = el('attendeesBadge');
+        if (att) att.textContent = ev.registrations_count || 0;
+        const inv = el('invitationsBadge');
+        if (inv) inv.textContent = ev.invitations_pending || 0;
+    }
+
     function renderSummary(ev) {
         const set = (id, val) => { const node = el(id); if (node) node.innerHTML = val || '&mdash;'; };
         set('summaryProgram', ev.program_name ? C.escapeHtml(ev.program_name) : '<span class="text-muted">Todos los programas</span>');
@@ -177,6 +184,7 @@
             renderHeader(data);
             renderStatChips(data);
             applyTabsByCapacity(data.capacity_type);
+            updateTabBadges(data);
             renderSummary(data);
             return data;
         } catch (err) {
@@ -191,6 +199,7 @@
             currentEvent = data;
             renderHeader(data);
             renderStatChips(data);
+            updateTabBadges(data);
             renderSummary(data);
         } catch (err) {
             console.error(err);
@@ -974,53 +983,180 @@
         }).join('');
     }
 
-    async function openInviteModal() {
-        if (!currentEvent) return;
-        el('inviteEventId').value = eventId;
-        const select = el('inviteStudentSelect');
-        select.innerHTML = '<option disabled>Cargando estudiantes...</option>';
+    let invitePool = [];
+    const inviteSelected = new Set();
+
+    async function loadInvitePool(scope) {
+        const grid = el('inviteUsersGrid');
+        if (grid) grid.innerHTML = '<div class="text-center text-muted py-4 w-100">Cargando usuarios...</div>';
+
+        const registeredIds = currentRegistrations.map(r => r.user_id);
+        const invitedIds = currentInvitations.filter(i => i.status === 'pending').map(i => i.user_id);
+        const excludedIds = new Set([...registeredIds, ...invitedIds]);
+
         try {
-            const registeredIds = currentRegistrations.map(r => r.user_id);
-            const invitedIds = currentInvitations.filter(i => i.status === 'pending').map(i => i.user_id);
-            const excludedIds = [...new Set([...registeredIds, ...invitedIds])];
-            let url = `${C.API}/coordinator/students`;
-            if (currentEvent.program_id) url += `?program_id=${currentEvent.program_id}`;
-            const { data } = await C.apiRequest(url);
-            const allStudents = data.students || [];
-            const available = allStudents.filter(s => !excludedIds.includes(s.id));
-            if (available.length === 0) {
-                select.innerHTML = '<option disabled>No hay estudiantes disponibles</option>';
-            } else {
-                select.innerHTML = available.map(s =>
-                    `<option value="${s.id}">${C.escapeHtml(s.full_name)} - ${C.escapeHtml(s.program_name || '')}</option>`
-                ).join('');
+            let users = [];
+            if (scope === 'event_program' && currentEvent.program_id) {
+                const { data } = await C.apiRequest(`${C.API}/coordinator/students?program_id=${currentEvent.program_id}`);
+                users = (data.students || []).map(s => ({ ...s, role_name: 'student' }));
+            } else if (scope === 'all_students') {
+                const { data } = await C.apiRequest(`${C.API}/coordinator/students`);
+                users = (data.students || []).map(s => ({ ...s, role_name: 'student' }));
+            } else if (scope === 'all_users' || (scope === 'event_program' && !currentEvent.program_id)) {
+                const { data } = await C.apiRequest(`${C.API}/admin/users/?per_page=500&active=true`);
+                const raw = data?.data?.users || data?.users || data?.items || [];
+                users = raw.map(u => ({
+                    id: u.id,
+                    full_name: u.full_name || [u.first_name, u.last_name, u.mother_last_name].filter(Boolean).join(' '),
+                    email: u.email,
+                    avatar_url: u.avatar_url,
+                    program_name: u.program_name || '',
+                    program_id: u.program_id || null,
+                    role_name: u.role_name || u.role || ''
+                }));
             }
-            modal('inviteStudentsModal')?.show();
+            invitePool = users.filter(u => !excludedIds.has(u.id));
+            renderInvitePool();
         } catch (err) {
-            C.flash(`Error cargando estudiantes: ${err.message}`, 'danger');
+            C.flash(`Error cargando usuarios: ${err.message}`, 'danger');
+            invitePool = [];
+            renderInvitePool();
         }
     }
 
-    async function sendInvitations() {
-        const select = el('inviteStudentSelect');
-        const message = el('inviteMessage').value;
-        const selectedIds = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
-        if (selectedIds.length === 0) {
-            C.flash('Selecciona al menos un estudiante', 'warning');
+    function getFilteredInvitePool() {
+        const search = (el('inviteSearch').value || '').toLowerCase().trim();
+        const programFilter = el('inviteProgramFilter').value;
+        return invitePool.filter(u => {
+            if (programFilter && String(u.program_id) !== String(programFilter)) return false;
+            if (search) {
+                const blob = `${u.full_name || ''} ${u.email || ''} ${u.program_name || ''} ${u.role_name || ''}`.toLowerCase();
+                if (!blob.includes(search)) return false;
+            }
+            return true;
+        });
+    }
+
+    function roleBadge(roleName) {
+        const m = {
+            student: 'Estudiante',
+            applicant: 'Aspirante',
+            program_admin: 'Coordinador',
+            postgraduate_admin: 'Posgrado',
+            social_service: 'Servicio social'
+        };
+        const cls = roleName === 'student' ? 'bg-info text-dark'
+            : roleName === 'applicant' ? 'bg-warning text-dark'
+            : roleName === 'program_admin' || roleName === 'postgraduate_admin' ? 'bg-primary'
+            : 'bg-secondary';
+        const label = m[roleName] || roleName || 'Usuario';
+        return `<span class="badge ${cls}">${C.escapeHtml(label)}</span>`;
+    }
+
+    function renderInvitePool() {
+        const grid = el('inviteUsersGrid');
+        if (!grid) return;
+        const list = getFilteredInvitePool();
+        el('inviteVisibleCount').textContent = list.length;
+
+        if (invitePool.length === 0) {
+            grid.innerHTML = '<div class="text-center text-muted py-4 w-100">No hay usuarios disponibles para invitar</div>';
+            updateInviteSelectedUI();
             return;
         }
+        if (list.length === 0) {
+            grid.innerHTML = '<div class="text-center text-muted py-4 w-100">Sin coincidencias</div>';
+            updateInviteSelectedUI();
+            return;
+        }
+
+        grid.innerHTML = list.map(u => {
+            const isSelected = inviteSelected.has(u.id);
+            const avatar = u.avatar_url || '/static/assets/images/default.jpg';
+            return `
+                <label class="invite-user-card ${isSelected ? 'selected' : ''}" data-user-id="${u.id}">
+                    <input type="checkbox" class="invite-check" data-user-id="${u.id}" ${isSelected ? 'checked' : ''}>
+                    <img src="${avatar}" class="invite-avatar" alt="" loading="lazy">
+                    <div class="invite-info">
+                        <div class="invite-name">${C.escapeHtml(u.full_name || 'Sin nombre')}</div>
+                        <div class="invite-email">${C.escapeHtml(u.email || '')}</div>
+                        <div class="invite-meta">
+                            ${roleBadge(u.role_name)}
+                            ${u.program_name ? `<span class="text-muted small ms-1">${C.escapeHtml(u.program_name)}</span>` : ''}
+                        </div>
+                    </div>
+                </label>`;
+        }).join('');
+        updateInviteSelectedUI();
+    }
+
+    function updateInviteSelectedUI() {
+        const count = inviteSelected.size;
+        el('inviteSelectedCount').textContent = count;
+        el('inviteSendCount').textContent = count;
+        el('btnSendInvitations').disabled = count === 0;
+    }
+
+    function refreshInviteProgramFilterOptions() {
+        const filter = el('inviteProgramFilter');
+        if (!filter) return;
+        const seen = new Map();
+        invitePool.forEach(u => {
+            if (u.program_id && u.program_name && !seen.has(u.program_id)) {
+                seen.set(u.program_id, u.program_name);
+            }
+        });
+        const opts = ['<option value="">Cualquier programa</option>'];
+        for (const [pid, pname] of seen.entries()) {
+            opts.push(`<option value="${pid}">${C.escapeHtml(pname)}</option>`);
+        }
+        filter.innerHTML = opts.join('');
+    }
+
+    async function openInviteModal() {
+        if (!currentEvent) return;
+        el('inviteEventId').value = eventId;
+        el('inviteSearch').value = '';
+        el('inviteMessage').value = '';
+        inviteSelected.clear();
+
+        const allowRow = el('inviteAllowExternalRow');
+        if (allowRow) {
+            allowRow.style.display = currentEvent.program_id ? '' : 'none';
+            el('inviteAllowExternal').checked = false;
+        }
+
+        const scopeSel = el('inviteScopeSelect');
+        const defaultScope = currentEvent.program_id ? 'event_program' : 'all_users';
+        if (scopeSel) scopeSel.value = defaultScope;
+
+        modal('inviteStudentsModal')?.show();
+        await loadInvitePool(defaultScope);
+        refreshInviteProgramFilterOptions();
+    }
+
+    async function sendInvitations() {
+        const message = el('inviteMessage').value;
+        const ids = Array.from(inviteSelected);
+        if (ids.length === 0) {
+            C.flash('Selecciona al menos un usuario', 'warning');
+            return;
+        }
+        const allowExternal = el('inviteAllowExternal')?.checked
+            || el('inviteScopeSelect')?.value !== 'event_program';
         try {
             const { data } = await C.apiRequest(`${C.API}/invitations/event/${eventId}/invite`, {
-                method: 'POST', body: JSON.stringify({ user_ids: selectedIds, notes: message })
+                method: 'POST',
+                body: JSON.stringify({ user_ids: ids, notes: message, allow_external: allowExternal })
             });
             C.flash(`${data.invited} invitaciones enviadas`, 'success');
             if (data.already_invited > 0) C.flash(`${data.already_invited} ya tenían invitación`, 'info');
             if (data.already_registered > 0) C.flash(`${data.already_registered} ya estaban registrados`, 'info');
             if (data.details?.wrong_program?.length > 0) {
-                C.flash(`${data.details.wrong_program.length} no pertenecen al programa del evento`, 'warning');
+                C.flash(`${data.details.wrong_program.length} no pertenecen al programa (marca la opción para incluirlos)`, 'warning');
             }
             modal('inviteStudentsModal')?.hide();
-            el('inviteMessage').value = '';
+            inviteSelected.clear();
             await loadInvitations();
             await refreshEventOnly();
         } catch (err) {
@@ -1947,6 +2083,32 @@
         // Invitations
         document.querySelector('[data-bs-target="#inviteStudentsModal"]')?.addEventListener('click', openInviteModal);
         el('btnSendInvitations')?.addEventListener('click', sendInvitations);
+        el('inviteSearch')?.addEventListener('input', renderInvitePool);
+        el('inviteProgramFilter')?.addEventListener('change', renderInvitePool);
+        el('inviteScopeSelect')?.addEventListener('change', async (e) => {
+            inviteSelected.clear();
+            await loadInvitePool(e.target.value);
+            refreshInviteProgramFilterOptions();
+        });
+        el('inviteSelectAllBtn')?.addEventListener('click', () => {
+            const list = getFilteredInvitePool();
+            list.forEach(u => inviteSelected.add(u.id));
+            renderInvitePool();
+        });
+        el('inviteClearSelectionBtn')?.addEventListener('click', () => {
+            inviteSelected.clear();
+            renderInvitePool();
+        });
+        el('inviteUsersGrid')?.addEventListener('change', (e) => {
+            const cb = e.target.closest('.invite-check');
+            if (!cb) return;
+            const id = parseInt(cb.dataset.userId);
+            if (cb.checked) inviteSelected.add(id);
+            else inviteSelected.delete(id);
+            const card = cb.closest('.invite-user-card');
+            if (card) card.classList.toggle('selected', cb.checked);
+            updateInviteSelectedUI();
+        });
         document.querySelector('#invitationsTable')?.addEventListener('click', (e) => {
             const cancelBtn = e.target.closest('.btn-cancel-invitation');
             if (cancelBtn) cancelInvitation(parseInt(cancelBtn.dataset.invitationId));

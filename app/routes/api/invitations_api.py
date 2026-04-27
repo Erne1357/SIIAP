@@ -26,16 +26,18 @@ def invite_students(event_id: int):
     data = request.get_json() or {}
     user_ids = data.get('user_ids', [])
     notes = data.get('notes')
-    
+    allow_external = bool(data.get('allow_external', False))
+
     if not user_ids or not isinstance(user_ids, list):
         return jsonify({"ok": False, "error": "user_ids debe ser una lista"}), 400
-    
+
     try:
         results = EventsService.invite_students(
             event_id=event_id,
             user_ids=user_ids,
             invited_by=current_user.id,
-            notes=notes
+            notes=notes,
+            allow_external=allow_external
         )
         
         return jsonify({

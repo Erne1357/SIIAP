@@ -696,38 +696,38 @@ class EventsService:
         } for attendance, user in registrations]
     
     @staticmethod
-    def invite_students(event_id: int, user_ids: list[int], invited_by: int, notes: str = None):
+    def invite_students(event_id: int, user_ids: list[int], invited_by: int, notes: str = None, allow_external: bool = False):
         """
         Invita múltiples estudiantes a un evento
-        
+
         Returns:
             dict con 'invited', 'already_invited', 'already_registered', 'wrong_program'
         """
         from app.models.event import EventInvitation, EventAttendance
         from app.models.user_program import UserProgram
-        
+
         event = db.session.get(Event, event_id)
         if not event:
             raise ValueError("Evento no encontrado")
-        
+
         if event.capacity_type == 'single':
             raise ValueError("Este evento requiere asignación de slots individuales")
-        
+
         results = {
             'invited': [],
             'already_invited': [],
             'already_registered': [],
             'wrong_program': []  # NUEVO
         }
-        
+
         for user_id in user_ids:
-            # NUEVO: Si el evento tiene programa específico, validar
-            if event.program_id:
+            # Si el evento tiene programa específico y no se permite externos, validar
+            if event.program_id and not allow_external:
                 user_program = UserProgram.query.filter_by(
                     user_id=user_id,
                     program_id=event.program_id
                 ).first()
-                
+
                 if not user_program:
                     results['wrong_program'].append(user_id)
                     continue

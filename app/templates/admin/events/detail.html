@@ -1044,33 +1044,82 @@
     </div>
 </div>
 
-<!-- Modal: Invitar estudiantes -->
+<!-- Modal: Invitar usuarios -->
 <div class="modal fade" id="inviteStudentsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Invitar estudiantes al evento</h5>
+                <h5 class="modal-title">
+                    <i class="bi bi-envelope-plus me-2"></i>Invitar al evento
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="inviteEventId">
-                <div class="mb-3">
-                    <label class="form-label">Seleccionar estudiantes</label>
-                    <select class="form-select" id="inviteStudentSelect" multiple size="10">
-                        <!-- dinámico -->
-                    </select>
-                    <div class="form-text">Mantén presionado Ctrl (Windows) o Cmd (Mac) para múltiples.</div>
+
+                <!-- Toolbar de filtros -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-5">
+                        <label class="form-label small text-muted mb-1">Buscar</label>
+                        <input type="search" class="form-control form-control-sm" id="inviteSearch"
+                            placeholder="Nombre, email, programa, rol...">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Filtrar por programa</label>
+                        <select class="form-select form-select-sm" id="inviteProgramFilter">
+                            <option value="">Cualquier programa</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-1">Tipo</label>
+                        <select class="form-select form-select-sm" id="inviteScopeSelect">
+                            <option value="event_program">Del evento</option>
+                            <option value="all_students">Estudiantes</option>
+                            <option value="all_users">Cualquier usuario</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="inviteSelectAllBtn">
+                            <i class="bi bi-check-all me-1"></i>Sel. visibles
+                        </button>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Mensaje <span class="text-muted">(opcional)</span></label>
-                    <textarea class="form-control" id="inviteMessage" rows="3"
-                        placeholder="Mensaje personalizado para la invitación..."></textarea>
+
+                <!-- Header con contador y mensaje -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="text-muted small">
+                        <span id="inviteVisibleCount">0</span> visibles &middot;
+                        <strong><span id="inviteSelectedCount">0</span></strong> seleccionados
+                    </div>
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none" id="inviteClearSelectionBtn">
+                        Limpiar selección
+                    </button>
+                </div>
+
+                <!-- Grid de usuarios -->
+                <div class="invite-users-grid" id="inviteUsersGrid">
+                    <div class="text-center text-muted py-4 w-100">Cargando usuarios...</div>
+                </div>
+
+                <hr class="my-3">
+
+                <div class="mb-2">
+                    <label class="form-label">Mensaje personalizado <span class="text-muted">(opcional)</span></label>
+                    <textarea class="form-control" id="inviteMessage" rows="2"
+                        placeholder="Texto adicional que verán los invitados..."></textarea>
+                </div>
+
+                <div class="form-check small text-muted" id="inviteAllowExternalRow" style="display:none;">
+                    <input class="form-check-input" type="checkbox" id="inviteAllowExternal">
+                    <label class="form-check-label" for="inviteAllowExternal">
+                        Permitir invitar a usuarios que no pertenecen al programa del evento
+                    </label>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="btnSendInvitations">
-                    <i class="bi bi-send me-1"></i>Enviar invitaciones
+                <button type="button" class="btn btn-primary" id="btnSendInvitations" disabled>
+                    <i class="bi bi-send me-1"></i>Enviar invitaciones (<span id="inviteSendCount">0</span>)
                 </button>
             </div>
         </div>
