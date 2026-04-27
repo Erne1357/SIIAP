@@ -435,7 +435,328 @@
 {% endblock %}
 
 {% block modals %}
-{# Modales se irán incluyendo en fases siguientes (assign, content, edit info, etc.) #}
+<!-- Modal: Agregar Ventana -->
+<div class="modal fade" id="addWindowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agregar plazo de horarios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addWindowForm">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha</label>
+                            <input type="date" class="form-control" id="windowDate" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Duración por cita</label>
+                            <select class="form-select" id="windowSlotMinutes" required>
+                                <option value="15">15 minutos</option>
+                                <option value="20">20 minutos</option>
+                                <option value="30" selected>30 minutos</option>
+                                <option value="45">45 minutos</option>
+                                <option value="60">60 minutos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hora de inicio</label>
+                            <input type="time" class="form-control" id="windowStartTime" required value="09:00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hora de fin</label>
+                            <input type="time" class="form-control" id="windowEndTime" required value="11:00">
+                        </div>
+                    </div>
+                    <div class="mt-3 text-muted small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Se generan slots individuales según la duración indicada.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear plazo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Asignar slot (versión Fase 2 - se mejora en Fase 3) -->
+<div class="modal fade" id="assignSlotModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2"></i>Asignar estudiante a slot
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="assignSlotForm">
+                <div class="modal-body">
+                    <input type="hidden" id="assignEventId">
+                    <input type="hidden" id="assignSlotId">
+                    <input type="hidden" id="assignStudentId">
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-clock me-1"></i>
+                        <strong>Horario:</strong> <span id="assignSlotInfo"></span>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-8">
+                            <input type="search" class="form-control" id="assignStudentSearch"
+                                placeholder="Buscar nombre, email o programa...">
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select" id="assignProgramFilter">
+                                <option value="">Todos los programas</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="assignStudentsList" class="list-group" style="max-height: 320px; overflow-y: auto;">
+                        <div class="list-group-item text-center text-muted py-4">
+                            Cargando estudiantes elegibles&hellip;
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="form-label">Notas <span class="text-muted">(opcional)</span></label>
+                        <textarea class="form-control" id="assignNotes" rows="2"
+                            placeholder="Observaciones sobre la cita..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnConfirmAssign" disabled>
+                        <i class="bi bi-check2 me-1"></i>Asignar cita
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Cancelar cita -->
+<div class="modal fade" id="confirmCancelAppointmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Cancelar cita</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="cancelAppointmentForm">
+                <div class="modal-body">
+                    <input type="hidden" id="cancelAppointmentId">
+                    <p class="mb-3">¿Cancelar esta cita?</p>
+                    <div class="card bg-light mb-3">
+                        <div class="card-body py-2">
+                            <div><strong>Horario:</strong> <span id="cancelSlotInfo"></span></div>
+                            <div><strong>Estudiante:</strong> <span id="cancelStudentName"></span></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo <span class="text-muted">(opcional)</span></label>
+                        <textarea class="form-control" id="cancelReason" rows="3"
+                            placeholder="Motivo visible para el estudiante..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-x-circle me-1"></i>Confirmar cancelación
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Eliminar evento -->
+<div class="modal fade" id="confirmDeleteEventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Eliminar evento
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteEventId">
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Advertencia:</strong> esta acción no se puede deshacer.
+                </div>
+                <p>¿Eliminar el evento <strong id="deleteEventTitle"></strong>?</p>
+                <div id="deleteEventWarning" class="alert alert-danger d-none">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    Tiene <strong id="deleteEventAppointmentsCount">0</strong> citas activas que se cancelarán.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteEventBtn">
+                    <i class="bi bi-trash me-1"></i>Eliminar evento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Eliminar ventana -->
+<div class="modal fade" id="confirmDeleteWindowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Eliminar plazo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteWindowId">
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle me-1"></i>Se eliminarán todos los slots de este plazo.
+                </div>
+                <div class="card bg-light">
+                    <div class="card-body py-2">
+                        <div><strong>Fecha:</strong> <span id="deleteWindowDate"></span></div>
+                        <div><strong>Horario:</strong> <span id="deleteWindowTime"></span></div>
+                    </div>
+                </div>
+                <div id="deleteWindowWarning" class="alert alert-danger mt-3 d-none">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    Hay <strong id="deleteWindowSlotsCount">0</strong> slots ocupados &mdash; sus citas se cancelarán.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteWindowBtn">
+                    <i class="bi bi-trash me-1"></i>Eliminar plazo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Eliminar slot -->
+<div class="modal fade" id="confirmDeleteSlotModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Eliminar slot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteSlotId">
+                <p>¿Eliminar este slot?</p>
+                <div class="card bg-light mb-3">
+                    <div class="card-body py-2">
+                        <div><strong>Horario:</strong> <span id="deleteSlotInfo"></span></div>
+                        <div id="deleteSlotStudent" class="d-none">
+                            <strong>Estudiante asignado:</strong> <span id="deleteSlotStudentName"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="deleteSlotWarning" class="alert alert-danger d-none">
+                    <i class="bi bi-exclamation-circle me-1"></i>Tiene cita asignada &mdash; se cancelará.
+                </div>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Puedes regenerar este slot con &quot;Regenerar faltantes&quot;.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="confirmDeleteSlotBtn">
+                    <i class="bi bi-trash me-1"></i>Eliminar slot
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Aceptar cambio de horario -->
+<div class="modal fade" id="acceptChangeRequestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-arrow-left-right me-2"></i>Aprobar cambio de horario
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="acceptChangeReqId">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Estudiante</label>
+                    <p class="mb-0 fw-semibold" id="acceptChangeStudentName"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Horario actual</label>
+                    <p class="mb-0 text-muted" id="acceptChangeCurrentSlot"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Motivo</label>
+                    <p class="mb-0" id="acceptChangeReason"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Sugerencias del estudiante</label>
+                    <p class="mb-0 text-muted fst-italic" id="acceptChangeSuggestions"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Nuevo horario *</label>
+                    <select class="form-select" id="acceptChangeNewSlot" required>
+                        <option value="">Seleccionar nuevo horario...</option>
+                    </select>
+                    <div class="form-text">Solo se muestran horarios libres del evento.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="confirmAcceptChangeBtn">
+                    <i class="bi bi-check2 me-1"></i>Aprobar y reasignar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Invitar estudiantes -->
+<div class="modal fade" id="inviteStudentsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Invitar estudiantes al evento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="inviteEventId">
+                <div class="mb-3">
+                    <label class="form-label">Seleccionar estudiantes</label>
+                    <select class="form-select" id="inviteStudentSelect" multiple size="10">
+                        <!-- dinámico -->
+                    </select>
+                    <div class="form-text">Mantén presionado Ctrl (Windows) o Cmd (Mac) para múltiples.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mensaje <span class="text-muted">(opcional)</span></label>
+                    <textarea class="form-control" id="inviteMessage" rows="3"
+                        placeholder="Mensaje personalizado para la invitación..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSendInvitations">
+                    <i class="bi bi-send me-1"></i>Enviar invitaciones
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block styles %}
