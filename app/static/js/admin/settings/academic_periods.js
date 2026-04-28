@@ -110,6 +110,17 @@ class AcademicPeriodsManager {
         alertNoPeriods.classList.add('d-none');
         container.innerHTML = '';
 
+        // Determinar el siguiente periodo cronológico al activo (para el botón de transición)
+        const activePeriod = this.periods.find(p => p.is_active);
+        let nextPeriod = null;
+        if (activePeriod) {
+            // Ordenar los no-activos por código de forma ascendente y tomar el primero mayor al activo
+            const sorted = this.periods
+                .filter(p => !p.is_active)
+                .sort((a, b) => a.id - b.id);
+            nextPeriod = sorted.find(p => p.id > activePeriod.id) || null;
+        }
+
         this.periods.forEach(period => {
             const card = template.content.cloneNode(true);
             const cardEl = card.querySelector('.period-card');
@@ -133,6 +144,17 @@ class AcademicPeriodsManager {
                 cardEl.classList.add('is-active');
                 badge.textContent = 'ACTIVO';
                 badge.classList.add('text-bg-success');
+
+                // Inyectar botón de transición si el módulo está disponible
+                if (window.PeriodTransition && typeof window.PeriodTransition.getButtonHtml === 'function') {
+                    const btnHtml = window.PeriodTransition.getButtonHtml(period, nextPeriod);
+                    if (btnHtml) {
+                        const desktopContainer = card.querySelector('.btn-transition-container');
+                        if (desktopContainer) desktopContainer.innerHTML = btnHtml + ' ';
+                        const mobileContainer = card.querySelector('.btn-transition-container-mobile');
+                        if (mobileContainer) mobileContainer.innerHTML = btnHtml;
+                    }
+                }
             } else {
                 indicator.classList.add('inactive');
                 badge.textContent = this.getStatusLabel(period.status);
@@ -340,6 +362,8 @@ let academicPeriodsManager = null;
 function initAcademicPeriods() {
     if (document.getElementById('periodsContainer')) {
         academicPeriodsManager = new AcademicPeriodsManager();
+        // Exponer en window para que period_transition.js pueda invocar refresh
+        window.academicPeriodsManager = academicPeriodsManager;
 
         // Tiempo real: otro admin activó/desactivó un periodo → refrescar lista
         window.addEventListener('siiap:academic_period:changed', (e) => {

@@ -1125,9 +1125,15 @@ class EventsService:
         threshold = user.last_events_seen_at
         if threshold is None:
             threshold = now_local() - timedelta(days=7)
+        # DB stores naive datetimes; normalizar threshold a naive para comparación.
+        if getattr(threshold, 'tzinfo', None) is not None:
+            threshold = threshold.replace(tzinfo=None)
 
         visible_events = EventsService.list_public_events(user_id)
-        return sum(1 for ev in visible_events if ev.created_at and ev.created_at > threshold)
+        return sum(
+            1 for ev in visible_events
+            if ev.created_at and (ev.created_at.replace(tzinfo=None) if ev.created_at.tzinfo else ev.created_at) > threshold
+        )
 
     @staticmethod
     def mark_events_seen(user_id: int) -> None:

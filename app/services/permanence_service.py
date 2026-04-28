@@ -170,6 +170,13 @@ def confirm_semester_enrollment(
     notes: str = None,
     payment_proof_path: str = None,
 ) -> SemesterEnrollment:
+    # Webhook futuro:
+    # Cuando el SII (Sistema Integral de Información) notifique pagos vía webhook,
+    # ese handler debe invocar esta misma función pasando coordinator_id=<usuario sistema>
+    # y notes='Confirmado por webhook SII'. La marca enrollment_confirmed=True quedará
+    # registrada igual; el path de payment_proof puede venir del PDF que el estudiante
+    # subió previamente (no se sobreescribe). Hoy todo es manual desde la pestaña
+    # Inscripción.
     """
     El coordinador confirma la inscripcion semestral de un estudiante.
 

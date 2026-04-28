@@ -486,13 +486,34 @@ class DashboardService:
         """
         Documentos de admisión y permanencia que el estudiante no ha aprobado aún.
 
+        Reglas:
+        - Admisión: si el usuario ya está enrolled (admission_status='enrolled'),
+          no se devuelven pendientes — la admisión ya quedó atrás. Esto cubre el
+          caso de altas masivas: a estos estudiantes se les pondrá enrolled y los
+          archives de admisión se ignoran (sin necesidad de submissions sintéticas
+          ni nuevo estado 'waived'). Si en el futuro se necesita rastrear cuáles
+          archives tenían registro histórico, se puede cambiar la lógica aquí.
+        - Permanencia: SÓLO se consideran pendientes los archives que tienen una
+          DocumentDeadline en el periodo activo. Archives sin ventana de entrega
+          NO bloquean ni aparecen pendientes (no es responsabilidad del estudiante
+          sin haberse abierto la ventana).
+
         Returns:
             dict con claves 'admission' y 'permanence', cada una lista de
             {'name': str, 'status': 'pending'|'rejected'|'review'|...}.
         """
         from app.models.archive import Archive
+        from app.models.user_program import UserProgram
+        from app.models.document_deadline import DocumentDeadline
+        from app.models.academic_period import AcademicPeriod
 
-        def _pending_for_phase(phase_name):
+        # Saltar admisión si está enrolled (alta masiva o flujo normal terminado)
+        up = UserProgram.query.filter_by(user_id=user_id, program_id=program_id).first()
+        skip_admission = bool(up and up.admission_status == 'enrolled')
+
+        def _pending_admission():
+            if skip_admission:
+                return []
             archives = (
                 Archive.query
                 .join(Step, Archive.step_id == Step.id)
@@ -501,7 +522,7 @@ class DashboardService:
                 .filter(
                     and_(
                         ProgramStep.program_id == program_id,
-                        Phase.name == phase_name,
+                        Phase.name == 'admission',
                         Archive.is_uploadable.is_(True),
                     )
                 )
@@ -522,7 +543,38 @@ class DashboardService:
                     })
             return pending
 
+        def _pending_permanence():
+            # Sólo archives que tienen ventana de entrega abierta en el periodo
+            # activo. Sin DocumentDeadline → no es pendiente del estudiante.
+            active_period = AcademicPeriod.get_active_period()
+            if not active_period:
+                return []
+            deadlines = (
+                DocumentDeadline.query
+                .filter_by(program_id=program_id, academic_period_id=active_period.id)
+                .join(Archive, DocumentDeadline.archive_id == Archive.id)
+                .filter(Archive.is_active == True)
+                .all()
+            )
+            pending = []
+            for dl in deadlines:
+                # Filtrar CONACyT mensual si el estudiante no es becario
+                if dl.archive.step_id == 12 and not (up and up.has_conacyt_scholarship):
+                    continue
+                sub = (
+                    Submission.query
+                    .filter_by(user_id=user_id, document_deadline_id=dl.id)
+                    .order_by(Submission.upload_date.desc())
+                    .first()
+                )
+                if not sub or sub.status not in ('approved', 'review'):
+                    pending.append({
+                        'name': dl.label or dl.archive.name,
+                        'status': sub.status if sub else 'pending',
+                    })
+            return pending
+
         return {
-            'admission':  _pending_for_phase('admission'),
-            'permanence': _pending_for_phase('permanence'),
+            'admission':  _pending_admission(),
+            'permanence': _pending_permanence(),
         }

@@ -9,6 +9,7 @@ from app import db
 from app.utils.permissions import permission_required
 from app.models.user_program import UserProgram
 from app.services import permanence_service as svc
+import app.services.semester_transition_service as tsvc
 
 api_permanence = Blueprint(
     'api_permanence',
@@ -69,7 +70,7 @@ def _extract_payment_proof(user_id: int):
     if not file.filename.lower().endswith('.pdf'):
         raise ValueError("El comprobante de pago debe ser PDF")
     from app.utils.files import save_user_doc
-    return save_user_doc(file, user_id, 'permanence')
+    return save_user_doc(file, user_id, 'permanence', 'payment_proof')
 
 
 def _extract_form_or_json(field, default=None):
@@ -889,3 +890,376 @@ def api_toggle_conacyt_scholarship(user_program_id):
         "error": None,
         "meta": {}
     }), 200
+
+
+# ── Transición semestral (Pasar Semestre) ─────────────────────────────────────
+
+@api_permanence.get('/transition/preview')
+@login_required
+@permission_required('permanence.api.advance_bulk')
+def api_transition_preview():
+    """
+    Vista previa de la transición semestral para un programa o para todos.
+
+    Query params:
+        program_id  (int|"all") — omitido o "all" → preview global
+        source_period_id (int) — periodo origen
+        target_period_id (int) — periodo destino
+    """
+    program_id_raw = request.args.get('program_id')
+    source_period_id = request.args.get('source_period_id', type=int)
+    target_period_id = request.args.get('target_period_id', type=int)
+
+    if not source_period_id or not target_period_id:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "source_period_id y target_period_id son requeridos"}],
+            "error": {"code": "MISSING_FIELD", "message": "source_period_id y target_period_id son requeridos"},
+            "meta": {}
+        }), 400
+
+    global_mode = (not program_id_raw or str(program_id_raw).strip().lower() == 'all')
+
+    try:
+        if global_mode:
+            data = tsvc.preview_global(source_period_id, target_period_id)
+        else:
+            try:
+                program_id = int(program_id_raw)
+            except (TypeError, ValueError):
+                return jsonify({
+                    "data": None,
+                    "error": {"code": "INVALID_PARAM", "message": "program_id debe ser un entero o 'all'"},
+                    "meta": {}
+                }), 400
+            data = tsvc.preview_program(program_id, source_period_id, target_period_id)
+
+        return jsonify({"data": data, "error": None, "meta": {}}), 200
+
+    except tsvc.PeriodNotFound as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+    except tsvc.ProgramNotFound as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+    except tsvc.TransitionError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "TRANSITION_ERROR", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+@api_permanence.post('/transition/execute')
+@login_required
+@permission_required('permanence.api.advance_bulk')
+def api_transition_execute():
+    """
+    Ejecuta la transición semestral (cierre de periodo + avance masivo).
+
+    Body JSON:
+        source_period_id (int) — requerido
+        target_period_id (int) — requerido
+        program_id       (int, opcional) — omitido → ejecuta en todos los programas
+    """
+    data = request.get_json() or {}
+    source_period_id = data.get('source_period_id')
+    target_period_id = data.get('target_period_id')
+    program_id = data.get('program_id')
+
+    if not source_period_id or not target_period_id:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "source_period_id y target_period_id son requeridos"}],
+            "error": {"code": "MISSING_FIELD", "message": "source_period_id y target_period_id son requeridos"},
+            "meta": {}
+        }), 400
+
+    try:
+        source_period_id = int(source_period_id)
+        target_period_id = int(target_period_id)
+    except (TypeError, ValueError):
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Los IDs de periodo deben ser enteros"}],
+            "error": {"code": "INVALID_PARAM", "message": "source_period_id y target_period_id deben ser enteros"},
+            "meta": {}
+        }), 400
+
+    try:
+        if program_id:
+            try:
+                program_id = int(program_id)
+            except (TypeError, ValueError):
+                return jsonify({
+                    "data": None,
+                    "error": {"code": "INVALID_PARAM", "message": "program_id debe ser un entero"},
+                    "meta": {}
+                }), 400
+            result = tsvc.execute_program_transition(
+                program_id=program_id,
+                source_period_id=source_period_id,
+                target_period_id=target_period_id,
+                coordinator_id=current_user.id,
+            )
+        else:
+            result = tsvc.execute_global_transition(
+                source_period_id=source_period_id,
+                target_period_id=target_period_id,
+                coordinator_id=current_user.id,
+            )
+
+        # Sin flash aquí — el frontend arma su propio mensaje detallado con stats.
+        return jsonify({
+            "data": result,
+            "error": None,
+            "meta": {}
+        }), 200
+
+    except tsvc.PeriodNotFound as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+    except tsvc.ProgramNotFound as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+    except tsvc.TransitionError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "TRANSITION_ERROR", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al ejecutar la transición semestral"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+@api_permanence.get('/my-enrollment')
+@login_required
+@permission_required('permanence.api.view_my_enrollment')
+def api_get_my_enrollment():
+    """
+    El estudiante consulta su inscripción semestral del periodo activo.
+
+    Returns el SemesterEnrollment activo + datos del programa + referencia de pago (stub).
+    """
+    from app.models.academic_period import AcademicPeriod
+    from app.models.semester_enrollment import SemesterEnrollment
+    from app.services.payment_reference_service import PaymentReferenceService
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NO_ACTIVE_PERIOD", "message": "No hay periodo académico activo"},
+            "meta": {}
+        }), 404
+
+    # Buscar UserProgram del usuario (puede estar en varios programas — usamos el enrolled)
+    up = (
+        UserProgram.query
+        .filter_by(user_id=current_user.id, admission_status='enrolled')
+        .first()
+    )
+    if not up:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": "No tienes una inscripción activa"},
+            "meta": {}
+        }), 404
+
+    try:
+        se = SemesterEnrollment.query.filter_by(
+            user_program_id=up.id,
+            academic_period_id=active_period.id,
+        ).first()
+
+        payment_ref = PaymentReferenceService.generate(up.id, active_period.id)
+
+        return jsonify({
+            "data": {
+                "user_program": up.to_dict(),
+                "program": {
+                    "id": up.program.id,
+                    "name": up.program.name,
+                } if up.program else None,
+                "current_period": active_period.to_dict(),
+                "enrollment": se.to_dict() if se else None,
+                "payment_reference": payment_ref,
+            },
+            "error": None,
+            "meta": {}
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+@api_permanence.post('/my-enrollment/payment-proof')
+@login_required
+@permission_required('permanence.api.upload_my_payment')
+def api_upload_my_payment_proof():
+    """
+    El estudiante sube su comprobante de pago semestral (PDF).
+
+    Multipart con campo 'payment_proof'.
+    Auto-detecta el SemesterEnrollment del periodo activo.
+    NO marca enrollment_confirmed=True (eso lo hace el coordinador).
+    Notifica al coordinador del programa.
+    """
+    from app.models.academic_period import AcademicPeriod
+    from app.models.semester_enrollment import SemesterEnrollment
+    from app.utils.files import save_user_doc
+    from app.utils.datetime_utils import now_local as _now
+
+    file = request.files.get('payment_proof')
+    if not file or not file.filename:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "No se recibió ningún archivo"}],
+            "error": {"code": "MISSING_FILE", "message": "Campo 'payment_proof' requerido"},
+            "meta": {}
+        }), 400
+
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": "El comprobante debe ser un archivo PDF"}],
+            "error": {"code": "INVALID_FILE", "message": "Solo se aceptan archivos PDF"},
+            "meta": {}
+        }), 400
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NO_ACTIVE_PERIOD", "message": "No hay periodo académico activo"},
+            "meta": {}
+        }), 404
+
+    up = (
+        UserProgram.query
+        .filter_by(user_id=current_user.id, admission_status='enrolled')
+        .first()
+    )
+    if not up:
+        return jsonify({
+            "data": None,
+            "error": {"code": "NOT_FOUND", "message": "No tienes una inscripción activa"},
+            "meta": {}
+        }), 404
+
+    try:
+        se = SemesterEnrollment.query.filter_by(
+            user_program_id=up.id,
+            academic_period_id=active_period.id,
+        ).first()
+
+        if not se:
+            return jsonify({
+                "data": None,
+                "flash": [{"level": "warning", "message": "No tienes inscripción semestral en el periodo activo"}],
+                "error": {"code": "NOT_FOUND", "message": "SemesterEnrollment no encontrado para el periodo activo"},
+                "meta": {}
+            }), 404
+
+        if se.enrollment_confirmed:
+            return jsonify({
+                "data": None,
+                "flash": [{"level": "info", "message": "Tu inscripción ya fue confirmada por el coordinador"}],
+                "error": {"code": "ALREADY_CONFIRMED", "message": "La inscripción ya está confirmada"},
+                "meta": {}
+            }), 400
+
+        # Guardar archivo
+        file_path = save_user_doc(file, current_user.id, 'permanence', 'payment_proof')
+        se.payment_proof_path = file_path
+        se.updated_at = _now()
+
+        # Historial
+        from app.services.user_history_service import UserHistoryService
+        UserHistoryService.log_action(
+            user_id=current_user.id,
+            admin_id=current_user.id,
+            action='payment_proof_uploaded',
+            details=(
+                f'Subió comprobante de pago para semestre {se.semester_number} '
+                f'({active_period.name}) en {up.program.name if up.program else up.program_id}'
+            ),
+        )
+
+        # Notificar al coordinador del programa
+        try:
+            from app.services.notification_service import NotificationService
+            if up.program and up.program.coordinator_id:
+                student_name = (
+                    f"{current_user.first_name} {current_user.last_name}"
+                )
+                NotificationService.create_notification(
+                    user_id=up.program.coordinator_id,
+                    notification_type='payment_proof_uploaded',
+                    title='Comprobante de pago recibido',
+                    message=(
+                        f'{student_name} ha subido su comprobante de pago '
+                        f'para el semestre {se.semester_number} ({active_period.name}) '
+                        f'en {up.program.name}.'
+                    ),
+                    priority='normal',
+                    action_url='/coordinator/permanence',
+                    data={
+                        'student_id': current_user.id,
+                        'program_id': up.program_id,
+                        'semester_enrollment_id': se.id,
+                    },
+                )
+        except Exception as notify_err:
+            import logging as _log
+            _log.error(f"Error notificando coordinador de comprobante: {notify_err}")
+
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return jsonify({
+            "data": se.to_dict(),
+            "flash": [{"level": "success", "message": "Comprobante de pago enviado correctamente. El coordinador lo revisará pronto."}],
+            "error": None,
+            "meta": {}
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al subir el comprobante de pago"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500

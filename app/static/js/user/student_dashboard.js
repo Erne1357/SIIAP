@@ -144,6 +144,185 @@
       </form>`;
   }
 
+  // ── Pago de inscripción semestral ────────────────────────────────────────
+  async function loadEnrollmentPayment() {
+    const container = document.getElementById('enrollmentPaymentContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/v1/permanence/my-enrollment');
+      const json = await res.json();
+
+      if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
+
+      if (!res.ok || json.error) {
+        if (res.status === 404) {
+          container.innerHTML = `
+            <div class="alert alert-secondary d-flex gap-2 align-items-center mb-0 py-2 small">
+              <i class="bi bi-info-circle-fill fs-5"></i>
+              <span>No hay inscripción activa para este periodo.</span>
+            </div>`;
+        } else {
+          throw new Error(json.error?.message || 'Error');
+        }
+        return;
+      }
+
+      renderEnrollmentPayment(json.data);
+
+    } catch (e) {
+      container.innerHTML = `<div class="alert alert-danger small mb-0">Error al cargar información de pago: ${escHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderEnrollmentPayment(data) {
+    const container = document.getElementById('enrollmentPaymentContainer');
+    if (!container) return;
+
+    if (!data) {
+      container.innerHTML = `
+        <div class="alert alert-secondary d-flex gap-2 align-items-center mb-0 py-2 small">
+          <i class="bi bi-info-circle-fill fs-5"></i>
+          <span>No hay inscripción activa para este periodo.</span>
+        </div>`;
+      return;
+    }
+
+    // Inscripción confirmada
+    if (data.enrollment_confirmed) {
+      const confirmedAt = data.confirmed_at
+        ? new Date(data.confirmed_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
+        : '';
+      const semNum = data.semester_number ? `Semestre ${escHtml(String(data.semester_number))}` : '';
+      container.innerHTML = `
+        <div class="d-flex align-items-center gap-3">
+          <i class="bi bi-check-circle-fill text-success fs-2 flex-shrink-0"></i>
+          <div>
+            <div class="fw-semibold text-success">Inscripción confirmada</div>
+            <div class="small text-muted">
+              ${semNum}${semNum && confirmedAt ? ' · ' : ''}${confirmedAt ? 'Confirmado el ' + escHtml(confirmedAt) : ''}
+            </div>
+          </div>
+        </div>`;
+      return;
+    }
+
+    // Inscripción pendiente de confirmación
+    const ref    = data.payment_reference  || null;
+    const amount = data.payment_amount     || null;
+    const due    = data.payment_due_date   || null;
+    const proof  = data.payment_proof_path || null;
+
+    let refHtml = '';
+    if (ref) {
+      refHtml = `
+        <div class="mb-2">
+          <span class="text-muted small">Referencia bancaria:</span>
+          <code class="ms-2 fs-6">${escHtml(ref)}</code>
+        </div>`;
+    } else {
+      refHtml = `
+        <div class="mb-2 text-muted small">
+          <i class="bi bi-info-circle me-1"></i>
+          Referencia bancaria: <span class="text-muted">— (disponible próximamente)</span>
+        </div>`;
+    }
+
+    let amountHtml = '';
+    if (amount) {
+      amountHtml = `<div class="small text-muted mb-1">Monto: <strong>$${escHtml(String(amount))}</strong></div>`;
+    }
+
+    let dueHtml = '';
+    if (due) {
+      const dueFormatted = new Date(due + 'T00:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+      dueHtml = `<div class="small text-muted mb-2">Fecha límite de pago: <strong>${escHtml(dueFormatted)}</strong></div>`;
+    }
+
+    let proofHtml = '';
+    if (proof) {
+      proofHtml = `
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <span class="badge bg-warning text-dark">
+            <i class="bi bi-hourglass-split me-1"></i>Pendiente de confirmación por coordinador
+          </span>
+          <a href="/files/doc/${escHtml(proof)}" target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-eye me-1"></i>Ver comprobante actual
+          </a>
+        </div>`;
+    }
+
+    const uploadBtn = `
+      <button type="button" class="btn btn-primary btn-sm"
+              data-bs-toggle="modal" data-bs-target="#modalPaymentProof">
+        <i class="bi bi-upload me-1"></i>Subir comprobante de pago
+      </button>`;
+
+    container.innerHTML = `
+      <div>
+        ${refHtml}
+        ${amountHtml}
+        ${dueHtml}
+        ${proofHtml}
+        ${uploadBtn}
+      </div>`;
+  }
+
+  function bindPaymentProofForm() {
+    const form = document.getElementById('formPaymentProof');
+    if (!form) return;
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const fileInput = document.getElementById('paymentProofFile');
+      if (!fileInput || !fileInput.files.length) return;
+
+      const btn = document.getElementById('btnSubmitPaymentProof');
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Subiendo...';
+      }
+
+      const fd = new FormData();
+      fd.append('payment_proof', fileInput.files[0]);
+
+      try {
+        const res = await fetch('/api/v1/permanence/my-enrollment/payment-proof', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken },
+          body: fd,
+        });
+        const json = await res.json();
+
+        if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
+
+        if (res.ok && !json.error) {
+          // Cerrar modal
+          const modalEl = document.getElementById('modalPaymentProof');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+          }
+          // Recargar la tarjeta
+          loadEnrollmentPayment();
+        } else {
+          if (!json.flash) flashMsg('danger', json.error?.message || 'Error al subir el comprobante.');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+          }
+        }
+      } catch (err) {
+        flashMsg('danger', 'Error de red al subir el comprobante.');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalHtml;
+        }
+      }
+    });
+  }
+
   // ── Referencia Bancaria ──────────────────────────────────────────────────
   async function loadPaymentReference() {
     const container = document.getElementById('paymentRefContainer');
@@ -302,6 +481,8 @@
 
   // ── Init ─────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
+    loadEnrollmentPayment();
+    bindPaymentProofForm();
     loadPaymentReference();
     loadStudentDocs();
     loadLeaveRequest();

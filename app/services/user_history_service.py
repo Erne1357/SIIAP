@@ -950,6 +950,14 @@ class UserHistoryService:
         # ACCIONES DE PERMANENCIA SEMESTRAL (Fase 6)
         'semester_enrollment_confirmed': 'Confirmó inscripción semestral del estudiante',
         'semester_enrollment_status_updated': 'Actualizó estado de inscripción semestral',
+        'semester_enrollment_reinstated': 'Reincorporó estudiante de baja temporal',
+
+        # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
+        'semester_advanced': 'Avanzó al siguiente semestre',
+        'admission_period_migrated': 'Migró el periodo de admisión al siguiente',
+        'admission_expired': 'Expiró el proceso de admisión por antigüedad',
+        'deferral_reactivated_by_transition': 'Reactivó diferimiento durante transición semestral',
+        'payment_proof_uploaded': 'Subió comprobante de pago de inscripción',
 
         # ACCIONES DEL SISTEMA DE PERMISOS GRANULARES (Fase 7-8)
         'social_service_created': 'Creó usuario de servicio social con delegación',

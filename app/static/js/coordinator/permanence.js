@@ -505,7 +505,7 @@ class PermanenceManager {
    * Abre el modal en uno de tres modos: 'confirm', 'advance', 'reinstate'.
    * El submit selecciona el endpoint correcto según el mode.
    */
-  showConfirmModal(userProgramId, studentName, mode = 'confirm') {
+  showConfirmModal(userProgramId, studentName, mode = 'confirm', proofUrlArg = '') {
     const TITLES = {
       confirm: ['Confirmar Inscripción Semestral', 'Esto confirmará la inscripción del estudiante en el periodo activo.', 'Confirmar Inscripción', 'btn-success'],
       advance: ['Avanzar Semestre Manualmente', 'Avanzará al estudiante al siguiente semestre en el periodo activo aunque tenga rezagos.', 'Avanzar Semestre', 'btn-primary'],
@@ -526,6 +526,23 @@ class PermanenceManager {
     document.getElementById('confirmEnrollMode').value = mode;
     document.getElementById('confirmEnrollNotes').value = '';
     document.getElementById('confirmEnrollFile').value = '';
+
+    // El render de la fila pasa el URL del comprobante (string vacío si no hay).
+    // Sólo aplica al modo 'confirm'. Decodificar el escape '%27' → "'".
+    const wrap = document.getElementById('confirmEnrollExistingProofWrap');
+    const link = document.getElementById('confirmEnrollExistingProofLink');
+    let proofUrl = '';
+    if (mode === 'confirm' && proofUrlArg) {
+      proofUrl = String(proofUrlArg).replace(/%27/g, "'");
+    }
+    if (proofUrl) {
+      link.href = proofUrl;
+      wrap.classList.remove('d-none');
+    } else {
+      wrap.classList.add('d-none');
+      link.removeAttribute('href');
+    }
+
     new bootstrap.Modal(document.getElementById('confirmEnrollmentModal')).show();
   }
 
@@ -584,6 +601,8 @@ class PermanenceManager {
           (r.data[k] || []).forEach(row => { row.__program_name = programName; merged[k].push(row); });
         });
       });
+      // Cache para que showConfirmModal pueda leer payment_proof_url por user_program.id
+      this._lastOverview = merged;
       this._renderEnrollmentSection('toConfirmTable', 'toConfirmCount', merged.to_confirm, 'confirm');
       this._renderEnrollmentSection('onLeaveTable', 'onLeaveCount', merged.on_leave, 'reinstate');
       this._renderEnrollmentSection('behindTable', 'behindCount', merged.behind, 'advance');
@@ -612,7 +631,9 @@ class PermanenceManager {
     this._toggleProgramHeader(tableId);
 
     if (!rows.length) {
-      const cols = tableId === 'onLeaveTable' || tableId === 'behindTable' ? 5 : 4;
+      // Cols: confirm=5 (estudiante, n°ctrl, próx sem, pago, acciones)
+      //       onLeave/behind=5 (estudiante, n°ctrl, sem, periodo, acciones)
+      const cols = 5;
       const colspan = this._isAllMode() ? cols + 1 : cols;
       tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-3 text-muted small">Sin pendientes.</td></tr>`;
       return;
@@ -632,17 +653,32 @@ class PermanenceManager {
         ? `<td class="text-muted small">${this.escapeHtml(r.__program_name || '')}</td>` : '';
       const safeName = this.escapeHtml(u.full_name).replace(/'/g, "\\'");
 
+      // Comprobante PDF subido por el estudiante (si existe)
+      const ceProofUrl = r.current_enrollment?.payment_proof_url || '';
+
       // Columnas variables según modo
       let middleCols = '';
       if (mode === 'confirm') {
         const nextSem = (last?.semester_number || 0) + 1;
-        middleCols = `<td class="text-center"><span class="badge bg-info">${nextSem}</span></td>`;
+        const proofCell = ceProofUrl
+          ? `<a href="${ceProofUrl}" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2"
+                title="Ver comprobante. Recuerda checar el SII para confirmar la inscripción.">
+              <i class="bi bi-file-earmark-pdf"></i> Pago
+            </a>`
+          : '<span class="text-muted small">Sin pago</span>';
+        middleCols = `
+          <td class="text-center"><span class="badge bg-info">${nextSem}</span></td>
+          <td class="text-center">${proofCell}</td>
+        `;
       } else if (mode === 'reinstate' || mode === 'advance') {
         middleCols = `
           <td class="text-center"><span class="badge bg-info">${last?.semester_number || '—'}</span></td>
           <td class="small text-muted">${last?.period_name || '—'} <span class="badge bg-light text-dark border">${last?.period_code || ''}</span></td>
         `;
       }
+
+      // Pasamos proofUrl como cuarto argumento al modal para evitar lookups por cache.
+      const safeProofUrl = ceProofUrl.replace(/'/g, "%27");
 
       return `
         <tr>
@@ -662,7 +698,7 @@ class PermanenceManager {
           ${middleCols}
           <td class="text-center">
             <button class="btn btn-sm ${btnCls}"
-              onclick="permanenceManager.showConfirmModal(${r.user_program.id}, '${safeName}', '${mode}')">
+              onclick="permanenceManager.showConfirmModal(${r.user_program.id}, '${safeName}', '${mode}', '${safeProofUrl}')">
               <i class="bi bi-check-lg me-1"></i>${btnLabel}
             </button>
           </td>

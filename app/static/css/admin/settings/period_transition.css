@@ -1,0 +1,45 @@
+/* app/static/css/admin/settings/period_transition.css */
+
+/* ── Botón de transición junto al periodo activo ── */
+.btn-period-transition {
+  white-space: nowrap;
+}
+
+/* ── Modal de transición ── */
+#modalPeriodTransition .modal-dialog {
+  max-width: 860px;
+}
+
+/* Tabs: hacer legibles los badges */
+#modalPeriodTransition .nav-link .badge {
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
+/* Tabla de preview */
+#modalPeriodTransition .table th,
+#modalPeriodTransition .table td {
+  vertical-align: middle;
+}
+
+/* Segunda confirmación: botón rojo pulsante para llamar la atención */
+#btnConfirmTransition2 {
+  animation: pulse-danger 0.8s ease-in-out 2;
+}
+
+@keyframes pulse-danger {
+  0%   { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+/* Bloqueadores desplegables: icono giratorio en collapse toggle */
+#modalPeriodTransition [data-bs-toggle="collapse"][aria-expanded="true"] .bi-exclamation-triangle::before {
+  content: "\F633"; /* bi-chevron-up */
+}
+
+/* Scroll interno de tabs con tablas largas */
+#modalPeriodTransition .tab-content {
+  max-height: 400px;
+  overflow-y: auto;
+}

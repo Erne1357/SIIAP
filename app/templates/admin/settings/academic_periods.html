@@ -4,6 +4,9 @@
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/academic_periods.css') }}?v={{ static_version }}" rel="stylesheet">
+{% if has_perm('permanence.api.advance_bulk') %}
+<link href="{{ url_for('static', filename='css/admin/settings/period_transition.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -63,11 +66,13 @@
         </div>
         <div class="col-md-4 text-md-end mt-3 mt-md-0">
           <div class="btn-group-vertical btn-group-sm d-md-none w-100">
+            <div class="btn-transition-container-mobile"></div>
             <button type="button" class="btn btn-outline-success btn-activate d-none">Activar</button>
             <button type="button" class="btn btn-outline-secondary btn-edit">Editar</button>
             <button type="button" class="btn btn-outline-danger btn-delete">Eliminar</button>
           </div>
           <div class="d-none d-md-block">
+            <div class="d-inline btn-transition-container"></div>
             <button type="button" class="btn btn-outline-success btn-sm btn-activate d-none">Activar</button>
             <button type="button" class="btn btn-outline-secondary btn-sm btn-edit">Editar</button>
             <button type="button" class="btn btn-outline-danger btn-sm btn-delete">Eliminar</button>
@@ -145,6 +150,125 @@
   </div>
 </div>
 
+{% if has_perm('permanence.api.advance_bulk') %}
+<!-- Modal: Cerrar periodo y avanzar a siguiente -->
+<div class="modal fade" id="modalPeriodTransition" tabindex="-1"
+     aria-labelledby="modalPeriodTransitionLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+
+      <div class="modal-header bg-warning-subtle">
+        <h5 class="modal-title" id="modalPeriodTransitionLabel">
+          <i class="bi bi-arrow-right-circle me-2"></i>
+          Cerrar periodo
+          <strong id="transitionSourceCode">—</strong>
+          y avanzar a
+          <strong id="transitionTargetCode">—</strong>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+
+      <div class="modal-body p-0">
+        <!-- Tabs de navegación -->
+        <ul class="nav nav-tabs px-3 pt-3" id="transitionTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-advance-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-advance"
+                    type="button" role="tab">
+              Avanzarán
+              <span class="badge bg-success ms-1" id="badgeAdvance">…</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-blocked-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-blocked"
+                    type="button" role="tab">
+              Bloqueados
+              <span class="badge bg-danger ms-1" id="badgeBlocked">…</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-admit-migrate-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-admit-migrate"
+                    type="button" role="tab">
+              Aspirantes a migrar
+              <span class="badge bg-info text-dark ms-1" id="badgeAdmitMigrate">…</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-admit-expire-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-admit-expire"
+                    type="button" role="tab">
+              Aspirantes a expirar
+              <span class="badge bg-secondary ms-1" id="badgeAdmitExpire">…</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-deferred-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-deferred"
+                    type="button" role="tab">
+              Diferidos a reactivar
+              <span class="badge bg-primary ms-1" id="badgeDeferred">…</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-on-leave-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-on-leave"
+                    type="button" role="tab">
+              En baja temporal
+              <span class="badge bg-secondary ms-1" id="badgeOnLeave">…</span>
+            </button>
+          </li>
+        </ul>
+
+        <!-- Contenido de tabs -->
+        <div class="tab-content" id="transitionTabContent">
+          <div class="tab-pane fade show active" id="tab-advance" role="tabpanel">
+            <div id="tabAdvance" class="p-3"></div>
+          </div>
+          <div class="tab-pane fade" id="tab-blocked" role="tabpanel">
+            <div id="tabBlocked" class="p-0"></div>
+          </div>
+          <div class="tab-pane fade" id="tab-admit-migrate" role="tabpanel">
+            <div id="tabAdmitMigrate" class="p-3"></div>
+          </div>
+          <div class="tab-pane fade" id="tab-admit-expire" role="tabpanel">
+            <div id="tabAdmitExpire" class="p-3"></div>
+          </div>
+          <div class="tab-pane fade" id="tab-deferred" role="tabpanel">
+            <div id="tabDeferred" class="p-3"></div>
+          </div>
+          <div class="tab-pane fade" id="tab-on-leave" role="tabpanel">
+            <div id="tabOnLeave" class="p-3"></div>
+          </div>
+        </div>
+      </div><!-- /.modal-body -->
+
+      <div class="modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x me-1"></i>Cancelar
+        </button>
+        <div class="d-flex gap-2 align-items-center">
+          <span class="text-muted small d-none" id="confirmHint">
+            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+            Esta acción no se puede deshacer. Haz clic de nuevo para confirmar.
+          </span>
+          <!-- Primer botón de confirmación -->
+          <button type="button" class="btn btn-danger" id="btnConfirmTransition" disabled>
+            <i class="bi bi-check-circle me-1"></i>Confirmar y aplicar
+          </button>
+          <!-- Segundo botón (doble confirmación) — oculto hasta primer click -->
+          <button type="button" class="btn btn-danger d-none" id="btnConfirmTransition2">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Sí, aplicar ahora
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Modal de confirmacion para eliminar -->
 <div class="modal fade" id="modalDelete" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-sm">
@@ -169,4 +293,7 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/admin/settings/academic_periods.js') }}?v={{ static_version }}"></script>
+{% if has_perm('permanence.api.advance_bulk') %}
+<script src="{{ url_for('static', filename='js/admin/settings/period_transition.js') }}?v={{ static_version }}"></script>
+{% endif %}
 {% endblock %}

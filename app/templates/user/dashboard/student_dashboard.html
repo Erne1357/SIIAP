@@ -227,6 +227,24 @@
       </div>
     </div>
 
+    {# — Pago de inscripción semestral — #}
+    {% if up and up.id %}
+    <div class="card mb-4" id="cardEnrollmentPayment">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-credit-card-2-front text-primary"></i>
+        <strong>Pago de inscripción</strong>
+        {% if permanence_data and permanence_data.current_period %}
+          <span class="badge bg-secondary ms-auto">{{ permanence_data.current_period.name }}</span>
+        {% endif %}
+      </div>
+      <div class="card-body" id="enrollmentPaymentContainer">
+        <div class="text-center py-2 text-muted small">
+          <div class="spinner-border spinner-border-sm me-1" role="status"></div> Verificando inscripción...
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     {# — Referencia Bancaria (Módulo A) — #}
     {% if up and up.id %}
     <div class="card mb-4">

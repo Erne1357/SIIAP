@@ -14,6 +14,15 @@ class UserProgram(db.Model):
     - rejected: Rechazado del programa
     - deferred: Inscripcion diferida para otro periodo
     - enrolled: Inscrito oficialmente (ya es estudiante)
+    - expired: Proceso expirado por antiguedad (>=2 periodos sin completar)
+
+    Alta masiva de estudiantes ya registrados:
+    Cuando se da de alta a un estudiante existente que NO completó admision en
+    SIIAP (por ej. import de generaciones previas), se crea su UserProgram con
+    admission_status='enrolled' directamente. No se generan submissions sinteticas
+    ni se requieren documentos historicos. La capa de dashboard (DashboardService.
+    get_student_pending_docs) detecta admission_status='enrolled' y devuelve lista
+    vacia para 'admission' — los archives historicos no aparecen como pendientes.
     """
     __tablename__ = 'user_program'
 

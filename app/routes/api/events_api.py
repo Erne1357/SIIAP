@@ -950,6 +950,8 @@ def get_new_events_count():
         count = EventsService.count_new_events(current_user.id)
         return jsonify({"data": {"count": count}, "error": None, "meta": {}}), 200
     except Exception as e:
+        from flask import current_app
+        current_app.logger.exception(f"new-count failed for user {current_user.id}")
         return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
 
 

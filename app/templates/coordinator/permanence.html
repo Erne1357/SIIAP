@@ -133,6 +133,7 @@
                         <th>Estudiante</th>
                         <th class="text-center">N° Control</th>
                         <th class="text-center">Próx. Sem.</th>
+                        <th class="text-center">Comprobante</th>
                         <th class="text-center">Acciones</th>
                       </tr>
                     </thead>
@@ -343,10 +344,34 @@
         <p class="mb-3" id="confirmEnrollDescription">
           Esto confirmará la inscripción del estudiante en el periodo activo.
         </p>
+
+        <!-- Comprobante de pago ya subido por el estudiante (si existe) -->
+        <div class="alert alert-info py-2 small d-none" id="confirmEnrollExistingProofWrap">
+          <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+            <div>
+              <i class="bi bi-file-earmark-pdf-fill me-1"></i>
+              El estudiante subió un comprobante de pago.
+            </div>
+            <a href="#" target="_blank" id="confirmEnrollExistingProofLink"
+              class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye me-1"></i>Ver comprobante
+            </a>
+          </div>
+          <div class="mt-2 small text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Recuerda checar el SII para confirmar la inscripción.</strong>
+            <span class="d-block mt-1 text-secondary" style="font-size:0.85em;">
+              <!-- Placeholder webhook: cuando el SII notifique pagos vía webhook,
+                   el campo enrollment_confirmed se marcará automáticamente y este
+                   modal sólo se usará para casos manuales o de reposición. -->
+            </span>
+          </div>
+        </div>
+
         <div class="mb-3">
           <label class="form-label">Comprobante de pago (PDF, opcional)</label>
           <input type="file" class="form-control" id="confirmEnrollFile" accept="application/pdf">
-          <div class="form-text">Si tienes el recibo digitalizado, adjúntalo. Si no, omítelo.</div>
+          <div class="form-text">Si recibes el recibo por otro medio, adjúntalo aquí. Si el estudiante ya subió, déjalo vacío.</div>
         </div>
         <div class="mb-3">
           <label class="form-label">Notas (opcional)</label>
