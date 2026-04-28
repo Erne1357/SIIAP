@@ -42,6 +42,10 @@ class SemesterEnrollment(db.Model):
     # Notas del coordinador
     notes = db.Column(db.Text, nullable=True)
 
+    # Comprobante de pago (PDF opcional). Path relativo dentro de UPLOAD_FOLDER,
+    # estructura: <user_id>/permanence/<filename>.pdf — servible vía /files/doc/<path>.
+    payment_proof_path = db.Column(db.String(255), nullable=True)
+
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     updated_at = db.Column(
         db.DateTime, default=now_local, onupdate=now_local, nullable=False
@@ -67,6 +71,8 @@ class SemesterEnrollment(db.Model):
             'confirmed_by': self.confirmed_by,
             'confirmed_at': self.confirmed_at.isoformat() if self.confirmed_at else None,
             'notes': self.notes,
+            'payment_proof_path': self.payment_proof_path,
+            'payment_proof_url': f'/files/doc/{self.payment_proof_path}' if self.payment_proof_path else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

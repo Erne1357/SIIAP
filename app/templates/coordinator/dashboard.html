@@ -262,8 +262,8 @@
     <div class="modal-content">
       <div class="modal-header">
         <div class="d-flex align-items-center gap-3">
-          <img src="" alt="Avatar" class="rounded-circle flex-shrink-0"
-            class="avatar-md" id="permModalAvatar">
+          <img src="" alt="Avatar" class="rounded-circle flex-shrink-0 avatar-md"
+            id="permModalAvatar">
           <div>
             <h5 class="modal-title mb-0" id="permModalName">Cargando...</h5>
             <small class="text-muted" id="permModalEmail"></small><br>
@@ -365,6 +365,34 @@
           <i class="bi bi-folder2-open me-1"></i>Ver expediente de admisión
         </button>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Doble confirmación CONACyT -->
+<div class="modal fade" id="confirmConacytModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Confirmar cambio CONACyT
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Estudiante: <strong id="confirmConacytStudent"></strong></p>
+        <p class="mb-1">Acción: <strong id="confirmConacytAction"></strong></p>
+        <p class="text-muted small mb-0">
+          Activar/desactivar la beca CONACyT puede afectar reportes y ventanas
+          de entrega mensuales. Confirma que es correcto.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelConacyt" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning btn-sm" id="btnConfirmConacyt">
+          <i class="bi bi-check-lg me-1"></i>Sí, continuar
+        </button>
       </div>
     </div>
   </div>

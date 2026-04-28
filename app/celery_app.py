@@ -22,8 +22,8 @@ def init_celery(app):
         # Permite editar el schedule en tiempo real desde la UI sin reiniciar.
         beat_scheduler='redbeat.RedBeatScheduler',
         redbeat_redis_url=app.config['CELERY_BROKER_URL'],
-        redbeat_lock_timeout=600,  # Aumentamos timeout a 10 min para evitar LockNotOwnedError
-        beat_max_loop_interval=30, # Forzamos tick cada 30s para renovar el lock a tiempo
+        redbeat_lock_timeout=1800,  # 30 min — sobrevive suspensiones del host (laptop sleep)
+        beat_max_loop_interval=30,  # Forzamos tick cada 30s para renovar el lock a tiempo
 
         # Tareas periódicas — se migran automáticamente a Redis en el primer
         # arranque de celery-beat con RedBeatScheduler.

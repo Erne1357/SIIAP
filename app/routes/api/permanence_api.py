@@ -57,36 +57,80 @@ def api_get_permanence_stats(program_id):
         }), 500
 
 
+def _extract_payment_proof(user_id: int):
+    """
+    Si la petición es multipart con un archivo 'payment_proof', lo guarda
+    en uploads/<user_id>/permanence/ y devuelve el path relativo. Acepta
+    sólo PDF. Devuelve None si no se envió archivo.
+    """
+    file = request.files.get('payment_proof') if request.files else None
+    if not file or not file.filename:
+        return None
+    if not file.filename.lower().endswith('.pdf'):
+        raise ValueError("El comprobante de pago debe ser PDF")
+    from app.utils.files import save_user_doc
+    return save_user_doc(file, user_id, 'permanence')
+
+
+def _extract_form_or_json(field, default=None):
+    """Lee de form-data o JSON indistintamente."""
+    if request.content_type and request.content_type.startswith('application/json'):
+        body = request.get_json(silent=True) or {}
+        return body.get(field, default)
+    return request.form.get(field, default)
+
+
 @api_permanence.post('/user-program/<int:user_program_id>/confirm')
 @login_required
 @permission_required('permanence.api.confirm_enrollment')
 def api_confirm_semester_enrollment(user_program_id):
-    """El coordinador confirma la inscripcion semestral de un estudiante."""
-    data = request.get_json() or {}
-    academic_period_id = data.get('academic_period_id')
-    notes = (data.get('notes') or '').strip() or None
+    """
+    El coordinador confirma la inscripción semestral de un estudiante.
+    Acepta JSON o multipart/form-data (con archivo opcional 'payment_proof').
+    """
+    academic_period_id = _extract_form_or_json('academic_period_id')
+    notes = (_extract_form_or_json('notes') or '').strip() or None
 
     if not academic_period_id:
         return jsonify({
             "data": None,
-            "flash": [{"level": "danger", "message": "Falta el periodo academico"}],
+            "flash": [{"level": "danger", "message": "Falta el periodo académico"}],
             "error": {"code": "MISSING_FIELD", "message": "academic_period_id es requerido"},
             "meta": {}
         }), 400
 
     try:
+        up = UserProgram.query.get(user_program_id)
+        if not up:
+            return jsonify({
+                "data": None,
+                "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
+                "meta": {}
+            }), 404
+
+        payment_proof_path = _extract_payment_proof(up.user_id)
+
         se = svc.confirm_semester_enrollment(
             user_program_id=user_program_id,
-            academic_period_id=academic_period_id,
+            academic_period_id=int(academic_period_id),
             coordinator_id=current_user.id,
-            notes=notes
+            notes=notes,
+            payment_proof_path=payment_proof_path,
         )
         return jsonify({
             "data": se.to_dict(),
-            "flash": [{"level": "success", "message": f"Inscripcion del semestre {se.semester_number} confirmada"}],
+            "flash": [{"level": "success", "message": f"Inscripción del semestre {se.semester_number} confirmada"}],
             "error": None,
             "meta": {}
         }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "VALIDATION", "message": str(e)},
+            "meta": {}
+        }), 400
 
     except svc.StudentNotFound as e:
         return jsonify({
@@ -107,7 +151,97 @@ def api_confirm_semester_enrollment(user_program_id):
     except Exception as e:
         return jsonify({
             "data": None,
-            "flash": [{"level": "danger", "message": "Error al confirmar inscripcion"}],
+            "flash": [{"level": "danger", "message": "Error al confirmar inscripción"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+@api_permanence.get('/program/<int:program_id>/enrollment-overview')
+@login_required
+@permission_required('permanence.api.list_students', program_id_kwarg='program_id')
+def api_get_enrollment_overview(program_id):
+    """Vista consolidada de inscripción para la pestaña 'Inscripción'."""
+    try:
+        data = svc.get_enrollment_overview(program_id)
+        return jsonify({"data": data, "error": None, "meta": {}}), 200
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+@api_permanence.post('/user-program/<int:user_program_id>/reinstate')
+@login_required
+@permission_required('permanence.api.confirm_enrollment')
+def api_reinstate_from_leave(user_program_id):
+    """Reincorpora a un estudiante en baja temporal creando un nuevo SE activo."""
+    academic_period_id = _extract_form_or_json('academic_period_id')
+    notes = (_extract_form_or_json('notes') or '').strip() or None
+
+    if not academic_period_id:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Falta el periodo académico"}],
+            "error": {"code": "MISSING_FIELD", "message": "academic_period_id es requerido"},
+            "meta": {}
+        }), 400
+
+    try:
+        up = UserProgram.query.get(user_program_id)
+        if not up:
+            return jsonify({
+                "data": None,
+                "error": {"code": "NOT_FOUND", "message": "UserProgram no encontrado"},
+                "meta": {}
+            }), 404
+
+        payment_proof_path = _extract_payment_proof(up.user_id)
+
+        se = svc.reinstate_from_leave(
+            user_program_id=user_program_id,
+            academic_period_id=int(academic_period_id),
+            coordinator_id=current_user.id,
+            notes=notes,
+            payment_proof_path=payment_proof_path,
+        )
+        return jsonify({
+            "data": se.to_dict(),
+            "flash": [{"level": "success", "message": f"Estudiante reincorporado al semestre {se.semester_number}"}],
+            "error": None,
+            "meta": {}
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "VALIDATION", "message": str(e)},
+            "meta": {}
+        }), 400
+
+    except svc.StudentNotFound as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+
+    except svc.InvalidStateTransition as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "INVALID_STATE", "message": str(e)},
+            "meta": {}
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al reincorporar"}],
             "error": {"code": "SERVER_ERROR", "message": str(e)},
             "meta": {}
         }), 500

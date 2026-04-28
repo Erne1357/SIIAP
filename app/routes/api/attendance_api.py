@@ -50,6 +50,9 @@ def register_to_event(event_id: int):
         return jsonify({"ok": False, "error": str(e)}), 400
     except Exception as e:
         db.session.rollback()
+        current_app.logger.exception(
+            f"Error 500 al registrar usuario {current_user.id} a evento {event_id}"
+        )
         return jsonify({"ok": False, "error": str(e)}), 500
 
 

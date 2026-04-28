@@ -12,27 +12,37 @@ from app.extensions import celery
 logger = logging.getLogger(__name__)
 
 
-@celery.task(name='app.tasks.events.dispatch_reminders_24h')
-def dispatch_reminders_24h():
+@celery.task(
+    name='app.tasks.events.dispatch_reminders_24h',
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def dispatch_reminders_24h(self):
     """Envía recordatorios 24 horas antes del evento."""
     from app.services.event_reminder_service import EventReminderService
     try:
         stats = EventReminderService.dispatch_due_reminders('24h')
         logger.info(f"[dispatch_reminders_24h] {stats}")
         return stats
-    except Exception as e:
-        logger.exception(f"[dispatch_reminders_24h] error: {e}")
-        raise
+    except Exception as exc:
+        logger.exception(f"[dispatch_reminders_24h] error: {exc}")
+        raise self.retry(exc=exc)
 
 
-@celery.task(name='app.tasks.events.dispatch_reminders_2h')
-def dispatch_reminders_2h():
+@celery.task(
+    name='app.tasks.events.dispatch_reminders_2h',
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def dispatch_reminders_2h(self):
     """Envía recordatorios 2 horas antes del evento."""
     from app.services.event_reminder_service import EventReminderService
     try:
         stats = EventReminderService.dispatch_due_reminders('2h')
         logger.info(f"[dispatch_reminders_2h] {stats}")
         return stats
-    except Exception as e:
-        logger.exception(f"[dispatch_reminders_2h] error: {e}")
-        raise
+    except Exception as exc:
+        logger.exception(f"[dispatch_reminders_2h] error: {exc}")
+        raise self.retry(exc=exc)

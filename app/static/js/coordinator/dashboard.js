@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}"
           title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
-          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
+          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}"
                alt="Avatar" class="rounded-circle student-avatar">
         </td>
         <td>
@@ -159,14 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="badge bg-light text-dark">${student.current_semester || 'N/A'}</span>
         </td>
         <td class="text-center">
-          <div class="progress">
-            <div class="progress-bar bg-info" role="progressbar" 
-                 style="width: ${student.academic_progress}%"></div>
-          </div>
-          <small class="text-muted">${student.academic_progress}%</small>
+          ${renderPermanenceProgress(student)}
         </td>
         <td class="text-center">
-          ${getStatusBadge(student.academic_status)}
+          ${getPermanenceStatusBadge(student.academic_status)}
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
@@ -240,6 +236,36 @@ document.addEventListener('DOMContentLoaded', () => {
       'completed': '<span class="badge bg-success">Completado</span>'
     };
     return statusMap[status] || '<span class="badge bg-light">Desconocido</span>';
+  }
+
+  function getPermanenceStatusBadge(status) {
+    const map = {
+      'active':    '<span class="badge bg-success">Cursando</span>',
+      'completed': '<span class="badge bg-primary">Completado</span>',
+      'on_leave':  '<span class="badge bg-warning text-dark">Baja temporal</span>',
+      'dropped':   '<span class="badge bg-danger">Baja definitiva</span>',
+      'pending':   '<span class="badge bg-secondary">Sin inscripción</span>',
+    };
+    return map[status] || '<span class="badge bg-light text-dark">N/A</span>';
+  }
+
+  function renderPermanenceProgress(student) {
+    const completed = Number(student.academic_progress) || 0;
+    const inProgress = Number(student.in_progress_segment) || 0;
+    const completedSemesters = student.completed_semesters ?? 0;
+    const total = student.total_semesters ?? 4;
+    const inProgressBar = inProgress > 0
+      ? `<div class="progress-bar bg-info perm-blink" role="progressbar"
+              style="width: ${inProgress}%" aria-label="Semestre en curso"></div>`
+      : '';
+    return `
+      <div class="progress" role="progressbar" aria-valuenow="${completed}"
+           aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar bg-info" style="width: ${completed}%"></div>
+        ${inProgressBar}
+      </div>
+      <small class="text-muted">${completedSemesters}/${total} sem · ${completed}%</small>
+    `;
   }
 
   function updateCounts() {
@@ -987,10 +1013,38 @@ document.addEventListener('DOMContentLoaded', () => {
     switchEl.checked = _permCurrentConacyt;
     toggleWrap.classList.toggle('d-none', !can_manage);
 
-    switchEl.onchange = async () => {
+    switchEl.onchange = () => {
+      // Doble confirmación: capturamos el deseo y pedimos confirmación
+      const desired = switchEl.checked;
+      // Revertir visualmente hasta que confirme
+      switchEl.checked = _permCurrentConacyt;
       switchEl.disabled = true;
-      await toggleConacytScholarship(_permCurrentUserProgramId, switchEl.checked);
-      switchEl.disabled = false;
+
+      const studentName = document.getElementById('permModalName')?.textContent || 'estudiante';
+      document.getElementById('confirmConacytStudent').textContent = studentName;
+      document.getElementById('confirmConacytAction').textContent =
+        desired ? 'Activar beca CONACyT' : 'Quitar beca CONACyT';
+
+      const modalEl = document.getElementById('confirmConacytModal');
+      const modal = new bootstrap.Modal(modalEl);
+
+      const onConfirm = async () => {
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        await toggleConacytScholarship(_permCurrentUserProgramId, desired);
+        switchEl.disabled = false;
+      };
+      const onCancel = () => { switchEl.disabled = false; };
+
+      // Listeners one-shot
+      const confirmBtn = document.getElementById('btnConfirmConacyt');
+      const cancelBtn  = document.getElementById('btnCancelConacyt');
+      const confirmHandler = () => { confirmBtn.removeEventListener('click', confirmHandler); onConfirm(); };
+      const cancelHandler  = () => { cancelBtn.removeEventListener('click', cancelHandler); onCancel(); };
+      confirmBtn.addEventListener('click', confirmHandler);
+      cancelBtn.addEventListener('click', cancelHandler);
+      modalEl.addEventListener('hidden.bs.modal', () => { switchEl.disabled = false; }, { once: true });
+
+      modal.show();
     };
 
     // ── Inscripción semestral detalle ──────────────────────────────

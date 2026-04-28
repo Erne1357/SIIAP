@@ -602,11 +602,15 @@ class EventsService:
         if event.capacity_type == 'single':
             raise ValueError("Este evento requiere asignación de slot individual")
 
-        # No permitir registro si el evento ya finalizó
-        now = now_local()
+        # No permitir registro si el evento ya finalizó.
+        # event.event_end_date / event.event_date son naive en DB; now_local() es aware.
+        # Normalizamos ambos a naive en la zona local para comparar.
+        now = now_local().replace(tzinfo=None)
         end_dt = event.event_end_date or event.event_date
-        if end_dt and end_dt < now:
-            raise ValueError("El evento ya finalizó")
+        if end_dt:
+            end_naive = end_dt.replace(tzinfo=None) if end_dt.tzinfo else end_dt
+            if end_naive < now:
+                raise ValueError("El evento ya finalizó")
 
         existing = EventAttendance.query.filter_by(
             event_id=event_id,

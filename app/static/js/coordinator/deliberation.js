@@ -5,7 +5,7 @@ class DeliberationManager {
     constructor() {
         this.programSelector = document.getElementById('programSelector');
         this.statsContainer = document.getElementById('statsContainer');
-        this.currentProgramId = this.programSelector?.value || null;
+        this.currentProgramId = this.programSelector?.value || '';
 
         // Modals
         this.decisionModal = new bootstrap.Modal(document.getElementById('decisionModal'));
@@ -16,12 +16,52 @@ class DeliberationManager {
 
     init() {
         this.bindEvents();
-        if (this.currentProgramId) {
-            this.loadStats();
-            this.loadPendingInterview();
-            this.joinDeliberationRoom();
-        }
+        this.loadStats();
+        this.loadPendingInterview();
+        this.joinDeliberationRoom();
         this.listenWebSocket();
+    }
+
+    // ── Helpers para modo "Todos los programas" ─────────────────────────────
+    _isAllMode() { return !this.currentProgramId; }
+
+    _targetProgramIds() {
+        if (this.currentProgramId) return [parseInt(this.currentProgramId)];
+        return (window.COORDINATOR_PROGRAMS || []).map(p => p.id);
+    }
+
+    _programName(pid) {
+        const p = (window.COORDINATOR_PROGRAMS || []).find(x => x.id === pid);
+        return p ? p.name : '—';
+    }
+
+    async _fanFetch(urlBuilder) {
+        const ids = this._targetProgramIds();
+        return Promise.all(ids.map(async (pid) => {
+            try {
+                const res = await fetch(urlBuilder(pid));
+                const json = await res.json();
+                if (!res.ok || json.error) return { pid, data: null, meta: null };
+                return { pid, data: json.data, meta: json.meta };
+            } catch (e) {
+                return { pid, data: null, meta: null };
+            }
+        }));
+    }
+
+    _toggleProgramHeader(tableId) {
+        const thead = document.querySelector(`#${tableId} thead tr`);
+        if (!thead) return;
+        const existing = thead.querySelector('th.program-col');
+        const want = this._isAllMode();
+        if (want && !existing) {
+            const th = document.createElement('th');
+            th.className = 'program-col';
+            th.textContent = 'Programa';
+            thead.insertBefore(th, thead.firstChild);
+        } else if (!want && existing) {
+            existing.remove();
+        }
     }
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
@@ -30,20 +70,23 @@ class DeliberationManager {
         /**
          * Une al coordinador a la sala Socket.IO del programa para recibir
          * actualizaciones en tiempo real cuando otro coordinador toma una decisión.
+         * En modo "Todos" se une a todos los programas accesibles.
          */
-        if (window.siiapSocket && this.currentProgramId) {
-            window.siiapSocket.emit('join_deliberation', {
-                program_id: parseInt(this.currentProgramId)
-            });
-        }
+        if (!window.siiapSocket) return;
+        this._targetProgramIds().forEach(pid => {
+            window.siiapSocket.emit('join_deliberation', { program_id: pid });
+        });
     }
 
     listenWebSocket() {
         window.addEventListener('siiap:deliberation:updated', (e) => {
             const data = e.detail || {};
 
-            // Solo reaccionar si el evento es del programa que se está viendo
-            if (data.program_id && String(data.program_id) !== String(this.currentProgramId)) return;
+            // En modo específico, sólo reaccionar al programa actual.
+            // En modo "Todos", reaccionar a cualquier programa accesible.
+            if (this.currentProgramId &&
+                data.program_id &&
+                String(data.program_id) !== String(this.currentProgramId)) return;
 
             // Recargar stats y la pestaña activa para reflejar el nuevo estado
             this.loadStats();
@@ -66,6 +109,7 @@ class DeliberationManager {
                 this.currentProgramId = this.programSelector.value;
                 this.loadStats();
                 this.loadCurrentTab();
+                this.joinDeliberationRoom();
             });
         }
 
@@ -115,29 +159,28 @@ class DeliberationManager {
     }
 
     async loadPendingInterview() {
-        if (!this.currentProgramId) return;
-
         const tbody = document.querySelector('#pendingInterviewTable tbody');
         if (!tbody) return;
+        this._toggleProgramHeader('pendingInterviewTable');
 
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4"><span class="loading-spinner"></span> Cargando...</td></tr>';
+        const colspan = this._isAllMode() ? 6 : 5;
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4"><span class="loading-spinner"></span> Cargando...</td></tr>`;
 
         try {
-            const response = await fetch(`/api/v1/deliberation/program/${this.currentProgramId}/pending-interview`);
-            const result = await response.json();
+            const results = await this._fanFetch(pid => `/api/v1/deliberation/program/${pid}/pending-interview`);
+            const items = [];
+            results.forEach(r => {
+                if (!r.data) return;
+                const programName = this._programName(r.pid);
+                r.data.forEach(it => { it.__program_name = programName; items.push(it); });
+            });
 
-            if (result.error) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Error: ${result.error.message}</td></tr>`;
-                return;
-            }
+            document.getElementById('pendingInterviewCount').textContent = items.length;
 
-            // Update badge count
-            document.getElementById('pendingInterviewCount').textContent = result.meta?.count || 0;
-
-            if (!result.data || result.data.length === 0) {
+            if (!items.length) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="empty-state">
+                        <td colspan="${colspan}" class="empty-state">
                             <i class="bi bi-inbox"></i>
                             <p>No hay aspirantes con entrevista agendada pendiente de marcar</p>
                         </td>
@@ -146,11 +189,11 @@ class DeliberationManager {
                 return;
             }
 
-            tbody.innerHTML = result.data.map(item => this.renderPendingInterviewRow(item)).join('');
+            tbody.innerHTML = items.map(item => this.renderPendingInterviewRow(item)).join('');
 
         } catch (error) {
             console.error('Error loading pending interviews:', error);
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-danger">Error al cargar datos</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4 text-danger">Error al cargar datos</td></tr>`;
         }
     }
 
@@ -162,9 +205,12 @@ class DeliberationManager {
             const date = new Date(dateStr);
             return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
         };
+        const programCell = this._isAllMode()
+            ? `<td class="text-muted small">${item.__program_name || ''}</td>` : '';
 
         return `
             <tr>
+                ${programCell}
                 <td class="applicant-name">${user.full_name}</td>
                 <td class="applicant-email">${user.email}</td>
                 <td>${user.curp || '-'}</td>
@@ -215,24 +261,22 @@ class DeliberationManager {
     }
 
     async loadStats() {
-        if (!this.currentProgramId) return;
-
         try {
-            const response = await fetch(`/api/v1/deliberation/program/${this.currentProgramId}/stats`);
-            const result = await response.json();
-
-            if (result.error) {
-                console.error('Error loading stats:', result.error);
-                return;
-            }
-
-            const stats = result.data;
+            const results = await this._fanFetch(pid => `/api/v1/deliberation/program/${pid}/stats`);
+            const stats = { interview_completed: 0, deliberation: 0, accepted: 0, rejected: 0 };
+            results.forEach(r => {
+                if (!r.data) return;
+                stats.interview_completed += r.data.interview_completed || 0;
+                stats.deliberation        += r.data.deliberation        || 0;
+                stats.accepted            += r.data.accepted            || 0;
+                stats.rejected            += r.data.rejected            || 0;
+            });
 
             // Update tab badges
-            document.getElementById('interviewCompletedCount').textContent = stats.interview_completed || 0;
-            document.getElementById('deliberationCount').textContent = stats.deliberation || 0;
-            document.getElementById('acceptedCount').textContent = stats.accepted || 0;
-            document.getElementById('rejectedCount').textContent = stats.rejected || 0;
+            document.getElementById('interviewCompletedCount').textContent = stats.interview_completed;
+            document.getElementById('deliberationCount').textContent = stats.deliberation;
+            document.getElementById('acceptedCount').textContent = stats.accepted;
+            document.getElementById('rejectedCount').textContent = stats.rejected;
 
             // Update stats cards if container exists
             if (this.statsContainer) {
@@ -264,43 +308,38 @@ class DeliberationManager {
     }
 
     async loadPendingInterviewCount() {
-        if (!this.currentProgramId) return;
-
         try {
-            const response = await fetch(`/api/v1/deliberation/program/${this.currentProgramId}/pending-interview`);
-            const result = await response.json();
-
-            if (!result.error) {
-                document.getElementById('pendingInterviewCount').textContent = result.meta?.count || 0;
-            }
+            const results = await this._fanFetch(pid => `/api/v1/deliberation/program/${pid}/pending-interview`);
+            let count = 0;
+            results.forEach(r => { count += (r.data || []).length; });
+            document.getElementById('pendingInterviewCount').textContent = count;
         } catch (error) {
             console.error('Error loading pending interview count:', error);
         }
     }
 
     async loadApplicants(status) {
-        if (!this.currentProgramId) return;
-
         const tableId = this.getTableIdForStatus(status);
         const tbody = document.querySelector(`#${tableId} tbody`);
-
         if (!tbody) return;
+        this._toggleProgramHeader(tableId);
 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="loading-spinner"></span> Cargando...</td></tr>';
+        const colspan = this._isAllMode() ? 7 : 6;
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4"><span class="loading-spinner"></span> Cargando...</td></tr>`;
 
         try {
-            const response = await fetch(`/api/v1/deliberation/program/${this.currentProgramId}/by-status/${status}`);
-            const result = await response.json();
+            const results = await this._fanFetch(pid => `/api/v1/deliberation/program/${pid}/by-status/${status}`);
+            const items = [];
+            results.forEach(r => {
+                if (!r.data) return;
+                const programName = this._programName(r.pid);
+                r.data.forEach(it => { it.__program_name = programName; items.push(it); });
+            });
 
-            if (result.error) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-danger">Error: ${result.error.message}</td></tr>`;
-                return;
-            }
-
-            if (!result.data || result.data.length === 0) {
+            if (!items.length) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="empty-state">
+                        <td colspan="${colspan}" class="empty-state">
                             <i class="bi bi-inbox"></i>
                             <p>No hay aspirantes en este estado</p>
                         </td>
@@ -309,11 +348,11 @@ class DeliberationManager {
                 return;
             }
 
-            tbody.innerHTML = result.data.map(item => this.renderApplicantRow(item, status)).join('');
+            tbody.innerHTML = items.map(item => this.renderApplicantRow(item, status)).join('');
 
         } catch (error) {
             console.error('Error loading applicants:', error);
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">Error al cargar datos</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4 text-danger">Error al cargar datos</td></tr>`;
         }
     }
 
@@ -335,11 +374,14 @@ class DeliberationManager {
             const date = new Date(dateStr);
             return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
         };
+        const programCell = this._isAllMode()
+            ? `<td class="text-muted small">${item.__program_name || ''}</td>` : '';
 
         switch (status) {
             case 'interview_completed':
                 return `
                     <tr>
+                        ${programCell}
                         <td class="applicant-name">${user.full_name}</td>
                         <td class="applicant-email">${user.email}</td>
                         <td>${user.curp || '-'}</td>
@@ -358,6 +400,7 @@ class DeliberationManager {
             case 'deliberation':
                 return `
                     <tr>
+                        ${programCell}
                         <td class="applicant-name">${user.full_name}</td>
                         <td class="applicant-email">${user.email}</td>
                         <td class="text-center">${formatDate(up.deliberation_started_at)}</td>
@@ -386,6 +429,7 @@ class DeliberationManager {
                     : '';
                 return `
                     <tr>
+                        ${programCell}
                         <td class="applicant-name">${user.full_name}</td>
                         <td class="applicant-email">${user.email}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
@@ -422,6 +466,7 @@ class DeliberationManager {
 
                 return `
                     <tr>
+                        ${programCell}
                         <td class="applicant-name">${user.full_name}</td>
                         <td class="applicant-email">${user.email}</td>
                         <td class="text-center">${rejectionBadge}</td>
@@ -438,7 +483,11 @@ class DeliberationManager {
     }
 
     async loadProgramArchivesForRejection() {
-        if (!this.currentProgramId) return;
+        // Usa el program_id del aspirante en el modal (no el del selector global,
+        // que puede ser '' en modo "Todos").
+        const programId = document.getElementById('decisionProgramId')?.value
+            || this.currentProgramId;
+        if (!programId) return;
 
         const select = document.getElementById('rejectionArchiveSelect');
         if (!select) return;
@@ -447,7 +496,7 @@ class DeliberationManager {
         select.disabled = true;
 
         try {
-            const response = await fetch(`/api/v1/deliberation/program/${this.currentProgramId}/admission-archives`);
+            const response = await fetch(`/api/v1/deliberation/program/${programId}/admission-archives`);
             const result = await response.json();
 
             if (result.error || !result.data) {

@@ -5,7 +5,7 @@
 
 class PermanenceManager {
   constructor(programId, activePeriodId) {
-    this.programId = programId;
+    this.programId = programId || null; // null = "Todos los programas"
     this.activePeriodId = activePeriodId;
     this.students = [];
     this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -13,11 +13,77 @@ class PermanenceManager {
   }
 
   init() {
-    if (!this.programId) return;
     this.bindEvents();
+    this.applyAllModeUi();
     this.loadStudents();
     this.loadStats();
     this.bindTabEvents();
+    // Tab "Inscripción" es la activa por default → carga inicial
+    this.loadEnrollmentTab();
+  }
+
+  // ── Helpers para modo "Todos los programas" ─────────────────────────────
+  _isAllMode() { return !this.programId; }
+
+  _targetProgramIds() {
+    if (this.programId) return [parseInt(this.programId)];
+    return (window.COORDINATOR_PROGRAMS || []).map(p => p.id);
+  }
+
+  _programName(pid) {
+    const p = (window.COORDINATOR_PROGRAMS || []).find(x => x.id === pid);
+    return p ? p.name : '—';
+  }
+
+  async _fanFetch(urlBuilder) {
+    const ids = this._targetProgramIds();
+    return Promise.all(ids.map(async (pid) => {
+      try {
+        const res = await fetch(urlBuilder(pid));
+        const json = await res.json();
+        if (!res.ok || json.error) return { pid, data: null, meta: null };
+        return { pid, data: json.data, meta: json.meta };
+      } catch (e) {
+        return { pid, data: null, meta: null };
+      }
+    }));
+  }
+
+  _toggleProgramHeader(tableId) {
+    const thead = document.querySelector(`#${tableId} thead tr`);
+    if (!thead) return;
+    const existing = thead.querySelector('th.program-col');
+    const want = this._isAllMode();
+    if (want && !existing) {
+      const th = document.createElement('th');
+      th.className = 'program-col';
+      th.textContent = 'Programa';
+      thead.insertBefore(th, thead.firstChild);
+    } else if (!want && existing) {
+      existing.remove();
+    }
+  }
+
+  /**
+   * Habilita/deshabilita botones que requieren un programa específico
+   * y agrega tooltip explicativo en modo "Todos".
+   */
+  applyAllModeUi() {
+    const tooltip = 'Selecciona un programa específico para usar esta acción';
+    const ids = ['btnNewDeadline', 'btnNewDeadlineEmpty', 'btnConacytMonthly'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (this._isAllMode()) {
+        el.disabled = true;
+        el.title = tooltip;
+        el.classList.add('disabled');
+      } else {
+        el.disabled = false;
+        el.title = '';
+        el.classList.remove('disabled');
+      }
+    });
   }
 
   bindEvents() {
@@ -25,7 +91,10 @@ class PermanenceManager {
     const progSel = document.getElementById('programSelector');
     if (progSel) {
       progSel.addEventListener('change', () => {
-        window.location.href = `/coordinator/permanence/${progSel.value}`;
+        const v = progSel.value;
+        window.location.href = v
+          ? `/coordinator/permanence/${v}`
+          : `/coordinator/permanence`;
       });
     }
 
@@ -94,6 +163,9 @@ class PermanenceManager {
   }
 
   bindTabEvents() {
+    document.getElementById('tab-enrollment')?.addEventListener('shown.bs.tab', () => {
+      this.loadEnrollmentTab();
+    });
     document.getElementById('tab-leave')?.addEventListener('shown.bs.tab', () => {
       this.loadLeaveRequestsTab();
     });
@@ -107,10 +179,14 @@ class PermanenceManager {
   async loadStudents() {
     this.showLoading(true);
     try {
-      const res = await fetch(`/api/v1/permanence/program/${this.programId}/students`);
-      const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
-      this.students = json.data;
+      const results = await this._fanFetch(pid => `/api/v1/permanence/program/${pid}/students`);
+      const students = [];
+      results.forEach(r => {
+        if (!Array.isArray(r.data)) return;
+        const programName = this._programName(r.pid);
+        r.data.forEach(s => { s.__program_name = programName; students.push(s); });
+      });
+      this.students = students;
       this.renderTable(this.students);
     } catch (e) {
       showFlash('danger', `Error al cargar estudiantes: ${e.message}`);
@@ -121,10 +197,17 @@ class PermanenceManager {
 
   async loadStats() {
     try {
-      const res = await fetch(`/api/v1/permanence/program/${this.programId}/stats`);
-      const json = await res.json();
-      if (!res.ok || json.error) return;
-      this.renderStats(json.data);
+      const results = await this._fanFetch(pid => `/api/v1/permanence/program/${pid}/stats`);
+      // Sumar campos numéricos de cada respuesta
+      const merged = {};
+      results.forEach(r => {
+        if (!r.data || typeof r.data !== 'object') return;
+        Object.keys(r.data).forEach(k => {
+          const v = r.data[k];
+          if (typeof v === 'number') merged[k] = (merged[k] || 0) + v;
+        });
+      });
+      this.renderStats(merged);
     } catch (_) { /* silencioso */ }
   }
 
@@ -137,17 +220,23 @@ class PermanenceManager {
     if (list) list.innerHTML = '';
 
     try {
-      const [dlRes, pdRes] = await Promise.all([
-        fetch(`/api/v1/permanence/program/${this.programId}/deadlines`),
-        fetch(`/api/v1/permanence/program/${this.programId}/pending-documents`),
+      const [dlResults, pdResults] = await Promise.all([
+        this._fanFetch(pid => `/api/v1/permanence/program/${pid}/deadlines`),
+        this._fanFetch(pid => `/api/v1/permanence/program/${pid}/pending-documents`),
       ]);
-      const [dlJson, pdJson] = await Promise.all([dlRes.json(), pdRes.json()]);
       loading?.classList.add('d-none');
 
-      if (!dlRes.ok || dlJson.error) throw new Error(dlJson.error?.message || 'Error cargando ventanas');
-
-      const deadlines = dlJson.data || [];
-      const pendingDocs = pdRes.ok && !pdJson.error ? (pdJson.data || []) : [];
+      const deadlines = [];
+      dlResults.forEach(r => {
+        if (!Array.isArray(r.data)) return;
+        const programName = this._programName(r.pid);
+        r.data.forEach(d => { d.__program_name = programName; deadlines.push(d); });
+      });
+      const pendingDocs = [];
+      pdResults.forEach(r => {
+        if (!Array.isArray(r.data)) return;
+        pendingDocs.push(...r.data);
+      });
 
       // Agrupar pending por deadline_id
       const pendingByDeadline = {};
@@ -203,6 +292,20 @@ class PermanenceManager {
     const empty = document.getElementById('emptyState');
     const table = document.getElementById('tableContainer');
 
+    // Encabezado condicional "Programa"
+    const headerRow = document.getElementById('studentsTableHeaderRow');
+    if (headerRow) {
+      const existing = headerRow.querySelector('th.program-col');
+      if (this._isAllMode() && !existing) {
+        const th = document.createElement('th');
+        th.className = 'program-col';
+        th.textContent = 'Programa';
+        headerRow.insertBefore(th, headerRow.firstChild);
+      } else if (!this._isAllMode() && existing) {
+        existing.remove();
+      }
+    }
+
     if (!students.length) {
       empty.classList.remove('d-none');
       table.classList.add('d-none');
@@ -232,13 +335,18 @@ class PermanenceManager {
 
     if (!this.activePeriodId) {
       statusCell = '<span class="badge bg-secondary">Sin periodo activo</span>';
-      actionCell = '—';
+      actionCell = `
+        <button class="btn btn-sm btn-outline-info"
+          onclick="permanenceManager.showHistoryByIndex(${index})" title="Ver historial">
+          <i class="bi bi-clock-history"></i>
+        </button>`;
     } else if (!ce) {
       statusCell = '<span class="badge bg-warning text-dark">Pendiente confirmación</span>';
       actionCell = `
-        <button class="btn btn-sm btn-success" onclick="permanenceManager.showConfirmModal(${up.id}, '${this.escapeHtml(user.full_name)}')">
-          <i class="bi bi-check-lg me-1"></i>Confirmar
-        </button>`;
+        <a href="#pane-enrollment" class="btn btn-sm btn-outline-warning" data-bs-toggle="tab" data-bs-target="#pane-enrollment"
+          onclick="document.getElementById('tab-enrollment').click()" title="Confirmar en pestaña Inscripción">
+          <i class="bi bi-arrow-right-short"></i>Inscripción
+        </a>`;
     } else {
       const statusMap = {
         active: ['bg-success', 'Activo'],
@@ -249,24 +357,18 @@ class PermanenceManager {
       };
       const [cls, label] = statusMap[ce.status] || ['bg-secondary', ce.status];
       statusCell = `<span class="badge ${cls}">${label}</span>`;
-      if (ce.enrollment_confirmed) {
-        actionCell = `
-          <div class="d-flex gap-1 justify-content-center">
-            <button class="btn btn-sm btn-outline-secondary"
-              onclick="permanenceManager.showUpdateStatusModal(${ce.id}, '${this.escapeHtml(user.full_name)}', '${ce.status}')">
-              <i class="bi bi-pencil"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-info"
-              onclick="permanenceManager.showHistoryByIndex(${index})">
-              <i class="bi bi-clock-history"></i>
-            </button>
-          </div>`;
-      } else {
-        actionCell = `
-          <button class="btn btn-sm btn-success" onclick="permanenceManager.showConfirmModal(${up.id}, '${this.escapeHtml(user.full_name)}')">
-            <i class="bi bi-check-lg me-1"></i>Confirmar
-          </button>`;
-      }
+      actionCell = `
+        <div class="d-flex gap-1 justify-content-center">
+          <button class="btn btn-sm btn-outline-secondary"
+            onclick="permanenceManager.showUpdateStatusModal(${ce.id}, '${this.escapeHtml(user.full_name)}', '${ce.status}')"
+            title="Cambiar estado">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-info"
+            onclick="permanenceManager.showHistoryByIndex(${index})" title="Historial">
+            <i class="bi bi-clock-history"></i>
+          </button>
+        </div>`;
     }
 
     // Columna CONACyT
@@ -280,8 +382,12 @@ class PermanenceManager {
         <i class="bi bi-toggles"></i>
       </button>`;
 
+    const programCell = this._isAllMode()
+      ? `<td class="text-muted small">${this.escapeHtml(s.__program_name || '')}</td>` : '';
+
     return `
       <tr>
+        ${programCell}
         <td>
           <div class="fw-semibold">${this.escapeHtml(user.full_name)}</div>
           <div class="small text-muted">${this.escapeHtml(user.email)}</div>
@@ -395,33 +501,413 @@ class PermanenceManager {
 
   // ── Acciones: Estudiantes ───────────────────────────────────────────────────
 
-  showConfirmModal(userProgramId, studentName) {
+  /**
+   * Abre el modal en uno de tres modos: 'confirm', 'advance', 'reinstate'.
+   * El submit selecciona el endpoint correcto según el mode.
+   */
+  showConfirmModal(userProgramId, studentName, mode = 'confirm') {
+    const TITLES = {
+      confirm: ['Confirmar Inscripción Semestral', 'Esto confirmará la inscripción del estudiante en el periodo activo.', 'Confirmar Inscripción', 'btn-success'],
+      advance: ['Avanzar Semestre Manualmente', 'Avanzará al estudiante al siguiente semestre en el periodo activo aunque tenga rezagos.', 'Avanzar Semestre', 'btn-primary'],
+      reinstate: ['Reincorporar Estudiante', 'Crea un nuevo semestre activo en el periodo actual saliendo de la baja temporal.', 'Reincorporar', 'btn-warning'],
+    };
+    const [title, desc, btnLabel, btnCls] = TITLES[mode] || TITLES.confirm;
+    document.getElementById('confirmEnrollTitle').innerHTML =
+      `<i class="bi bi-check-circle-fill text-success me-2"></i>${title}`;
+    document.getElementById('confirmEnrollDescription').textContent = desc;
+    document.getElementById('confirmEnrollBtnLabel').textContent = btnLabel;
+
+    const btn = document.getElementById('confirmEnrollBtn');
+    btn.classList.remove('btn-success', 'btn-primary', 'btn-warning');
+    btn.classList.add(btnCls);
+
     document.getElementById('confirmEnrollStudentName').textContent = studentName;
     document.getElementById('confirmEnrollUserProgramId').value = userProgramId;
+    document.getElementById('confirmEnrollMode').value = mode;
     document.getElementById('confirmEnrollNotes').value = '';
+    document.getElementById('confirmEnrollFile').value = '';
     new bootstrap.Modal(document.getElementById('confirmEnrollmentModal')).show();
   }
 
   async submitConfirmEnrollment() {
     const upId = parseInt(document.getElementById('confirmEnrollUserProgramId').value);
+    const mode = document.getElementById('confirmEnrollMode').value || 'confirm';
     const notes = document.getElementById('confirmEnrollNotes').value.trim();
+    const file = document.getElementById('confirmEnrollFile').files[0] || null;
+
+    if (!this.activePeriodId) {
+      showFlash('warning', 'No hay periodo académico activo.');
+      return;
+    }
+
     bootstrap.Modal.getInstance(document.getElementById('confirmEnrollmentModal'))?.hide();
 
+    const endpoint = mode === 'reinstate'
+      ? `/api/v1/permanence/user-program/${upId}/reinstate`
+      : `/api/v1/permanence/user-program/${upId}/confirm`;
+
+    const fd = new FormData();
+    fd.append('academic_period_id', this.activePeriodId);
+    if (notes) fd.append('notes', notes);
+    if (file) fd.append('payment_proof', file);
+
     try {
-      const res = await fetch(`/api/v1/permanence/user-program/${upId}/confirm`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({ academic_period_id: this.activePeriodId, notes: notes || null }),
+        headers: { 'X-CSRFToken': this.csrfToken },
+        body: fd,
       });
       const json = await res.json();
       (json.flash || []).forEach(f => showFlash(f.level, f.message));
       if (res.ok && !json.error) {
         await this.loadStudents();
         await this.loadStats();
+        await this.loadEnrollmentTab();
       }
     } catch (e) {
-      showFlash('danger', `Error al confirmar inscripción: ${e.message}`);
+      showFlash('danger', `Error: ${e.message}`);
     }
+  }
+
+  // ── Tab Inscripción ───────────────────────────────────────────────────────
+
+  async loadEnrollmentTab() {
+    const loading = document.getElementById('enrollmentLoading');
+    loading?.classList.remove('d-none');
+    try {
+      const results = await this._fanFetch(pid => `/api/v1/permanence/program/${pid}/enrollment-overview`);
+      const merged = { to_confirm: [], on_leave: [], behind: [], recently_confirmed: [] };
+      results.forEach(r => {
+        if (!r.data) return;
+        const programName = this._programName(r.pid);
+        ['to_confirm', 'on_leave', 'behind', 'recently_confirmed'].forEach(k => {
+          (r.data[k] || []).forEach(row => { row.__program_name = programName; merged[k].push(row); });
+        });
+      });
+      this._renderEnrollmentSection('toConfirmTable', 'toConfirmCount', merged.to_confirm, 'confirm');
+      this._renderEnrollmentSection('onLeaveTable', 'onLeaveCount', merged.on_leave, 'reinstate');
+      this._renderEnrollmentSection('behindTable', 'behindCount', merged.behind, 'advance');
+      this._renderRecentSection(merged.recently_confirmed);
+
+      // Badge en la pestaña con total accionable
+      const totalActionable = merged.to_confirm.length + merged.on_leave.length + merged.behind.length;
+      const badge = document.getElementById('enrollmentBadge');
+      if (badge) {
+        badge.textContent = totalActionable;
+        badge.style.display = totalActionable ? '' : 'none';
+      }
+    } catch (e) {
+      showFlash('danger', `Error al cargar inscripciones: ${e.message}`);
+    } finally {
+      loading?.classList.add('d-none');
+    }
+  }
+
+  _renderEnrollmentSection(tableId, countId, rows, mode) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    const countEl = document.getElementById(countId);
+    if (countEl) countEl.textContent = rows.length;
+
+    // Agregar columna Programa condicional al thead
+    this._toggleProgramHeader(tableId);
+
+    if (!rows.length) {
+      const cols = tableId === 'onLeaveTable' || tableId === 'behindTable' ? 5 : 4;
+      const colspan = this._isAllMode() ? cols + 1 : cols;
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-3 text-muted small">Sin pendientes.</td></tr>`;
+      return;
+    }
+
+    const btnLabel = mode === 'reinstate' ? 'Reincorporar'
+      : mode === 'advance' ? 'Avanzar'
+      : 'Confirmar';
+    const btnCls = mode === 'reinstate' ? 'btn-warning'
+      : mode === 'advance' ? 'btn-primary'
+      : 'btn-success';
+
+    tbody.innerHTML = rows.map(r => {
+      const u = r.user;
+      const last = r.last_enrollment;
+      const programCell = this._isAllMode()
+        ? `<td class="text-muted small">${this.escapeHtml(r.__program_name || '')}</td>` : '';
+      const safeName = this.escapeHtml(u.full_name).replace(/'/g, "\\'");
+
+      // Columnas variables según modo
+      let middleCols = '';
+      if (mode === 'confirm') {
+        const nextSem = (last?.semester_number || 0) + 1;
+        middleCols = `<td class="text-center"><span class="badge bg-info">${nextSem}</span></td>`;
+      } else if (mode === 'reinstate' || mode === 'advance') {
+        middleCols = `
+          <td class="text-center"><span class="badge bg-info">${last?.semester_number || '—'}</span></td>
+          <td class="small text-muted">${last?.period_name || '—'} <span class="badge bg-light text-dark border">${last?.period_code || ''}</span></td>
+        `;
+      }
+
+      return `
+        <tr>
+          ${programCell}
+          <td>
+            <a href="javascript:void(0)" class="text-decoration-none fw-semibold student-name-link"
+               onclick="permanenceManager.showStudentExpediente(${u.id})"
+               title="Ver expediente">
+              ${this.escapeHtml(u.full_name)}
+              <i class="bi bi-box-arrow-up-right small ms-1 text-muted"></i>
+            </a>
+            <div class="small text-muted">${this.escapeHtml(u.email)}</div>
+          </td>
+          <td class="text-center">
+            <span class="badge bg-dark font-monospace">${u.control_number || '—'}</span>
+          </td>
+          ${middleCols}
+          <td class="text-center">
+            <button class="btn btn-sm ${btnCls}"
+              onclick="permanenceManager.showConfirmModal(${r.user_program.id}, '${safeName}', '${mode}')">
+              <i class="bi bi-check-lg me-1"></i>${btnLabel}
+            </button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  _renderRecentSection(rows) {
+    const tbody = document.querySelector('#recentTable tbody');
+    const countEl = document.getElementById('recentCount');
+    if (countEl) countEl.textContent = rows.length;
+    this._toggleProgramHeader('recentTable');
+
+    if (!rows.length) {
+      const colspan = this._isAllMode() ? 6 : 5;
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-3 text-muted small">Sin confirmados aún.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map(r => {
+      const u = r.user;
+      const ce = r.current_enrollment;
+      const programCell = this._isAllMode()
+        ? `<td class="text-muted small">${this.escapeHtml(r.__program_name || '')}</td>` : '';
+      const proofCell = ce?.payment_proof_url
+        ? `<a href="${ce.payment_proof_url}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-file-earmark-pdf"></i></a>`
+        : '<span class="text-muted small">—</span>';
+      const completeBtn = ce && ce.status === 'active'
+        ? `<button class="btn btn-sm btn-outline-primary py-0 px-2"
+             onclick="permanenceManager.markCompletedFromOverview(${ce.id}, '${this.escapeHtml(u.full_name).replace(/'/g, "\\'")}')"
+             title="Marcar semestre como completado">
+             <i class="bi bi-check2-all"></i>
+           </button>`
+        : '<span class="text-muted small">—</span>';
+
+      return `
+        <tr>
+          ${programCell}
+          <td>
+            <a href="javascript:void(0)" class="text-decoration-none fw-semibold student-name-link"
+               onclick="permanenceManager.showStudentExpediente(${u.id})"
+               title="Ver expediente">
+              ${this.escapeHtml(u.full_name)}
+              <i class="bi bi-box-arrow-up-right small ms-1 text-muted"></i>
+            </a>
+            <div class="small text-muted">${this.escapeHtml(u.email)}</div>
+          </td>
+          <td class="text-center">
+            <span class="badge bg-dark font-monospace">${u.control_number || '—'}</span>
+          </td>
+          <td class="text-center"><span class="badge bg-info">${ce?.semester_number || '—'}</span></td>
+          <td class="text-center">${proofCell}</td>
+          <td class="text-center">${completeBtn}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  /**
+   * Abre modal de doble confirmación para marcar semestre como completado.
+   * La ejecución real ocurre en `_doMarkCompleted` cuando confirma.
+   */
+  markCompletedFromOverview(seId, studentName) {
+    document.getElementById('completedStudentName').textContent = studentName;
+    document.getElementById('completedSemesterEnrollmentId').value = seId;
+    new bootstrap.Modal(document.getElementById('confirmCompletedModal')).show();
+  }
+
+  async _doMarkCompleted(seId) {
+    bootstrap.Modal.getInstance(document.getElementById('confirmCompletedModal'))?.hide();
+    try {
+      const res = await fetch(`/api/v1/permanence/semester-enrollment/${seId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
+        body: JSON.stringify({ status: 'completed' }),
+      });
+      const json = await res.json();
+      (json.flash || []).forEach(f => showFlash(f.level, f.message));
+      if (res.ok && !json.error) {
+        await this.loadEnrollmentTab();
+        await this.loadStudents();
+      }
+    } catch (e) {
+      showFlash('danger', `Error: ${e.message}`);
+    }
+  }
+
+  // ── Modal Expediente ──────────────────────────────────────────────────────
+
+  async showStudentExpediente(studentId) {
+    const modalEl = document.getElementById('studentExpedienteModal');
+    const modal = new bootstrap.Modal(modalEl);
+    document.getElementById('expModalSpinner').classList.remove('d-none');
+    document.getElementById('expModalContent').classList.add('d-none');
+    document.getElementById('expModalName').textContent = 'Cargando...';
+    document.getElementById('expModalEmail').textContent = '';
+    document.getElementById('expModalProgram').textContent = '';
+    document.getElementById('expModalControlNumber').textContent = '';
+    document.getElementById('expModalAvatar').src = '/static/assets/images/default.jpg';
+    modal.show();
+
+    try {
+      const res = await fetch(`/api/v1/coordinator/student/${studentId}/permanence-details`);
+      const json = await res.json();
+      if (!res.ok || json.ok === false) {
+        showFlash('danger', json.error || 'Error al cargar expediente');
+        modal.hide();
+        return;
+      }
+      this._renderExpediente(json);
+    } catch (e) {
+      showFlash('danger', `Error al cargar expediente: ${e.message}`);
+      modal.hide();
+    }
+  }
+
+  _renderExpediente(data) {
+    const { student, user_program, program, active_period, current_enrollment,
+            pending_admission_count, semester_history } = data;
+
+    document.getElementById('expModalName').textContent = student.full_name;
+    document.getElementById('expModalEmail').textContent = student.email || '';
+    document.getElementById('expModalProgram').textContent = program?.name || '';
+    document.getElementById('expModalControlNumber').textContent = student.control_number || '—';
+    document.getElementById('expModalAvatar').src = student.avatar_url || '/static/assets/images/default.jpg';
+
+    // Alerta admisión pendiente
+    const alertEl = document.getElementById('expAdmissionAlert');
+    if (pending_admission_count > 0) {
+      document.getElementById('expAdmissionCount').textContent = pending_admission_count;
+      alertEl.classList.remove('d-none');
+    } else {
+      alertEl.classList.add('d-none');
+    }
+
+    // Tarjetas resumen
+    const statusMap = {
+      active: ['bg-success', 'Activo', 'bi-play-circle-fill'],
+      pending: ['bg-warning text-dark', 'Pendiente', 'bi-hourglass-split'],
+      completed: ['bg-primary', 'Completado', 'bi-check-circle-fill'],
+      on_leave: ['bg-secondary', 'Baja temporal', 'bi-pause-circle-fill'],
+      dropped: ['bg-danger', 'Baja definitiva', 'bi-x-circle-fill'],
+    };
+    const enrStatus = current_enrollment
+      ? (statusMap[current_enrollment.status] || ['bg-secondary', current_enrollment.status, 'bi-circle'])
+      : ['bg-warning text-dark', 'Sin inscripción', 'bi-dash-circle'];
+
+    document.getElementById('expSummaryCards').innerHTML = `
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-bookmark-star-fill fs-3 text-info mb-1"></i>
+            <div class="fw-bold fs-4 lh-1">${user_program.current_semester}</div>
+            <div class="small text-muted mt-1">Semestre actual</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-calendar-event-fill fs-3 text-primary mb-1"></i>
+            <div class="fw-bold lh-1 small">${active_period ? this.escapeHtml(active_period.name) : '—'}</div>
+            <div class="small text-muted">${active_period ? active_period.code : 'Sin periodo activo'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi ${enrStatus[2]} fs-3 mb-1"></i>
+            <div><span class="badge ${enrStatus[0]}">${enrStatus[1]}</span></div>
+            <div class="small text-muted mt-1">Inscripción semestral</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Inscripción del periodo activo
+    const enrBody = document.getElementById('expEnrollmentBody');
+    if (!active_period) {
+      enrBody.innerHTML = '<p class="text-muted mb-0">No hay periodo académico activo.</p>';
+    } else if (!current_enrollment) {
+      enrBody.innerHTML = `
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-warning text-dark">Pendiente de confirmación</span>
+          <span class="small text-muted">Sin inscripción registrada para el periodo activo.</span>
+        </div>`;
+    } else {
+      const confirmedIcon = current_enrollment.enrollment_confirmed
+        ? '<i class="bi bi-check-circle-fill text-success me-1"></i>Confirmado'
+        : '<i class="bi bi-dash-circle text-warning me-1"></i>Sin confirmar';
+      const confirmedAt = current_enrollment.confirmed_at
+        ? new Date(current_enrollment.confirmed_at).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'})
+        : '—';
+      enrBody.innerHTML = `
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+          <div><strong>Sem. ${current_enrollment.semester_number}</strong></div>
+          <div><span class="badge ${enrStatus[0]}">${enrStatus[1]}</span></div>
+          <div class="small">${confirmedIcon}</div>
+          <div class="small text-muted">Fecha: ${confirmedAt}</div>
+        </div>
+        ${current_enrollment.notes ? `<div class="small text-muted mt-2"><strong>Notas:</strong> ${this.escapeHtml(current_enrollment.notes)}</div>` : ''}
+      `;
+    }
+
+    // CONACyT
+    const cStatus = document.getElementById('expConacytStatus');
+    cStatus.textContent = user_program.has_conacyt_scholarship
+      ? 'Becario activo — Formato de Desempeño mensual obligatorio.'
+      : 'Sin beca CONACyT activa.';
+
+    // Historial
+    const hBody = document.getElementById('expHistoryBody');
+    if (!semester_history || !semester_history.length) {
+      hBody.innerHTML = '<p class="text-muted text-center py-3 mb-0">Sin historial semestral registrado.</p>';
+    } else {
+      hBody.innerHTML = `
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="text-center">Sem.</th>
+              <th>Periodo</th>
+              <th class="text-center">Estado</th>
+              <th class="text-center">Confirmado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${semester_history.map(h => {
+              const m = statusMap[h.status] || ['bg-secondary', h.status];
+              const cIcon = h.enrollment_confirmed
+                ? '<i class="bi bi-check-circle-fill text-success"></i>'
+                : '<i class="bi bi-dash-circle text-muted"></i>';
+              return `
+                <tr>
+                  <td class="text-center fw-bold">${h.semester_number}</td>
+                  <td>${this.escapeHtml(h.period_name)} <span class="badge bg-light text-dark border">${h.period_code}</span></td>
+                  <td class="text-center"><span class="badge ${m[0]}">${m[1]}</span></td>
+                  <td class="text-center">${cIcon}</td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    document.getElementById('expModalSpinner').classList.add('d-none');
+    document.getElementById('expModalContent').classList.remove('d-none');
   }
 
   showUpdateStatusModal(enrollmentId, studentName, currentStatus) {
@@ -512,10 +998,13 @@ class PermanenceManager {
     if (list) list.innerHTML = '';
 
     try {
-      const res = await fetch(`/api/v1/permanence/program/${this.programId}/leave-requests`);
-      const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
-      const requests = json.data || [];
+      const results = await this._fanFetch(pid => `/api/v1/permanence/program/${pid}/leave-requests`);
+      const requests = [];
+      results.forEach(r => {
+        if (!Array.isArray(r.data)) return;
+        const programName = this._programName(r.pid);
+        r.data.forEach(rq => { rq.__program_name = programName; requests.push(rq); });
+      });
 
       // Actualizar badge
       const badge = document.getElementById('leaveBadge');
@@ -611,6 +1100,10 @@ class PermanenceManager {
   }
 
   async createConacytMonthlyDeadlines() {
+    if (this._isAllMode()) {
+      showFlash('info', 'Selecciona un programa específico para crear ventanas CONACyT.');
+      return;
+    }
     const btn = document.getElementById('btnConacytMonthly');
     btn.disabled = true;
     const originalHtml = btn.innerHTML;
@@ -634,7 +1127,24 @@ class PermanenceManager {
     }
   }
 
-  async toggleConacyt(userProgramId, newValue) {
+  /**
+   * Abre el modal de doble confirmación. La ejecución real ocurre en
+   * `_doToggleConacyt` cuando el usuario confirma desde el modal.
+   */
+  toggleConacyt(userProgramId, newValue) {
+    const student = this.students.find(s => s.user_program?.id === userProgramId);
+    const fullName = student?.user?.full_name || 'estudiante';
+    const actionLabel = newValue ? 'Activar beca CONACyT' : 'Quitar beca CONACyT';
+
+    document.getElementById('confirmConacytStudent').textContent = fullName;
+    document.getElementById('confirmConacytAction').textContent = actionLabel;
+    document.getElementById('confirmConacytUserProgramId').value = userProgramId;
+    document.getElementById('confirmConacytNewValue').value = newValue ? '1' : '0';
+
+    new bootstrap.Modal(document.getElementById('confirmConacytModal')).show();
+  }
+
+  async _doToggleConacyt(userProgramId, newValue) {
     try {
       const res = await fetch(`/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`, {
         method: 'PATCH',
@@ -652,6 +1162,10 @@ class PermanenceManager {
   // ── Acciones: Ventanas de Entrega ─────────────────────────────────────────
 
   showCreateDeadlineModal() {
+    if (this._isAllMode()) {
+      showFlash('info', 'Selecciona un programa específico para crear ventanas.');
+      return;
+    }
     document.getElementById('deadlineArchiveId').value = '';
     document.getElementById('deadlineLabel').value = '';
     document.getElementById('deadlineSequence').value = '1';
@@ -803,21 +1317,41 @@ class PermanenceManager {
 // Inicializar
 let permanenceManager;
 document.addEventListener('DOMContentLoaded', () => {
-  if (typeof PROGRAM_ID !== 'undefined' && PROGRAM_ID) {
-    permanenceManager = new PermanenceManager(PROGRAM_ID, ACTIVE_PERIOD_ID);
-  }
+  // Inicializa siempre — null = modo "Todos los programas"
+  const initialPid = (typeof PROGRAM_ID !== 'undefined') ? PROGRAM_ID : null;
+  const initialPeriod = (typeof ACTIVE_PERIOD_ID !== 'undefined') ? ACTIVE_PERIOD_ID : null;
+  permanenceManager = new PermanenceManager(initialPid, initialPeriod);
 
   // ── Confirmar eliminación de ventana ──
   document.getElementById('btnConfirmDeleteDeadline')?.addEventListener('click', () => {
     permanenceManager?._confirmDeleteDeadline();
   });
 
+  // ── Doble confirmación CONACyT (toggle desde tabla) ──
+  document.getElementById('btnConfirmConacyt')?.addEventListener('click', () => {
+    if (!permanenceManager) return;
+    const upId = parseInt(document.getElementById('confirmConacytUserProgramId').value);
+    const newValue = document.getElementById('confirmConacytNewValue').value === '1';
+    bootstrap.Modal.getInstance(document.getElementById('confirmConacytModal'))?.hide();
+    permanenceManager._doToggleConacyt(upId, newValue);
+  });
+
+  // ── Confirmar marcar semestre completado ──
+  document.getElementById('btnConfirmCompleted')?.addEventListener('click', () => {
+    if (!permanenceManager) return;
+    const seId = parseInt(document.getElementById('completedSemesterEnrollmentId').value);
+    permanenceManager._doMarkCompleted(seId);
+  });
+
   // ── Tiempo real: nuevo documento de permanencia recibido ──
   window.addEventListener('siiap:submission:new', (e) => {
     const data = e.detail;
     if (!data || !permanenceManager) return;
-    // Solo recargar si el evento es del programa que estamos viendo
-    if (data.program_id && String(data.program_id) !== String(PROGRAM_ID)) return;
+    // En modo específico, sólo reaccionar al programa actual.
+    // En modo "Todos" reaccionamos a cualquier programa accesible.
+    if (permanenceManager.programId &&
+        data.program_id &&
+        String(data.program_id) !== String(permanenceManager.programId)) return;
 
     if (data.context === 'permanence') {
       permanenceManager.loadStats();

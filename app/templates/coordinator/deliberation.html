@@ -20,13 +20,13 @@
       </div>
 
       <!-- Selector de programa -->
-      {% if coordinator_programs|length > 1 %}
       <div class="card mb-4">
         <div class="card-body">
           <div class="row align-items-center">
             <div class="col-md-4">
               <label class="form-label fw-bold">Programa</label>
               <select class="form-select" id="programSelector">
+                <option value="" {% if not selected_program %}selected{% endif %}>Todos los programas</option>
                 {% for program in coordinator_programs %}
                 <option value="{{ program.id }}" {% if selected_program and program.id == selected_program.id %}selected{% endif %}>
                   {{ program.name }}
@@ -42,9 +42,6 @@
           </div>
         </div>
       </div>
-      {% else %}
-      <input type="hidden" id="programSelector" value="{{ selected_program.id if selected_program else '' }}">
-      {% endif %}
 
       <!-- Tabs por estado -->
       <ul class="nav nav-tabs mb-4" id="statusTabs" role="tablist">
@@ -333,6 +330,7 @@
 {{ super() }}
 <script>
   window.canForceReset = {{ has_perm('admin_users.api.reset_password')|tojson }};
+  window.COORDINATOR_PROGRAMS = {{ coordinator_programs_json|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/coordinator/deliberation.js') }}?v={{ static_version }}"></script>
 {% endblock %}

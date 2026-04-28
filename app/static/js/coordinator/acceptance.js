@@ -7,7 +7,7 @@ class AcceptanceManager {
     constructor() {
         this.programSelector = document.getElementById('programSelector');
         this.statsContainer = document.getElementById('statsContainer');
-        this.currentProgramId = this.programSelector?.value || null;
+        this.currentProgramId = this.programSelector?.value || '';
 
         // Modals
         this.uploadDocModal = new bootstrap.Modal(document.getElementById('uploadDocModal'));
@@ -21,10 +21,37 @@ class AcceptanceManager {
 
     init() {
         this.bindEvents();
-        if (this.currentProgramId) {
-            this.loadStats();
-            this.loadTab('pending_docs');
-        }
+        // En modo "Todos" igualmente carga (fan-out a programas accesibles)
+        this.loadStats();
+        this.loadTab('pending_docs');
+    }
+
+    // ── Helpers para modo "Todos los programas" ─────────────────────────────
+    _isAllMode() { return !this.currentProgramId; }
+
+    _targetProgramIds() {
+        if (this.currentProgramId) return [parseInt(this.currentProgramId)];
+        return (window.COORDINATOR_PROGRAMS || []).map(p => p.id);
+    }
+
+    _programName(pid) {
+        const p = (window.COORDINATOR_PROGRAMS || []).find(x => x.id === pid);
+        return p ? p.name : '—';
+    }
+
+    async _fanFetch(urlBuilder) {
+        const ids = this._targetProgramIds();
+        const tasks = ids.map(async (pid) => {
+            try {
+                const res = await fetch(urlBuilder(pid));
+                const json = await res.json();
+                if (!res.ok || json.error) return { pid, data: null, error: json.error };
+                return { pid, data: json.data, error: null };
+            } catch (e) {
+                return { pid, data: null, error: { message: e.message } };
+            }
+        });
+        return Promise.all(tasks);
     }
 
     bindEvents() {
@@ -107,22 +134,20 @@ class AcceptanceManager {
     }
 
     async loadStats() {
-        if (!this.currentProgramId) return;
-
         try {
-            const response = await fetch(`/api/v1/acceptance/program/${this.currentProgramId}/stats`);
-            const result = await response.json();
+            const results = await this._fanFetch(pid => `/api/v1/acceptance/program/${pid}/stats`);
+            const stats = { total_accepted: 0, pending_docs: 0, receipt_submitted: 0, completed: 0 };
+            results.forEach(r => {
+                if (!r.data) return;
+                stats.total_accepted    += r.data.total_accepted    || 0;
+                stats.pending_docs      += r.data.pending_docs      || 0;
+                stats.receipt_submitted += r.data.receipt_submitted || 0;
+                stats.completed         += r.data.completed         || 0;
+            });
 
-            if (result.error) {
-                console.error('Error loading stats:', result.error);
-                return;
-            }
-
-            const stats = result.data;
-
-            document.getElementById('pendingDocsCount').textContent = stats.pending_docs || 0;
-            document.getElementById('receiptCount').textContent = stats.receipt_submitted || 0;
-            document.getElementById('completedCount').textContent = stats.completed || 0;
+            document.getElementById('pendingDocsCount').textContent = stats.pending_docs;
+            document.getElementById('receiptCount').textContent = stats.receipt_submitted;
+            document.getElementById('completedCount').textContent = stats.completed;
 
             if (this.statsContainer) {
                 this.statsContainer.innerHTML = `
@@ -150,18 +175,14 @@ class AcceptanceManager {
     }
 
     async loadTab(tabName) {
-        if (!this.currentProgramId) return;
-
         try {
-            const response = await fetch(`/api/v1/acceptance/program/${this.currentProgramId}/applicants`);
-            const result = await response.json();
-
-            if (result.error) {
-                console.error('Error loading applicants:', result.error);
-                return;
-            }
-
-            const allApplicants = result.data || [];
+            const results = await this._fanFetch(pid => `/api/v1/acceptance/program/${pid}/applicants`);
+            const allApplicants = [];
+            results.forEach(r => {
+                if (!r.data) return;
+                r.data.forEach(a => { a.__program_name = this._programName(r.pid); });
+                allApplicants.push(...r.data);
+            });
 
             if (tabName === 'pending_docs') {
                 this.renderPendingDocsTab(allApplicants.filter(a => this.isPendingDocs(a)));
@@ -192,9 +213,11 @@ class AcceptanceManager {
     renderPendingDocsTab(applicants) {
         const tbody = document.querySelector('#pendingDocsTable tbody');
         if (!tbody) return;
+        this._toggleProgramHeader('pendingDocsTable');
 
+        const colspan = this._isAllMode() ? 6 : 5;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes pendientes</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes pendientes</p></td></tr>`;
             return;
         }
 
@@ -205,9 +228,12 @@ class AcceptanceManager {
             const letterStatus = this.renderDocBadge(docs.acceptance_letter);
             const scheduleStatus = this.renderDocBadge(docs.course_schedule);
             const safeName = user.full_name.replace(/'/g, "\\'");
+            const programCell = this._isAllMode()
+                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
 
             return `
                 <tr>
+                    ${programCell}
                     <td class="applicant-name">${user.full_name}</td>
                     <td class="applicant-email">${user.email}</td>
                     <td class="text-center">${letterStatus}</td>
@@ -243,12 +269,33 @@ class AcceptanceManager {
         }).join('');
     }
 
+    /**
+     * Inserta o quita la columna "Programa" en el thead de la tabla indicada
+     * según el modo actual ("Todos" vs programa específico).
+     */
+    _toggleProgramHeader(tableId) {
+        const thead = document.querySelector(`#${tableId} thead tr`);
+        if (!thead) return;
+        const existing = thead.querySelector('th.program-col');
+        const want = this._isAllMode();
+        if (want && !existing) {
+            const th = document.createElement('th');
+            th.className = 'program-col';
+            th.textContent = 'Programa';
+            thead.insertBefore(th, thead.firstChild);
+        } else if (!want && existing) {
+            existing.remove();
+        }
+    }
+
     renderReceiptTab(applicants) {
         const tbody = document.querySelector('#receiptTable tbody');
         if (!tbody) return;
+        this._toggleProgramHeader('receiptTable');
 
+        const colspan = this._isAllMode() ? 7 : 6;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><i class="bi bi-inbox"></i><p>No hay boletas pendientes de revision</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay boletas pendientes de revision</p></td></tr>`;
             return;
         }
 
@@ -256,9 +303,12 @@ class AcceptanceManager {
             const user = a.user;
             const docs = a.acceptance_docs;
             const receiptDoc = docs.enrollment_receipt;
+            const programCell = this._isAllMode()
+                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
 
             return `
                 <tr>
+                    ${programCell}
                     <td class="applicant-name">${user.full_name}</td>
                     <td class="applicant-email">${user.email}</td>
                     <td class="text-center">${this.renderDocBadge(docs.acceptance_letter)}</td>
@@ -280,15 +330,19 @@ class AcceptanceManager {
     renderCompletedTab(applicants) {
         const tbody = document.querySelector('#completedTable tbody');
         if (!tbody) return;
+        this._toggleProgramHeader('completedTable');
 
+        const colspan = this._isAllMode() ? 7 : 6;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><i class="bi bi-inbox"></i><p>No hay procesos completados aun</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay procesos completados aun</p></td></tr>`;
             return;
         }
 
         tbody.innerHTML = applicants.map(a => {
             const user = a.user;
             const up = a.user_program;
+            const programCell = this._isAllMode()
+                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
 
             let controlNumberCell;
             if (user.control_number) {
@@ -303,6 +357,7 @@ class AcceptanceManager {
 
             return `
                 <tr>
+                    ${programCell}
                     <td class="applicant-name">${user.full_name}</td>
                     <td class="applicant-email">${user.email}</td>
                     <td class="text-center"><span class="badge bg-success">Disponible</span></td>
@@ -521,8 +576,6 @@ class AcceptanceManager {
     // ─────────────────────────────────────────────────────────────────────
 
     async loadDeferredTab() {
-        if (!this.currentProgramId) return;
-
         const deferredTbody = document.querySelector('#deferredTable tbody');
         const requestsTbody = document.querySelector('#pendingRequestsTable tbody');
         const deferredCountBadge = document.getElementById('deferredCount');
@@ -530,12 +583,15 @@ class AcceptanceManager {
         if (deferredTbody) deferredTbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>`;
 
         try {
-            const response = await fetch(`/api/v1/acceptance/program/${this.currentProgramId}/deferred`);
-            const result = await response.json();
-
-            if (result.error) { console.error('Error loading deferred:', result.error); return; }
-
-            const { deferred, pending_requests } = result.data;
+            const results = await this._fanFetch(pid => `/api/v1/acceptance/program/${pid}/deferred`);
+            const deferred = [];
+            const pending_requests = [];
+            results.forEach(r => {
+                if (!r.data) return;
+                const programName = this._programName(r.pid);
+                (r.data.deferred || []).forEach(d => { d.__program_name = programName; deferred.push(d); });
+                (r.data.pending_requests || []).forEach(p => { p.__program_name = programName; pending_requests.push(p); });
+            });
 
             if (deferredCountBadge) deferredCountBadge.textContent = deferred.length;
 
@@ -546,14 +602,19 @@ class AcceptanceManager {
             if (pendingCount) pendingCount.textContent = pending_requests.length;
 
             if (requestsTbody) {
+                this._toggleProgramHeader('pendingRequestsTable');
+                const pCol = this._isAllMode() ? 7 : 6;
                 if (!pending_requests.length) {
-                    requestsTbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-muted">No hay solicitudes pendientes</td></tr>`;
+                    requestsTbody.innerHTML = `<tr><td colspan="${pCol}" class="text-center py-3 text-muted">No hay solicitudes pendientes</td></tr>`;
                 } else {
                     requestsTbody.innerHTML = pending_requests.map(p => {
                         const safeName = p.user.full_name.replace(/'/g, "\\'");
                         const safeReason = (p.deferral.reason || '').replace(/'/g, "\\'");
+                        const programCell = this._isAllMode()
+                            ? `<td class="text-muted small">${p.__program_name || ''}</td>` : '';
                         return `
                             <tr>
+                                ${programCell}
                                 <td>${p.user.full_name}</td>
                                 <td>${p.user.email}</td>
                                 <td class="text-center">#${p.deferral.deferral_number}</td>
@@ -571,8 +632,10 @@ class AcceptanceManager {
             }
 
             if (deferredTbody) {
+                this._toggleProgramHeader('deferredTable');
+                const dCol = this._isAllMode() ? 7 : 6;
                 if (!deferred.length) {
-                    deferredTbody.innerHTML = `<tr><td colspan="6" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes con inscripción diferida</p></td></tr>`;
+                    deferredTbody.innerHTML = `<tr><td colspan="${dCol}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes con inscripción diferida</p></td></tr>`;
                 } else {
                     deferredTbody.innerHTML = deferred.map(d => {
                         const safeName = d.user.full_name.replace(/'/g, "\\'");
@@ -586,8 +649,11 @@ class AcceptanceManager {
                                    <i class="bi bi-person-check-fill me-1"></i>Reactivar
                                </button>`
                             : `<span class="text-muted small">Sin periodo destino</span>`;
+                        const programCell = this._isAllMode()
+                            ? `<td class="text-muted small">${d.__program_name || ''}</td>` : '';
                         return `
                             <tr>
+                                ${programCell}
                                 <td>${d.user.full_name}</td>
                                 <td>${d.user.email}</td>
                                 <td class="text-center">${deferralsLeft}</td>
@@ -747,10 +813,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Tiempo real: actualizar cuando hay cambios en aceptación ──
     window.addEventListener('siiap:acceptance:updated', (e) => {
-        if (!acceptanceManager || !acceptanceManager.currentProgramId) return;
+        if (!acceptanceManager) return;
         const data = e.detail;
-        // Solo recargar si el evento es del programa que estamos viendo
-        if (data?.program_id && String(data.program_id) !== String(acceptanceManager.currentProgramId)) return;
+        // En modo "Todos" reaccionamos a cualquier programa accesible
+        if (acceptanceManager.currentProgramId &&
+            data?.program_id &&
+            String(data.program_id) !== String(acceptanceManager.currentProgramId)) return;
 
         acceptanceManager.loadStats();
         const activeTab = document.querySelector('.nav-link.active[data-tab]');

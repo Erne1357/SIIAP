@@ -27,6 +27,11 @@ def dashboard():
                          coordinator_programs=coordinator_programs)
 
 
+def _programs_payload(programs):
+    """Lista mínima [{id, name}] para inyectar como JSON al cliente."""
+    return [{'id': p.id, 'name': p.name} for p in programs]
+
+
 @pages_coordinator.route('/deliberation')
 @pages_coordinator.route('/deliberation/<int:program_id>')
 @login_required
@@ -42,11 +47,11 @@ def deliberation(program_id=None):
         if accessible_pids is not None and selected_program.id not in accessible_pids:
             from flask import abort
             abort(403)
-    elif coordinator_programs:
-        selected_program = coordinator_programs[0]
+    # Default = "Todos los programas" (selected_program=None)
 
     return render_template('coordinator/deliberation.html',
                          coordinator_programs=coordinator_programs,
+                         coordinator_programs_json=_programs_payload(coordinator_programs),
                          selected_program=selected_program)
 
 
@@ -65,11 +70,11 @@ def acceptance(program_id=None):
         if accessible_pids is not None and selected_program.id not in accessible_pids:
             from flask import abort
             abort(403)
-    elif coordinator_programs:
-        selected_program = coordinator_programs[0]
+    # Default = "Todos los programas" (selected_program=None)
 
     return render_template('coordinator/acceptance.html',
                            coordinator_programs=coordinator_programs,
+                           coordinator_programs_json=_programs_payload(coordinator_programs),
                            selected_program=selected_program)
 
 
@@ -89,8 +94,7 @@ def permanence(program_id=None):
         if accessible_pids is not None and selected_program.id not in accessible_pids:
             from flask import abort
             abort(403)
-    elif coordinator_programs:
-        selected_program = coordinator_programs[0]
+    # Default = "Todos los programas" (selected_program=None)
 
     active_period = AcademicPeriod.get_active_period()
     all_periods = AcademicPeriod.query.order_by(AcademicPeriod.start_date.desc()).all()
@@ -108,6 +112,7 @@ def permanence(program_id=None):
 
     return render_template('coordinator/permanence.html',
                            coordinator_programs=coordinator_programs,
+                           coordinator_programs_json=_programs_payload(coordinator_programs),
                            selected_program=selected_program,
                            active_period=active_period,
                            all_periods=all_periods,

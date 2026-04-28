@@ -19,6 +19,8 @@ from app.models.step import Step
 from app.models.phase import Phase
 from app.models.program_step import ProgramStep
 from app.models.appointment import Appointment
+from app.models.semester_enrollment import SemesterEnrollment
+from app.models.academic_period import AcademicPeriod
 from app.services.admission_service import get_admission_state
 
 api_coordinator = Blueprint('api_coordinator', __name__, url_prefix='/api/v1/coordinator')
@@ -72,12 +74,17 @@ def list_students():
     
     results = query.all()
     students = []
-    
+
+    active_period = AcademicPeriod.get_active_period()
+    active_period_id = active_period.id if active_period else None
+
     for user, user_program, program in results:
         # Calcular estado actual del estudiante
         admission_state = get_admission_state(user.id, program.id, user_program)
+        # Métricas de permanencia basadas en SemesterEnrollment + duración del programa
+        perm = _compute_permanence_metrics(user_program, program, active_period_id)
         # Determinar fase actual basada en estado
-        current_phase = _determine_current_phase(admission_state, user_program)
+        current_phase = _determine_current_phase(admission_state, user_program, perm)
         
         # Filtro por fase
         if phase and current_phase != phase:
@@ -110,10 +117,14 @@ def list_students():
             "overall_status": _determine_overall_status(admission_state),
             "ready_for_interview": _check_ready_for_interview(admission_state),
             
-            # Métricas de permanencia/conclusión (placeholder por ahora)
-            "current_semester": user_program.current_semester or 1,
-            "academic_progress": min(((user_program.current_semester or 1) * 25), 100),
-            "academic_status": "in_progress",
+            # Métricas de permanencia (basadas en SemesterEnrollment real)
+            "current_semester": perm["current_semester"],
+            "completed_semesters": perm["completed_semesters"],
+            "total_semesters": perm["total_semesters"],
+            "academic_progress": perm["academic_progress"],
+            "in_progress_segment": perm["in_progress_segment"],
+            "academic_status": perm["academic_status"],
+            # Métricas de conclusión (placeholder)
             "conclusion_stage": "inicial",
             "conclusion_progress": 0,
             "conclusion_status": "pending"
@@ -673,19 +684,73 @@ def _get_missing_documents(documents_by_step):
     return missing
 # ==================== FUNCIONES AUXILIARES ====================
 
-def _determine_current_phase(admission_state, user_program):
-    """Determina la fase actual del estudiante"""
+def _compute_permanence_metrics(user_program, program, active_period_id):
+    """
+    Calcula métricas reales de permanencia para un UserProgram.
+
+    Returns dict con:
+      - current_semester: número de semestre actual del UserProgram
+      - completed_semesters: cantidad de SemesterEnrollment con status='completed'
+      - total_semesters: duración del programa (Program.duration_semesters; default 4)
+      - academic_progress: % de semestres completados sobre el total
+      - in_progress_segment: % adicional que corresponde al semestre en curso
+        (sólo cuando hay enrollment en estado 'active' en el periodo activo)
+      - academic_status: estado funcional para el coordinador
+        ('active' | 'on_leave' | 'completed' | 'dropped' | 'pending')
+    """
+    total = max(int(program.duration_semesters or 4), 1)
+    current_semester = user_program.current_semester or 1
+
+    completed = (
+        SemesterEnrollment.query
+        .filter_by(user_program_id=user_program.id, status='completed')
+        .count()
+    )
+    completed = min(completed, total)
+
+    # Enrollment del periodo activo (si existe) define el estado funcional + segmento parpadeante
+    current_enrollment = None
+    if active_period_id is not None:
+        current_enrollment = (
+            SemesterEnrollment.query
+            .filter_by(user_program_id=user_program.id, academic_period_id=active_period_id)
+            .first()
+        )
+
+    if current_enrollment is not None:
+        academic_status = current_enrollment.status
+    elif completed >= total:
+        academic_status = 'completed'
+    else:
+        academic_status = 'pending'
+
+    progress_pct = round((completed / total) * 100, 2)
+    segment_pct = round((1 / total) * 100, 2)
+
+    # Sólo parpadea si hay un semestre activamente en curso y queda espacio en la barra
+    in_progress_segment = 0
+    if academic_status == 'active' and (progress_pct + segment_pct) <= 100.001:
+        in_progress_segment = segment_pct
+
+    return {
+        "current_semester": current_semester,
+        "completed_semesters": completed,
+        "total_semesters": total,
+        "academic_progress": progress_pct,
+        "in_progress_segment": in_progress_segment,
+        "academic_status": academic_status,
+    }
+
+
+def _determine_current_phase(admission_state, user_program, perm):
+    """Determina la fase actual del estudiante."""
     # Estudiantes con número de control = ya están en permanencia o conclusión
     if user_program.admission_status == 'enrolled':
-        if user_program.current_semester and user_program.current_semester >= 4:
+        if perm["completed_semesters"] >= perm["total_semesters"]:
             return "conclusion"
         return "permanence"
 
     # Si no ha completado admisión, está en admisión
-    progress_pct = admission_state.get("progress_pct", 0)
-    if progress_pct < 100:
-        return "admission"
-
     return "admission"
 
 def _determine_overall_status(admission_state):

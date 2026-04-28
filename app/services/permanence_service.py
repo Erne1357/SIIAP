@@ -167,7 +167,8 @@ def confirm_semester_enrollment(
     user_program_id: int,
     academic_period_id: int,
     coordinator_id: int,
-    notes: str = None
+    notes: str = None,
+    payment_proof_path: str = None,
 ) -> SemesterEnrollment:
     """
     El coordinador confirma la inscripcion semestral de un estudiante.
@@ -230,6 +231,8 @@ def confirm_semester_enrollment(
     se.confirmed_by = coordinator_id
     se.confirmed_at = now_local()
     se.notes = notes
+    if payment_proof_path:
+        se.payment_proof_path = payment_proof_path
 
     user = up.user
     program = up.program
@@ -371,6 +374,228 @@ def update_enrollment_status(
 
     db.session.commit()
     return se
+
+
+def reinstate_from_leave(
+    user_program_id: int,
+    academic_period_id: int,
+    coordinator_id: int,
+    notes: str = None,
+    payment_proof_path: str = None,
+) -> SemesterEnrollment:
+    """
+    Reincorpora a un estudiante que estaba en baja temporal.
+
+    Crea un nuevo SemesterEnrollment activo+confirmado en el periodo dado,
+    incrementando el semester_number a max+1. El SE 'on_leave' previo
+    permanece sin cambios para preservar el historial.
+
+    Reglas:
+    - El último SE del estudiante debe estar en estado 'on_leave'.
+    - No debe existir aún un SE para el periodo destino (evita doble inscripción).
+    """
+    up = UserProgram.query.get(user_program_id)
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+
+    if up.admission_status != 'enrolled':
+        raise InvalidStateTransition(
+            f"Sólo estudiantes inscritos pueden reincorporarse. Estado: '{up.admission_status}'"
+        )
+
+    period = AcademicPeriod.query.get(academic_period_id)
+    if not period:
+        raise StudentNotFound(f"Periodo académico {academic_period_id} no encontrado")
+
+    last_se = (
+        SemesterEnrollment.query
+        .filter_by(user_program_id=user_program_id)
+        .order_by(SemesterEnrollment.semester_number.desc())
+        .first()
+    )
+    if not last_se or last_se.status != 'on_leave':
+        raise InvalidStateTransition(
+            "El estudiante no está en baja temporal — no aplica reincorporación."
+        )
+
+    existing = SemesterEnrollment.query.filter_by(
+        user_program_id=user_program_id,
+        academic_period_id=academic_period_id,
+    ).first()
+    if existing:
+        raise InvalidStateTransition(
+            f"Ya existe inscripción para el periodo {period.name}."
+        )
+
+    new_se = SemesterEnrollment(
+        user_program_id=user_program_id,
+        academic_period_id=academic_period_id,
+        semester_number=last_se.semester_number + 1,
+        status='active',
+        enrollment_confirmed=True,
+        confirmed_by=coordinator_id,
+        confirmed_at=now_local(),
+        notes=notes,
+        payment_proof_path=payment_proof_path,
+    )
+    db.session.add(new_se)
+    up.current_semester = new_se.semester_number
+
+    user = up.user
+    program = up.program
+
+    NotificationService.create_notification(
+        user_id=user.id,
+        notification_type='semester_reinstated',
+        title='Reincorporación confirmada',
+        message=(
+            f'Has sido reincorporado al programa {program.name} en el semestre '
+            f'{new_se.semester_number} ({period.name}).'
+        ),
+        priority='high',
+        action_url='/user/dashboard',
+    )
+
+    UserHistoryService.log_action(
+        user_id=coordinator_id,
+        admin_id=coordinator_id,
+        action='semester_enrollment_reinstated',
+        details=(
+            f'Reincorporó a {user.first_name} {user.last_name} en {program.name} '
+            f'al semestre {new_se.semester_number} ({period.name}). Notas: {notes or "—"}'
+        ),
+    )
+
+    db.session.commit()
+
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'permanence:status_changed',
+        {
+            'user_id': user.id,
+            'user_program_id': up.id,
+            'program_id': up.program_id,
+            'action': 'reinstated',
+            'semester_number': new_se.semester_number,
+            'period_name': period.name,
+        },
+        user_id=user.id,
+        program_id=up.program_id,
+    )
+
+    return new_se
+
+
+def get_enrollment_overview(program_id: int) -> dict:
+    """
+    Vista consolidada para la pestaña de Inscripción del coordinador.
+
+    Devuelve listas categorizadas de UserProgram según su situación de
+    inscripción semestral en el periodo activo.
+
+    Categorías:
+      - to_confirm:       enrolled sin SE confirmado en el periodo activo
+      - on_leave:         último SE.status='on_leave' (candidatos a reincorporar)
+      - behind:           último SE en periodo NO-activo y status='active'/'pending'
+                          (estudiante rezagado — coordinador puede avanzar manualmente)
+      - recently_confirmed: últimos N SE confirmados en el periodo activo
+    """
+    active_period = AcademicPeriod.get_active_period()
+
+    enrolled = (
+        UserProgram.query
+        .filter_by(program_id=program_id, admission_status='enrolled')
+        .join(User, UserProgram.user_id == User.id)
+        .order_by(User.last_name, User.first_name)
+        .all()
+    )
+    up_ids = [up.id for up in enrolled]
+
+    last_se_by_up = {}
+    se_for_active_by_up = {}
+    if up_ids:
+        all_se = (
+            SemesterEnrollment.query
+            .filter(SemesterEnrollment.user_program_id.in_(up_ids))
+            .order_by(SemesterEnrollment.semester_number.desc())
+            .all()
+        )
+        for se in all_se:
+            if se.user_program_id not in last_se_by_up:
+                last_se_by_up[se.user_program_id] = se
+            if active_period and se.academic_period_id == active_period.id:
+                se_for_active_by_up[se.user_program_id] = se
+
+    def _row(up, last_se=None, current_se=None):
+        u = up.user
+        return {
+            'user_program': up.to_dict(),
+            'user': {
+                'id': u.id,
+                'full_name': f"{u.first_name} {u.last_name} {u.mother_last_name or ''}".strip(),
+                'email': u.email,
+                'control_number': u.control_number,
+            },
+            'last_enrollment': (
+                {
+                    **last_se.to_dict(),
+                    'period_name': last_se.academic_period.name,
+                    'period_code': last_se.academic_period.code,
+                } if last_se else None
+            ),
+            'current_enrollment': (
+                {
+                    **current_se.to_dict(),
+                    'period_name': current_se.academic_period.name,
+                } if current_se else None
+            ),
+        }
+
+    to_confirm = []
+    on_leave = []
+    behind = []
+    recently_confirmed = []
+
+    for up in enrolled:
+        last = last_se_by_up.get(up.id)
+        current = se_for_active_by_up.get(up.id)
+
+        # Sin periodo activo: todos quedan en "to_confirm" como referencia
+        if not active_period:
+            to_confirm.append(_row(up, last, None))
+            continue
+
+        if last and last.status == 'on_leave':
+            on_leave.append(_row(up, last, current))
+            continue
+
+        if current and current.enrollment_confirmed:
+            recently_confirmed.append(_row(up, last, current))
+            continue
+
+        if current and not current.enrollment_confirmed:
+            to_confirm.append(_row(up, last, current))
+            continue
+
+        # No hay SE en periodo activo
+        if last and last.academic_period_id != active_period.id and last.status in ('active', 'pending'):
+            behind.append(_row(up, last, None))
+        else:
+            to_confirm.append(_row(up, last, None))
+
+    return {
+        'active_period': active_period.to_dict() if active_period else None,
+        'to_confirm': to_confirm,
+        'on_leave': on_leave,
+        'behind': behind,
+        'recently_confirmed': recently_confirmed[:20],
+        'counts': {
+            'to_confirm': len(to_confirm),
+            'on_leave': len(on_leave),
+            'behind': len(behind),
+            'recently_confirmed': len(recently_confirmed),
+        },
+    }
 
 
 def get_deadlines_for_program(program_id: int, academic_period_id: int = None) -> list:
