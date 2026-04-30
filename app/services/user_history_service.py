@@ -856,6 +856,7 @@ class UserHistoryService:
         # Acciones irreversibles del sistema
         'deleted',                 # Eliminaciones de usuarios
         'document_reviewed',       # Decisiones de revisión de documentos
+        'purge_run_confirmed',     # Purga física post-respaldo (irreversible)
         
         # Seguridad y acceso
         'deactivated',            # Desactivaciones (pueden ser disciplinarias)
@@ -959,12 +960,21 @@ class UserHistoryService:
         'deferral_reactivated_by_transition': 'Reactivó diferimiento durante transición semestral',
         'payment_proof_uploaded': 'Subió comprobante de pago de inscripción',
 
+        # ACCIONES DE PURGA Y RESPALDO ZIP (Sección 15)
+        'purge_run_created':   'Generó respaldo ZIP previo a purga',
+        'purge_run_downloaded':'Descargó respaldo ZIP de purga',
+        'purge_run_confirmed': 'Confirmó purga física post-respaldo',
+        'purge_run_cancelled': 'Canceló respaldo ZIP de purga',
+
         # ACCIONES DEL SISTEMA DE PERMISOS GRANULARES (Fase 7-8)
         'social_service_created': 'Creó usuario de servicio social con delegación',
         'permission_delegated': 'Delegó permiso a usuario',
         'permission_revoked': 'Revocó delegación de permiso',
         'role_override_granted': 'Agregó override de permiso a rol',
         'role_override_reverted': 'Revirtió override de permiso de rol',
+
+        # ALTA MASIVA DE ESTUDIANTES (student_bulk_service)
+        'enrolled_via_bulk_import': 'Alta masiva — inscribió estudiante existente',
     }
 
     @staticmethod

@@ -1,0 +1,59 @@
+/* app/static/css/admin/settings/data_cleanup.css */
+
+.cleanup-table {
+  font-size: 0.9rem;
+}
+.cleanup-table thead th {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+}
+.cleanup-table tbody tr:hover {
+  background-color: #f1f3f5;
+}
+.cleanup-table .files-badge {
+  font-variant-numeric: tabular-nums;
+}
+.cleanup-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #6c757d;
+  border: 1px dashed #ced4da;
+  border-radius: 0.5rem;
+  background-color: #fafbfc;
+}
+
+.runs-table .status-pill {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.runs-table .status-pill.pending_download { background-color: #fff3cd; color: #664d03; }
+.runs-table .status-pill.downloaded       { background-color: #cfe2ff; color: #084298; }
+.runs-table .status-pill.purged           { background-color: #d1e7dd; color: #0f5132; }
+.runs-table .status-pill.cancelled        { background-color: #e2e3e5; color: #41464b; }
+.runs-table .status-pill.expired          { background-color: #f8d7da; color: #842029; }
+
+.runs-table .actions-col .btn {
+  margin-right: 0.25rem;
+}
+
+.cleanup-purge-step {
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  background-color: #fff;
+}
+.cleanup-purge-step .step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+.cleanup-purge-step.completed {
+  background-color: #f0fdf4;
+  border-color: #10b981;
+}

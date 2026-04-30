@@ -1022,9 +1022,46 @@ def api_transition_execute():
                 coordinator_id=current_user.id,
             )
 
-        # Sin flash aquí — el frontend arma su propio mensaje detallado con stats.
+        # ── Respaldo preventivo (snapshot) de aspirantes Δ=2 expirados ──
+        archive_block = None
+        if program_id:
+            expired_ids = result.get('expired_user_program_ids') or []
+            stats_for_response = result
+        else:
+            expired_ids = (result.get('total') or {}).get('expired_user_program_ids') or []
+            stats_for_response = result
+
+        if expired_ids:
+            try:
+                import app.services.applicant_archive_service as archive_svc
+                run = archive_svc.create_purge_run(
+                    user_program_ids=expired_ids,
+                    purge_type='transition_snapshot',
+                    initiated_by_id=current_user.id,
+                    program_id=program_id if program_id else None,
+                    source_period_id=source_period_id,
+                    target_period_id=target_period_id,
+                    notes=(
+                        f'Snapshot preventivo de transición '
+                        f'{source_period_id}→{target_period_id}'
+                    ),
+                )
+                archive_block = {
+                    'run_id': run.run_id,
+                    'archive_url': f'/api/v1/admin/purge/{run.run_id}/archive.zip',
+                    'expires_at': run.expires_at.isoformat() if run.expires_at else None,
+                    'item_count': len(expired_ids),
+                    'size_bytes': run.archive_size_bytes,
+                }
+            except Exception as e:
+                # Snapshot fallido no debe romper la transición ya commiteada.
+                archive_block = {'error': f'No se pudo generar snapshot: {e}'}
+
         return jsonify({
-            "data": result,
+            "data": {
+                **(stats_for_response if isinstance(stats_for_response, dict) else {}),
+                "archive": archive_block,
+            },
             "error": None,
             "meta": {}
         }), 200

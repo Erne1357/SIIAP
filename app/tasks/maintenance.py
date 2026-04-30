@@ -2,11 +2,13 @@
 Tareas de mantenimiento periódico del sistema SIIAP.
 
 Programadas automáticamente a través de Celery Beat (ver app/celery_app.py):
-  - cleanup_expired_admission_files    → diario a las 02:00
-  - apply_retention_policies           → lunes a las 03:00
   - cleanup_old_notifications          → diario a las 04:00
   - check_deferral_expirations         → diario a las 08:00
   - notify_pending_permanence_docs     → lunes a las 09:00
+
+Tasks DEPRECATED (no corren en cron desde 2026-04-30, flujo manual con ZIP):
+  - cleanup_expired_admission_files
+  - apply_retention_policies
 """
 
 import logging
@@ -47,18 +49,18 @@ def _periods_elapsed_since(enrollment_period_code: str) -> int:
 )
 def cleanup_expired_admission_files(self):
     """
-    Expira procesos de admisión incompletos que superaron el límite de 2 periodos.
+    DEPRECATED — task ya NO corre en cron desde 2026-04-30.
 
-    Un proceso se considera expirado cuando han cerrado 2 o más periodos de
-    admisión DESPUÉS del periodo en que el aspirante se inscribió
-    (UserProgram.admission_period_id). Esto le da al aspirante el periodo de
-    inscripción más un periodo adicional para completar el proceso.
+    El flujo manual con respaldo ZIP es el camino oficial:
+      Configuración → Limpieza → Aspirantes Δ≥3 → Generar ZIP → Confirmar purga
+    Implementado en `app/services/applicant_archive_service.py`.
 
-    Procesos sin admission_period_id (registros anteriores al Bloque 1) se omiten
-    para no afectar datos históricos.
+    Esta task queda como referencia y como fallback ejecutable manual; ya no
+    se invoca automáticamente.
 
-    Los archivos físicos se eliminan del disco; las submissions quedan con estado
-    'expired' en la base de datos para mantener auditoría.
+    Comportamiento original:
+    Expira procesos de admisión incompletos que superaron el límite de 2 periodos
+    y elimina archivos físicos del disco (irreversible).
     """
     from app import db
     from app.models.submission import Submission
@@ -160,12 +162,17 @@ def cleanup_expired_admission_files(self):
 )
 def apply_retention_policies(self):
     """
-    Aplica las RetentionPolicy definidas en la base de datos.
+    DEPRECATED — task ya NO corre en cron desde 2026-04-30.
 
-    Para cada política:
-      - Si keep_forever=True → no hace nada.
-      - Si keep_years está definido → elimina archivos de usuarios cuyo evento
-        (graduación, baja, inscripción) ocurrió hace más de keep_years años.
+    El flujo manual con respaldo ZIP es el camino oficial:
+      Configuración → Limpieza → Retención → Generar ZIP → Confirmar purga
+    Implementado en `app/services/applicant_archive_service.py`.
+
+    Comportamiento original:
+    Aplica las RetentionPolicy definidas en la base de datos.
+      - keep_forever=True → no hace nada.
+      - keep_years → elimina archivos de usuarios cuyo evento ocurrió hace más
+        de keep_years años (irreversible).
     """
     from app import db
     from app.models.retention_policy import RetentionPolicy

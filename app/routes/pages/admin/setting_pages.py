@@ -74,6 +74,30 @@ def celery_worker():
     return render_template('admin/settings/celery_worker.html')
 
 
+@pages_settings.route('/student-bulk-import', methods=['GET'])
+@login_required
+@permission_required('student_bulk.page.view')
+def student_bulk_import():
+    """Alta masiva e individual de estudiantes existentes."""
+    from app.models.program import Program
+    from app.models.academic_period import AcademicPeriod
+    programs = Program.query.filter_by(is_active=True).order_by(Program.name).all()
+    periods = AcademicPeriod.query.order_by(AcademicPeriod.id.desc()).all()
+    return render_template(
+        'admin/settings/student_bulk_import.html',
+        programs=programs,
+        periods=periods,
+    )
+
+
+@pages_settings.route('/data-cleanup', methods=['GET'])
+@login_required
+@permission_required('admin.page.purge')
+def data_cleanup():
+    """Limpieza de aspirantes/estudiantes con respaldo ZIP previo."""
+    return render_template('admin/settings/data_cleanup.html')
+
+
 @pages_settings.route('/permissions', methods=['GET'])
 @login_required
 @permission_required('permissions.page.manage_roles')

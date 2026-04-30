@@ -584,6 +584,7 @@ def execute_program_transition(
         'admission_expired': 0,
         'deferred_reactivated': 0,
         'errors': [],
+        'expired_user_program_ids': [],
     }
 
     try:
@@ -702,7 +703,8 @@ def execute_program_transition(
                             action_url='/user/dashboard',
                         )
                         stats['admission_expired'] += 1
-                    # delta >= 3: lo limpiará cleanup_expired_admission_files
+                        stats['expired_user_program_ids'].append(up.id)
+                    # delta >= 3: lo gestiona purga manual desde Configuración → Limpieza
 
                 except Exception as e:
                     err_msg = f"Error procesando aspirante up_id={up.id}: {e}"
@@ -914,6 +916,7 @@ def execute_global_transition(
         'admission_expired': 0,
         'deferred_reactivated': 0,
         'errors': [],
+        'expired_user_program_ids': [],
     }
     per_program = []
 
@@ -941,6 +944,9 @@ def execute_global_transition(
                     'admission_expired', 'deferred_reactivated'):
             total_stats[key] += p_stats.get(key, 0)
         total_stats['errors'].extend(p_stats.get('errors', []))
+        total_stats['expired_user_program_ids'].extend(
+            p_stats.get('expired_user_program_ids', [])
+        )
 
         per_program.append({
             'program_id': program.id,

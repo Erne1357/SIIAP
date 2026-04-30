@@ -1,0 +1,41 @@
+/* app/static/css/admin/settings/student_bulk_import.css */
+
+/* ── CSV preview table ──────────────────────────────────────────────────── */
+
+.csv-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+}
+
+.csv-table-wrapper table {
+  min-width: 900px;
+  margin-bottom: 0;
+}
+
+/* Sticky header inside the scrollable wrapper */
+.csv-table-wrapper thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #f8f9fa;
+}
+
+/* Invalid row highlight */
+.csv-row-invalid {
+  background-color: #fff5f5 !important;
+}
+
+.csv-row-invalid td {
+  color: #842029;
+}
+
+/* ── Summary bar badges ─────────────────────────────────────────────────── */
+
+#csvSummaryBar .badge {
+  font-size: 0.875rem;
+  padding: 0.4em 0.75em;
+}

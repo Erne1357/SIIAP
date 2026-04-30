@@ -297,6 +297,90 @@ class EmailTemplates:
         return subject, html
 
     @staticmethod
+    def student_welcome_set_password(
+        user_name: str,
+        control_number: str,
+        program_name: str,
+        login_url: str,
+    ) -> tuple[str, str]:
+        """
+        Plantilla de bienvenida para estudiantes dados de alta por importación masiva.
+
+        El estudiante inicia sesión con su número de control como nombre de usuario.
+        Al acceder por primera vez, el sistema le obliga a cambiar su contraseña
+        (must_change_password=True).
+
+        Args:
+            user_name: Nombre completo del estudiante.
+            control_number: Número de control asignado (usado como username).
+            program_name: Nombre del programa de posgrado.
+            login_url: URL absoluta de la página de inicio de sesión.
+
+        Returns:
+            (subject, html)
+        """
+        subject = 'Bienvenido a SIIAP — Configura tu contraseña'
+        html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{subject}</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; background: #f4f6f8; margin: 0; padding: 0; }}
+    .container {{ max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }}
+    .header {{ background: #1a3a5c; color: #fff; padding: 32px 40px; }}
+    .header h1 {{ margin: 0; font-size: 22px; }}
+    .body {{ padding: 32px 40px; color: #333; line-height: 1.6; }}
+    .info-box {{ background: #f0f4f8; border-left: 4px solid #1a3a5c; padding: 16px 20px; border-radius: 4px; margin: 24px 0; }}
+    .info-box p {{ margin: 4px 0; font-size: 14px; }}
+    .steps {{ margin: 20px 0; padding-left: 20px; }}
+    .steps li {{ margin-bottom: 8px; }}
+    .btn {{ display: inline-block; background: #1a3a5c; color: #fff !important; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 24px 0; }}
+    .note {{ color: #555; background: #e8f4fd; border: 1px solid #bee3f8; padding: 12px 16px; border-radius: 4px; font-size: 13px; margin-top: 16px; }}
+    .footer {{ background: #f4f6f8; padding: 20px 40px; font-size: 12px; color: #888; text-align: center; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Bienvenido al Sistema SIIAP</h1>
+    </div>
+    <div class="body">
+      <p>Hola, <strong>{user_name}</strong>.</p>
+      <p>Tu cuenta en el <strong>Sistema Integral de Información Académica de Posgrado (SIIAP)</strong>
+         ha sido creada. Ahora formas parte del programa:</p>
+
+      <div class="info-box">
+        <p><strong>Programa:</strong> {program_name}</p>
+        <p><strong>Número de control (usuario):</strong> {control_number}</p>
+      </div>
+
+      <p>Para configurar tu contraseña sigue estos pasos:</p>
+      <ol class="steps">
+        <li>Haz clic en el botón de abajo para ir a la página de inicio de sesión.</li>
+        <li>Ingresa tu <strong>número de control</strong> como nombre de usuario.</li>
+        <li>Solicita la contraseña temporal a tu coordinador de programa.</li>
+        <li>El sistema te pedirá que establezcas una nueva contraseña de inmediato.</li>
+      </ol>
+
+      <a href="{login_url}" class="btn">Ir al sistema</a>
+
+      <div class="note">
+        Tu coordinador te proporcionará la contraseña temporal para el primer acceso.
+        Una vez que inicies sesión, deberás crear tu propia contraseña segura.
+      </div>
+    </div>
+    <div class="footer">
+      Sistema Integral de Información Académica de Posgrado &mdash; ITCJ<br>
+      Este es un correo automático, por favor no respondas a este mensaje.
+    </div>
+  </div>
+</body>
+</html>"""
+        return subject, html
+
+    @staticmethod
     def leave_request_result(user_name: str, program_name: str, approved: bool,
                               reason: str, dashboard_url: str) -> tuple[str, str]:
         """Plantilla para resultado de solicitud de baja temporal"""

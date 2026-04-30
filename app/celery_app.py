@@ -28,16 +28,13 @@ def init_celery(app):
         # Tareas periódicas — se migran automáticamente a Redis en el primer
         # arranque de celery-beat con RedBeatScheduler.
         beat_schedule={
-            # Limpia archivos de procesos de admisión expirados — todos los días a las 02:00
-            'cleanup-expired-admission-files': {
-                'task': 'app.tasks.maintenance.cleanup_expired_admission_files',
-                'schedule': crontab(hour=2, minute=0),
-            },
-            # Aplica políticas de retención definidas en RetentionPolicy — todos los lunes a las 03:00
-            'apply-retention-policies': {
-                'task': 'app.tasks.maintenance.apply_retention_policies',
-                'schedule': crontab(hour=3, minute=0, day_of_week=1),
-            },
+            # ── DESACTIVADAS (purga ahora 100% manual con respaldo ZIP) ─────
+            # cleanup_expired_admission_files y apply_retention_policies
+            # ya NO corren en cron. Ambas tasks siguen registradas y son
+            # invocables manualmente, pero el flujo recomendado es
+            # /admin/settings/data-cleanup → genera ZIP → confirmar purga.
+            # Ver app/services/applicant_archive_service.py.
+            #
             # Limpia notificaciones leídas con más de 30 días — todos los días a las 04:00
             'cleanup-old-notifications': {
                 'task': 'app.tasks.maintenance.cleanup_old_notifications',

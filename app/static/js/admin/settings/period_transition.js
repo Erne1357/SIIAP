@@ -429,6 +429,26 @@
         + `Baja temporal: ${onLeave} · Migrados: ${migrated} · `
         + `Expirados: ${expired} · Reactivados: ${reactivated}`);
 
+      // ── Snapshot ZIP de aspirantes Δ=2 (si lo hubo) ──────────────────────
+      const archive = (raw && raw.archive) || (stats && stats.archive);
+      if (archive && archive.run_id) {
+        const url = archive.archive_url || `/api/v1/admin/purge/${archive.run_id}/archive.zip`;
+        flash('info',
+          `Se generó respaldo preventivo de ${archive.item_count} aspirante(s) expirado(s). Descargando...`);
+        try {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `purge_${archive.run_id}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => a.remove(), 1500);
+        } catch (e) {
+          flash('warning', `No se pudo iniciar la descarga automática. Recupera manualmente desde Configuración → Limpieza.`);
+        }
+      } else if (archive && archive.error) {
+        flash('warning', `Snapshot preventivo falló: ${archive.error}`);
+      }
+
       if (modalInstance) modalInstance.hide();
 
       // Refrescar lista de periodos

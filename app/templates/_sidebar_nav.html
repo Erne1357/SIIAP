@@ -168,6 +168,18 @@
          href="{{ url_for('pages_admin.pages_settings.permissions_manager') }}">
         <i class="fas fa-shield-alt me-2"></i>Permisos
       </a>
+      {% if has_perm('admin.page.purge') %}
+      <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.data_cleanup' %}active{% endif %}"
+         href="{{ url_for('pages_admin.pages_settings.data_cleanup') }}">
+        <i class="bi bi-archive me-2"></i>Limpieza de datos
+      </a>
+      {% endif %}
+      {% endif %}
+      {% if has_perm('student_bulk.page.view') %}
+      <a class="nav-link submenu-item {% if request.endpoint=='pages_admin.pages_settings.student_bulk_import' %}active{% endif %}"
+         href="{{ url_for('pages_admin.pages_settings.student_bulk_import') }}">
+        <i class="bi bi-people-fill me-2"></i>Alta Masiva
+      </a>
       {% endif %}
     </div>
   </div>
