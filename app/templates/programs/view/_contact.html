@@ -15,29 +15,24 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body p-4">
           <h3 class="h4 fw-bold mb-3">Envíanos un Mensaje</h3>
-          <form>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label for="name" class="form-label">Nombre Completo</label>
-                <input type="text" class="form-control" id="name" placeholder="Tu nombre">
-              </div>
-              <div class="col-md-6">
-                <label for="email" class="form-label">Correo Electrónico</label>
-                <input type="email" class="form-control" id="email" placeholder="tu@email.com">
-              </div>
-              <div class="col-12">
-                <label for="subject" class="form-label">Asunto</label>
-                <input type="text" class="form-control" id="subject" placeholder="Asunto de tu mensaje">
-              </div>
-              <div class="col-12">
-                <label for="message" class="form-label">Mensaje</label>
-                <textarea class="form-control" id="message" rows="4" placeholder="Escribe tu mensaje aquí..."></textarea>
-              </div>
-              <div class="col-12">
-                <button type="submit" class="btn btn-primary w-100">Enviar Mensaje</button>
-              </div>
-            </div>
-          </form>
+          {% set primary_email = program.contact_email or 'posgrado@itcj.edu.mx' %}
+          <p class="mb-3">
+            Para consultas sobre este programa, escríbenos directamente. Recibirás respuesta del coordinador en horario de oficina.
+          </p>
+          <a href="mailto:{{ primary_email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
+             class="btn btn-primary w-100">
+            <i class="bi bi-envelope-fill me-2"></i>Escribir a {{ primary_email }}
+          </a>
+          {% if program.contact_email_secondary %}
+          <a href="mailto:{{ program.contact_email_secondary }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
+             class="btn btn-outline-primary w-100 mt-2">
+            <i class="bi bi-envelope me-2"></i>Correo alterno: {{ program.contact_email_secondary }}
+          </a>
+          {% endif %}
+          <p class="small text-muted mt-3 mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            Tu cliente de correo se abrirá con un mensaje pre-llenado con el asunto sugerido.
+          </p>
         </div>
       </div>
     </div>

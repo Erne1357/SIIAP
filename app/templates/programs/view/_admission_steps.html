@@ -111,13 +111,18 @@
                   <ul class="list-unstyled mb-0">
                     {% for file in ps.step.archives %}
                     <li class="mb-2">
-                      <a  target="_blank"
-                        class="text-decoration-none document-link">
+                      {% if file.is_downloadable and file.file_path %}
+                      <a href="/api/v1/archives/{{ file.id }}/template"
+                         target="_blank" rel="noopener"
+                         class="text-decoration-none document-link">
                         <i class="bi bi-file-earmark-text me-2"></i>{{ file.name }}
-                        {% if file.is_downloadable %}
                         <i class="bi bi-download ms-1"></i>
-                        {% endif %}
                       </a>
+                      {% else %}
+                      <span class="text-decoration-none document-link text-muted">
+                        <i class="bi bi-file-earmark-text me-2"></i>{{ file.name }}
+                      </span>
+                      {% endif %}
                     </li>
                     {% endfor %}
                   </ul>

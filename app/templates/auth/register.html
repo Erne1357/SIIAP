@@ -60,7 +60,7 @@
         </div>
       </div>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-success w-100">Registrarme</button>
+      <button type="submit" class="btn btn-primary w-100">Registrarme</button>
     </form>
 
     <div class="mt-3 text-center">
@@ -137,11 +137,7 @@
         },
         body: formData
       });
-      
-      
-      
-      );
-      
+
       const contentType = response.headers.get('Content-Type');
       
       if (contentType && contentType.includes('application/json')) {
@@ -168,7 +164,7 @@
       } else {
         // La respuesta es HTML, no JSON
         const htmlText = await response.text();
-        :', htmlText.substring(0, 500));
+        console.error('Respuesta inesperada del servidor:', htmlText.substring(0, 500));
         flash('Error del servidor: respuesta inesperada', 'danger');
       }
       

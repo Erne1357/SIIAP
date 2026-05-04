@@ -90,9 +90,9 @@ body.register-body {
   left: 0;
   right: 0;
   z-index: var(--z-sticky);
-  background: linear-gradient(135deg, #2c5530 0%, #4a7c59 100%);
+  background: linear-gradient(135deg, var(--color-brand-primary) 0%, var(--color-brand-accent) 100%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border-bottom: 2px solid #1e3a23;
+  border-bottom: 2px solid var(--color-brand-primary-700);
   height: var(--banner-h);
   animation: slideDownSmooth 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -167,7 +167,7 @@ body.register-body {
   background-color: rgba(255, 255, 255, 0.98);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   border: none;
-  border-top: 5px solid #4a7c59 !important;
+  border-top: 5px solid var(--color-brand-primary) !important;
   border-radius: 1rem;
   backdrop-filter: blur(10px);
 }

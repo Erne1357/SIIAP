@@ -243,7 +243,7 @@
 
 .notification-dropdown-footer a {
     font-size: 0.85rem;
-    color: #007bff;
+    color: var(--color-brand-primary);
     text-decoration: none;
 }
 
@@ -397,7 +397,7 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #007bff;
+    background: var(--color-brand-primary);
     color: white;
     border: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -435,7 +435,7 @@
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    border: 2px solid #007bff;
+    border: 2px solid var(--color-brand-primary);
 }
 
 /* Mostrar solo en móvil */

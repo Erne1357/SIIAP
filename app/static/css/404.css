@@ -15,36 +15,16 @@
 .error-code {
     font-size: 8rem;
     font-weight: bold;
-    color: #343a40;
-    /* Animación de rebote personalizada */
-    animation: bounce 2s infinite;
+    color: var(--color-neutral-700);
+    line-height: 1;
 }
 
 #main-content {
-    margin-left : 0;
-}
-
-@keyframes bounce {
-
-    0%,
-    20%,
-    50%,
-    80%,
-    100% {
-        transform: translateY(0);
-    }
-
-    40% {
-        transform: translateY(-20px);
-    }
-
-    60% {
-        transform: translateY(-10px);
-    }
+    margin-left: 0;
 }
 
 .error-message {
     font-size: 1.5rem;
-    color: #6c757d;
+    color: var(--text-muted);
     margin-top: 20px;
 }
