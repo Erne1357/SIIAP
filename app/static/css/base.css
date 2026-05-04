@@ -100,7 +100,7 @@ body {
   left: 0;
   right: 0;
   height: var(--header-h);
-  z-index: 1030;
+  z-index: var(--z-fixed);
   background-color: #fff;
   display: flex;
   align-items: center;
@@ -233,7 +233,7 @@ footer {
   height: var(--footer-h);
   background: #212529;
   color: #fff;
-  z-index: 1020;
+  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -318,25 +318,23 @@ footer {
   width: 280px !important;
   display: flex;
   flex-direction: column;
-  z-index: 1055 !important; /* Mayor que el footer (1020) para superponerse */
-  height: 100vh !important; /* Ocupar toda la altura de la pantalla */
+  z-index: var(--z-offcanvas) !important;
+  height: 100vh !important;
   max-height: 100vh !important;
-  max-height: 100dvh !important; /* Usar dynamic viewport height en navegadores compatibles */
+  max-height: 100dvh !important;
 }
 
-/* Cuando el offcanvas está abierto, asegurar que se superponga */
 .offcanvas.show,
 .offcanvas.showing {
-  z-index: 1055 !important;
+  z-index: var(--z-offcanvas) !important;
 }
 
-/* Backdrop del offcanvas también debe estar sobre el footer */
 .offcanvas-backdrop {
-  z-index: 1050 !important;
+  z-index: var(--z-backdrop) !important;
 }
 
 .offcanvas-backdrop.show {
-  z-index: 1050 !important;
+  z-index: var(--z-backdrop) !important;
 }
 
 .offcanvas.offcanvas-start {
@@ -344,9 +342,8 @@ footer {
   bottom: 0 !important;
 }
 
-/* Asegurar que el footer esté debajo del offcanvas cuando este está abierto */
 body.offcanvas-open footer {
-  z-index: 1020;
+  z-index: var(--z-sticky);
 }
 
 /* Header del offcanvas (título y botón cerrar) */
@@ -504,7 +501,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1055 !important;
+  z-index: var(--z-backdrop) !important;
   width: 100vw;
   height: 100vh;
   background-color: #000;
@@ -519,7 +516,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1060 !important;
+  z-index: var(--z-modal) !important;
   width: 100%;
   height: 100%;
   overflow-x: hidden;
@@ -533,7 +530,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   width: auto;
   margin: 0.5rem;
   pointer-events: none;
-  z-index: 1061 !important;
+  z-index: calc(var(--z-modal) + 1) !important;
 }
 
 .modal.show .modal-dialog {

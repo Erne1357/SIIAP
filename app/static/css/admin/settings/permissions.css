@@ -12,7 +12,7 @@
 }
 
 .toast-stack-top {
-  z-index: 9999;
+  z-index: var(--z-toast);
 }
 
 #roleList .list-group-item.active {

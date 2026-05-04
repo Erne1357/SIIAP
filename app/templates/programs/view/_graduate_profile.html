@@ -18,7 +18,7 @@
           <ul class="list-unstyled mb-0">
             {% for competency in program.graduate_competencies %}
             <li {% if not loop.last %}class="mb-2"{% endif %}>
-              <i class="fas fa-check-circle text-primary me-2"></i> {{ competency }}
+              <i class="bi bi-check-circle-fill text-primary me-2"></i> {{ competency }}
             </li>
             {% endfor %}
           </ul>

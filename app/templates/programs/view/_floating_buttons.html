@@ -1,7 +1,7 @@
 {# app/templates/programs/_floating_buttons.html #}
 <div class="floating-back-button">
   <a href="{{ url_for('program.list_programs') }}" class="btn btn-outline-primary btn-back">
-    <i class="fas fa-arrow-left me-2"></i>Regresar
+    <i class="bi bi-arrow-left me-2"></i>Regresar
   </a>
 </div>
 
@@ -13,6 +13,6 @@
       class="btn btn-primary btn-inscription"
       data-bs-toggle="modal"
       data-bs-target="{{ '#enrollmentModal' if admission_open else '#enrollmentClosedModal' }}">
-    <i class="fas fa-graduation-cap me-2"></i>Postularme
+    <i class="bi bi-mortarboard-fill me-2"></i>Postularme
   </button>
 </div>

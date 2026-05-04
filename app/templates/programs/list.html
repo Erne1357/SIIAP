@@ -42,12 +42,12 @@
               <h5 class="card-title">{{ p.name }}</h5>
               
               <div class="program-meta">
-                <i class="fas fa-calendar-alt program-icon"></i>
+                <i class="bi bi-calendar3 program-icon"></i>
                 <span>{{ p.duration_display }}</span>
               </div>
               
               <div class="program-meta">
-                <i class="fas fa-graduation-cap program-icon"></i>
+                <i class="bi bi-mortarboard-fill program-icon"></i>
                 <span>{{ p.program_level or 'Posgrado' }}</span>
               </div>
               
@@ -59,14 +59,14 @@
                 <a
                   href="{{ url_for('program.view_program', slug = p.slug) }}"
                   class="btn btn-primary btn-ver-mas flex-grow-1">
-                  Ver detalles <i class="fas fa-arrow-right ms-1"></i>
+                  Ver detalles <i class="bi bi-arrow-right ms-1"></i>
                 </a>
                 {% if has_perm('academic_periods.api.create') or p.coordinator_id == current_user.id %}
                 <a
                   href="{{ url_for('pages_admin.pages_settings.config_program', slug=p.slug) }}"
                   class="btn btn-outline-secondary"
                   title="Configurar programa">
-                  <i class="fas fa-cog"></i>
+                  <i class="bi bi-gear-fill"></i>
                 </a>
                 {% endif %}
               </div>
@@ -77,7 +77,7 @@
     </div>
   {% else %}
     <div class="alert alert-info text-center" data-aos="fade-up">
-      <i class="fas fa-info-circle me-2"></i>
+      <i class="bi bi-info-circle-fill me-2"></i>
       No hay programas disponibles en este momento.
     </div>
   {% endif %}

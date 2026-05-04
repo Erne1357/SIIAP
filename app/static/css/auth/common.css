@@ -34,7 +34,7 @@ body.register-body {
   left: 0;
   right: 0;
   height: var(--header-h);
-  z-index: 1050;
+  z-index: var(--z-fixed);
   background-color: #fff;
   display: flex;
   align-items: center;
@@ -89,7 +89,7 @@ body.register-body {
   top: var(--header-h);
   left: 0;
   right: 0;
-  z-index: 1040;
+  z-index: var(--z-sticky);
   background: linear-gradient(135deg, #2c5530 0%, #4a7c59 100%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border-bottom: 2px solid #1e3a23;
@@ -239,7 +239,7 @@ footer {
   height: var(--footer-h);
   background: #212529;
   color: #fff;
-  z-index: 1000;
+  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;

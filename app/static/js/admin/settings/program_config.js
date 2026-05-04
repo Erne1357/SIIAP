@@ -14,7 +14,7 @@
     div.innerHTML = `
       <input type="text" class="form-control" placeholder="Objetivo ${count}">
       <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="fas fa-trash"></i>
+        <i class="bi bi-trash"></i>
       </button>
     `;
     container.appendChild(div);
@@ -29,7 +29,7 @@
     div.innerHTML = `
       <input type="text" class="form-control" placeholder="Competencia ${count}">
       <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="fas fa-trash"></i>
+        <i class="bi bi-trash"></i>
       </button>
     `;
     container.appendChild(div);
@@ -136,10 +136,10 @@
     if (curriculumData.semesters.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <i class="fas fa-book-open"></i>
+          <i class="bi bi-book-half"></i>
           <p>No hay semestres configurados</p>
           <button type="button" class="btn btn-primary" onclick="addSemester()">
-            <i class="fas fa-plus me-2"></i>Agregar Primer Semestre
+            <i class="bi bi-plus-lg me-2"></i>Agregar Primer Semestre
           </button>
         </div>
       `;
@@ -168,10 +168,10 @@
                 <h6 class="mb-0">Materias del Semestre ${semester.semester}</h6>
                 <div class="btn-group btn-group-sm">
                   <button type="button" class="btn btn-outline-primary" onclick="addCourse(${semIdx})">
-                    <i class="fas fa-plus me-1"></i>Agregar Materia
+                    <i class="bi bi-plus-lg me-1"></i>Agregar Materia
                   </button>
                   <button type="button" class="btn btn-outline-danger" onclick="removeSemester(${semIdx})">
-                    <i class="fas fa-trash me-1"></i>Eliminar Semestre
+                    <i class="bi bi-trash me-1"></i>Eliminar Semestre
                   </button>
                 </div>
               </div>
@@ -204,7 +204,7 @@
               </select>
               <button type="button" class="btn btn-sm btn-outline-danger" 
                       onclick="removeCourse(${semIdx}, ${courseIdx})">
-                <i class="fas fa-trash"></i>
+                <i class="bi bi-trash"></i>
               </button>
             </div>
           `;
@@ -224,7 +224,7 @@
     html += `
       <div class="text-center mt-3">
         <button type="button" class="btn btn-outline-primary" onclick="addSemester()">
-          <i class="fas fa-plus me-2"></i>Agregar Semestre ${curriculumData.semesters.length + 1}
+          <i class="bi bi-plus-lg me-2"></i>Agregar Semestre ${curriculumData.semesters.length + 1}
         </button>
       </div>
     `;
@@ -273,10 +273,10 @@
     if (researchLinesData.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <i class="fas fa-flask"></i>
+          <i class="bi bi-eyedropper"></i>
           <p>No hay líneas de investigación configuradas</p>
           <button type="button" class="btn btn-primary" onclick="addResearchLine()">
-            <i class="fas fa-plus me-2"></i>Agregar Primera Línea
+            <i class="bi bi-plus-lg me-2"></i>Agregar Primera Línea
           </button>
         </div>
       `;
@@ -306,7 +306,7 @@
             <div class="research-line-actions">
               <button type="button" class="btn btn-outline-danger btn-sm" 
                       onclick="removeResearchLine(${idx})">
-                <i class="fas fa-trash"></i>
+                <i class="bi bi-trash"></i>
               </button>
             </div>
           </div>
@@ -317,7 +317,7 @@
     html += `
       <div class="text-center mt-3">
         <button type="button" class="btn btn-outline-primary" onclick="addResearchLine()">
-          <i class="fas fa-plus me-2"></i>Agregar Línea de Investigación
+          <i class="bi bi-plus-lg me-2"></i>Agregar Línea de Investigación
         </button>
       </div>
     `;
