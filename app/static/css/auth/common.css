@@ -422,15 +422,21 @@ a:hover {
   }
 }
 
+/* HERO con la imagen institucional como fondo + overlay TECNM */
 .auth-split__hero {
   position: relative;
   display: flex;
   align-items: center;
   padding: var(--space-12) var(--space-8);
-  background: linear-gradient(135deg,
-    var(--color-brand-primary) 0%,
-    var(--color-brand-primary-700) 60%,
-    var(--color-brand-accent) 130%);
+  background-image:
+    linear-gradient(135deg,
+      rgba(11, 30, 138, 0.92) 0%,
+      rgba(8, 21, 112, 0.88) 55%,
+      rgba(178, 31, 45, 0.85) 130%),
+    url("../../assets/images/fondo2.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: var(--text-inverse);
   overflow: hidden;
 }
@@ -440,14 +446,14 @@ a:hover {
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.08), transparent 40%),
-    radial-gradient(circle at 80% 20%, rgba(178, 31, 45, 0.18), transparent 40%);
+    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.10), transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.06), transparent 40%);
   pointer-events: none;
 }
 
 .auth-split__hero-content {
   position: relative;
-  max-width: 480px;
+  max-width: 520px;
   z-index: 1;
 }
 
@@ -456,31 +462,35 @@ a:hover {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-pill);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   margin-bottom: var(--space-6);
-  color: rgba(255, 255, 255, 0.95);
+  color: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(4px);
 }
 
 .auth-split__title {
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 3.6vw, 2.75rem);
+  font-size: clamp(2rem, 3.4vw, 2.85rem);
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
   margin-bottom: var(--space-4);
   letter-spacing: var(--tracking-tight);
   color: var(--text-inverse);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
 .auth-split__tagline {
   font-size: var(--fs-md);
   line-height: var(--lh-normal);
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.92);
   margin-bottom: var(--space-6);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
 }
 
 .auth-split__highlights {
@@ -494,14 +504,14 @@ a:hover {
 .auth-split__highlights li {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-3);
   font-size: var(--fs-sm);
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.94);
 }
 
 .auth-split__highlights i {
   font-size: var(--fs-md);
-  color: rgba(255, 255, 255, 0.95);
+  color: rgba(255, 255, 255, 1);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -510,58 +520,166 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-8) var(--space-4);
+  padding: var(--space-8) var(--space-5);
   background: var(--bg-page);
 }
 
 .auth-split__form-inner {
   width: 100%;
-  max-width: 28rem;
+  max-width: 30rem;
 }
 
+/* Variante para registro: el form es mas largo, dale mas ancho */
+.auth-split--register .auth-split__form-inner {
+  max-width: 38rem;
+}
+
+/* Icono circular de bienvenida en el card */
+.auth-split__form-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 130%);
+  color: var(--text-inverse);
+  font-size: 1.75rem;
+  margin-bottom: var(--space-3);
+  box-shadow: var(--shadow-3);
+}
+
+/* Input groups con icono */
+.auth-split-layout .input-group-text {
+  background: var(--bg-surface-sunken);
+  border-color: var(--border-default);
+  color: var(--text-muted);
+}
+.auth-split-layout .input-group:focus-within .input-group-text {
+  border-color: var(--color-brand-primary);
+  color: var(--color-brand-primary);
+}
+
+/* Fieldset / legend para formularios largos (register) */
+.form-section-legend {
+  display: flex;
+  align-items: center;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-brand-primary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: 0;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-default);
+  width: 100%;
+}
+.form-section-legend i {
+  color: var(--color-brand-primary);
+}
+.form-text {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+/* === RESPONSIVE: < 992px (tablet) === */
 @media (max-width: 991.98px) {
   .auth-split__hero {
-    min-height: 200px;
-    padding: var(--space-8) var(--space-6);
+    /* Hero compacto: solo eyebrow visible, sin tagline ni highlights */
+    min-height: auto;
+    padding: var(--space-3) var(--space-4);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
   }
-  .auth-split__title {
-    font-size: clamp(1.5rem, 5vw, 2rem);
-    margin-bottom: var(--space-3);
-  }
-  .auth-split__tagline {
-    margin-bottom: var(--space-4);
-  }
+  .auth-split__title,
+  .auth-split__tagline,
   .auth-split__highlights {
     display: none;
   }
-}
-
-@media (max-width: 575.98px) {
-  .auth-split__hero {
-    min-height: 160px;
-    padding: var(--space-6) var(--space-4);
+  .auth-split__eyebrow {
+    margin-bottom: 0;
+    font-size: var(--fs-xs);
   }
   .auth-split__form {
-    padding: var(--space-6) var(--space-2);
+    padding: var(--space-6) var(--space-4);
+  }
+  .auth-split--register .auth-split__form-inner {
+    max-width: 100%;
   }
 }
 
-/* Cuando se usa split, el #main-content no debe seguir cargando la imagen de fondo */
+/* === RESPONSIVE: < 576px (mobile) === */
+@media (max-width: 575.98px) {
+  .auth-split__hero {
+    padding: var(--space-2) var(--space-3);
+  }
+  .auth-split__form {
+    padding: var(--space-4) var(--space-3);
+  }
+}
+
+/* === BODY con split-layout: ocultar elementos viejos del auth_base === */
 body.auth-split-layout #main-content {
   background: none !important;
+  padding: 0 !important;
+  top: var(--header-h);
+  bottom: var(--footer-h);
+}
+body.auth-split-layout .siiapec-welcome-banner {
+  display: none !important;
 }
 body.auth-split-layout .auth-container {
   padding: 0;
   align-items: stretch;
+  min-height: 100%;
+  display: block;
 }
 body.auth-split-layout .auth-bg {
   width: 100%;
   max-width: none;
   padding: 0;
+  min-height: 100%;
+  display: flex;
 }
 body.auth-split-layout .card {
   border-top: none !important;
   background-color: var(--bg-surface);
-  box-shadow: var(--shadow-3);
+  box-shadow: var(--shadow-4);
   backdrop-filter: none;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+}
+body.auth-split-layout .card-body {
+  padding: var(--space-8) var(--space-8);
+}
+body.auth-split-layout .form-control,
+body.auth-split-layout .input-group-text {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+body.auth-split-layout .form-label {
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-2);
+}
+body.auth-split-layout .btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: var(--fs-base);
+}
+
+@media (max-width: 991.98px) {
+  body.auth-split-layout .card-body {
+    padding: var(--space-6) var(--space-5);
+  }
+}
+@media (max-width: 575.98px) {
+  body.auth-split-layout .card-body {
+    padding: var(--space-5) var(--space-4);
+  }
 }

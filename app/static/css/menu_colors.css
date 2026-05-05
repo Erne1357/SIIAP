@@ -185,12 +185,11 @@
 
 .dropdown-submenu {
   display: none;
-  padding-left: 1rem;
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
-  border-left: 2px solid rgba(0, 0, 0, 0.1);
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 0 4px 4px 0;
+  padding-left: 0.5rem;
+  margin: 0.15rem 0.65rem 0.4rem 1.4rem;
+  border-left: 2px solid rgba(11, 30, 138, 0.15);
+  background: rgba(11, 30, 138, 0.025);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .dropdown-submenu.show {
@@ -199,8 +198,9 @@
 }
 
 .submenu-item {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
+  padding: 0.55rem 0.85rem !important;
+  font-size: 0.9rem !important;
+  margin: 0.1rem 0 !important;
 }
 
 .submenu-item:hover {
