@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app.utils.permissions import permission_required
+from app.utils.permissions import permission_required, any_permission_required
 from app.services.appointments_service import AppointmentsService
 from app.services.user_history_service import UserHistoryService
 from app.models.appointment import Appointment
@@ -10,7 +10,7 @@ api_appointments = Blueprint('api_appointments', __name__, url_prefix='/api/v1/a
 
 @api_appointments.route('', methods=['POST'])
 @login_required
-@permission_required('appointments.api.assign')
+@any_permission_required('appointments.api.assign', 'appointments.api.book')
 def assign():
     data = request.get_json() or {}
     try:
@@ -78,6 +78,7 @@ def assign():
 
 @api_appointments.route('/mine', methods=['GET'])
 @login_required
+@permission_required('appointments.api.list_own')
 def my_appointments():
     # listado simple; ajusta filtros si quieres por evento
     appts = Appointment.query.filter_by(applicant_id=current_user.id).all()
@@ -91,6 +92,7 @@ def my_appointments():
 
 @api_appointments.route('/<int:appointment_id>', methods=['DELETE'])
 @login_required
+@permission_required('appointments.api.cancel')
 def cancel(appointment_id:int):
     try:
         # Obtener información antes de cancelar
@@ -149,6 +151,7 @@ def cancel(appointment_id:int):
 
 @api_appointments.route('/<int:appointment_id>/change-requests', methods=['POST'])
 @login_required
+@permission_required('appointments.api.change_request')
 def request_change(appointment_id:int):
     data = request.get_json() or {}
     try:

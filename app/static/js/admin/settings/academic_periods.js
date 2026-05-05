@@ -11,6 +11,11 @@ class AcademicPeriodsManager {
     }
 
     init() {
+        // Flag para distinguir apertura programática (editar) de apertura por
+        // data-bs-toggle (nuevo periodo). openEditModal lo setea a true antes
+        // de invocar show().
+        this._openingForEdit = false;
+
         // Inicializar modales de Bootstrap
         const modalPeriodEl = document.getElementById('modalPeriod');
         const modalDeleteEl = document.getElementById('modalDelete');
@@ -39,14 +44,16 @@ class AcademicPeriodsManager {
             btnConfirmDelete.addEventListener('click', () => this.handleConfirmDelete());
         }
 
-        // Reset form cuando se abre el modal para nuevo periodo
+        // Reset form cuando se abre el modal para nuevo periodo (NO si es edición)
         const modalPeriodEl = document.getElementById('modalPeriod');
         if (modalPeriodEl) {
-            modalPeriodEl.addEventListener('show.bs.modal', (e) => {
-                if (!e.relatedTarget || !e.relatedTarget.classList.contains('btn-edit')) {
-                    this.resetForm();
-                    document.getElementById('modalPeriodLabel').textContent = 'Nuevo Periodo Academico';
+            modalPeriodEl.addEventListener('show.bs.modal', () => {
+                if (this._openingForEdit) {
+                    this._openingForEdit = false;
+                    return;
                 }
+                this.resetForm();
+                document.getElementById('modalPeriodLabel').textContent = 'Nuevo Periodo Academico';
             });
         }
     }
@@ -209,6 +216,9 @@ class AcademicPeriodsManager {
     }
 
     openEditModal(period) {
+        // Marcar que abrimos en modo edición ANTES de show, para que el
+        // listener de show.bs.modal no resetee el formulario.
+        this._openingForEdit = true;
         document.getElementById('modalPeriodLabel').textContent = 'Editar Periodo Academico';
         document.getElementById('periodId').value = period.id;
         document.getElementById('periodCode').value = period.code;
