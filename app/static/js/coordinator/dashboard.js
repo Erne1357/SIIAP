@@ -120,11 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
               <i class="bi bi-eye"></i>
             </button>
             ${student.can_manage ? `
-            <button class="btn btn-outline-success btn-upload-for" 
+            <button class="btn btn-outline-success btn-upload-for"
                     data-student-id="${student.id}" title="Subir documento">
               <i class="bi bi-upload"></i>
             </button>
             ` : ''}
+            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
       </tr>
@@ -171,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     title="Ver detalle de permanencia">
               <i class="bi bi-person-badge"></i>
             </button>
+            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
       </tr>
@@ -216,10 +218,11 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary btn-view-student" 
+            <button class="btn btn-outline-primary btn-view-student"
                     data-student-id="${student.id}">
               <i class="bi bi-eye"></i>
             </button>
+            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
       </tr>
