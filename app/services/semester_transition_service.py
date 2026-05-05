@@ -71,12 +71,14 @@ def _get_program(program_id: int) -> Program:
 
 def _ordered_period_ids() -> list:
     """
-    Devuelve todos los IDs de periodos ordenados cronológicamente (por id).
-    Los IDs son secuenciales y asignados en orden de creación, que es cronológico.
+    Devuelve todos los IDs de periodos ordenados cronológicamente por
+    ``start_date``. NO usar ``id`` como proxy porque los periodos pueden
+    crearse en cualquier orden (ej: migración que rellena periodos
+    históricos faltantes después de que ya existían los recientes).
     """
     rows = (
         db.session.query(AcademicPeriod.id)
-        .order_by(AcademicPeriod.id)
+        .order_by(AcademicPeriod.start_date)
         .all()
     )
     return [r[0] for r in rows]
@@ -293,6 +295,7 @@ def _build_student_row(up: UserProgram, source_period_id: int, target_period_id:
     ) or 0
     next_semester_number = max_sem + 1
 
+    program = up.program
     return {
         'user_program': up.to_dict(),
         'user': {
@@ -300,6 +303,11 @@ def _build_student_row(up: UserProgram, source_period_id: int, target_period_id:
             'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
             'email': user.email,
             'control_number': getattr(user, 'control_number', None),
+        },
+        'program': {
+            'id': program.id if program else None,
+            'name': program.name if program else None,
+            'slug': program.slug if program else None,
         },
         'current_se': source_se.to_dict() if source_se else None,
         'next_semester_number': next_semester_number,
@@ -316,14 +324,20 @@ def _build_admission_rows(
     Clasifica los aspirantes del programa según antigüedad de admisión.
 
     Returns:
-        (migrate_list, expire_list, cleanup_list, deferred_reactivate_list)
+        (migrate_list, expire_list, cleanup_list, deferred_reactivate_list,
+         already_aligned_list)
+
+    ``already_aligned`` son aspirantes cuyo ``admission_period_id`` ya coincide
+    con el periodo destino (delta=0) — su admisión sigue activa en el nuevo
+    periodo activo, no requieren acción. Antes se omitían silenciosamente y
+    parecían "en limbo" en la UI.
     """
     period_ids = _ordered_period_ids()
 
     try:
         idx_target = period_ids.index(target_period_id)
     except ValueError:
-        return [], [], [], []
+        return [], [], [], [], []
 
     # Todos los UserProgram del programa que NO son estudiantes enrolled
     applicants = (
@@ -350,15 +364,23 @@ def _build_admission_rows(
     migrate = []
     expire = []
     cleanup = []
+    already_aligned = []
 
     for up in applicants:
         user = up.user
+        program = up.program
         base_row = {
             'user_program': up.to_dict(),
             'user': {
                 'id': user.id,
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'email': user.email,
+                'control_number': getattr(user, 'control_number', None),
+            },
+            'program': {
+                'id': program.id if program else None,
+                'name': program.name if program else None,
+                'slug': program.slug if program else None,
             },
             'admission_period_id': up.admission_period_id,
         }
@@ -379,9 +401,12 @@ def _build_admission_rows(
 
         delta = idx_target - idx_admission
 
-        if delta <= 0:
-            # Es del periodo destino (o futuro): no aplica
+        if delta < 0:
+            # Periodo de admisión es FUTURO al destino: ignorar (no aplica)
             continue
+        elif delta == 0:
+            # Ya pertenece al periodo destino: su admisión sigue allí
+            already_aligned.append(base_row)
         elif delta == 1:
             migrate.append(base_row)
         elif delta == 2:
@@ -389,7 +414,7 @@ def _build_admission_rows(
         else:  # delta >= 3
             cleanup.append(base_row)
 
-    return migrate, expire, cleanup, deferred_reactivate
+    return migrate, expire, cleanup, deferred_reactivate, already_aligned
 
 
 def preview_program(
@@ -444,6 +469,7 @@ def preview_program(
 
         if source_se and source_se.status == 'on_leave':
             user = up.user
+            program = up.program
             on_leave.append({
                 'user_program': up.to_dict(),
                 'user': {
@@ -451,6 +477,11 @@ def preview_program(
                     'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                     'email': user.email,
                     'control_number': getattr(user, 'control_number', None),
+                },
+                'program': {
+                    'id': program.id if program else None,
+                    'name': program.name if program else None,
+                    'slug': program.slug if program else None,
                 },
                 'current_se': source_se.to_dict() if source_se else None,
             })
@@ -463,7 +494,9 @@ def preview_program(
             will_block.append(row)
 
     # ── Aspirantes ──
-    migrate, expire, cleanup, deferred = _build_admission_rows(program_id, target_period_id)
+    migrate, expire, cleanup, deferred, already_aligned = _build_admission_rows(
+        program_id, target_period_id
+    )
 
     stats = {
         'will_advance': len(will_advance),
@@ -473,6 +506,7 @@ def preview_program(
         'admission_expire': len(expire),
         'admission_to_cleanup': len(cleanup),
         'deferred_reactivate': len(deferred),
+        'admission_already_aligned': len(already_aligned),
     }
 
     return {
@@ -483,6 +517,7 @@ def preview_program(
         'admission_expire': expire,
         'admission_to_cleanup': cleanup,
         'deferred_reactivate': deferred,
+        'admission_already_aligned': already_aligned,
         'stats': stats,
     }
 
@@ -507,6 +542,7 @@ def preview_global(source_period_id: int, target_period_id: int) -> dict:
         'admission_expire': [],
         'admission_to_cleanup': [],
         'deferred_reactivate': [],
+        'admission_already_aligned': [],
         'programs': [],
         'stats': {
             'will_advance': 0,
@@ -516,6 +552,7 @@ def preview_global(source_period_id: int, target_period_id: int) -> dict:
             'admission_expire': 0,
             'admission_to_cleanup': 0,
             'deferred_reactivate': 0,
+            'admission_already_aligned': 0,
         },
     }
 
@@ -529,7 +566,8 @@ def preview_global(source_period_id: int, target_period_id: int) -> dict:
             continue
 
         for key in ('will_advance', 'will_block', 'on_leave', 'admission_migrate',
-                    'admission_expire', 'admission_to_cleanup', 'deferred_reactivate'):
+                    'admission_expire', 'admission_to_cleanup', 'deferred_reactivate',
+                    'admission_already_aligned'):
             global_result[key].extend(p_result[key])
             global_result['stats'][key] += p_result['stats'][key]
 
