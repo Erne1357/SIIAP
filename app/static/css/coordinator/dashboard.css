@@ -17,9 +17,14 @@
 
 /* Segmento del semestre en curso (parpadea) en la tabla de Permanencia */
 .progress-bar.perm-blink {
-    background-color: #0dcaf0;
+    background-color: var(--color-info);
     opacity: 0.45;
-    animation: perm-blink 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .progress-bar.perm-blink {
+        animation: perm-blink 1.4s ease-in-out infinite;
+    }
 }
 
 @keyframes perm-blink {

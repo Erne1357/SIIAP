@@ -3,7 +3,7 @@
     position: absolute;
     top: -5px;
     right: -10px;
-    background: #dc3545;
+    background: var(--color-danger);
     color: white;
     border-radius: 50%;
     padding: 2px 6px;
@@ -198,7 +198,7 @@
 
 .notification-content p {
     font-size: 0.85rem;
-    color: #6c757d;
+    color: var(--text-muted);
     margin: 0;
 }
 
@@ -222,7 +222,7 @@
 .btn-mark-read {
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--text-muted);
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
@@ -254,7 +254,7 @@
 .notification-empty {
     padding: 40px 20px;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-empty i {
@@ -296,7 +296,7 @@
     align-items: center;
     margin-top: 8px;
     font-size: 0.8rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-priority {
@@ -309,7 +309,7 @@
 
 .notification-priority.low {
     background: #e9ecef;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-priority.medium {
@@ -380,7 +380,7 @@
 .notification-loading {
     padding: 20px;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-loading .spinner-border {
@@ -423,7 +423,7 @@
     position: absolute;
     top: -5px;
     right: -5px;
-    background: #dc3545;
+    background: var(--color-danger);
     color: white;
     border-radius: 50%;
     padding: 2px 6px;

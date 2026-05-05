@@ -17,7 +17,7 @@
 .cleanup-empty {
   padding: 2rem 1rem;
   text-align: center;
-  color: #6c757d;
+  color: var(--text-muted);
   border: 1px dashed #ced4da;
   border-radius: 0.5rem;
   background-color: #fafbfc;

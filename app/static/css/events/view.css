@@ -17,28 +17,28 @@
 
 /* ── Card de cita activa ─────────────────────────────────── */
 .appointment-card {
-    border-left: 4px solid #198754;
-    background: #f0fff4;
-    border-radius: 0.5rem;
+    border-left: 4px solid var(--color-success);
+    background: var(--color-success-100);
+    border-radius: var(--radius-md);
 }
 
 .appointment-card .appointment-time {
     font-size: 1.6rem;
     font-weight: 700;
-    color: #198754;
+    color: #0e6e3a;
     line-height: 1.2;
 }
 
 .appointment-card .appointment-date {
     font-size: 0.95rem;
-    color: #495057;
+    color: var(--color-neutral-700);
 }
 
 /* ── Cupo / Registro ─────────────────────────────────────── */
 .capacity-bar {
     height: 8px;
     border-radius: 50px;
-    background: #dee2e6;
+    background: var(--border-default);
     overflow: hidden;
 }
 
@@ -48,9 +48,9 @@
     transition: width 0.5s ease;
 }
 
-.capacity-bar-fill.fill-ok     { background: #198754; }
-.capacity-bar-fill.fill-warn   { background: #ffc107; }
-.capacity-bar-fill.fill-danger { background: #dc3545; }
+.capacity-bar-fill.fill-ok     { background: var(--color-success); }
+.capacity-bar-fill.fill-warn   { background: var(--color-warning); }
+.capacity-bar-fill.fill-danger { background: var(--color-danger); }
 
 /* ── Timeline de slots ───────────────────────────────────── */
 .timeline-window {
@@ -121,7 +121,7 @@
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #6c757d;
+    color: var(--text-muted);
     font-weight: 600;
     display: block;
     margin-bottom: 0.2rem;
