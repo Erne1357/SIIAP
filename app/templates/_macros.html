@@ -110,6 +110,51 @@
 {% endmacro %}
 
 
+{# === ROLE BANNER === #}
+
+{% set _ROLE_META = {
+  'applicant':          {'icon': 'mortarboard-fill',     'label': 'Aspirante'},
+  'student':            {'icon': 'book-half',            'label': 'Estudiante'},
+  'program_admin':      {'icon': 'building-fill-gear',   'label': 'Coordinador de programa'},
+  'postgraduate_admin': {'icon': 'building-fill-check',  'label': 'Administración de posgrado'},
+  'social_service':     {'icon': 'heart-fill',           'label': 'Servicio social'},
+} %}
+
+{% macro role_banner(user, role_key, role_label=none, context_line=none, next_action=none, progress=none) %}
+  {% set meta = _ROLE_META.get(role_key, {'icon': 'person-fill', 'label': role_key}) %}
+  <header class="role-banner" role="region" aria-label="Bienvenida y rol del usuario">
+    <div class="role-banner__avatar" aria-hidden="true">
+      <i class="bi bi-{{ meta.icon }}"></i>
+    </div>
+    <div class="role-banner__content">
+      <h2 class="role-banner__greeting">
+        Hola, {{ user.first_name }}{% if user.last_name %} {{ user.last_name }}{% endif %}
+      </h2>
+      <p class="role-banner__role">
+        <span class="status-badge status-badge--enrolled">{{ role_label or meta.label }}</span>
+        {% if context_line %}<span>· {{ context_line }}</span>{% endif %}
+      </p>
+      {% if next_action %}
+        <p class="role-banner__next-action">
+          <i class="bi bi-arrow-right-circle-fill"></i>
+          <span><strong>Próximo paso:</strong> {{ next_action }}</span>
+        </p>
+      {% endif %}
+    </div>
+    {% if progress is not none %}
+      <div class="role-banner__progress">
+        <div class="role-banner__progress-bar" role="progressbar"
+             aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="Progreso global">
+          <span style="width: {{ progress }}%"></span>
+        </div>
+        <span class="role-banner__progress-label">{{ progress }}% completado</span>
+      </div>
+    {% endif %}
+  </header>
+{% endmacro %}
+
+
 {# === CONFIRM MODAL === #}
 
 {% macro confirm_modal(id, title, body, confirm_label='Confirmar',

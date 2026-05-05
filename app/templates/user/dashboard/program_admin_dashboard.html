@@ -15,8 +15,32 @@
 </div>
 {% else %}
 <!-- Dashboard para Program Admin -->
+{% from '_macros.html' import role_banner %}
+
+{{ role_banner(
+  user=current_user,
+  role_key='program_admin',
+  context_line=(
+    coordinated_programs|length ~ ' programas coordinados' if coordinated_programs|length > 1
+    else (program.name if program else 'Sin programa seleccionado')
+  ),
+  next_action=(
+    'Selecciona un programa específico para ver detalles y activar acciones' if show_all_programs
+    else (
+      'Tienes ' ~ metrics.pending_reviews ~ ' documento(s) por revisar' if metrics and metrics.pending_reviews and metrics.pending_reviews > 0
+      else 'Sin pendientes urgentes en este programa'
+    )
+  )
+) }}
 
 <!-- Selector de Programa (solo si hay múltiples programas) -->
+{% if show_all_programs %}
+<div class="alert bg-info-soft mb-3" role="note">
+  <i class="bi bi-info-circle-fill me-2"></i>
+  Estás viendo todos los programas. <strong>Selecciona uno específico</strong>
+  arriba para activar las acciones rápidas y ver actividad detallada.
+</div>
+{% endif %}
 {% if show_program_selector %}
 <div class="row mb-4">
     <div class="col-12">

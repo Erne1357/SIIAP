@@ -1,7 +1,19 @@
 {# Student Dashboard - Fase 6: Permanencia Semestral #}
+{% from '_macros.html' import role_banner %}
 
 <div class="row justify-content-center">
   <div class="col-lg-9">
+
+    {{ role_banner(
+      user=current_user,
+      role_key='student',
+      context_line=(active_program.name if active_program else 'Estudiante activo'),
+      next_action=(
+        'Tienes ' ~ pending_admission_docs|length ~ ' documento(s) de admisión pendientes' if pending_admission_docs and pending_admission_docs|length > 0
+        else 'Tienes ' ~ pending_permanence_docs|length ~ ' documento(s) del semestre por subir' if pending_permanence_docs and pending_permanence_docs|length > 0
+        else 'Tu permanencia está al día. Revisa los avisos y módulos siguientes.'
+      )
+    ) }}
 
     {% include 'partials/_events_widget.html' %}
 
