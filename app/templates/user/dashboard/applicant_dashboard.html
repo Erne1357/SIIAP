@@ -47,8 +47,8 @@
   user=current_user,
   role_key='applicant',
   context_line=program.name,
-  next_action=_next_actions.get(user_program.admission_status, 'Sigue el avance de tu proceso desde aquí'),
-  progress=_status_progress.get(user_program.admission_status)
+  next_action=_next_actions.get(admission_status, 'Sigue el avance de tu proceso desde aquí'),
+  progress=_status_progress.get(admission_status)
 ) }}
 
 {% include 'partials/_events_widget.html' %}
