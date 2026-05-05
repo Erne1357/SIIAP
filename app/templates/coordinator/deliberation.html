@@ -247,6 +247,29 @@
           <p class="mb-0" id="decisionApplicantName">-</p>
         </div>
 
+        <!-- Seccion para aceptación condicionada -->
+        <div id="acceptSection" style="display: none;">
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="acceptIsConditional">
+            <label class="form-check-label fw-bold" for="acceptIsConditional">
+              Aceptación condicionada
+            </label>
+            <div class="form-text">
+              Marca esta opción si el aspirante es aceptado bajo condiciones (cursos remediales, documentación pendiente, etc.).
+            </div>
+          </div>
+          <div class="mb-3" id="dictamenSection" style="display: none;">
+            <label class="form-label fw-bold" for="dictamenFile">
+              Dictamen de Aceptación <span class="text-danger">*</span>
+            </label>
+            <input type="file" class="form-control" id="dictamenFile"
+                   accept=".pdf,.doc,.docx" required>
+            <div class="form-text">
+              Adjunta el documento oficial con las condiciones de aceptación (PDF preferido).
+            </div>
+          </div>
+        </div>
+
         <!-- Seccion para rechazo -->
         <div id="rejectionSection" style="display: none;">
           <div class="mb-3">

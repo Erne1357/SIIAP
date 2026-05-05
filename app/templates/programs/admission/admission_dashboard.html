@@ -42,6 +42,7 @@
     {% set letter = acceptance_docs.get('acceptance_letter') if acceptance_docs else None %}
     {% set schedule = acceptance_docs.get('course_schedule') if acceptance_docs else None %}
     {% set receipt = acceptance_docs.get('enrollment_receipt') if acceptance_docs else None %}
+    {% set dictamen = acceptance_docs.get('acceptance_opinion') if acceptance_docs else None %}
     {% set both_docs_ready = (letter and letter.status == 'uploaded') and (schedule and schedule.status == 'uploaded') %}
 
     <div class="card border-success shadow-sm mb-3">
@@ -98,6 +99,32 @@
               </div>
             </div>
           </div>
+          {% if dictamen and dictamen.file_path %}
+          <div class="col-12">
+            <div class="card h-100 border-warning">
+              <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-file-earmark-medical fs-4 text-warning"></i>
+                  <div class="flex-grow-1">
+                    <div class="small fw-bold">
+                      Dictamen de Aceptación
+                      <span class="badge bg-warning text-dark ms-1">Aceptación condicionada</span>
+                    </div>
+                    <div class="small text-muted">
+                      Tu admisión es condicionada. Revisa el dictamen para conocer las condiciones que debes cumplir.
+                      {% if dictamen.review_notes %}
+                      <br><em>{{ dictamen.review_notes }}</em>
+                      {% endif %}
+                    </div>
+                    <a href="/files/doc/{{ dictamen.file_path }}" target="_blank" class="btn btn-sm btn-outline-warning mt-1">
+                      <i class="bi bi-download me-1"></i>Descargar dictamen
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
         </div>
 
         {% if both_docs_ready %}

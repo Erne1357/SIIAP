@@ -413,7 +413,7 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     if up.admission_status == 'accepted':
         try:
             from app.models.acceptance_document import AcceptanceDocument
-            for doc_type in ['acceptance_letter', 'course_schedule', 'enrollment_receipt']:
+            for doc_type in ['acceptance_letter', 'course_schedule', 'enrollment_receipt', 'acceptance_opinion']:
                 doc = AcceptanceDocument.query.filter_by(
                     user_program_id=up.id,
                     document_type=doc_type

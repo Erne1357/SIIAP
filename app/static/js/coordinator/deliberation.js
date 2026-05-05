@@ -220,6 +220,7 @@ class DeliberationManager {
                             onclick="deliberationManager.markInterviewCompleted(${user.id}, ${up.program_id}, '${user.full_name}')">
                         <i class="bi bi-check2-circle"></i> Marcar Completada
                     </button>
+                    ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                 </td>
             </tr>
         `;
@@ -392,6 +393,7 @@ class DeliberationManager {
                                         onclick="deliberationManager.showStartDeliberation(${user.id}, ${up.program_id}, '${user.full_name}')">
                                     <i class="bi bi-play-fill"></i> Iniciar
                                 </button>
+                                ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                             </div>
                         </td>
                     </tr>
@@ -414,6 +416,7 @@ class DeliberationManager {
                                         onclick="deliberationManager.showDecisionModal(${user.id}, ${up.program_id}, '${user.full_name}', 'reject')">
                                     <i class="bi bi-x-lg"></i> Rechazar
                                 </button>
+                                ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                             </div>
                         </td>
                     </tr>
@@ -434,7 +437,7 @@ class DeliberationManager {
                         <td class="applicant-email">${user.email}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
                         <td class="notes-cell">${up.decision_notes || '-'}</td>
-                        <td class="text-center">${forceResetBtn}</td>
+                        <td class="text-center">${forceResetBtn}${window.siiapStudentRecordBtn ? ' ' + window.siiapStudentRecordBtn(user.id) : ''}</td>
                     </tr>
                 `;
             }
@@ -472,7 +475,7 @@ class DeliberationManager {
                         <td class="text-center">${rejectionBadge}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
                         <td class="notes-cell">${correctionDisplay}</td>
-                        <td class="text-center">${resetBtn}</td>
+                        <td class="text-center">${resetBtn}${window.siiapStudentRecordBtn ? ' ' + window.siiapStudentRecordBtn(user.id) : ''}</td>
                     </tr>
                 `;
             }
@@ -570,8 +573,14 @@ class DeliberationManager {
         const modalTitle = document.getElementById('decisionModalTitle');
         const confirmBtn = document.getElementById('confirmDecisionBtn');
 
+        const acceptSection = document.getElementById('acceptSection');
+        const dictamenSection = document.getElementById('dictamenSection');
+        const isConditionalCheck = document.getElementById('acceptIsConditional');
+        const dictamenFileInput = document.getElementById('dictamenFile');
+
         if (action === 'reject') {
             rejectionSection.style.display = 'block';
+            if (acceptSection) acceptSection.style.display = 'none';
             correctionSection.style.display = 'none';
             document.getElementById('rejectionType').value = 'full';
             // Reset archive select
@@ -586,9 +595,23 @@ class DeliberationManager {
             confirmBtn.textContent = 'Confirmar Rechazo';
         } else {
             rejectionSection.style.display = 'none';
+            if (acceptSection) acceptSection.style.display = 'block';
+            if (isConditionalCheck) isConditionalCheck.checked = false;
+            if (dictamenSection) dictamenSection.style.display = 'none';
+            if (dictamenFileInput) dictamenFileInput.value = '';
             modalTitle.textContent = 'Aceptar Aspirante';
             confirmBtn.className = 'btn btn-success';
             confirmBtn.textContent = 'Confirmar Aceptacion';
+        }
+
+        // Toggle dictamen section when checkbox changes
+        if (isConditionalCheck && !isConditionalCheck.dataset.bound) {
+            isConditionalCheck.addEventListener('change', (e) => {
+                if (dictamenSection) {
+                    dictamenSection.style.display = e.target.checked ? 'block' : 'none';
+                }
+            });
+            isConditionalCheck.dataset.bound = '1';
         }
 
         this.decisionModal.show();
@@ -604,7 +627,39 @@ class DeliberationManager {
 
         if (action === 'accept') {
             endpoint = `/api/v1/deliberation/user/${userId}/program/${programId}/accept`;
-            body = { notes };
+            const isConditional = !!document.getElementById('acceptIsConditional')?.checked;
+            const dictamenFile = document.getElementById('dictamenFile')?.files?.[0];
+
+            if (isConditional && !dictamenFile) {
+                showFlash('warning', 'Debes adjuntar el Dictamen de Aceptación para aceptación condicionada.');
+                return;
+            }
+
+            if (isConditional) {
+                const fd = new FormData();
+                if (notes) fd.append('notes', notes);
+                fd.append('is_conditional', 'true');
+                fd.append('dictamen_file', dictamenFile);
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                        body: fd,
+                    });
+                    const result = await response.json();
+                    this.decisionModal.hide();
+                    if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
+                    if (!result.error) {
+                        this.loadStats();
+                        this.loadApplicants('deliberation');
+                    }
+                } catch (error) {
+                    console.error('Error submitting decision:', error);
+                    showFlash('danger', 'Error al procesar decision');
+                }
+                return;
+            }
+            body = { notes, is_conditional: false };
         } else {
             const rejectionType = document.getElementById('rejectionType').value;
             const correctionText = document.getElementById('correctionRequired').value;
