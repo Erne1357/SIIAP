@@ -38,6 +38,13 @@ class DocumentDeadline(db.Model):
     # Control manual del coordinador (puede anular las fechas)
     is_open = db.Column(db.Boolean, default=True, nullable=False)
 
+    # Soft-archive: en lugar de borrar la ventana (lo cual perdería trazabilidad
+    # de las submissions ligadas), se archiva. Las archivadas no aparecen en el
+    # panel del coordinador ni del estudiante, pero se preservan en BD.
+    is_archived = db.Column(db.Boolean, default=False, nullable=False)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    archived_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
     # Quién lo creó
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
@@ -81,6 +88,9 @@ class DocumentDeadline(db.Model):
             'closes_at': self.closes_at.isoformat() if self.closes_at else None,
             'is_open': self.is_open,
             'is_currently_open': self.is_currently_open,
+            'is_archived': self.is_archived,
+            'archived_at': self.archived_at.isoformat() if self.archived_at else None,
+            'archived_by': self.archived_by,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
