@@ -40,6 +40,7 @@ def register_api_blueprints(app):
     from app.routes.api.admin.document_template_api import api_document_templates
     from app.routes.api.permissions_api import api_permissions
     from app.routes.api.student_bulk_api import api_student_bulk
+    from app.routes.api.student_record_api import api_student_record
 
     blueprints = [
         # Auth
@@ -78,6 +79,7 @@ def register_api_blueprints(app):
         api_health,
         api_permissions,
         api_student_bulk,
+        api_student_record,
     ]
 
     for bp in blueprints:
