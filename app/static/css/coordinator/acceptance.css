@@ -2,40 +2,40 @@
 
 /* Student-name-link: nombre clickeable que abre expediente */
 .student-name-link {
-    color: var(--bs-primary, #0d6efd);
+    color: var(--color-brand-primary);
     cursor: pointer;
     transition: color 0.15s;
 }
 .student-name-link:hover {
-    color: var(--bs-primary-text-emphasis, #052c65);
+    color: var(--color-brand-primary-700);
     text-decoration: underline !important;
 }
 
 
 /* Stats Cards */
 .stat-card {
-    background: #fff;
-    border-radius: 8px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
     padding: 12px 16px;
-    border-left: 4px solid #6c757d;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-left: 4px solid var(--color-neutral-500);
+    box-shadow: var(--shadow-1);
     min-width: 120px;
 }
 
 .stat-card.stat-pending {
-    border-left-color: #6c757d;
+    border-left-color: var(--color-neutral-500);
 }
 
 .stat-card.stat-warning {
-    border-left-color: #ffc107;
+    border-left-color: var(--color-warning);
 }
 
 .stat-card.stat-info {
-    border-left-color: #0dcaf0;
+    border-left-color: var(--color-info);
 }
 
 .stat-card.stat-success {
-    border-left-color: #198754;
+    border-left-color: var(--color-success);
 }
 
 .stat-card .stat-value {
@@ -46,7 +46,7 @@
 
 .stat-card .stat-label {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -57,7 +57,7 @@
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .table td {
@@ -71,7 +71,7 @@
 
 .applicant-email {
     font-size: 0.875rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 /* Action Buttons */
@@ -97,7 +97,7 @@
 .empty-state {
     padding: 3rem;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .empty-state i {

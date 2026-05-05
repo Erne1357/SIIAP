@@ -234,9 +234,9 @@
     transition: width 0.5s ease;
 }
 
-.card-capacity-bar-fill.fill-ok     { background: #198754; }
-.card-capacity-bar-fill.fill-warn   { background: #ffc107; }
-.card-capacity-bar-fill.fill-danger { background: #dc3545; }
+.card-capacity-bar-fill.fill-ok     { background: var(--color-success); }
+.card-capacity-bar-fill.fill-warn   { background: var(--color-warning); }
+.card-capacity-bar-fill.fill-danger { background: var(--color-danger); }
 
 /* ── Chips de ponentes ── */
 

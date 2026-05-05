@@ -2,28 +2,28 @@
 
 /* Stats Cards */
 .stat-card {
-    background: #fff;
-    border-radius: 8px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
     padding: 12px 16px;
-    border-left: 4px solid #6c757d;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-left: 4px solid var(--color-neutral-500);
+    box-shadow: var(--shadow-1);
     min-width: 120px;
 }
 
 .stat-card.stat-interview {
-    border-left-color: #ffc107;
+    border-left-color: var(--color-warning);
 }
 
 .stat-card.stat-deliberation {
-    border-left-color: #0dcaf0;
+    border-left-color: var(--color-info);
 }
 
 .stat-card.stat-accepted {
-    border-left-color: #198754;
+    border-left-color: var(--color-success);
 }
 
 .stat-card.stat-rejected {
-    border-left-color: #dc3545;
+    border-left-color: var(--color-danger);
 }
 
 .stat-card .stat-value {
@@ -34,7 +34,7 @@
 
 .stat-card .stat-label {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -45,7 +45,7 @@
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .table td {
@@ -59,7 +59,7 @@
 
 .applicant-email {
     font-size: 0.875rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 /* Action Buttons */
@@ -76,12 +76,12 @@
 
 /* Badge styles for rejection type */
 .badge-partial {
-    background-color: #fd7e14;
+    background-color: var(--color-warning);
     color: #fff;
 }
 
 .badge-full {
-    background-color: #dc3545;
+    background-color: var(--color-danger);
     color: #fff;
 }
 
@@ -95,7 +95,7 @@
 .empty-state {
     padding: 3rem;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .empty-state i {
@@ -109,10 +109,15 @@
     display: inline-block;
     width: 1rem;
     height: 1rem;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #0d6efd;
+    border: 2px solid var(--bg-surface-sunken);
+    border-top: 2px solid var(--color-brand-primary);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .loading-spinner {
+        animation: spin 1s linear infinite;
+    }
 }
 
 @keyframes spin {

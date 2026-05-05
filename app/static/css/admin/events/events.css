@@ -244,24 +244,24 @@
     color: var(--bs-primary);
 }
 
-.event-detail-border-interview    { border-left-color: #0d6efd; }
-.event-detail-border-defense      { border-left-color: #dc3545; }
-.event-detail-border-workshop     { border-left-color: #198754; }
-.event-detail-border-seminar      { border-left-color: #0dcaf0; }
-.event-detail-border-conference   { border-left-color: #ffc107; }
-.event-detail-border-info_session { border-left-color: #6c757d; }
-.event-detail-border-other        { border-left-color: #6c757d; }
+.event-detail-border-interview    { border-left-color: var(--color-brand-primary); }
+.event-detail-border-defense      { border-left-color: var(--color-danger); }
+.event-detail-border-workshop     { border-left-color: var(--color-success); }
+.event-detail-border-seminar      { border-left-color: var(--color-info); }
+.event-detail-border-conference   { border-left-color: var(--color-warning); }
+.event-detail-border-info_session { border-left-color: var(--color-neutral-500); }
+.event-detail-border-other        { border-left-color: var(--color-neutral-500); }
 
-.event-detail-border-interview .event-detail-icon    { background: #cfe2ff; }
-.event-detail-border-interview .event-detail-icon i  { color: #0a58ca; }
-.event-detail-border-defense .event-detail-icon      { background: #f8d7da; }
-.event-detail-border-defense .event-detail-icon i    { color: #b02a37; }
-.event-detail-border-workshop .event-detail-icon     { background: #d1e7dd; }
-.event-detail-border-workshop .event-detail-icon i   { color: #146c43; }
-.event-detail-border-seminar .event-detail-icon      { background: #cff4fc; }
-.event-detail-border-seminar .event-detail-icon i    { color: #087990; }
-.event-detail-border-conference .event-detail-icon   { background: #fff3cd; }
-.event-detail-border-conference .event-detail-icon i { color: #997404; }
+.event-detail-border-interview .event-detail-icon    { background: var(--color-brand-primary-100); }
+.event-detail-border-interview .event-detail-icon i  { color: var(--color-brand-primary-700); }
+.event-detail-border-defense .event-detail-icon      { background: var(--color-danger-100); }
+.event-detail-border-defense .event-detail-icon i    { color: var(--color-brand-accent-600); }
+.event-detail-border-workshop .event-detail-icon     { background: var(--color-success-100); }
+.event-detail-border-workshop .event-detail-icon i   { color: #0e6e3a; }
+.event-detail-border-seminar .event-detail-icon      { background: var(--color-info-100); }
+.event-detail-border-seminar .event-detail-icon i    { color: var(--color-brand-secondary); }
+.event-detail-border-conference .event-detail-icon   { background: var(--color-warning-100); }
+.event-detail-border-conference .event-detail-icon i { color: #6b4f00; }
 
 .event-stat-chips {
     display: flex;

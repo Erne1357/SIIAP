@@ -1,10 +1,7 @@
 {% extends 'auth_base.html' %}
 {% block title %}SIIAP – Registro de Usuario{% endblock %}
 
-{% block body_class %}auth-split-layout register-body{% endblock %}
-{% block main_class %}register-page{% endblock %}
-{% block container_class %}register-container{% endblock %}
-{% block bg_class %}register-container{% endblock %}
+{% block body_class %}register-page-body{% endblock %}
 
 {% block styles %}
   {{ super() }}
@@ -12,20 +9,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="auth-split auth-split--register">
-  <aside class="auth-split__hero" aria-hidden="true">
-    <div class="auth-split__hero-content">
-      <span class="auth-split__eyebrow">
+<div class="register-shell">
+  <aside class="register-hero" aria-hidden="true">
+    <div class="register-hero__content">
+      <span class="register-hero__eyebrow">
         <i class="bi bi-person-plus-fill"></i>
         Nueva cuenta · ITCJ
       </span>
-      <h1 class="auth-split__title">
+      <h1 class="register-hero__title">
         Inicia tu proceso de admisión al posgrado del ITCJ
       </h1>
-      <p class="auth-split__tagline">
+      <p class="register-hero__tagline">
         Crea tu cuenta para postular a un programa, cargar documentos y dar seguimiento a tu trámite en línea.
       </p>
-      <ul class="auth-split__highlights">
+      <ul class="register-hero__highlights">
         <li><i class="bi bi-clipboard-check"></i><span>Una sola cuenta para todos los procesos académicos.</span></li>
         <li><i class="bi bi-envelope-check"></i><span>Recibe avisos sobre tus documentos y entrevistas.</span></li>
         <li><i class="bi bi-mortarboard"></i><span>Sigue tu trayectoria desde aspirante hasta egresado.</span></li>
@@ -33,88 +30,86 @@
     </div>
   </aside>
 
-  <main class="auth-split__form" role="main">
-    <div class="auth-split__form-inner">
-      <div class="card">
-        <div class="card-body">
-          <div class="text-center mb-4">
-            <div class="auth-split__form-icon" aria-hidden="true">
-              <i class="bi bi-person-plus-fill"></i>
+  <main class="register-form-col" role="main">
+    <div class="register-card">
+      <div class="register-card__body">
+        <div class="register-card__header">
+          <div class="register-card__icon" aria-hidden="true">
+            <i class="bi bi-person-plus-fill"></i>
+          </div>
+          <h2 class="register-card__title">Registro de usuario</h2>
+          <p class="register-card__subtitle">
+            Los campos marcados con <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr> son obligatorios.
+          </p>
+        </div>
+
+        <form method="POST" id="registerForm">
+          <fieldset>
+            <legend class="form-section-legend">
+              <i class="bi bi-person-vcard me-2"></i>Datos personales
+            </legend>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="first_name" class="form-label">Nombre <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="text" class="form-control" id="first_name" name="first_name" required autocomplete="given-name">
+              </div>
+              <div class="col-md-6">
+                <label for="last_name" class="form-label">Apellido paterno <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="text" class="form-control" id="last_name" name="last_name" required autocomplete="family-name">
+              </div>
+              <div class="col-12">
+                <label for="mother_last_name" class="form-label">Apellido materno</label>
+                <input type="text" class="form-control" id="mother_last_name" name="mother_last_name" autocomplete="additional-name">
+              </div>
             </div>
-            <h2 class="h3 fw-bold mb-1">Registro de usuario</h2>
-            <p class="text-muted mb-0">
-              Los campos marcados con <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr> son obligatorios.
-            </p>
-          </div>
+          </fieldset>
 
-          <form method="POST" id="registerForm">
-            <fieldset class="mb-4">
-              <legend class="form-section-legend">
-                <i class="bi bi-person-vcard me-2"></i>Datos personales
-              </legend>
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label for="first_name" class="form-label">Nombre <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
-                  <input type="text" class="form-control" id="first_name" name="first_name" required autocomplete="given-name">
+          <fieldset>
+            <legend class="form-section-legend">
+              <i class="bi bi-shield-lock me-2"></i>Datos de acceso
+            </legend>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="username" class="form-label">Usuario <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="text" class="form-control" id="username" name="username" minlength="5" required autocomplete="username">
+                <small class="form-text">Mínimo 5 caracteres.</small>
+              </div>
+              <div class="col-md-6">
+                <label for="email" class="form-label">Correo electrónico <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="email" class="form-control" id="email" name="email" required autocomplete="email">
+              </div>
+              <div class="col-md-6">
+                <label for="password" class="form-label">Contraseña <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <div class="input-group">
+                  <input type="password" class="form-control" id="password" name="password" minlength="8" required autocomplete="new-password">
+                  <button class="btn btn-outline-secondary js-toggle-pwd" type="button"
+                          data-target="password" aria-label="Mostrar u ocultar contraseña">
+                    <i class="bi bi-eye"></i>
+                  </button>
                 </div>
-                <div class="col-md-6">
-                  <label for="last_name" class="form-label">Apellido paterno <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
-                  <input type="text" class="form-control" id="last_name" name="last_name" required autocomplete="family-name">
-                </div>
-                <div class="col-12">
-                  <label for="mother_last_name" class="form-label">Apellido materno</label>
-                  <input type="text" class="form-control" id="mother_last_name" name="mother_last_name" autocomplete="additional-name">
+                <small class="form-text">Mínimo 8 caracteres.</small>
+              </div>
+              <div class="col-md-6">
+                <label for="confirm_password" class="form-label">Confirmar contraseña <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <div class="input-group">
+                  <input type="password" class="form-control" id="confirm_password" name="confirm_password" required autocomplete="new-password">
+                  <button class="btn btn-outline-secondary js-toggle-pwd" type="button"
+                          data-target="confirm_password" aria-label="Mostrar u ocultar contraseña">
+                    <i class="bi bi-eye"></i>
+                  </button>
                 </div>
               </div>
-            </fieldset>
+            </div>
+          </fieldset>
 
-            <fieldset class="mb-4">
-              <legend class="form-section-legend">
-                <i class="bi bi-shield-lock me-2"></i>Datos de acceso
-              </legend>
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label for="username" class="form-label">Usuario <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
-                  <input type="text" class="form-control" id="username" name="username" minlength="5" required autocomplete="username">
-                  <small class="form-text text-muted">Mínimo 5 caracteres.</small>
-                </div>
-                <div class="col-md-6">
-                  <label for="email" class="form-label">Correo electrónico <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
-                  <input type="email" class="form-control" id="email" name="email" required autocomplete="email">
-                </div>
-                <div class="col-md-6">
-                  <label for="password" class="form-label">Contraseña <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
-                  <div class="input-group">
-                    <input type="password" class="form-control" id="password" name="password" minlength="8" required autocomplete="new-password">
-                    <button class="btn btn-outline-secondary js-toggle-pwd" type="button"
-                            data-target="password" aria-label="Mostrar u ocultar contraseña">
-                      <i class="bi bi-eye"></i>
-                    </button>
-                  </div>
-                  <small class="form-text text-muted">Mínimo 8 caracteres.</small>
-                </div>
-                <div class="col-md-6">
-                  <label for="confirm_password" class="form-label">Confirmar contraseña <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
-                  <div class="input-group">
-                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required autocomplete="new-password">
-                    <button class="btn btn-outline-secondary js-toggle-pwd" type="button"
-                            data-target="confirm_password" aria-label="Mostrar u ocultar contraseña">
-                      <i class="bi bi-eye"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </fieldset>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-primary w-100 btn-lg fw-semibold">
+            <span class="btn-label">Registrarme</span>
+          </button>
+        </form>
 
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-primary w-100 btn-lg fw-semibold">
-              <span class="btn-label">Registrarme</span>
-            </button>
-          </form>
-
-          <div class="mt-4 text-center">
-            ¿Ya tienes cuenta? <a href="{{ url_for('pages_auth.login_page') }}" class="fw-semibold">Inicia sesión</a>
-          </div>
+        <div class="register-card__footer">
+          ¿Ya tienes cuenta? <a href="{{ url_for('pages_auth.login_page') }}">Inicia sesión</a>
         </div>
       </div>
     </div>
@@ -122,66 +117,59 @@
 </div>
 
 <script>
-  // Función flash consistente con el resto de la aplicación
   function flash(message, level = 'success') {
     window.dispatchEvent(new CustomEvent('flash', {
       detail: { level: level, message: message }
     }));
   }
-  
-  // Función para obtener CSRF token
+
   const getCsrf = () => {
     const el = document.querySelector('meta[name="csrf-token"]');
     return el ? el.getAttribute('content') : '';
   };
-  
+
   const form = document.getElementById('registerForm');
   const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('button');
-  
+
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
-    
-    // Validación de contraseñas
+
     const pwd = document.getElementById('password').value;
     const cpwd = document.getElementById('confirm_password').value;
-    
+
     if (pwd !== cpwd) {
       flash('Las contraseñas no coinciden', 'danger');
       return;
     }
-    
-    // Validaciones adicionales
+
     const firstName = document.getElementById('first_name').value.trim();
     const lastName = document.getElementById('last_name').value.trim();
     const username = document.getElementById('username').value.trim();
     const email = document.getElementById('email').value.trim();
-    
+
     if (!firstName || !lastName || !username || !email || !pwd) {
       flash('Por favor completa todos los campos obligatorios', 'warning');
       return;
     }
-    
     if (username.length < 5) {
       flash('El nombre de usuario debe tener al menos 5 caracteres', 'warning');
       return;
     }
-    
     if (pwd.length < 8) {
       flash('La contraseña debe tener al menos 8 caracteres', 'warning');
       return;
     }
-    
-    // Mostrar estado de carga
+
     if (window.SIIAP && window.SIIAP.setButtonLoading) {
       window.SIIAP.setButtonLoading(submitBtn, true, 'Registrando...');
     } else {
       submitBtn.disabled = true;
     }
-    
+
     try {
       const formData = new FormData(form);
       const csrf = getCsrf();
-      
+
       const response = await fetch(form.action || window.location.href, {
         method: 'POST',
         credentials: 'same-origin',
@@ -193,21 +181,18 @@
       });
 
       const contentType = response.headers.get('Content-Type');
-      
+
       if (contentType && contentType.includes('application/json')) {
         const json = await response.json();
-        
-        
+
         if (!response.ok) {
           const errorMsg = json?.error || json?.message || 'Error al registrar usuario';
           flash(errorMsg, 'danger');
           return;
         }
-        
+
         if (json.ok) {
           flash('Registro exitoso. Redirigiendo al inicio de sesión...', 'success');
-          
-          // Redirigir al login después de mostrar el mensaje
           setTimeout(() => {
             window.location.href = "{{ url_for('pages_auth.login_page') }}";
           }, 150);
@@ -216,17 +201,14 @@
           flash(errorMsg, 'danger');
         }
       } else {
-        // La respuesta es HTML, no JSON
         const htmlText = await response.text();
         console.error('Respuesta inesperada del servidor:', htmlText.substring(0, 500));
         flash('Error del servidor: respuesta inesperada', 'danger');
       }
-      
     } catch (err) {
       console.error('Registration error:', err);
       flash('Error de red al registrar. Inténtalo nuevamente.', 'danger');
     } finally {
-      // Restaurar botón
       if (window.SIIAP && window.SIIAP.setButtonLoading) {
         window.SIIAP.setButtonLoading(submitBtn, false);
       } else {
@@ -239,7 +221,6 @@
   document.getElementById('confirm_password').addEventListener('input', function() {
     const pwd = document.getElementById('password').value;
     const cpwd = this.value;
-
     if (cpwd && pwd !== cpwd) {
       this.setCustomValidity('Las contraseñas no coinciden');
       this.classList.add('is-invalid');

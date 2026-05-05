@@ -197,6 +197,145 @@
   --bp-md: 768px;
   --bp-lg: 992px;
   --bp-xl: 1200px;
+
+  /* ==========================================================================
+     OVERRIDES DE BOOTSTRAP 5.3 — alinear TODA la app a paleta TECNM
+     Bootstrap usa estas variables para .bg-*, .text-*, .btn-*, .alert-*,
+     badges, borders, etc. Redefiniendolas aqui propagamos los tokens
+     a todos los componentes Bootstrap sin tocar archivos individuales.
+     ========================================================================== */
+
+  --bs-primary:        var(--color-brand-primary);
+  --bs-primary-rgb:    11, 30, 138;
+  --bs-success:        var(--color-success);
+  --bs-success-rgb:    31, 157, 85;
+  --bs-warning:        var(--color-warning);
+  --bs-warning-rgb:    184, 134, 0;
+  --bs-danger:         var(--color-danger);
+  --bs-danger-rgb:     178, 31, 45;
+  --bs-info:           var(--color-info);
+  --bs-info-rgb:       26, 113, 207;
+
+  /* Subtle backgrounds y text-emphasis (Bootstrap 5.3) */
+  --bs-primary-bg-subtle:  var(--color-brand-primary-100);
+  --bs-success-bg-subtle:  var(--color-success-100);
+  --bs-warning-bg-subtle:  var(--color-warning-100);
+  --bs-danger-bg-subtle:   var(--color-danger-100);
+  --bs-info-bg-subtle:     var(--color-info-100);
+
+  --bs-primary-text-emphasis: var(--color-brand-primary-700);
+  --bs-success-text-emphasis: #0e6e3a;
+  --bs-warning-text-emphasis: #6b4f00;
+  --bs-danger-text-emphasis:  var(--color-brand-accent-600);
+  --bs-info-text-emphasis:    var(--color-brand-secondary);
+
+  --bs-primary-border-subtle: rgba(11, 30, 138, 0.25);
+  --bs-success-border-subtle: rgba(31, 157, 85, 0.25);
+  --bs-warning-border-subtle: rgba(184, 134, 0, 0.30);
+  --bs-danger-border-subtle:  rgba(178, 31, 45, 0.25);
+  --bs-info-border-subtle:    rgba(26, 113, 207, 0.25);
+
+  /* Link color */
+  --bs-link-color:           var(--color-brand-primary);
+  --bs-link-color-rgb:       11, 30, 138;
+  --bs-link-hover-color:     var(--color-brand-primary-700);
+  --bs-link-hover-color-rgb: 8, 21, 112;
+}
+
+/* Sobreescribir reglas Bootstrap que usan tonalidades hardcoded
+   en lugar de las variables expuestas */
+
+.btn-primary {
+  --bs-btn-bg: var(--color-brand-primary);
+  --bs-btn-border-color: var(--color-brand-primary);
+  --bs-btn-hover-bg: var(--color-brand-primary-700);
+  --bs-btn-hover-border-color: var(--color-brand-primary-700);
+  --bs-btn-active-bg: var(--color-brand-primary-700);
+  --bs-btn-active-border-color: var(--color-brand-primary-700);
+  --bs-btn-disabled-bg: var(--color-brand-primary);
+  --bs-btn-disabled-border-color: var(--color-brand-primary);
+}
+
+.btn-success {
+  --bs-btn-bg: var(--color-success);
+  --bs-btn-border-color: var(--color-success);
+  --bs-btn-hover-bg: #1a8a4a;
+  --bs-btn-hover-border-color: #1a8a4a;
+  --bs-btn-active-bg: #1a8a4a;
+  --bs-btn-active-border-color: #1a8a4a;
+}
+
+.btn-danger {
+  --bs-btn-bg: var(--color-danger);
+  --bs-btn-border-color: var(--color-danger);
+  --bs-btn-hover-bg: var(--color-brand-accent-600);
+  --bs-btn-hover-border-color: var(--color-brand-accent-600);
+  --bs-btn-active-bg: var(--color-brand-accent-600);
+  --bs-btn-active-border-color: var(--color-brand-accent-600);
+}
+
+.btn-warning {
+  --bs-btn-bg: var(--color-warning);
+  --bs-btn-border-color: var(--color-warning);
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #9a7000;
+  --bs-btn-hover-border-color: #9a7000;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #9a7000;
+  --bs-btn-active-border-color: #9a7000;
+}
+
+.btn-info {
+  --bs-btn-bg: var(--color-info);
+  --bs-btn-border-color: var(--color-info);
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--color-brand-primary);
+  --bs-btn-hover-border-color: var(--color-brand-primary);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--color-brand-primary);
+  --bs-btn-active-border-color: var(--color-brand-primary);
+}
+
+/* Badges Bootstrap: el .badge.bg-warning con text-dark falla WCAG AA;
+   forzamos color blanco sobre warning saturado para legibilidad */
+.badge.bg-warning,
+.badge.bg-warning.text-dark {
+  background-color: var(--color-warning) !important;
+  color: #fff !important;
+}
+
+.badge.bg-info {
+  background-color: var(--color-info) !important;
+  color: #fff !important;
+}
+
+/* Alerts: usar las versiones suaves */
+.alert-warning {
+  --bs-alert-color: #6b4f00;
+  --bs-alert-bg: var(--color-warning-100);
+  --bs-alert-border-color: rgba(184, 134, 0, 0.30);
+}
+.alert-success {
+  --bs-alert-color: #0e6e3a;
+  --bs-alert-bg: var(--color-success-100);
+  --bs-alert-border-color: rgba(31, 157, 85, 0.25);
+}
+.alert-danger {
+  --bs-alert-color: var(--color-brand-accent-600);
+  --bs-alert-bg: var(--color-danger-100);
+  --bs-alert-border-color: rgba(178, 31, 45, 0.25);
+}
+.alert-info {
+  --bs-alert-color: var(--color-brand-secondary);
+  --bs-alert-bg: var(--color-info-100);
+  --bs-alert-border-color: rgba(26, 113, 207, 0.25);
+}
+.alert-primary {
+  --bs-alert-color: var(--color-brand-primary-700);
+  --bs-alert-bg: var(--color-brand-primary-100);
+  --bs-alert-border-color: rgba(11, 30, 138, 0.18);
 }
 
 /* ==========================================================================

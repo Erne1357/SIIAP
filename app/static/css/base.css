@@ -805,10 +805,10 @@ body.modal-open #wrapper {
   padding: 0.25rem 0.5rem;
 }
 
-/* Checkmark en tabs completados */
-.nav-tabs .nav-link i.fa-check-circle,
-.nav-pills .nav-link i.fa-check-circle {
-  color: #28a745;
+/* Checkmark en tabs completados (BI: bi-check-circle-fill) */
+.nav-tabs .nav-link i.bi-check-circle-fill,
+.nav-pills .nav-link i.bi-check-circle-fill {
+  color: var(--color-success);
 }
 
 /* === RESPONSIVE TABS === */
@@ -853,12 +853,11 @@ body.modal-open #wrapper {
 }
 
 .nav-tabs .nav-link[data-status="complete"]::after {
-  content: '\f00c';
-  font-family: 'Font Awesome 5 Free';
-  font-weight: 900;
+  content: '\F26B'; /* bi-check-lg en Bootstrap Icons */
+  font-family: 'bootstrap-icons';
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
   font-size: 0.7rem;
-  color: #28a745;
+  color: var(--color-success);
 }
