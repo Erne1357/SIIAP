@@ -31,10 +31,40 @@
   <div class="tab-content">
     <!-- PESTAÑA: DOCUMENTOS -->
     <div class="tab-pane fade show active" id="documents-pane" role="tabpanel">
+      {# Tabs por fase #}
+      {% set current_phase = filters.phase or 'admission' %}
+      <ul class="nav nav-pills mb-3" role="tablist">
+        {% for ph_key, ph_label, ph_icon in [
+              ('admission', 'Admisión', 'bi-person-plus-fill'),
+              ('permanence', 'Permanencia', 'bi-mortarboard-fill'),
+              ('conclusion', 'Conclusión', 'bi-award-fill')
+            ] %}
+        {% set qs = {
+            'phase': ph_key,
+            'applicant_id': filters.applicant_id or '',
+            'program_id': filters.program_id or '',
+            'status': filters.status or 'pending',
+            'sort': filters.sort or 'asc',
+            'show_all': 'true' if filters.show_all else 'false'
+        } %}
+        {% set ph_count = phase_counts[ph_key] if phase_counts else 0 %}
+        <li class="nav-item me-2">
+          <a class="nav-link {% if current_phase == ph_key %}active{% endif %}"
+             href="?{{ qs|urlencode }}">
+            <i class="bi {{ ph_icon }} me-1"></i>{{ ph_label }}
+            <span class="badge ms-1 {% if ph_count > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+              {{ ph_count }}
+            </span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+
       <!-- Filtros -->
       <form method="get" class="row g-3 mb-4 filter-form">
+        <input type="hidden" name="phase" value="{{ current_phase }}">
         <div class="col-md-3">
-          <label class="form-label">Aspirante</label>
+          <label class="form-label">{{ 'Aspirante' if current_phase == 'admission' else 'Estudiante' }}</label>
           <select name="applicant_id" class="form-select">
             <option value="">Todos</option>
             {% for user in applicants %}
