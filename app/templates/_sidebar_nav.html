@@ -57,30 +57,20 @@
 
   <h6 class="sidebar-section-label">Eventos</h6>
 
-  {# ── Eventos ─────────────────────────────────────────────── #}
-  <div class="dropdown-menu-container">
-    <a href="#"
-       class="nav-link dropdown-toggle-custom {% if request.endpoint.startswith('pages_events_public') or request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-       data-dropdown="{{ prefix }}events-menu">
-      <i class="bi bi-calendar-check me-2"></i>Eventos
-      <span class="badge bg-danger ms-2 d-none invitations-badge"
-            data-role="invitations-badge"
-            aria-label="Invitaciones pendientes"></span>
-      <i class="bi bi-chevron-right ms-auto dropdown-arrow"></i>
-    </a>
-    <div class="dropdown-submenu" id="{{ prefix }}events-menu">
-      <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
-         href="{{ url_for('pages_events_public.list_events') }}">
-        <i class="bi bi-calendar me-2"></i>Eventos Públicos
-      </a>
-      {% if has_perm('events.page.view') %}
-      <a class="nav-link submenu-item {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
-         href="{{ url_for('pages_admin.pages_events.index') }}">
-        <i class="bi bi-calendar-plus me-2"></i>Gestión de Eventos
-      </a>
-      {% endif %}
-    </div>
-  </div>
+  {# ── Eventos: enlaces directos (sin dropdown duplicando label) ── #}
+  <a class="nav-link {% if request.endpoint.startswith('pages_events_public') %}active{% endif %}"
+     href="{{ url_for('pages_events_public.list_events') }}">
+    <i class="bi bi-calendar me-2"></i>Eventos Públicos
+    <span class="badge bg-danger ms-auto d-none invitations-badge"
+          data-role="invitations-badge"
+          aria-label="Invitaciones pendientes"></span>
+  </a>
+  {% if has_perm('events.page.view') %}
+  <a class="nav-link {% if request.endpoint.startswith('pages_admin.pages_events') %}active{% endif %}"
+     href="{{ url_for('pages_admin.pages_events.index') }}">
+    <i class="bi bi-calendar-plus me-2"></i>Gestión de Eventos
+  </a>
+  {% endif %}
 
   {# ── Coordinación ────────────────────────────────────────── #}
   {% if has_perm('coordinator.page.view') %}
