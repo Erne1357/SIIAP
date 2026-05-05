@@ -1,0 +1,47 @@
+{#
+  app/templates/_macros.html
+  Componentes reutilizables del sistema de diseño SIIAP.
+  Importar con: {% from '_macros.html' import <macro> %}
+#}
+
+{# === SKELETON LOADERS === #}
+
+{% macro skeleton_table(rows=5, cols=4, with_header=true) %}
+<div class="skeleton-table" aria-hidden="true">
+  {% if with_header %}
+  <div class="skeleton-row skeleton-row--header" style="--cols: {{ cols }}">
+    {% for _ in range(cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
+  </div>
+  {% endif %}
+  {% for _ in range(rows) %}
+  <div class="skeleton-row" style="--cols: {{ cols }}">
+    {% for _ in range(cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+
+{% macro skeleton_cards(count=3, height='200px', col_class='col-md-4') %}
+<div class="row g-3" aria-hidden="true">
+  {% for _ in range(count) %}
+  <div class="{{ col_class }}">
+    <div class="skeleton skeleton-card" style="height: {{ height }};"></div>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+
+{% macro skeleton_text_block(lines=3) %}
+<div aria-hidden="true">
+  {% for i in range(lines) %}
+  <span class="skeleton skeleton-text {% if loop.last %}skeleton-text--md{% else %}skeleton-text--full{% endif %}"></span>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# === MARCA DE CAMPO REQUERIDO === #}
+
+{% macro required_mark() %}<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>{% endmacro %}
