@@ -101,6 +101,13 @@
             <span class="badge bg-success ms-2" id="conclusionCount">0</span>
           </button>
         </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="photo-requests-tab" data-bs-toggle="tab"
+                  data-bs-target="#photo-requests-pane" type="button" role="tab">
+            <i class="bi bi-camera-fill me-2"></i>Solicitudes de foto
+            <span class="badge bg-warning text-dark ms-2 d-none" id="photoRequestsCount">0</span>
+          </button>
+        </li>
       </ul>
 
       <!-- Contenido de las pestañas -->
@@ -191,6 +198,47 @@
             </div>
           </div>
         </div>
+
+        <!-- Solicitudes de cambio de foto -->
+        <div class="tab-pane fade" id="photo-requests-pane" role="tabpanel">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <h5 class="mb-0">
+                  <i class="bi bi-camera-fill me-2 text-warning"></i>
+                  Solicitudes de cambio de foto de perfil
+                </h5>
+                <small class="text-muted">Habilita o rechaza solicitudes de tus estudiantes</small>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshPhotoRequests">
+                <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0" id="photoRequestsTable">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="w-px-60"></th>
+                      <th>Estudiante</th>
+                      <th>Email</th>
+                      <th class="text-center">Solicitado</th>
+                      <th class="w-px-200 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="photoRequestsTbody">
+                    <tr>
+                      <td colspan="5" class="text-center py-4 text-muted small">
+                        <div class="spinner-border spinner-border-sm me-1" role="status"></div>
+                        Cargando solicitudes...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -199,6 +247,35 @@
 {% endblock %}
 
 {% block modals %}
+<!-- Modal: subir foto del estudiante (coordinador desde lista) -->
+<div class="modal fade" id="coordPhotoUploadFromListModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Subir foto del estudiante</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="coordPhotoUploadFromListForm" enctype="multipart/form-data">
+        <input type="hidden" id="coordPhotoTargetUserId">
+        <div class="modal-body">
+          <p class="small text-muted">Sube la foto en nombre del estudiante. Se comprime automáticamente.</p>
+          <div class="mb-3">
+            <label class="form-label" for="coordPhotoFile">Foto (JPG, PNG o WebP)</label>
+            <input type="file" class="form-control" id="coordPhotoFile" name="photo"
+                   accept="image/jpeg,image/png,image/webp" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-upload me-1"></i>Subir
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Detalles del Estudiante -->
 <div class="modal fade" id="studentDetailsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-xl">
@@ -449,4 +526,5 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/coordinator/dashboard.js')}}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/coordinator/photo_requests.js')}}?v={{ static_version }}"></script>
 {% endblock %}

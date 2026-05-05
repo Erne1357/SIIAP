@@ -84,6 +84,14 @@ class User(db.Model, UserMixin):
     # Tracks when the user last opened the public events list (null = never viewed)
     last_events_seen_at = db.Column(db.DateTime, nullable=True)
 
+    # Photo change workflow:
+    #   - First upload always allowed (avatar='default.jpg' permits it)
+    #   - After first upload, student must request a change
+    #   - Coordinator enables one change by setting photo_change_allowed=True
+    #   - Student uploads → flag resets to False
+    photo_change_allowed = db.Column(db.Boolean, default=False, nullable=False)
+    photo_change_requested_at = db.Column(db.DateTime, nullable=True)
+
 
     def __init__(self, first_name, last_name, mother_last_name, username, password, email, is_internal, role_id, avatar='default.jpg', must_change_password=True):
         self.first_name = first_name
