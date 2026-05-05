@@ -412,12 +412,16 @@ a:hover {
   display: grid;
   grid-template-columns: 1fr;
   width: 100%;
+  height: 100%;
   min-height: 100%;
+  /* En movil: hero arriba (auto), form ocupa el resto */
+  grid-template-rows: auto 1fr;
 }
 
 @media (min-width: 992px) {
   .auth-split {
     grid-template-columns: 6fr 5fr;
+    grid-template-rows: 1fr;
     align-items: stretch;
   }
 }
@@ -516,12 +520,17 @@ a:hover {
   margin-top: 2px;
 }
 
+/* Form column: scroll interno cuando el contenido excede el viewport,
+   centrado vertical cuando cabe (grid + align-content: safe center) */
 .auth-split__form {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: safe center;
+  justify-items: center;
   padding: var(--space-8) var(--space-5);
   background: var(--bg-page);
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .auth-split__form-inner {
@@ -529,9 +538,10 @@ a:hover {
   max-width: 30rem;
 }
 
-/* Variante para registro: el form es mas largo, dale mas ancho */
+/* Variante para registro: el form ocupa todo el ancho disponible
+   (la columna del form ya define el ancho via grid 6fr 5fr) */
 .auth-split--register .auth-split__form-inner {
-  max-width: 38rem;
+  max-width: none;
 }
 
 /* Icono circular de bienvenida en el card */
@@ -539,15 +549,15 @@ a:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 4rem;
-  height: 4rem;
+  width: 3.25rem;
+  height: 3.25rem;
   border-radius: var(--radius-pill);
   background: linear-gradient(135deg,
     var(--color-brand-primary) 0%,
     var(--color-brand-accent) 130%);
   color: var(--text-inverse);
-  font-size: 1.75rem;
-  margin-bottom: var(--space-3);
+  font-size: 1.5rem;
+  margin-bottom: var(--space-2);
   box-shadow: var(--shadow-3);
 }
 
@@ -586,8 +596,22 @@ a:hover {
   margin-top: var(--space-1);
 }
 
-/* === RESPONSIVE: < 992px (tablet) === */
+/* === RESPONSIVE: < 992px (tablet/mobile) === */
 @media (max-width: 991.98px) {
+  /* En movil el split deja que la pagina scrollee naturalmente:
+     el body.auth-split-layout #main-content recupera overflow-y auto */
+  body.auth-split-layout #main-content {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+  .auth-split {
+    height: auto;
+    min-height: 100%;
+  }
+  .auth-split__form {
+    overflow: visible;
+    align-content: start;
+  }
   .auth-split__hero {
     /* Hero compacto: solo eyebrow visible, sin tagline ni highlights */
     min-height: auto;
@@ -629,6 +653,9 @@ body.auth-split-layout #main-content {
   padding: 0 !important;
   top: var(--header-h);
   bottom: var(--footer-h);
+  /* IMPORTANTE: no scroll de pagina; el scroll vive dentro del form column */
+  overflow: hidden !important;
+  display: flex;
 }
 body.auth-split-layout .siiapec-welcome-banner {
   display: none !important;
@@ -636,14 +663,15 @@ body.auth-split-layout .siiapec-welcome-banner {
 body.auth-split-layout .auth-container {
   padding: 0;
   align-items: stretch;
-  min-height: 100%;
+  height: 100%;
+  width: 100%;
   display: block;
 }
 body.auth-split-layout .auth-bg {
   width: 100%;
   max-width: none;
   padding: 0;
-  min-height: 100%;
+  height: 100%;
   display: flex;
 }
 body.auth-split-layout .card {
@@ -655,7 +683,7 @@ body.auth-split-layout .card {
   border: 1px solid var(--border-default);
 }
 body.auth-split-layout .card-body {
-  padding: var(--space-8) var(--space-8);
+  padding: var(--space-6) var(--space-7, 1.75rem);
 }
 body.auth-split-layout .form-control,
 body.auth-split-layout .input-group-text {
