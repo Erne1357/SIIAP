@@ -24,9 +24,22 @@
   let warningTimer = null;
   let autoLogoutTimer = null;
 
-  const modal = document.getElementById('sessionModal');
+  const modalEl = document.getElementById('sessionModal');
   const continueBtn = document.getElementById('continueBtn');
   const logoutBtn = document.getElementById('logoutBtn');
+  let bsModal = null;
+
+  function getBsModal() {
+    if (!modalEl) return null;
+    if (!bsModal && window.bootstrap && window.bootstrap.Modal) {
+      bsModal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+    }
+    return bsModal;
+  }
+
+  function isModalShown() {
+    return modalEl && modalEl.classList.contains('show');
+  }
 
   function clearTimers() {
     if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
@@ -34,14 +47,16 @@
   }
 
   function showSessionModal() {
-    if (!modal) return;
-    modal.style.display = 'flex';
+    const m = getBsModal();
+    if (!m) return;
+    m.show();
     autoLogoutTimer = setTimeout(doApiLogout, AUTO_LOGOUT_MS);
   }
 
   function hideSessionModal() {
-    if (!modal) return;
-    modal.style.display = 'none';
+    const m = getBsModal();
+    if (!m) return;
+    m.hide();
     if (autoLogoutTimer) { clearTimeout(autoLogoutTimer); autoLogoutTimer = null; }
   }
 
@@ -101,7 +116,7 @@
     if (!activityArm) return;
     activityArm = false;
     setTimeout(() => (activityArm = true), 2000);
-    if (modal && modal.style.display === 'flex') hideSessionModal();
+    if (isModalShown()) hideSessionModal();
     resetInactivityTimers(false);
   }
 

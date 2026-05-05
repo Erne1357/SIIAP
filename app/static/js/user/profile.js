@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Mostrar loading
       const submitBtn = completeProfileForm.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Guardando...';
       submitBtn.disabled = true;
 
       try {

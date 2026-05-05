@@ -177,7 +177,7 @@
       console.error('Analysis error:', err);
       document.getElementById('analysisContent').innerHTML = `
         <div class="alert alert-danger">
-          <i class="fas fa-exclamation-triangle me-2"></i>
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
           Error al analizar el cambio: ${err.message}
         </div>
       `;
@@ -194,7 +194,7 @@
     // 1. Resumen general
     html += `
       <div class="alert alert-info mb-4">
-        <h6 class="mb-2"><i class="fas fa-info-circle me-2"></i>Resumen del Cambio</h6>
+        <h6 class="mb-2"><i class="bi bi-info-circle-fill me-2"></i>Resumen del Cambio</h6>
         <ul class="mb-0 small">
           <li><strong>${analysis.reusable_docs.length}</strong> documento(s) se conservarán</li>
           <li><strong>${analysis.incompatible_docs.length}</strong> documento(s) se eliminarán</li>
@@ -208,7 +208,7 @@
       html += `
         <div class="mb-4">
           <h6 class="text-success">
-            <i class="fas fa-check-circle me-2"></i>
+            <i class="bi bi-check-circle-fill me-2"></i>
             Documentos que se Conservarán (${analysis.reusable_docs.length})
           </h6>
           <div class="table-responsive">
@@ -232,8 +232,8 @@
           : '<span class="badge bg-warning text-dark">En Revisión</span>';
         
         const matchType = doc.is_same_file 
-          ? '<i class="fas fa-equals text-success" title="Archivo idéntico"></i>'
-          : '<i class="fas fa-exchange-alt text-info" title="Archivo equivalente"></i>';
+          ? '<i class="bi bi-equals text-success" title="Archivo idéntico"></i>'
+          : '<i class="bi bi-arrow-left-right text-info" title="Archivo equivalente"></i>';
         
         html += `
           <tr>
@@ -253,7 +253,7 @@
             </table>
           </div>
           <p class="small text-muted mb-0">
-            <i class="fas fa-info-circle me-1"></i>
+            <i class="bi bi-info-circle-fill me-1"></i>
             Estos documentos serán reutilizados en el nuevo programa. 
             Los aprobados volverán a estado "Pendiente" para nueva revisión.
           </p>
@@ -266,11 +266,11 @@
       html += `
         <div class="mb-4">
           <h6 class="text-danger">
-            <i class="fas fa-times-circle me-2"></i>
+            <i class="bi bi-x-circle-fill me-2"></i>
             Documentos que se Eliminarán (${analysis.incompatible_docs.length})
           </h6>
           <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle me-2"></i>
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
             <strong>Atención:</strong> Estos archivos NO son compatibles con el nuevo programa 
             y serán <strong>eliminados permanentemente</strong>.
           </div>
@@ -285,7 +285,7 @@
               <div class="small text-muted">Paso: ${doc.step_name}</div>
               <div class="small text-muted">ID: ${doc.archive_id}</div>
             </div>
-            <i class="fas fa-trash text-danger"></i>
+            <i class="bi bi-trash text-danger"></i>
           </li>
         `;
       });
@@ -301,11 +301,11 @@
       html += `
         <div class="mb-4">
           <h6 class="text-primary">
-            <i class="fas fa-file-medical me-2"></i>
+            <i class="bi bi-file-earmark-medical-fill me-2"></i>
             Documentos Nuevos Requeridos (${analysis.missing_docs.length})
           </h6>
           <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
+            <i class="bi bi-info-circle-fill me-2"></i>
             Deberás subir estos documentos después del cambio.
           </div>
           <ul class="list-group">
@@ -333,17 +333,17 @@
       html += `
         <div class="alert ${willCancel ? 'alert-danger' : 'alert-success'} mb-4">
           <h6 class="mb-2">
-            <i class="fas fa-calendar-alt me-2"></i>
+            <i class="bi bi-calendar3 me-2"></i>
             Estado de Entrevista
           </h6>
           ${willCancel 
             ? `<p class="mb-0">
-                <i class="fas fa-exclamation-triangle me-2"></i>
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
                 <strong>Tu entrevista será cancelada.</strong><br>
                 Motivo: ${analysis.interview_status.reason}
               </p>`
             : `<p class="mb-0">
-                <i class="fas fa-check-circle me-2"></i>
+                <i class="bi bi-check-circle-fill me-2"></i>
                 Tu entrevista se mantendrá activa en el nuevo programa.
               </p>`
           }
@@ -376,7 +376,7 @@
     
     // Deshabilitar botón y mostrar loading
     confirmBtn.disabled = true;
-    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+    confirmBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin me-2"></i>Procesando...';
     
     try {
       const res = await fetch('/api/v1/program-changes/execute', {

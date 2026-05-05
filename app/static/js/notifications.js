@@ -58,18 +58,19 @@ class NotificationManager {
     setBadgeCount(count) {
         const label = count > 99 ? '99+' : count;
         const show = count > 0;
+        const ariaLabel = count === 0
+            ? 'Sin notificaciones nuevas'
+            : count === 1
+                ? '1 notificación no leída'
+                : `${count > 99 ? 'Más de 99' : count} notificaciones no leídas`;
 
-        const badge = document.getElementById('notificationBadge');
-        if (badge) {
-            badge.textContent = label;
-            badge.classList.toggle('d-none', !show);
-        }
-
-        const badgeMobile = document.getElementById('notificationBadgeMobile');
-        if (badgeMobile) {
-            badgeMobile.textContent = label;
-            badgeMobile.classList.toggle('d-none', !show);
-        }
+        ['notificationBadge', 'notificationBadgeMobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = label;
+            el.classList.toggle('d-none', !show);
+            el.setAttribute('aria-label', ariaLabel);
+        });
     }
 
     incrementBadge() {
@@ -80,6 +81,10 @@ class NotificationManager {
             const next = current + 1;
             el.textContent = next > 99 ? '99+' : next;
             el.classList.remove('d-none');
+            const ariaLabel = next === 1
+                ? '1 notificación no leída'
+                : `${next > 99 ? 'Más de 99' : next} notificaciones no leídas`;
+            el.setAttribute('aria-label', ariaLabel);
         });
     }
 

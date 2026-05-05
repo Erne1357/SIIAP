@@ -1,0 +1,91 @@
+/*
+ * StatusBadge — badge consistente con icono + texto.
+ * Cumple WCAG 1.4.1 (color no es unico diferenciador).
+ *
+ * Uso (Jinja): {{ status_badge('accepted') }}
+ * Uso (JS): SIIAP.statusBadge('accepted')
+ */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface-sunken);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.status-badge i {
+  font-size: 1em;
+  line-height: 1;
+}
+
+.status-badge--in-progress {
+  background: var(--color-info-100);
+  color: var(--color-brand-secondary);
+  border-color: rgba(26, 113, 207, 0.18);
+}
+
+.status-badge--interview-completed {
+  background: rgba(110, 63, 191, 0.1);
+  color: #6e3fbf;
+  border-color: rgba(110, 63, 191, 0.2);
+}
+
+.status-badge--deliberation {
+  background: var(--color-warning-100);
+  color: #6b4f00;
+  border-color: rgba(184, 134, 0, 0.25);
+}
+
+.status-badge--accepted {
+  background: var(--color-success-100);
+  color: #0e6e3a;
+  border-color: rgba(31, 157, 85, 0.25);
+}
+
+.status-badge--rejected {
+  background: var(--color-danger-100);
+  color: var(--color-brand-accent-600);
+  border-color: rgba(178, 31, 45, 0.25);
+}
+
+.status-badge--deferred {
+  background: var(--color-neutral-200);
+  color: var(--color-neutral-700);
+  border-color: var(--border-strong);
+}
+
+.status-badge--enrolled {
+  background: var(--color-brand-primary-100);
+  color: var(--color-brand-primary);
+  border-color: rgba(11, 30, 138, 0.18);
+}
+
+.status-badge--pending {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-600);
+}
+
+.status-badge--approved { /* alias de accepted */
+  background: var(--color-success-100);
+  color: #0e6e3a;
+  border-color: rgba(31, 157, 85, 0.25);
+}
+
+/* Tamaños alternativos */
+.status-badge--sm {
+  padding: 0 var(--space-2);
+  font-size: 0.7rem;
+}
+
+.status-badge--lg {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
+}

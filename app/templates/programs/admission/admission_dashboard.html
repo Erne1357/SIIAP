@@ -243,7 +243,7 @@
     <div class="d-flex justify-content-end mb-3">
       <button type="button" class="btn btn-outline-primary btn-sm" id="btnRequestProgramChange"
         data-program-id="{{ program.id }}" data-program-slug="{{ program.slug }}">
-        <i class="fas fa-exchange-alt me-1"></i>
+        <i class="bi bi-arrow-left-right me-1"></i>
         Cambiar de Programa
       </button>
     </div>
@@ -262,15 +262,15 @@
         data-bs-target="#pane-{{ item.id }}" type="button" role="tab">
         {{ item.sequence }}. {{ item.name }}
         {% if item.locked %}
-        <i class="fas fa-lock ms-1"></i>
+        <i class="bi bi-lock-fill ms-1"></i>
         {% elif item.state=='approved' %}
-        <i class="fas fa-check-circle ms-1 text-success"></i>
+        <i class="bi bi-check-circle-fill ms-1 text-success"></i>
         {% elif item.state=='rejected' %}
-        <i class="fas fa-times-circle ms-1 text-danger"></i>
+        <i class="bi bi-x-circle-fill ms-1 text-danger"></i>
         {% elif item.state=='pending' %}
-        <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
+        <i class="bi bi-exclamation-circle-fill ms-1 text-warning"></i>
         {% elif item.state=='extended' %}
-        <i class="fas fa-clock ms-1 text-warning"></i>
+        <i class="bi bi-clock ms-1 text-warning"></i>
         {% endif %}
       </button>
     </li>
@@ -283,15 +283,15 @@
                    {% if item.locked %}disabled{% endif %}" id="tab-{{ item.step.id }}" data-bs-toggle="tab"
         data-bs-target="#pane-{{ item.step.id }}" type="button" role="tab">
         {% set display_seq = item.sequence if item.sequence <= 2 else (item.sequence - 1) %} {{ display_seq }}. {{
-          item.step.name }} {% if item.locked %} <i class="fas fa-lock ms-1"></i>
+          item.step.name }} {% if item.locked %} <i class="bi bi-lock-fill ms-1"></i>
           {% elif item.state=='approved' %}
-          <i class="fas fa-check-circle ms-1 text-success"></i>
+          <i class="bi bi-check-circle-fill ms-1 text-success"></i>
           {% elif item.state=='rejected' %}
-          <i class="fas fa-times-circle ms-1 text-danger"></i>
+          <i class="bi bi-x-circle-fill ms-1 text-danger"></i>
           {% elif item.state=='pending' %}
-          <i class="fas fa-exclamation-circle ms-1 text-warning"></i>
+          <i class="bi bi-exclamation-circle-fill ms-1 text-warning"></i>
           {% elif item.state=='extended' %}
-          <i class="fas fa-clock ms-1 text-warning"></i>
+          <i class="bi bi-clock ms-1 text-warning"></i>
           {% endif %}
       </button>
     </li>
@@ -380,13 +380,13 @@
 
         <div id="existingFileInfo" class="d-none">
           <div class="alert alert-info">
-            <h6><i class="fas fa-info-circle"></i> Archivo Existente</h6>
+            <h6><i class="bi bi-info-circle-fill"></i> Archivo Existente</h6>
             <p class="mb-1"><strong>Documento:</strong> <span id="existingArchiveName"></span></p>
             <p class="mb-1"><strong>Archivo actual:</strong> <span id="existingFilename"></span></p>
             <p class="mb-0"><strong>Subido el:</strong> <span id="existingDate"></span></p>
             <hr>
             <p class="mb-0 small text-warning">
-              <i class="fas fa-exclamation-triangle"></i>
+              <i class="bi bi-exclamation-triangle-fill"></i>
               Al subir un nuevo archivo, se reemplazará el anterior de forma permanente.
             </p>
           </div>
@@ -423,7 +423,7 @@
           <input type="hidden" id="extensionArchiveId">
 
           <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
+            <i class="bi bi-info-circle-fill me-2"></i>
             Solicitando prórroga para: <strong id="extensionArchiveName"></strong>
           </div>
 
@@ -452,14 +452,14 @@
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
         <h5 class="modal-title">
-          <i class="fas fa-exchange-alt me-2"></i>
+          <i class="bi bi-arrow-left-right me-2"></i>
           Cambiar de Programa
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <div class="alert alert-info">
-          <i class="fas fa-info-circle me-2"></i>
+          <i class="bi bi-info-circle-fill me-2"></i>
           Selecciona el programa al que deseas cambiar. Se analizarán tus documentos actuales
           y se te mostrará qué se conservará y qué se perderá.
         </div>
@@ -476,7 +476,7 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="btnContinueSelection">
-          <i class="fas fa-arrow-right me-1"></i>Continuar
+          <i class="bi bi-arrow-right me-1"></i>Continuar
         </button>
       </div>
     </div>
@@ -489,7 +489,7 @@
     <div class="modal-content">
       <div class="modal-header bg-warning">
         <h5 class="modal-title">
-          <i class="fas fa-exclamation-triangle me-2"></i>
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
           Análisis de Cambio de Programa
         </h5>
       </div>
@@ -500,10 +500,10 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="btnCancelTransfer">
-          <i class="fas fa-times me-1"></i>Cancelar
+          <i class="bi bi-x-lg me-1"></i>Cancelar
         </button>
         <button type="button" class="btn btn-danger" id="btnConfirmTransfer">
-          <i class="fas fa-check me-1"></i>Confirmar Cambio
+          <i class="bi bi-check-lg me-1"></i>Confirmar Cambio
         </button>
       </div>
     </div>
@@ -516,7 +516,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">
-          <i class="fas fa-exchange-alt me-2"></i> Solicitar Cambio de Horario
+          <i class="bi bi-arrow-left-right me-2"></i> Solicitar Cambio de Horario
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -543,7 +543,7 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn btn-warning">
-            <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud
+            <i class="bi bi-send-fill me-1"></i> Enviar Solicitud
           </button>
         </div>
       </form>

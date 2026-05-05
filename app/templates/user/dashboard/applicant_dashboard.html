@@ -21,6 +21,35 @@
 </div>
 {% else %}
 <!-- Usuario SÍ está registrado en un programa -->
+{% from '_macros.html' import role_banner %}
+
+{# Calculo de progreso aproximado basado en estado de admision #}
+{% set _status_progress = {
+  'in_progress': 20,
+  'interview_completed': 50,
+  'deliberation': 70,
+  'accepted': 95,
+  'enrolled': 100,
+  'rejected': 100,
+  'deferred': 50,
+} %}
+{% set _next_actions = {
+  'in_progress': 'Completa la carga de tus documentos pendientes para tu admisión',
+  'interview_completed': 'Tu entrevista fue registrada. Espera la deliberación del comité',
+  'deliberation': 'Tu solicitud está en revisión por el comité de admisión',
+  'accepted': '¡Felicidades! Sube tu comprobante de inscripción para formalizar',
+  'enrolled': 'Acceso a tu trayectoria académica como estudiante activo',
+  'rejected': 'Revisa los comentarios del comité; puedes intentar otro periodo',
+  'deferred': 'Tu admisión fue diferida. Revisa los detalles del periodo destino',
+} %}
+
+{{ role_banner(
+  user=current_user,
+  role_key='applicant',
+  context_line=program.name,
+  next_action=_next_actions.get(user_program.admission_status, 'Sigue el avance de tu proceso desde aquí'),
+  progress=_status_progress.get(user_program.admission_status)
+) }}
 
 {% include 'partials/_events_widget.html' %}
 

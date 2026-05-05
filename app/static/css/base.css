@@ -65,7 +65,15 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, .h1, .h2, .h3, .display-1, .display-2, .display-3, .display-4 {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-tight);
 }
 
 * {
@@ -100,7 +108,7 @@ body {
   left: 0;
   right: 0;
   height: var(--header-h);
-  z-index: 1030;
+  z-index: var(--z-fixed);
   background-color: #fff;
   display: flex;
   align-items: center;
@@ -145,12 +153,12 @@ body {
 }
 
 .brand-text {
-  font-weight: 700;
-  font-size: clamp(2rem, 5vw, 4rem);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-display);
   line-height: 1;
-  color: var(--rojoTec);
-  letter-spacing: 0.08em;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  color: var(--color-brand-accent);
+  letter-spacing: var(--tracking-display);
 }
 
 /* === WRAPPER Y LAYOUT === */
@@ -193,6 +201,17 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
+/* === SECTION LABELS EN SIDEBAR === */
+.sidebar-section-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+  padding: var(--space-4) var(--space-5) var(--space-1);
+  margin: 0;
+}
+
 /* === NAV LINKS === */
 .nav-link {
   padding: 0.65rem 1.25rem;
@@ -231,13 +250,33 @@ footer {
   left: 0;
   right: 0;
   height: var(--footer-h);
-  background: #212529;
-  color: #fff;
-  z-index: 1020;
+  background: var(--color-neutral-800);
+  color: var(--text-inverse);
+  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+footer a:hover {
+  color: var(--color-neutral-0) !important;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-neutral-400);
+}
+
+.status-dot--ok {
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px rgba(31, 157, 85, 0.25);
+}
+
+.status-dot--warn { background: var(--color-warning); }
+.status-dot--down { background: var(--color-danger); }
 
 /* === RESPONSIVE TABLETS === */
 @media (max-width: 991.98px) {
@@ -318,25 +357,23 @@ footer {
   width: 280px !important;
   display: flex;
   flex-direction: column;
-  z-index: 1055 !important; /* Mayor que el footer (1020) para superponerse */
-  height: 100vh !important; /* Ocupar toda la altura de la pantalla */
+  z-index: var(--z-offcanvas) !important;
+  height: 100vh !important;
   max-height: 100vh !important;
-  max-height: 100dvh !important; /* Usar dynamic viewport height en navegadores compatibles */
+  max-height: 100dvh !important;
 }
 
-/* Cuando el offcanvas está abierto, asegurar que se superponga */
 .offcanvas.show,
 .offcanvas.showing {
-  z-index: 1055 !important;
+  z-index: var(--z-offcanvas) !important;
 }
 
-/* Backdrop del offcanvas también debe estar sobre el footer */
 .offcanvas-backdrop {
-  z-index: 1050 !important;
+  z-index: var(--z-backdrop) !important;
 }
 
 .offcanvas-backdrop.show {
-  z-index: 1050 !important;
+  z-index: var(--z-backdrop) !important;
 }
 
 .offcanvas.offcanvas-start {
@@ -344,9 +381,8 @@ footer {
   bottom: 0 !important;
 }
 
-/* Asegurar que el footer esté debajo del offcanvas cuando este está abierto */
 body.offcanvas-open footer {
-  z-index: 1020;
+  z-index: var(--z-sticky);
 }
 
 /* Header del offcanvas (título y botón cerrar) */
@@ -372,12 +408,10 @@ body.offcanvas-open footer {
   border-radius: 0.5rem;
 }
 
-/* Body scrollable solo para navegación */
+/* Body scrollable solo para navegación — flex layout robusto sin hardcoded heights */
 .offcanvas-body {
-  flex: 1 1 auto;
-  min-height: 0; /* Importante para que el flex funcione correctamente */
-  max-height: calc(100vh - 220px); /* Restar header(56) + user(80) + footer(84) */
-  max-height: calc(100dvh - 220px); /* Versión con dynamic viewport */
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0.5rem 0;
@@ -504,7 +538,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1055 !important;
+  z-index: var(--z-backdrop) !important;
   width: 100vw;
   height: 100vh;
   background-color: #000;
@@ -519,7 +553,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1060 !important;
+  z-index: var(--z-modal) !important;
   width: 100%;
   height: 100%;
   overflow-x: hidden;
@@ -533,7 +567,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   width: auto;
   margin: 0.5rem;
   pointer-events: none;
-  z-index: 1061 !important;
+  z-index: calc(var(--z-modal) + 1) !important;
 }
 
 .modal.show .modal-dialog {

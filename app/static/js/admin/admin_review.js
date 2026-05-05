@@ -167,12 +167,12 @@ document.addEventListener('DOMContentLoaded', () => {
             ${ext.status === 'pending' ? `
               <button class="btn btn-sm btn-outline-primary btn-review-extension" 
                       data-extension-id="${ext.id}">
-                <i class="fas fa-eye me-1"></i>Revisar
+                <i class="bi bi-eye me-1"></i>Revisar
               </button>
             ` : `
               <button class="btn btn-sm btn-outline-secondary btn-view-extension" 
                       data-extension-id="${ext.id}">
-                <i class="fas fa-info-circle me-1"></i>Ver
+                <i class="bi bi-info-circle-fill me-1"></i>Ver
               </button>
             `}
           </td>

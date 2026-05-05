@@ -94,5 +94,5 @@
 /* Toast stack superior-derecho (permissions.html, applicant_dashboard.js) */
 .toast-stack-top,
 .siiap-toast-stack {
-  z-index: 9999;
+  z-index: var(--z-toast);
 }

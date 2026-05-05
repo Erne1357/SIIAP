@@ -1,0 +1,54 @@
+/*
+ * DataTable — wrapper para tablas con scroll hint y columna sticky en movil.
+ * Activar via JS: SIIAP.initDataTable(wrapperEl).
+ *
+ * Uso:
+ *   <div class="siiap-table-wrapper">
+ *     <table class="table siiap-table">...</table>
+ *   </div>
+ */
+
+.siiap-table-wrapper {
+  position: relative;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.siiap-table-wrapper::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--bg-surface));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.siiap-table-wrapper.has-overflow::after {
+  opacity: 1;
+}
+
+.siiap-table-wrapper.scrolled-end::after {
+  opacity: 0;
+}
+
+@media (max-width: 767.98px) {
+  .siiap-table th:first-child,
+  .siiap-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--bg-surface);
+    z-index: 1;
+    box-shadow: 1px 0 0 var(--border-default);
+  }
+
+  .siiap-table thead th:first-child {
+    background: var(--bg-surface-sunken);
+  }
+}

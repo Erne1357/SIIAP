@@ -15,14 +15,14 @@
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="documents-tab" data-bs-toggle="tab" 
               data-bs-target="#documents-pane" type="button" role="tab">
-        <i class="fas fa-file-alt me-2"></i>Documentos
+        <i class="bi bi-file-earmark-text me-2"></i>Documentos
         <span class="badge bg-warning ms-2" id="pendingDocsCount">{{ submissions|length }}</span>
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="extensions-tab" data-bs-toggle="tab" 
               data-bs-target="#extensions-pane" type="button" role="tab">
-        <i class="fas fa-clock me-2"></i>Solicitudes de Prórroga
+        <i class="bi bi-clock me-2"></i>Solicitudes de Prórroga
         <span class="badge bg-info ms-2" id="pendingExtensionsCount">0</span>
       </button>
     </li>
@@ -86,7 +86,7 @@
                    id="showAllPrograms" {% if filters.show_all %}checked{% endif %}
                    onchange="this.form.submit()">
             <label class="form-check-label" for="showAllPrograms">
-              <i class="fas fa-eye me-1"></i>Ver documentos de otros programas (solo consulta)
+              <i class="bi bi-eye me-1"></i>Ver documentos de otros programas (solo consulta)
             </label>
           </div>
         </div>
@@ -116,7 +116,7 @@
               <td>
                 {{ sub.program_step.program.name }}
                 {% if not is_own_program %}
-                <i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>
+                <i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>
                 {% endif %}
               </td>
               <td>{{ sub.archive.name }}</td>
@@ -138,7 +138,7 @@
               <td>
                 <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_id=sub.id) }}"
                   class="btn btn-sm btn-outline-primary">
-                  <i class="fas fa-eye me-1"></i>{% if is_own_program %}Revisar{% else %}Ver{% endif %}
+                  <i class="bi bi-eye me-1"></i>{% if is_own_program %}Revisar{% else %}Ver{% endif %}
                 </a>
               </td>
             </tr>
@@ -179,7 +179,7 @@
         </div>
         <div class="col-md-3 align-self-end">
           <button class="btn btn-primary w-100" id="filterExtensionsBtn">
-            <i class="fas fa-filter me-1"></i>Filtrar
+            <i class="bi bi-funnel me-1"></i>Filtrar
           </button>
         </div>
       </div>
@@ -227,7 +227,7 @@
         <div class="row g-3">
           <div class="col-12">
             <div class="alert alert-info">
-              <h6 class="mb-2"><i class="fas fa-user me-2"></i>Estudiante</h6>
+              <h6 class="mb-2"><i class="bi bi-person me-2"></i>Estudiante</h6>
               <p class="mb-1" id="extensionStudentName"></p>
               <p class="mb-0 small text-muted" id="extensionStudentEmail"></p>
             </div>
@@ -271,10 +271,10 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-danger" id="rejectExtensionBtn">
-          <i class="fas fa-times me-1"></i>Rechazar
+          <i class="bi bi-x-lg me-1"></i>Rechazar
         </button>
         <button type="button" class="btn btn-success" id="approveExtensionBtn">
-          <i class="fas fa-check me-1"></i>Aprobar
+          <i class="bi bi-check-lg me-1"></i>Aprobar
         </button>
       </div>
     </div>

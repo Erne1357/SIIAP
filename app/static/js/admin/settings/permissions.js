@@ -131,7 +131,7 @@
         <td>
           ${o.is_active
             ? `<button class="btn btn-sm btn-outline-danger js-revert-override" data-codename="${o.permission_codename}">
-                 <i class="fas fa-undo"></i>
+                 <i class="bi bi-arrow-counterclockwise"></i>
                </button>`
             : ''}
         </td>

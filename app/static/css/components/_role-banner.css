@@ -1,0 +1,129 @@
+/*
+ * RoleBanner — header de bienvenida contextual con identidad de rol explicita.
+ * Va al inicio de cada dashboard para que el usuario sepa quien es y que sigue.
+ */
+
+.role-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary-50) 0%,
+    var(--color-brand-primary-100) 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(11, 30, 138, 0.10);
+  margin-bottom: var(--space-6);
+}
+
+.role-banner__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 130%);
+  color: var(--text-inverse);
+  font-size: 1.75rem;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-2);
+}
+
+.role-banner__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.role-banner__greeting {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-1);
+  line-height: var(--lh-tight);
+}
+
+.role-banner__role {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-2);
+}
+
+.role-banner__next-action {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-brand-primary);
+}
+
+.role-banner__next-action i {
+  color: var(--color-brand-primary);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.role-banner__progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.role-banner__progress-bar {
+  width: 12rem;
+  height: 0.5rem;
+  background: var(--color-neutral-200);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.role-banner__progress-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-secondary) 100%);
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+.role-banner__progress-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 767.98px) {
+  .role-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    padding: var(--space-4);
+  }
+  .role-banner__avatar {
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.5rem;
+  }
+  .role-banner__progress {
+    width: 100%;
+    align-items: stretch;
+  }
+  .role-banner__progress-bar {
+    width: 100%;
+  }
+}
