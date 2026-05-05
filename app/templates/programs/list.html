@@ -8,7 +8,25 @@
 
 {% block content %}
 <div class="container program-container">
-  <h1 class="text-center programs-title mb-5" data-aos="fade-up">Programas de Posgrado</h1>
+  <header class="programs-hero" data-aos="fade-up">
+    <div class="programs-hero__content">
+      <span class="programs-hero__eyebrow">
+        <i class="bi bi-mortarboard-fill"></i>
+        ITCJ · TECNM
+      </span>
+      <h1 class="programs-hero__title">
+        Forma parte del posgrado de excelencia<br>
+        del Tecnológico Nacional de México
+      </h1>
+      <p class="programs-hero__lead">
+        {% if programs %}
+          {{ programs|length }} programa{{ 's' if programs|length != 1 else '' }} de posgrado disponibles. Conoce sus planes de estudio, perfiles de egreso y proceso de admisión.
+        {% else %}
+          Conoce nuestros programas de posgrado y descubre tu próxima etapa académica.
+        {% endif %}
+      </p>
+    </div>
+  </header>
 
   {% if programs %}
     <div class="row g-4" data-aos="fade-up" data-aos-delay="100">
@@ -21,12 +39,14 @@
               <img
                 src="{{ url_for('static', filename='assets/images/' ~ p.image_filename) }}?v={{ static_version }}"
                 alt="{{ p.name }}"
-                class="program-image w-100">
+                class="program-image w-100"
+                loading="lazy" decoding="async">
               {% else %}
               <img
                 src="{{ url_for('static', filename='assets/images/default-program.webp') }}?v={{ static_version }}"
                 alt="{{ p.name }}"
-                class="program-image w-100">
+                class="program-image w-100"
+                loading="lazy" decoding="async">
               {% endif %}
 
               {% if 'Doctorado' in p.name or (p.program_level and 'Doctorado' in p.program_level) %}
