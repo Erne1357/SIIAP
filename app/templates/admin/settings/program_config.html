@@ -15,7 +15,7 @@
       <p class="text-muted mb-0">{{ program.name }}</p>
     </div>
     <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary">
-      <i class="fas fa-eye me-2"></i>Ver Programa
+      <i class="bi bi-eye me-2"></i>Ver Programa
     </a>
   </div>
 
@@ -24,47 +24,47 @@
     <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button">
-          <i class="fas fa-info-circle me-2"></i>General
+          <i class="bi bi-info-circle-fill me-2"></i>General
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="academic-tab" data-bs-toggle="tab" data-bs-target="#academic" type="button">
-          <i class="fas fa-graduation-cap me-2"></i>Académico
+          <i class="bi bi-mortarboard-fill me-2"></i>Académico
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="objectives-tab" data-bs-toggle="tab" data-bs-target="#objectives" type="button">
-          <i class="fas fa-bullseye me-2"></i>Objetivos
+          <i class="bi bi-bullseye me-2"></i>Objetivos
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button">
-          <i class="fas fa-user-graduate me-2"></i>Perfil del Egresado
+          <i class="bi bi-mortarboard me-2"></i>Perfil del Egresado
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="curriculum-tab" data-bs-toggle="tab" data-bs-target="#curriculum" type="button">
-          <i class="fas fa-book me-2"></i>Plan de Estudios
+          <i class="bi bi-book-fill me-2"></i>Plan de Estudios
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="research-tab" data-bs-toggle="tab" data-bs-target="#research" type="button">
-          <i class="fas fa-flask me-2"></i>Investigación
+          <i class="bi bi-eyedropper me-2"></i>Investigación
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact" type="button">
-          <i class="fas fa-envelope me-2"></i>Contacto
+          <i class="bi bi-envelope-fill me-2"></i>Contacto
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="visibility-tab" data-bs-toggle="tab" data-bs-target="#visibility" type="button">
-          <i class="fas fa-eye me-2"></i>Visibilidad
+          <i class="bi bi-eye me-2"></i>Visibilidad
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="seo-tab" data-bs-toggle="tab" data-bs-target="#seo" type="button">
-          <i class="fas fa-search me-2"></i>SEO
+          <i class="bi bi-search me-2"></i>SEO
         </button>
       </li>
     </ul>
@@ -75,7 +75,7 @@
       <!-- TAB: GENERAL -->
       <div class="tab-pane fade show active" id="general" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-info-circle me-2"></i>Información General</h5>
+          <h5><i class="bi bi-info-circle-fill me-2"></i>Información General</h5>
 
           <div class="row">
             <div class="col-md-6 mb-3">
@@ -121,7 +121,7 @@
         </div>
 
         <div class="form-section">
-          <h5><i class="fas fa-clock me-2"></i>Duración y Modalidad</h5>
+          <h5><i class="bi bi-clock me-2"></i>Duración y Modalidad</h5>
 
           <div class="row">
             <div class="col-md-4 mb-3">
@@ -159,7 +159,7 @@
       <!-- TAB: ACADÉMICO -->
       <div class="tab-pane fade" id="academic" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-graduation-cap me-2"></i>Información Académica</h5>
+          <h5><i class="bi bi-mortarboard-fill me-2"></i>Información Académica</h5>
 
           <div class="mb-3">
             <label class="form-label">Texto de Introducción</label>
@@ -191,7 +191,7 @@
       <!-- TAB: OBJETIVOS -->
       <div class="tab-pane fade" id="objectives" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-bullseye me-2"></i>Objetivos del Programa</h5>
+          <h5><i class="bi bi-bullseye me-2"></i>Objetivos del Programa</h5>
 
           <div class="mb-3">
             <label class="form-label">Lista de Objetivos</label>
@@ -202,7 +202,7 @@
                 <div class="list-item">
                   <input type="text" class="form-control" value="{{ objective }}" placeholder="Objetivo {{ loop.index }}">
                   <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="fas fa-trash"></i>
+                    <i class="bi bi-trash"></i>
                   </button>
                 </div>
                 {% endfor %}
@@ -210,13 +210,13 @@
                 <div class="list-item">
                   <input type="text" class="form-control" placeholder="Objetivo 1">
                   <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="fas fa-trash"></i>
+                    <i class="bi bi-trash"></i>
                   </button>
                 </div>
               {% endif %}
             </div>
             <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addObjective()">
-              <i class="fas fa-plus me-1"></i>Agregar Objetivo
+              <i class="bi bi-plus-lg me-1"></i>Agregar Objetivo
             </button>
           </div>
 
@@ -230,7 +230,7 @@
       <!-- TAB: PERFIL DEL EGRESADO -->
       <div class="tab-pane fade" id="profile" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-user-graduate me-2"></i>Perfil del Egresado</h5>
+          <h5><i class="bi bi-mortarboard me-2"></i>Perfil del Egresado</h5>
 
           <div class="mb-3">
             <label class="form-label">Introducción del Perfil</label>
@@ -248,7 +248,7 @@
                 <div class="list-item">
                   <input type="text" class="form-control" value="{{ competency }}" placeholder="Competencia {{ loop.index }}">
                   <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="fas fa-trash"></i>
+                    <i class="bi bi-trash"></i>
                   </button>
                 </div>
                 {% endfor %}
@@ -256,13 +256,13 @@
                 <div class="list-item">
                   <input type="text" class="form-control" placeholder="Competencia 1">
                   <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-                    <i class="fas fa-trash"></i>
+                    <i class="bi bi-trash"></i>
                   </button>
                 </div>
               {% endif %}
             </div>
             <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addCompetency()">
-              <i class="fas fa-plus me-1"></i>Agregar Competencia
+              <i class="bi bi-plus-lg me-1"></i>Agregar Competencia
             </button>
           </div>
 
@@ -277,10 +277,10 @@
       <!-- TAB: PLAN DE ESTUDIOS -->
       <div class="tab-pane fade" id="curriculum" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-book me-2"></i>Mapa Curricular</h5>
+          <h5><i class="bi bi-book-fill me-2"></i>Mapa Curricular</h5>
 
           <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
+            <i class="bi bi-info-circle-fill me-2"></i>
             <strong>Editor Visual:</strong> Organiza tu plan de estudios por semestres y materias.
             Los cambios se guardarán automáticamente en el formato correcto.
           </div>
@@ -303,10 +303,10 @@
       <!-- TAB: INVESTIGACIÓN -->
       <div class="tab-pane fade" id="research" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-flask me-2"></i>Líneas de Investigación</h5>
+          <h5><i class="bi bi-eyedropper me-2"></i>Líneas de Investigación</h5>
 
           <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
+            <i class="bi bi-info-circle-fill me-2"></i>
             <strong>Editor Visual:</strong> Agrega y edita las líneas de investigación de forma intuitiva.
             Cada línea incluye nombre y descripción.
           </div>
@@ -320,7 +320,7 @@
       <!-- TAB: CONTACTO -->
       <div class="tab-pane fade" id="contact" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-envelope me-2"></i>Información de Contacto</h5>
+          <h5><i class="bi bi-envelope-fill me-2"></i>Información de Contacto</h5>
 
           <div class="row">
             <div class="col-md-6 mb-3">
@@ -375,7 +375,7 @@
       <!-- TAB: VISIBILIDAD -->
       <div class="tab-pane fade" id="visibility" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-eye me-2"></i>Configuración de Visibilidad</h5>
+          <h5><i class="bi bi-eye me-2"></i>Configuración de Visibilidad</h5>
           <p class="text-muted">Controla qué secciones se muestran en la página del programa</p>
 
           <div class="row">
@@ -437,7 +437,7 @@
       <!-- TAB: SEO -->
       <div class="tab-pane fade" id="seo" role="tabpanel">
         <div class="form-section">
-          <h5><i class="fas fa-search me-2"></i>SEO y Metadatos</h5>
+          <h5><i class="bi bi-search me-2"></i>SEO y Metadatos</h5>
 
           <div class="mb-3">
             <label class="form-label">Título SEO</label>
@@ -469,10 +469,10 @@
     <!-- Botones de acción -->
     <div class="d-flex justify-content-between mt-4">
       <a href="{{ url_for('program.view_program', slug=program.slug) }}" class="btn btn-outline-secondary">
-        <i class="fas fa-times me-2"></i>Cancelar
+        <i class="bi bi-x-lg me-2"></i>Cancelar
       </a>
       <button type="submit" class="btn btn-primary">
-        <i class="fas fa-save me-2"></i>Guardar Cambios
+        <i class="bi bi-save me-2"></i>Guardar Cambios
       </button>
     </div>
   </form>

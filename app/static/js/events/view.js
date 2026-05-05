@@ -535,21 +535,21 @@
                     <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-3">
                         <div>
                             <p class="text-muted small mb-1">
-                                <i class="fas fa-calendar-star me-1"></i>Tu Cita
+                                <i class="bi bi-calendar-heart-fill me-1"></i>Tu Cita
                             </p>
                             <div class="appointment-time">${formatTime(myAppt.starts_at)}</div>
                             <div class="appointment-date">${formatDate(myAppt.starts_at)}</div>
                             <div class="appointment-date mt-1">
-                                <i class="fas fa-clock me-1"></i>
+                                <i class="bi bi-clock me-1"></i>
                                 Hasta las ${formatTime(myAppt.ends_at)}
                             </div>
                         </div>
                         <div class="d-flex flex-column gap-2">
                             <button class="btn btn-outline-warning btn-sm" id="btnChangeRequest">
-                                <i class="fas fa-exchange-alt me-1"></i>Solicitar Cambio
+                                <i class="bi bi-arrow-left-right me-1"></i>Solicitar Cambio
                             </button>
                             <button class="btn btn-outline-danger btn-sm" id="btnCancelAppt">
-                                <i class="fas fa-times me-1"></i>Cancelar Cita
+                                <i class="bi bi-x-lg me-1"></i>Cancelar Cita
                             </button>
                         </div>
                     </div>
@@ -561,7 +561,7 @@
         } else {
             block.innerHTML = `
                 <div class="info-notice d-flex align-items-center gap-3 mb-4">
-                    <i class="fas fa-info-circle notice-icon"></i>
+                    <i class="bi bi-info-circle-fill notice-icon"></i>
                     <div>
                         <strong>Sin cita asignada aún</strong>
                         <p class="mb-0 mt-1 text-muted small">
@@ -574,7 +574,7 @@
         // Quick actions for single — no register button, just contextual info
         quickBody.innerHTML = `
             <p class="text-muted small mb-0">
-                <i class="fas fa-user-shield me-1"></i>
+                <i class="bi bi-shield-fill-check me-1"></i>
                 Las citas son asignadas por el coordinador del programa.
             </p>`;
 
@@ -615,7 +615,7 @@
             capacityHtml = `
                 <div class="mb-3">
                     <span class="badge bg-success">
-                        <i class="fas fa-infinity me-1"></i>Sin límite de cupos
+                        <i class="bi bi-infinity me-1"></i>Sin límite de cupos
                     </span>
                     <span class="ms-2 text-muted small">${eventData.current_registrations} inscrito(s)</span>
                 </div>`;
@@ -625,7 +625,7 @@
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white border-bottom">
                     <h5 class="mb-0">
-                        <i class="fas fa-users me-2 text-primary"></i>Inscripción
+                        <i class="bi bi-people-fill me-2 text-primary"></i>Inscripción
                     </h5>
                 </div>
                 <div class="card-body">
@@ -640,7 +640,7 @@
             const attended = myReg.status === 'attended';
             regStatus.innerHTML = `
                 <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
-                    <i class="fas fa-check-circle fa-lg"></i>
+                    <i class="bi bi-check-circle-fill fs-5"></i>
                     <div>
                         <strong>Estás inscrito</strong>
                         <div class="small text-muted mt-1">
@@ -651,21 +651,21 @@
                 </div>
                 ${!attended ? `
                     <button class="btn btn-outline-danger w-100" id="btnUnregister">
-                        <i class="fas fa-user-minus me-1"></i>Cancelar Registro
+                        <i class="bi bi-person-dash me-1"></i>Cancelar Registro
                     </button>` : ''}`;
 
             document.getElementById('btnUnregister')?.addEventListener('click', unregisterFromEvent);
         } else if (isFull) {
             regStatus.innerHTML = `
                 <div class="alert alert-warning d-flex align-items-center gap-2">
-                    <i class="fas fa-exclamation-triangle fa-lg"></i>
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
                     <div><strong>Cupo lleno</strong><br>
                     <span class="small">No hay lugares disponibles en este momento.</span></div>
                 </div>`;
         } else {
             regStatus.innerHTML = `
                 <button class="btn btn-primary w-100" id="btnRegister">
-                    <i class="fas fa-user-plus me-1"></i>Registrarme al evento
+                    <i class="bi bi-person-plus-fill me-1"></i>Registrarme al evento
                 </button>`;
             document.getElementById('btnRegister')?.addEventListener('click', registerToEvent);
         }
@@ -673,7 +673,7 @@
         // Quick actions column
         quickBody.innerHTML = `
             <p class="text-muted small mb-0">
-                <i class="fas fa-calendar-alt me-1"></i>
+                <i class="bi bi-calendar3 me-1"></i>
                 ${isUnlimited
                     ? 'Sin restricción de cupo.'
                     : isFull
@@ -689,7 +689,7 @@
         if (!windows.length) {
             container.innerHTML = `
                 <div class="p-4 text-center text-muted">
-                    <i class="fas fa-calendar-times fa-2x mb-2"></i>
+                    <i class="bi bi-calendar-x fs-1 mb-2"></i>
                     <p class="mb-0">No hay ventanas de horario configuradas aún.</p>
                 </div>`;
             return;
@@ -701,11 +701,11 @@
                 ? slots.map(slot => {
                     const isMine = myAppt && myAppt.slot_id === slot.id;
                     const cls    = isMine ? 'slot-mine' : slot.status === 'free' ? 'slot-free' : 'slot-booked';
-                    const icon   = isMine ? 'fa-star' : slot.status === 'free' ? 'fa-circle' : 'fa-circle-notch';
+                    const icon   = isMine ? 'bi-star-fill' : slot.status === 'free' ? 'bi-circle-fill' : 'bi-record-circle';
                     const label  = isMine ? 'Mi cita' : slot.status === 'free' ? 'Libre' : 'Ocupado';
                     return `
                         <span class="slot-pill ${cls}" title="${formatTime(slot.starts_at)} – ${formatTime(slot.ends_at)}">
-                            <i class="fas ${icon}"></i>
+                            <i class="bi ${icon}"></i>
                             ${formatTime(slot.starts_at)}
                             <span class="slot-label-sm">${label}</span>
                         </span>`;
@@ -719,7 +719,7 @@
             return `
                 <div class="timeline-window">
                     <div class="timeline-window-header">
-                        <i class="fas fa-calendar-day me-2 text-primary"></i>${windowDate}
+                        <i class="bi bi-calendar-day me-2 text-primary"></i>${windowDate}
                         <span class="text-muted fw-normal ms-2 small">${win.start_time || ''} – ${win.end_time || ''}</span>
                     </div>
                     <div class="slots-grid">${slotsHtml}</div>

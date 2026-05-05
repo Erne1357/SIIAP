@@ -1,0 +1,55 @@
+/*
+ * EmptyState — estado vacio amistoso para listas, tablas y secciones sin datos.
+ * Uso: {% from '_macros.html' import empty_state %}
+ *      {{ empty_state('inbox', 'Sin notificaciones', 'Aqui apareceran...') }}
+ */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+  color: var(--text-secondary);
+}
+
+.empty-state--compact {
+  padding: var(--space-8) var(--space-4);
+}
+
+.empty-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  font-size: 2.25rem;
+  color: var(--color-neutral-400);
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-pill);
+  margin-bottom: var(--space-4);
+}
+
+.empty-state__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state__description {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  max-width: 360px;
+  margin: 0 auto var(--space-5);
+  line-height: var(--lh-normal);
+}
+
+.empty-state__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}

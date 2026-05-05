@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const submitBtn = e.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Enviando...';
     submitBtn.disabled = true;
 
     try {
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Subiendo...';
       submitBtn.disabled = true;
 
       try {
@@ -358,13 +358,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (file.size > 3 * 1024 * 1024) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
-        feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Archivo: ${file.name} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
+        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Archivo: ${file.name} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
       } else if (!file.name.toLowerCase().endsWith('.pdf')) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
-        feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Solo se permiten archivos PDF`;
+        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Solo se permiten archivos PDF`;
       } else {
         feedbackEl.className = 'file-feedback small mt-1 text-success';
-        feedbackEl.innerHTML = `<i class="fas fa-check"></i> Archivo: ${file.name} (${sizeMB} MB)`;
+        feedbackEl.innerHTML = `<i class="bi bi-check-lg"></i> Archivo: ${file.name} (${sizeMB} MB)`;
       }
     });
   });
@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (processAlert) {
             processAlert.className = 'alert alert-warning interview-info';
             processAlert.innerHTML = `
-              <i class="fas fa-user-edit me-2"></i>
+              <i class="bi bi-person-fill-gear me-2"></i>
               Completa tu perfil para ser elegible para entrevista.
               <a href="/user/profile" class="alert-link">Ir a mi perfil</a>
             `;
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (processAlert) {
             processAlert.className = 'alert alert-info interview-info';
             processAlert.innerHTML = `
-              <i class="fas fa-info-circle me-2"></i>
+              <i class="bi bi-info-circle-fill me-2"></i>
               Eres elegible para entrevista. Pronto recibirás una notificación con la fecha y hora asignada.
             `;
           }
@@ -434,13 +434,13 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="row align-items-center">
         <div class="col-12 col-md-8">
           <h5 class="mb-2">
-            <i class="fas fa-calendar-check me-2"></i>
+            <i class="bi bi-calendar-check me-2"></i>
             ${appointment.event_title}
           </h5>
           <p class="mb-2">
-            <strong><i class="fas fa-clock me-1"></i> Fecha y hora:</strong> ${dateStr}<br>
-            <strong><i class="fas fa-hourglass-half me-1"></i> Horario:</strong> ${timeStr}<br>
-            <strong><i class="fas fa-map-marker-alt me-1"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
+            <strong><i class="bi bi-clock me-1"></i> Fecha y hora:</strong> ${dateStr}<br>
+            <strong><i class="bi bi-hourglass-split me-1"></i> Horario:</strong> ${timeStr}<br>
+            <strong><i class="bi bi-geo-alt-fill me-1"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
           </p>
           ${appointment.notes ? `
             <div class="alert alert-info py-2 mb-0">
@@ -451,20 +451,20 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="col-12 col-md-4 text-md-end mt-3 mt-md-0">
           ${appointment.pending_change_request ? `
             <div class="alert alert-warning py-2 mb-2 text-start">
-              <small><i class="fas fa-clock me-1"></i><strong>Solicitud en revisión</strong><br>
+              <small><i class="bi bi-clock me-1"></i><strong>Solicitud en revisión</strong><br>
               Tu solicitud de cambio está pendiente de respuesta.</small>
             </div>
             <button class="btn btn-outline-secondary btn-sm w-100 w-md-auto btn-request-change"
                     data-appointment-id="${appointment.id}"
                     data-pending-reason="${(appointment.pending_change_request.reason || '').replace(/"/g, '&quot;')}"
                     data-pending-suggestions="${(appointment.pending_change_request.suggestions || '').replace(/"/g, '&quot;')}">
-              <i class="fas fa-edit me-1"></i>
+              <i class="bi bi-pencil-square me-1"></i>
               Editar Solicitud
             </button>
           ` : `
             <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change"
                     data-appointment-id="${appointment.id}">
-              <i class="fas fa-exchange-alt me-1"></i>
+              <i class="bi bi-arrow-left-right me-1"></i>
               Solicitar Cambio
             </button>
           `}

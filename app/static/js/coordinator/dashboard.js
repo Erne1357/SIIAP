@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-primary">${student.program_name}</span>
-          ${!student.can_manage ? '<i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
+          ${!student.can_manage ? '<i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <div class="progress">
@@ -117,12 +117,12 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-outline-primary btn-view-student" 
                     data-student-id="${student.id}" title="Ver detalles">
-              <i class="fas fa-eye"></i>
+              <i class="bi bi-eye"></i>
             </button>
             ${student.can_manage ? `
             <button class="btn btn-outline-success btn-upload-for" 
                     data-student-id="${student.id}" title="Subir documento">
-              <i class="fas fa-upload"></i>
+              <i class="bi bi-upload"></i>
             </button>
             ` : ''}
           </div>
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-info">${student.program_name}</span>
-          ${!student.can_manage ? '<i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
+          ${!student.can_manage ? '<i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <span class="badge bg-light text-dark">${student.current_semester || 'N/A'}</span>
@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-success">${student.program_name}</span>
-          ${!student.can_manage ? '<i class="fas fa-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
+          ${!student.can_manage ? '<i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <span class="badge bg-light text-dark">${student.conclusion_stage || 'Inicial'}</span>
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-outline-primary btn-view-student" 
                     data-student-id="${student.id}">
-              <i class="fas fa-eye"></i>
+              <i class="bi bi-eye"></i>
             </button>
           </div>
         </td>
@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Error loading student details:', err);
       document.getElementById('modalContent').innerHTML = `
       <div class="alert alert-danger">
-        <i class="fas fa-exclamation-triangle me-2"></i>
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
         Error al cargar información: ${err.message}
       </div>
     `;
@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <!-- Estado del Perfil -->
     <div class="alert ${student.profile_completed ? 'alert-success' : 'alert-warning'} mb-4">
       <h6 class="mb-2">
-        <i class="fas fa-user-check me-2"></i>Estado del Perfil
+        <i class="bi bi-person-check-fill me-2"></i>Estado del Perfil
       </h6>
       ${student.profile_completed
         ? '<p class="mb-0">✅ Perfil completo - Elegible para entrevista</p>'
@@ -487,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ${missing.length > 0 ? `
       <div class="mb-4">
         <h6 class="mb-2">
-          <i class="fas fa-exclamation-circle text-warning me-2"></i>
+          <i class="bi bi-exclamation-circle-fill text-warning me-2"></i>
           Documentos Pendientes (${missing.length})
         </h6>
         <ul class="list-group">
@@ -547,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Si es solo lectura, mostrar advertencia
     const readOnlyWarning = !canManage ? `
       <div class="alert alert-info mb-3">
-        <i class="fas fa-eye me-2"></i>
+        <i class="bi bi-eye me-2"></i>
         <strong>Modo solo lectura:</strong> Este estudiante pertenece a un programa de otro coordinador.
       </div>
     ` : '';
@@ -579,7 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr>
                   <td>
                     <strong>${arch.name}</strong>
-                    ${arch.uploaded_by_role === 'program_admin' ? '<i class="fas fa-user-tie text-primary ms-1" title="Subido por coordinador"></i>' : ''}
+                    ${arch.uploaded_by_role === 'program_admin' ? '<i class="bi bi-person-vcard-fill text-primary ms-1" title="Subido por coordinador"></i>' : ''}
                   </td>
                   <td class="text-center">
                     ${getArchiveStatusBadge(arch.status)}
@@ -594,14 +594,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="btn-group btn-group-sm" role="group">
                       ${arch.has_submission ? `
                         <a href="${arch.file_url}" target="_blank" class="btn btn-outline-primary" title="Ver documento">
-                          <i class="fas fa-eye"></i>
+                          <i class="bi bi-eye"></i>
                         </a>
                       ` : ''}
                       ${canManage && arch.allow_coordinator_upload ? `
                         <button class="btn btn-outline-success btn-upload-for-modal" 
                                 data-student-id="${studentId}" data-archive-id="${arch.id}" 
                                 title="Subir documento">
-                          <i class="fas fa-upload"></i>
+                          <i class="bi bi-upload"></i>
                         </button>
                       ` : ''}
                     </div>
@@ -661,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="card">
         <div class="card-header ${apptStyle.headerBg} text-white">
           <h6 class="mb-0">
-            <i class="fas fa-calendar-check me-2"></i>
+            <i class="bi bi-calendar-check me-2"></i>
             ${interviewDone ? 'Entrevista Completada' : 'Entrevista Asignada'}
           </h6>
         </div>
@@ -704,7 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     ` : `
       <div class="alert alert-info">
-        <i class="fas fa-info-circle me-2"></i>
+        <i class="bi bi-info-circle-fill me-2"></i>
         El estudiante no tiene entrevista asignada aún.
         ${eligibility.eligible ? ' Sin embargo, cumple con los requisitos y puede ser asignado.' : ''}
       </div>
@@ -800,7 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Subiendo...';
       submitBtn.disabled = true;
 
       try {

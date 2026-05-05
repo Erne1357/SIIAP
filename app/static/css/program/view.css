@@ -234,7 +234,7 @@
   position: fixed;
   top: 130px; /* Ajusta según la altura de tu header */
   left: 260px; /* Ajusta según el ancho de tu sidebar */
-  z-index: 1000;
+  z-index: var(--z-dropdown);
   opacity: 0;
   transform: translateY(-20px);
   transition: all 0.5s ease;
@@ -244,7 +244,7 @@
   position: fixed;
   top: 130px;
   right: 2rem;
-  z-index: 1040;
+  z-index: var(--z-fab);
   opacity: 0;
   transform: translateY(-20px);
   transition: all 0.5s ease;

@@ -10,7 +10,7 @@
   right: 1rem;
   left: auto;
   transform: none;
-  z-index: 9999 !important;
+  z-index: var(--z-toast) !important;
   width: auto;
   max-width: 400px;
   min-width: 300px;
@@ -28,7 +28,6 @@
   opacity: 1 !important;
   visibility: visible !important;
   position: relative;
-  z-index: 10000 !important;
   background-color: #fff !important;
 }
 
@@ -65,7 +64,6 @@
 
 .flash-container .alert .btn-close {
   position: relative;
-  z-index: 100001 !important;
   opacity: 0.8;
 }
 
