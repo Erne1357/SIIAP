@@ -27,7 +27,9 @@
 
 {% macro sidebar_nav(prefix='') %}
 {% set up = current_user.user_program|first %}
-<nav class="nav flex-column py-3">
+<nav class="nav flex-column py-3" aria-label="Navegación principal">
+
+  <h6 class="sidebar-section-label">Personal</h6>
 
   <a class="nav-link {% if request.endpoint=='pages_user.profile' %}active{% endif %}"
      href="{{ url_for('pages_user.profile') }}">
@@ -38,6 +40,8 @@
      href="{{ url_for('pages_user.dashboard') }}">
     <i class="bi bi-grid-fill me-2"></i>Dashboard
   </a>
+
+  <h6 class="sidebar-section-label">Académico</h6>
 
   <a class="nav-link {% if request.endpoint=='program.list_programs' %}active{% endif %}"
      href="{{ url_for('program.list_programs') }}">
@@ -50,6 +54,8 @@
     <i class="bi bi-clipboard-data me-2"></i>Admisión
   </a>
   {% endif %}
+
+  <h6 class="sidebar-section-label">Eventos</h6>
 
   {# ── Eventos ─────────────────────────────────────────────── #}
   <div class="dropdown-menu-container">
@@ -78,6 +84,7 @@
 
   {# ── Coordinación ────────────────────────────────────────── #}
   {% if has_perm('coordinator.page.view') %}
+  <h6 class="sidebar-section-label">Gestión</h6>
   <a class="nav-link {% if request.endpoint=='pages_coordinator.dashboard' %}active{% endif %}"
      href="{{ url_for('pages_coordinator.dashboard') }}">
     <i class="bi bi-people-fill me-2"></i>Coordinación

@@ -291,6 +291,32 @@
   }
 }
 
+/* === REVEAL ON SCROLL (IntersectionObserver, sustituye AOS) === */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity var(--duration-slow) var(--ease-out),
+              transform var(--duration-slow) var(--ease-out);
+  will-change: opacity, transform;
+}
+
+[data-reveal="fade-down"]  { transform: translateY(-16px); }
+[data-reveal="fade-left"]  { transform: translateX(16px); }
+[data-reveal="fade-right"] { transform: translateX(-16px); }
+
+[data-reveal].revealed {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 /* ==========================================================================
    11. PREFERS-REDUCED-MOTION (a11y global)
    ========================================================================== */
