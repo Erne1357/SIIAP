@@ -70,3 +70,76 @@
     <span>{{ label or s.label }}</span>
   </span>
 {% endmacro %}
+
+
+{# === EMPTY STATE === #}
+
+{% macro empty_state(icon='inbox', title='Sin resultados',
+                     description='', action_label=none, action_url=none,
+                     compact=false) %}
+<div class="empty-state {% if compact %}empty-state--compact{% endif %}">
+  <div class="empty-state__icon"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></div>
+  <h3 class="empty-state__title">{{ title }}</h3>
+  {% if description %}<p class="empty-state__description">{{ description }}</p>{% endif %}
+  {% if action_label %}
+    <div class="empty-state__actions">
+      <a href="{{ action_url or '#' }}" class="btn btn-primary">
+        <span class="btn-label">{{ action_label }}</span>
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{# === STEPPER === #}
+
+{% macro stepper(steps, current=1) %}
+<ol class="stepper" aria-label="Progreso del proceso">
+  {% for step in steps %}
+    {% set state = 'completed' if loop.index < current else ('active' if loop.index == current else 'pending') %}
+    <li class="stepper__step stepper__step--{{ state }}"
+        {% if loop.index == current %}aria-current="step"{% endif %}>
+      <span class="stepper__number" aria-hidden="true">
+        {% if state == 'completed' %}<i class="bi bi-check-lg"></i>{% else %}{{ loop.index }}{% endif %}
+      </span>
+      <span class="stepper__label">{{ step.label }}</span>
+    </li>
+  {% endfor %}
+</ol>
+{% endmacro %}
+
+
+{# === CONFIRM MODAL === #}
+
+{% macro confirm_modal(id, title, body, confirm_label='Confirmar',
+                       confirm_variant='primary', consequence=none,
+                       icon='question-circle') %}
+<div class="modal fade" id="{{ id }}" tabindex="-1" role="dialog" aria-labelledby="{{ id }}-title">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="{{ id }}-title">
+          <i class="bi bi-{{ icon }} me-2" aria-hidden="true"></i>{{ title }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">{{ body }}</p>
+        {% if consequence %}
+          <div class="alert bg-warning-soft mt-3 mb-0" role="note">
+            <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+            <strong>Atención:</strong> {{ consequence }}
+          </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-{{ confirm_variant }}" data-confirm-trigger>
+          <span class="btn-label">{{ confirm_label }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
