@@ -18,6 +18,7 @@
                         <div class="col-12 col-md-3 text-center mb-3 mb-md-0">
                             <div class="position-relative d-inline-block">
                                 <img src="{{ current_user.avatar_url }}" alt="Foto de perfil"
+                                    id="profileAvatarImg"
                                     class="rounded-circle border border-3 border-light shadow profile-avatar">
                                 {% if has_perm('coordinator.page.view') %}
                                 <span
@@ -25,7 +26,13 @@
                                     Admin
                                 </span>
                                 {% endif %}
+                                <button type="button" id="btnPhotoAction"
+                                        class="btn btn-sm btn-primary rounded-circle position-absolute bottom-0 end-0 d-none"
+                                        title="Cambiar foto">
+                                    <i class="bi bi-camera-fill"></i>
+                                </button>
                             </div>
+                            <div class="mt-2 small" id="photoStatusText"></div>
                             <!-- Botón de editar en móvil -->
                             <div class="d-md-none mt-3">
                                 <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal"
@@ -366,6 +373,74 @@
         </div>
     </div>
 </div>
+<!-- Modal: Subir foto de perfil -->
+<div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cambiar foto de perfil</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="uploadPhotoForm" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="alert alert-info small">
+            <i class="bi bi-info-circle me-2"></i>
+            La imagen se redimensiona a 512 px y se comprime a JPEG (máximo 5 MB de entrada).
+            Formatos permitidos: JPG, PNG, WebP.
+          </div>
+          <div class="text-center mb-3">
+            <img id="photoPreview" src="" alt="Vista previa"
+                 class="rounded-circle border border-3 border-light shadow d-none"
+                 style="width: 160px; height: 160px; object-fit: cover;">
+          </div>
+          <div class="mb-3">
+            <label for="photoFile" class="form-label">Selecciona tu foto</label>
+            <input type="file" class="form-control" id="photoFile" name="photo"
+                   accept="image/jpeg,image/png,image/webp" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnUploadPhotoSubmit">
+            <i class="bi bi-upload me-1"></i>Subir foto
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Solicitar cambio de foto -->
+<div class="modal fade" id="requestPhotoChangeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Solicitar cambio de foto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="requestPhotoChangeForm">
+        <div class="modal-body">
+          <p class="small text-muted">
+            Tu foto de perfil sólo puede modificarse con autorización del coordinador.
+            Envía una solicitud explicando el motivo del cambio.
+          </p>
+          <div class="mb-3">
+            <label for="photoChangeReason" class="form-label">Motivo (opcional)</label>
+            <textarea class="form-control" id="photoChangeReason" rows="3"
+                      placeholder="Describe brevemente por qué necesitas cambiar tu foto..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send me-1"></i>Enviar solicitud
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para subir documento -->
 <div class="modal fade" id="uploadDocumentModal" tabindex="-1" aria-labelledby="uploadDocumentModalLabel"
     aria-hidden="true">
@@ -419,4 +494,6 @@
 {{ super() }}
 <script src="{{ url_for('static', filename='js/user/profile.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/user/profile_notifications.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/user/profile_activity.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/user/profile_photo.js') }}?v={{ static_version }}"></script>
 {% endblock %}
