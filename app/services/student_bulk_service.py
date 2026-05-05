@@ -62,6 +62,18 @@ CSV_HEADERS = [
     'admission_period_code', 'has_conacyt',
 ]
 
+# Columnas opcionales del CSV. Si están presentes y no vacías se aplican al
+# perfil del estudiante. Si faltan o vienen vacías se ignoran (no falla la
+# validación). Cualquier columna extra fuera de esta lista se descarta.
+CSV_OPTIONAL_HEADERS = [
+    'phone', 'mobile_phone', 'address',
+    'curp', 'rfc', 'nss', 'cedula_profesional',
+    'birth_date',          # 'YYYY-MM-DD'
+    'birth_place',
+    'emergency_contact_name', 'emergency_contact_phone',
+    'emergency_contact_relationship',
+]
+
 CSV_EXAMPLE_ROW = [
     'Juan', 'García', 'López', 'jgarcia@ejemplo.com',
     'M21111001', 'maestria-ingenieria', '3',
@@ -208,6 +220,39 @@ def validate_individual(payload: dict) -> dict:
     else:
         has_conacyt = bool(raw_conacyt)
     normalized['has_conacyt'] = has_conacyt
+
+    # --- Campos opcionales del perfil ---
+    # Se ignora silenciosamente cualquier campo opcional vacío. Sólo birth_date
+    # se valida estrictamente porque debe parsearse a date.
+    for field in ('phone', 'mobile_phone', 'address', 'curp', 'rfc', 'nss',
+                  'cedula_profesional', 'birth_place',
+                  'emergency_contact_name', 'emergency_contact_phone',
+                  'emergency_contact_relationship'):
+        raw = payload.get(field)
+        if raw is None:
+            normalized[field] = None
+        else:
+            value = str(raw).strip()
+            normalized[field] = value or None
+
+    raw_birth = payload.get('birth_date')
+    if raw_birth is None or (isinstance(raw_birth, str) and not raw_birth.strip()):
+        normalized['birth_date'] = None
+    else:
+        from datetime import date as _date
+        try:
+            if isinstance(raw_birth, _date):
+                normalized['birth_date'] = raw_birth
+            else:
+                # Acepta 'YYYY-MM-DD' o 'YYYY-MM-DD HH:MM[:SS]'
+                date_str = str(raw_birth).strip().split(' ')[0]
+                y, m, d = date_str.split('-')
+                normalized['birth_date'] = _date(int(y), int(m), int(d))
+        except (ValueError, AttributeError):
+            errors.append(
+                f'birth_date inválido ({raw_birth!r}). Formato esperado: YYYY-MM-DD.'
+            )
+            normalized['birth_date'] = None
 
     # --- Validaciones cronológicas (solo si no hubo errores previos críticos) ---
     if admission_period and current_semester and current_semester >= 1:
@@ -372,6 +417,18 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
         user.profile_completed = False
         user.registration_date = now_local()
 
+        # Aplicar campos opcionales del perfil si vinieron en el payload
+        for field in ('phone', 'mobile_phone', 'address', 'curp', 'rfc', 'nss',
+                      'cedula_profesional', 'birth_date', 'birth_place',
+                      'emergency_contact_name', 'emergency_contact_phone',
+                      'emergency_contact_relationship'):
+            value = normalized.get(field)
+            if value is not None:
+                setattr(user, field, value)
+
+        # Si vino suficiente info, marcar perfil como completo
+        user.update_profile_completion_status()
+
         db.session.add(user)
         db.session.flush()  # obtener user.id
 
@@ -518,9 +575,12 @@ def validate_csv(csv_text: str) -> dict:
     duplicate_emails = {e for e, indices in intra_emails.items() if len(indices) > 1}
     duplicate_controls = {c for c, indices in intra_controls.items() if len(indices) > 1}
 
-    # Validar cada fila
+    # Validar cada fila — pasar también campos opcionales si están en el CSV
+    available_optional = [h for h in CSV_OPTIONAL_HEADERS if h in (reader.fieldnames or [])]
     for i, row in enumerate(raw_rows, start=1):
         payload = {k: (row.get(k) or '').strip() for k in CSV_HEADERS}
+        for k in available_optional:
+            payload[k] = (row.get(k) or '').strip()
         result = validate_individual(payload)
 
         extra_errors = []
