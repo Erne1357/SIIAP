@@ -45,3 +45,28 @@
 {# === MARCA DE CAMPO REQUERIDO === #}
 
 {% macro required_mark() %}<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>{% endmacro %}
+
+
+{# === STATUS BADGE === #}
+{# Mapa de estados (sincronizado con app/static/js/utils/status.js) #}
+
+{% set _STATUS_META = {
+  'in_progress':         {'icon': 'arrow-repeat',         'label': 'En proceso'},
+  'interview_completed': {'icon': 'mic-fill',             'label': 'Entrevista completada'},
+  'deliberation':        {'icon': 'hourglass-split',      'label': 'En deliberación'},
+  'accepted':            {'icon': 'check-circle-fill',    'label': 'Aceptado'},
+  'approved':            {'icon': 'check-circle-fill',    'label': 'Aprobado'},
+  'rejected':            {'icon': 'x-circle-fill',        'label': 'Rechazado'},
+  'deferred':            {'icon': 'arrow-right-circle',   'label': 'Diferido'},
+  'enrolled':            {'icon': 'mortarboard-fill',     'label': 'Inscrito'},
+  'pending':             {'icon': 'clock',                'label': 'Pendiente'},
+} %}
+
+{% macro status_badge(status, label=none, size='') %}
+  {% set s = _STATUS_META.get(status, {'icon': 'circle', 'label': status}) %}
+  {% set size_class = 'status-badge--' ~ size if size else '' %}
+  <span class="status-badge status-badge--{{ status|replace('_', '-') }} {{ size_class }}">
+    <i class="bi bi-{{ s.icon }}" aria-hidden="true"></i>
+    <span>{{ label or s.label }}</span>
+  </span>
+{% endmacro %}
