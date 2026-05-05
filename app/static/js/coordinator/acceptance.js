@@ -262,6 +262,7 @@ class AcceptanceManager {
                                     onclick="acceptanceManager.showDeferModal(${user.id}, ${up.program_id}, '${safeName}')">
                                 <i class="bi bi-arrow-clockwise"></i> Diferir
                             </button>
+                            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                         </div>
                     </td>
                 </tr>

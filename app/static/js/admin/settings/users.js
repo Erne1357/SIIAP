@@ -114,11 +114,12 @@
                             <i class="bi bi-123"></i>
                         </button>
                         ` : ''}
-                        <button class="btn btn-outline-${user.is_active ? 'danger' : 'success'}" 
-                                onclick="window.usersManager.toggleUserActive(${user.id})" 
+                        <button class="btn btn-outline-${user.is_active ? 'danger' : 'success'}"
+                                onclick="window.usersManager.toggleUserActive(${user.id})"
                                 title="${user.is_active ? 'Desactivar' : 'Activar'}">
                             <i class="bi bi-${user.is_active ? 'x-circle' : 'check-circle'}"></i>
                         </button>
+                        ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                     </div>
                 </td>
             </tr>

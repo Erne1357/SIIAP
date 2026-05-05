@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Expediente · {{ record.user.first_name }} {{ record.user.last_name }}</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  body { font-family: Arial, sans-serif; font-size: 10.5pt; color: #222; }
+  h1 { font-size: 16pt; margin: 0 0 4pt; }
+  h2 { font-size: 12pt; margin: 16pt 0 6pt; padding-bottom: 2pt; border-bottom: 1px solid #999; }
+  h3 { font-size: 11pt; margin: 10pt 0 4pt; }
+  .meta { color: #555; font-size: 9pt; margin-bottom: 12pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  th, td { padding: 4pt 6pt; border-bottom: 1px solid #ccc; text-align: left; vertical-align: top; }
+  th { background: #f3f3f3; }
+  .grid { display: table; width: 100%; }
+  .grid .row { display: table-row; }
+  .grid .cell { display: table-cell; padding: 2pt 8pt 2pt 0; vertical-align: top; }
+  .label { color: #555; font-size: 9pt; }
+  .value { font-weight: 600; }
+  .small { font-size: 9pt; color: #555; }
+  .badge { display: inline-block; padding: 1pt 6pt; border-radius: 8pt; background: #eee; font-size: 9pt; }
+</style>
+</head>
+<body>
+  <h1>Expediente del estudiante</h1>
+  <div class="meta">
+    {{ record.user.first_name }} {{ record.user.last_name }} {{ record.user.mother_last_name or '' }}
+    · {{ record.user.email }}
+    {% if record.user.control_number %}· N° Control: {{ record.user.control_number }}{% endif %}
+  </div>
+
+  <h2>Información personal</h2>
+  <div class="grid">
+    <div class="row">
+      <div class="cell"><span class="label">Teléfono:</span> <span class="value">{{ record.user.phone or '—' }}</span></div>
+      <div class="cell"><span class="label">Celular:</span> <span class="value">{{ record.user.mobile_phone or '—' }}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell"><span class="label">CURP:</span> <span class="value">{{ record.user.curp or '—' }}</span></div>
+      <div class="cell"><span class="label">RFC:</span> <span class="value">{{ record.user.rfc or '—' }}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell"><span class="label">NSS:</span> <span class="value">{{ record.user.nss or '—' }}</span></div>
+      <div class="cell"><span class="label">Cédula:</span> <span class="value">{{ record.user.cedula_profesional or '—' }}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell"><span class="label">Fecha nac.:</span> <span class="value">{{ record.user.birth_date or '—' }}</span></div>
+      <div class="cell"><span class="label">Lugar nac.:</span> <span class="value">{{ record.user.birth_place or '—' }}</span></div>
+    </div>
+    <div class="row">
+      <div class="cell" style="width: 100%"><span class="label">Dirección:</span> <span class="value">{{ record.user.address or '—' }}</span></div>
+    </div>
+  </div>
+
+  <h3>Contacto de emergencia</h3>
+  <div class="grid">
+    <div class="row">
+      <div class="cell"><span class="label">Nombre:</span> <span class="value">{{ record.user.emergency_contact_name or '—' }}</span></div>
+      <div class="cell"><span class="label">Teléfono:</span> <span class="value">{{ record.user.emergency_contact_phone or '—' }}</span></div>
+      <div class="cell"><span class="label">Parentesco:</span> <span class="value">{{ record.user.emergency_contact_relationship or '—' }}</span></div>
+    </div>
+  </div>
+
+  <h2>Información académica</h2>
+  {% if record.programs %}
+  <table>
+    <thead><tr><th>Programa</th><th>Estado</th><th>Periodo admisión</th><th>Semestre actual</th><th>CONACyT</th></tr></thead>
+    <tbody>
+    {% for p in record.programs %}
+      <tr>
+        <td>{{ p.program_name }}</td>
+        <td>{{ p.admission_status }}</td>
+        <td>{{ p.admission_period_name or '—' }}</td>
+        <td>{{ p.current_semester or '—' }}</td>
+        <td>{{ 'Sí' if p.has_conacyt_scholarship else 'No' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="small">Sin programas asignados.</p>{% endif %}
+
+  <h2>Documentos de aceptación</h2>
+  {% if record.acceptance_documents %}
+  <table>
+    <thead><tr><th>Tipo</th><th>Estado</th><th>Subido</th></tr></thead>
+    <tbody>
+    {% for d in record.acceptance_documents %}
+      <tr>
+        <td>{{ d.document_type }}</td>
+        <td><span class="badge">{{ d.status }}</span></td>
+        <td>{{ d.uploaded_at or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="small">Sin documentos de aceptación.</p>{% endif %}
+
+  <h2>Inscripciones semestrales</h2>
+  {% if record.semester_enrollments %}
+  <table>
+    <thead><tr><th>Semestre</th><th>Periodo</th><th>Estado</th><th>Confirmado</th><th>Confirmado el</th></tr></thead>
+    <tbody>
+    {% for s in record.semester_enrollments %}
+      <tr>
+        <td>{{ s.semester_number }}</td>
+        <td>{{ s.academic_period_name or '—' }}</td>
+        <td>{{ s.status }}</td>
+        <td>{{ 'Sí' if s.enrollment_confirmed else 'No' }}</td>
+        <td>{{ s.confirmed_at or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="small">Sin inscripciones registradas.</p>{% endif %}
+
+  <h2>Entrevista</h2>
+  {% if record.interview %}
+  <p>
+    <strong>{{ record.interview.event_title }}</strong> ({{ record.interview.status }})
+    {% if record.interview.event_date %}· {{ record.interview.event_date }}{% endif %}
+  </p>
+  {% if record.interview.interviewer %}
+  <p class="small">Entrevistador: {{ record.interview.interviewer.name }} ({{ record.interview.interviewer.email }})</p>
+  {% endif %}
+  {% if record.interview.notes %}<p class="small">Notas: {{ record.interview.notes }}</p>{% endif %}
+  {% else %}<p class="small">Sin entrevista registrada.</p>{% endif %}
+
+  <h2>Eventos</h2>
+  {% if record.events_attended %}
+  <table>
+    <thead><tr><th>Evento</th><th>Fecha</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for ev in record.events_attended %}
+      <tr><td>{{ ev.title }}</td><td>{{ ev.event_date or '—' }}</td><td>{{ ev.status }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="small">Sin participación en eventos.</p>{% endif %}
+
+  <h2>Diferimientos</h2>
+  {% if record.deferrals %}
+  <table>
+    <thead><tr><th>#</th><th>Estado</th><th>Solicitado por</th><th>Periodo origen</th><th>Periodo destino</th></tr></thead>
+    <tbody>
+    {% for d in record.deferrals %}
+      <tr>
+        <td>{{ d.deferral_number }}</td>
+        <td>{{ d.status }}</td>
+        <td>{{ d.requested_by }}</td>
+        <td>{{ d.original_period_name or '—' }}</td>
+        <td>{{ d.deferred_to_period_name or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="small">Sin diferimientos.</p>{% endif %}
+
+  <h2>Historial</h2>
+  {% if record.history %}
+  <table>
+    <thead><tr><th>Fecha</th><th>Acción</th><th>Detalles</th></tr></thead>
+    <tbody>
+    {% for h in record.history[:50] %}
+      <tr><td>{{ h.timestamp }}</td><td>{{ h.action_label or h.action }}</td><td>{{ h.details or '' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="small">Sin historial.</p>{% endif %}
+</body>
+</html>

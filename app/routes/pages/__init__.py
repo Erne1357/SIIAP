@@ -14,6 +14,7 @@ def register_page_blueprints(app):
     from app.routes.pages.admin.admin_pages import pages_admin
     from app.routes.pages.coordinator_pages import pages_coordinator
     from app.routes.pages.event_pages import pages_events_public
+    from app.routes.pages.student_record_pages import pages_student_record
 
     blueprints = [
         pages_auth,
@@ -22,6 +23,7 @@ def register_page_blueprints(app):
         pages_admin,
         pages_coordinator,
         pages_events_public,
+        pages_student_record,
     ]
 
     for bp in blueprints:
