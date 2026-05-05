@@ -219,9 +219,11 @@ class PermanenceManager {
     empty?.classList.add('d-none');
     if (list) list.innerHTML = '';
 
+    const showArchived = document.getElementById('toggleShowArchivedDeadlines')?.checked ? 'true' : 'false';
+
     try {
       const [dlResults, pdResults] = await Promise.all([
-        this._fanFetch(pid => `/api/v1/permanence/program/${pid}/deadlines`),
+        this._fanFetch(pid => `/api/v1/permanence/program/${pid}/deadlines?include_archived=${showArchived}`),
         this._fanFetch(pid => `/api/v1/permanence/program/${pid}/pending-documents`),
       ]);
       loading?.classList.add('d-none');
@@ -254,8 +256,10 @@ class PermanenceManager {
 
       if (!deadlines.length) {
         empty?.classList.remove('d-none');
+        this._deadlinesCache = [];
         return;
       }
+      this._deadlinesCache = deadlines;
       list.innerHTML = deadlines
         .map(dl => this.renderDeadlineCard(dl, pendingByDeadline[dl.id] || []))
         .join('');
@@ -420,49 +424,20 @@ class PermanenceManager {
     const toggleTitle = dl.is_open ? 'Cerrar ventana' : 'Abrir ventana';
     const toggleCls = dl.is_open ? 'btn-outline-secondary' : 'btn-outline-success';
 
+    // Sólo se muestra un badge con el conteo y un link al panel central de
+    // revisión de documentos. La aprobación/rechazo ya no ocurre aquí; se
+    // hace en /admin/review/submissions?phase=permanence con todos los
+    // metadatos (programa, ventana, semestre, periodo, historial).
     const pendingSection = pendingDocs.length ? `
-      <div class="border-top mt-2 pt-2">
-        <div class="small fw-semibold text-warning mb-2">
-          <i class="bi bi-hourglass-split me-1"></i>${pendingDocs.length} entrega(s) por revisar
-        </div>
-        <div class="table-responsive">
-          <table class="table table-sm mb-0">
-            <tbody>
-              ${pendingDocs.map(d => {
-                const sub = d.submission;
-                const uploadDate = sub.upload_date
-                  ? new Date(sub.upload_date).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'})
-                  : '—';
-                const viewBtn = sub.file_path
-                  ? `<a href="/files/doc/${sub.file_path}" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2">
-                       <i class="bi bi-eye"></i>
-                     </a>`
-                  : '';
-                return `
-                  <tr>
-                    <td class="py-1">
-                      <span class="fw-semibold small">${this.escapeHtml(d.user.full_name)}</span>
-                      <span class="text-muted small ms-1 font-monospace">${d.user.control_number || ''}</span>
-                    </td>
-                    <td class="py-1 text-muted small">${uploadDate}</td>
-                    <td class="py-1 text-end">
-                      <div class="d-flex gap-1 justify-content-end">
-                        ${viewBtn}
-                        <button class="btn btn-sm btn-success py-0 px-2"
-                          onclick="permanenceManager.showReviewModal(${sub.id}, '${this.escapeHtml(d.user.full_name)}', '${this.escapeHtml(d.deadline_label)}')">
-                          <i class="bi bi-check-lg"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger py-0 px-2"
-                          onclick="permanenceManager.showReviewModal(${sub.id}, '${this.escapeHtml(d.user.full_name)}', '${this.escapeHtml(d.deadline_label)}', true)">
-                          <i class="bi bi-x-lg"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
+      <div class="border-top mt-2 pt-2 d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge bg-warning text-dark">
+          <i class="bi bi-hourglass-split me-1"></i>${pendingDocs.length} pendiente(s) de revisión
+        </span>
+        <a href="/admin/review/submissions?phase=permanence&status=review"
+           class="btn btn-sm btn-outline-warning" target="_blank" rel="noopener">
+          <i class="bi bi-clipboard2-check me-1"></i>Ir a revisión
+        </a>
+        <span class="small text-muted">La revisión se centraliza en el panel de Documentos.</span>
       </div>` : '';
 
     return `
@@ -484,14 +459,26 @@ class PermanenceManager {
                 ${dl.stats.total} entregas
                 ${dl.stats.approved ? `· <span class="text-success">${dl.stats.approved} ✓</span>` : ''}
               </span>
-              <button class="btn btn-sm ${toggleCls}" title="${toggleTitle}"
-                onclick="permanenceManager.toggleDeadline(${dl.id}, ${!dl.is_open})">
-                <i class="bi ${toggleIcon}"></i>
-              </button>
-              <button class="btn btn-sm btn-outline-danger" title="Eliminar ventana"
-                onclick="permanenceManager.deleteDeadline(${dl.id}, '${this.escapeHtml(dl.label)}')">
-                <i class="bi bi-trash3"></i>
-              </button>
+              ${dl.is_archived ? `
+                <span class="badge bg-secondary"><i class="bi bi-archive-fill me-1"></i>Archivada</span>
+                <button class="btn btn-sm btn-outline-success" title="Restaurar ventana"
+                  onclick="permanenceManager.restoreDeadline(${dl.id})">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+              ` : `
+                <button class="btn btn-sm btn-outline-primary" title="Editar ventana"
+                  onclick="permanenceManager.openEditDeadlineModal(${dl.id})">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm ${toggleCls}" title="${toggleTitle}"
+                  onclick="permanenceManager.toggleDeadline(${dl.id}, ${!dl.is_open})">
+                  <i class="bi ${toggleIcon}"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-warning" title="Archivar ventana"
+                  onclick="permanenceManager.archiveDeadline(${dl.id}, '${this.escapeHtml(dl.label)}')">
+                  <i class="bi bi-archive"></i>
+                </button>
+              `}
             </div>
           </div>
           ${pendingSection}
@@ -567,6 +554,8 @@ class PermanenceManager {
     fd.append('academic_period_id', this.activePeriodId);
     if (notes) fd.append('notes', notes);
     if (file) fd.append('payment_proof', file);
+    // 'advance' = avance manual desde Rezagados → coordinador asume el salto explícitamente
+    if (mode === 'advance') fd.append('force', 'true');
 
     try {
       const res = await fetch(endpoint, {
@@ -701,6 +690,7 @@ class PermanenceManager {
               onclick="permanenceManager.showConfirmModal(${r.user_program.id}, '${safeName}', '${mode}', '${safeProofUrl}')">
               <i class="bi bi-check-lg me-1"></i>${btnLabel}
             </button>
+            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(u.id) : ''}
           </td>
         </tr>`;
     }).join('');
@@ -751,7 +741,7 @@ class PermanenceManager {
           </td>
           <td class="text-center"><span class="badge bg-info">${ce?.semester_number || '—'}</span></td>
           <td class="text-center">${proofCell}</td>
-          <td class="text-center">${completeBtn}</td>
+          <td class="text-center">${completeBtn} ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(u.id) : ''}</td>
         </tr>`;
     }).join('');
   }
@@ -1261,10 +1251,16 @@ class PermanenceManager {
     }
   }
 
-  deleteDeadline(deadlineId, label) {
+  // ── Archivar ventana (soft-delete) ─────────────────────────────────────
+  archiveDeadline(deadlineId, label) {
     document.getElementById('deleteDeadlineId').value = deadlineId;
     document.getElementById('deleteDeadlineLabel').textContent = label;
     new bootstrap.Modal(document.getElementById('deleteDeadlineModal')).show();
+  }
+
+  // Alias retro-compat (cualquier llamada antigua a deleteDeadline ahora archiva)
+  deleteDeadline(deadlineId, label) {
+    return this.archiveDeadline(deadlineId, label);
   }
 
   async _confirmDeleteDeadline() {
@@ -1279,7 +1275,71 @@ class PermanenceManager {
       (json.flash || []).forEach(f => showFlash(f.level, f.message));
       if (res.ok && !json.error) this.loadDocumentsTabData();
     } catch (e) {
-      showFlash('danger', `Error al eliminar ventana: ${e.message}`);
+      showFlash('danger', `Error al archivar ventana: ${e.message}`);
+    }
+  }
+
+  async restoreDeadline(deadlineId) {
+    try {
+      const res = await fetch(`/api/v1/permanence/deadlines/${deadlineId}/restore`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': this.csrfToken },
+      });
+      const json = await res.json();
+      (json.flash || []).forEach(f => showFlash(f.level, f.message));
+      if (res.ok && !json.error) this.loadDocumentsTabData();
+    } catch (e) {
+      showFlash('danger', `Error al restaurar ventana: ${e.message}`);
+    }
+  }
+
+  // ── Editar ventana de entrega ──────────────────────────────────────────────
+  openEditDeadlineModal(deadlineId) {
+    // Localizar la ventana en el cache `_deadlinesCache` poblado por loadDocumentsTabData
+    const dl = (this._deadlinesCache || []).find(d => d.id === deadlineId);
+    if (!dl) {
+      showFlash('warning', 'Ventana no encontrada en la vista actual.');
+      return;
+    }
+    document.getElementById('editDeadlineId').value = dl.id;
+    document.getElementById('editDeadlineLabel').value = dl.label || '';
+    // Convertir ISO timestamp a 'YYYY-MM-DDTHH:MM' (datetime-local)
+    const toLocalDt = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const tz = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - tz).toISOString().slice(0, 16);
+    };
+    document.getElementById('editDeadlineOpensAt').value = toLocalDt(dl.opens_at);
+    document.getElementById('editDeadlineClosesAt').value = toLocalDt(dl.closes_at);
+    document.getElementById('editDeadlineIsOpen').checked = !!dl.is_open;
+    new bootstrap.Modal(document.getElementById('editDeadlineModal')).show();
+  }
+
+  async _submitEditDeadline() {
+    const id = parseInt(document.getElementById('editDeadlineId').value, 10);
+    if (!id) return;
+    const payload = {
+      label: document.getElementById('editDeadlineLabel').value.trim(),
+      opens_at: document.getElementById('editDeadlineOpensAt').value || null,
+      closes_at: document.getElementById('editDeadlineClosesAt').value || null,
+      is_open: document.getElementById('editDeadlineIsOpen').checked,
+    };
+    try {
+      const res = await fetch(`/api/v1/permanence/deadlines/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      (json.flash || []).forEach(f => showFlash(f.level, f.message));
+      if (res.ok && !json.error) {
+        bootstrap.Modal.getInstance(document.getElementById('editDeadlineModal'))?.hide();
+        this.loadDocumentsTabData();
+      }
+    } catch (e) {
+      showFlash('danger', `Error al actualizar ventana: ${e.message}`);
     }
   }
 
@@ -1361,6 +1421,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Confirmar eliminación de ventana ──
   document.getElementById('btnConfirmDeleteDeadline')?.addEventListener('click', () => {
     permanenceManager?._confirmDeleteDeadline();
+  });
+
+  // ── Guardar edición de ventana ──
+  document.getElementById('btnSaveEditDeadline')?.addEventListener('click', () => {
+    permanenceManager?._submitEditDeadline();
+  });
+
+  // ── Toggle "mostrar archivadas" ──
+  document.getElementById('toggleShowArchivedDeadlines')?.addEventListener('change', () => {
+    permanenceManager?.loadDocumentsTabData();
   });
 
   // ── Doble confirmación CONACyT (toggle desde tabla) ──

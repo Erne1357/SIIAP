@@ -135,12 +135,14 @@
 
   function buildUploadForm(upId, dlId, label) {
     return `
-      <form class="doc-upload-form d-flex align-items-center gap-2" data-up-id="${upId}" data-dl-id="${dlId}">
-        <input type="file" class="form-control form-control-sm doc-upload-input"
-               accept=".pdf,.doc,.docx,.jpg,.png" required>
-        <button type="submit" class="btn btn-sm btn-primary text-nowrap">
-          <i class="bi bi-upload me-1"></i>Subir
-        </button>
+      <form class="doc-upload-form" data-up-id="${upId}" data-dl-id="${dlId}">
+        <div class="input-group input-group-sm" style="min-width: 260px;">
+          <input type="file" class="form-control doc-upload-input"
+                 accept=".pdf,.doc,.docx,.jpg,.png" required>
+          <button type="submit" class="btn btn-primary text-nowrap">
+            <i class="bi bi-upload me-1"></i>Subir
+          </button>
+        </div>
       </form>`;
   }
 
@@ -178,39 +180,24 @@
   function renderEnrollmentPayment(data) {
     const container = document.getElementById('enrollmentPaymentContainer');
     if (!container) return;
+    const card = document.getElementById('cardEnrollmentPayment');
 
     if (!data) {
-      container.innerHTML = `
-        <div class="alert alert-secondary d-flex gap-2 align-items-center mb-0 py-2 small">
-          <i class="bi bi-info-circle-fill fs-5"></i>
-          <span>No hay inscripción activa para este periodo.</span>
-        </div>`;
+      if (card) card.classList.add('d-none');
       return;
     }
 
-    // Inscripción confirmada
+    // Inscripción confirmada — ocultar la card completa
     if (data.enrollment_confirmed) {
-      const confirmedAt = data.confirmed_at
-        ? new Date(data.confirmed_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
-        : '';
-      const semNum = data.semester_number ? `Semestre ${escHtml(String(data.semester_number))}` : '';
-      container.innerHTML = `
-        <div class="d-flex align-items-center gap-3">
-          <i class="bi bi-check-circle-fill text-success fs-2 flex-shrink-0"></i>
-          <div>
-            <div class="fw-semibold text-success">Inscripción confirmada</div>
-            <div class="small text-muted">
-              ${semNum}${semNum && confirmedAt ? ' · ' : ''}${confirmedAt ? 'Confirmado el ' + escHtml(confirmedAt) : ''}
-            </div>
-          </div>
-        </div>`;
+      if (card) card.classList.add('d-none');
       return;
     }
 
     // Inscripción pendiente de confirmación
-    const ref    = data.payment_reference  || null;
-    const amount = data.payment_amount     || null;
-    const due    = data.payment_due_date   || null;
+    const paymentRef = data.payment_reference || {};
+    const ref    = paymentRef.reference || null;
+    const amount = paymentRef.amount    || data.payment_amount     || null;
+    const due    = paymentRef.due_date  || data.payment_due_date   || null;
     const proof  = data.payment_proof_path || null;
 
     let refHtml = '';
@@ -321,49 +308,6 @@
         }
       }
     });
-  }
-
-  // ── Referencia Bancaria ──────────────────────────────────────────────────
-  async function loadPaymentReference() {
-    const container = document.getElementById('paymentRefContainer');
-    if (!container) return;
-    try {
-      const res = await fetch(`/api/v1/permanence/user-program/${UP_ID}/payment-reference`);
-      const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
-      const d = json.data;
-
-      if (!d.configured) {
-        container.innerHTML = `
-          <div class="alert alert-secondary d-flex gap-2 align-items-center mb-0 py-2 small">
-            <i class="bi bi-info-circle-fill fs-5"></i>
-            <span>${escHtml(d.error || 'La referencia bancaria no está configurada para tu programa.')}</span>
-          </div>`;
-        return;
-      }
-
-      if (d.file_url) {
-        container.innerHTML = `
-          <div class="d-flex align-items-center gap-3">
-            <i class="bi bi-file-earmark-pdf text-danger fs-3"></i>
-            <div>
-              <div class="fw-semibold">Tu referencia bancaria está lista</div>
-              <div class="small text-muted mb-2">${escHtml(d.template_name || '')}</div>
-              <a href="${d.file_url}" target="_blank" class="btn btn-sm btn-success">
-                <i class="bi bi-download me-1"></i>Descargar referencia
-              </a>
-            </div>
-          </div>`;
-      } else {
-        container.innerHTML = `
-          <div class="alert alert-info d-flex gap-2 align-items-center mb-0 py-2 small">
-            <i class="bi bi-hourglass-split fs-5"></i>
-            <span>${escHtml(d.error || 'La generación de referencias estará disponible próximamente.')}</span>
-          </div>`;
-      }
-    } catch (e) {
-      container.innerHTML = `<div class="alert alert-danger small mb-0">Error al cargar la referencia: ${e.message}</div>`;
-    }
   }
 
   // ── Solicitud de Baja Temporal ───────────────────────────────────────────
@@ -483,7 +427,6 @@
   document.addEventListener('DOMContentLoaded', () => {
     loadEnrollmentPayment();
     bindPaymentProofForm();
-    loadPaymentReference();
     loadStudentDocs();
     loadLeaveRequest();
   });

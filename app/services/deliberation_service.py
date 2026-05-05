@@ -102,7 +102,7 @@ def get_user_program(user_id: int, program_id: int):
     return up
 
 
-def mark_interview_completed(user_id: int, program_id: int):
+def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int = None):
     """
     Marca que el aspirante completo su entrevista.
     Esto lo prepara para entrar en deliberacion.
@@ -111,12 +111,14 @@ def mark_interview_completed(user_id: int, program_id: int):
     Args:
         user_id: ID del usuario
         program_id: ID del programa
+        coordinator_id: ID del coordinador que marca la entrevista (para audit log)
 
     Returns:
         UserProgram actualizado
     """
     from app.models.appointment import Appointment
     from app.models.event import Event
+    from app.services.user_history_service import UserHistoryService
 
     up = get_user_program(user_id, program_id)
 
@@ -140,6 +142,17 @@ def mark_interview_completed(user_id: int, program_id: int):
 
     if appointment:
         appointment.status = 'done'
+
+    program_name = up.program.name if up.program else f'programa {program_id}'
+    UserHistoryService.log_action(
+        user_id=user_id,
+        admin_id=coordinator_id or user_id,
+        action='interview_completed',
+        details=(
+            f'Entrevista marcada como completada en {program_name}'
+            + (f' (cita #{appointment.id})' if appointment else '')
+        ),
+    )
 
     db.session.commit()
 
@@ -219,7 +232,8 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
     return up
 
 
-def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str = None):
+def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str = None,
+                     is_conditional: bool = False, dictamen_file=None):
     """
     Acepta a un aspirante en el programa.
 
@@ -228,15 +242,25 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         program_id: ID del programa
         decision_by: ID del usuario que toma la decision
         notes: Notas opcionales sobre la decision
+        is_conditional: Si True, marca la aceptación como condicionada (requiere dictamen)
+        dictamen_file: FileStorage con el "Dictamen de Aceptación" (obligatorio si is_conditional)
 
     Returns:
         UserProgram actualizado
     """
+    from app.models.acceptance_document import AcceptanceDocument
+    from app.utils.files import save_user_doc
+
     up = get_user_program(user_id, program_id)
 
     if up.admission_status not in ['deliberation', 'interview_completed']:
         raise InvalidStateTransition(
             f"Solo se puede aceptar desde 'deliberation' o 'interview_completed', estado actual: '{up.admission_status}'"
+        )
+
+    if is_conditional and not dictamen_file:
+        raise ValueError(
+            "Para aceptación condicionada se requiere adjuntar el 'Dictamen de Aceptación' (archivo PDF)."
         )
 
     up.accept(decision_by=decision_by, notes=notes)
@@ -245,12 +269,37 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     user = User.query.get(user_id)
     program = Program.query.get(program_id)
 
+    # Guardar Dictamen de Aceptación cuando es aceptación condicionada
+    if is_conditional and dictamen_file:
+        file_path = save_user_doc(dictamen_file, user_id, 'acceptance', 'dictamen_aceptacion')
+        dictamen = AcceptanceDocument.query.filter_by(
+            user_program_id=up.id,
+            document_type='acceptance_opinion',
+        ).first()
+        if not dictamen:
+            dictamen = AcceptanceDocument(
+                user_program_id=up.id,
+                document_type='acceptance_opinion',
+            )
+            db.session.add(dictamen)
+        dictamen.file_path = file_path
+        dictamen.uploaded_by_id = decision_by
+        dictamen.uploaded_at = now_local()
+        dictamen.status = 'uploaded'
+        dictamen.review_notes = notes
+
     # Registrar en historial (en la misma transaccion)
+    history_action = 'admission_accepted_conditional' if is_conditional else 'admission_accepted'
+    history_details = (
+        f'Aceptación condicionada en {program.name}. {notes or ""}'
+        if is_conditional else
+        f'Aceptado en {program.name}. {notes or ""}'
+    )
     UserHistoryService.log_action(
         user_id=user_id,
         admin_id=decision_by,
-        action='admission_accepted',
-        details=f'Aceptado en {program.name}. {notes or ""}'
+        action=history_action,
+        details=history_details,
     )
 
     # Notificar al aspirante con email (en la misma transaccion)

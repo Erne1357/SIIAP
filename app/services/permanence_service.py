@@ -169,6 +169,7 @@ def confirm_semester_enrollment(
     coordinator_id: int,
     notes: str = None,
     payment_proof_path: str = None,
+    force: bool = False,
 ) -> SemesterEnrollment:
     # Webhook futuro:
     # Cuando el SII (Sistema Integral de Información) notifique pagos vía webhook,
@@ -214,6 +215,41 @@ def confirm_semester_enrollment(
         )
 
     if is_new:
+        # ── Buscar el último SE del estudiante para validar y cerrarlo ──
+        last_se = (
+            SemesterEnrollment.query
+            .filter_by(user_program_id=user_program_id)
+            .order_by(SemesterEnrollment.semester_number.desc())
+            .first()
+        )
+
+        # Validación: el periodo destino debe ser el inmediato siguiente al último SE
+        # Permite saltar solo si force=True (coordinador confirma explícitamente)
+        if last_se and last_se.academic_period_id != academic_period_id and not force:
+            last_period = AcademicPeriod.query.get(last_se.academic_period_id)
+            if last_period and last_period.start_date and period.start_date:
+                # Buscar si hay periodos intermedios entre last_period y period
+                intermediate = (
+                    AcademicPeriod.query
+                    .filter(
+                        AcademicPeriod.start_date > last_period.start_date,
+                        AcademicPeriod.start_date < period.start_date,
+                    )
+                    .count()
+                )
+                if intermediate > 0:
+                    raise InvalidStateTransition(
+                        f"El estudiante tiene rezago de {intermediate} periodo(s). "
+                        f"Su último semestre fue en '{last_period.name}' (sem. {last_se.semester_number}). "
+                        f"Para avanzarlo directamente al periodo '{period.name}' se requiere "
+                        f"confirmación explícita del coordinador (force=true)."
+                    )
+
+        # ── Cerrar el SE anterior si está activo/pendiente ──
+        if last_se and last_se.status in ('active', 'pending'):
+            last_se.status = 'completed'
+            last_se.updated_at = now_local()
+
         # Calcular el numero de semestre: uno mas que el maximo registrado
         max_sem = db.session.query(
             db.func.max(SemesterEnrollment.semester_number)
@@ -605,10 +641,13 @@ def get_enrollment_overview(program_id: int) -> dict:
     }
 
 
-def get_deadlines_for_program(program_id: int, academic_period_id: int = None) -> list:
+def get_deadlines_for_program(program_id: int, academic_period_id: int = None,
+                               include_archived: bool = False) -> list:
     """
     Obtiene las ventanas de entrega de un programa para el periodo dado
-    (por defecto el activo). Incluye conteo de submissions por ventana.
+    (por defecto el activo). Por defecto excluye archivadas; pasar
+    ``include_archived=True`` para incluirlas (vista del coordinador con
+    toggle "Mostrar archivadas").
     """
     from app.models.document_deadline import DocumentDeadline
     from app.models.archive import Archive
@@ -620,9 +659,15 @@ def get_deadlines_for_program(program_id: int, academic_period_id: int = None) -
             return []
         academic_period_id = period.id
 
-    deadlines = (
+    q = (
         DocumentDeadline.query
         .filter_by(program_id=program_id, academic_period_id=academic_period_id)
+    )
+    if not include_archived:
+        q = q.filter(DocumentDeadline.is_archived == False)  # noqa: E712
+
+    deadlines = (
+        q
         .join(Archive, DocumentDeadline.archive_id == Archive.id)
         .filter(Archive.is_active == True)
         .order_by(DocumentDeadline.sequence)
@@ -671,6 +716,20 @@ def create_document_deadline(
         created_by=coordinator_id,
     )
     db.session.add(dl)
+    db.session.flush()
+
+    if coordinator_id:
+        UserHistoryService.log_action(
+            user_id=coordinator_id,
+            admin_id=coordinator_id,
+            action='document_deadline_created',
+            details=(
+                f'Creó ventana "{label}" (archive={archive.name}, '
+                f'program={program_id}, period={academic_period_id}, '
+                f'sequence={sequence}, opens_at={opens_at}, closes_at={closes_at})'
+            ),
+        )
+
     try:
         db.session.commit()
     except Exception:
@@ -741,34 +800,151 @@ def toggle_document_deadline(deadline_id: int, is_open: bool, coordinator_id: in
     return dl
 
 
-def delete_document_deadline(deadline_id: int, coordinator_id: int):
-    """Elimina una ventana solo si no tiene submissions."""
+def update_document_deadline(deadline_id: int, coordinator_id: int,
+                              label: str = None,
+                              opens_at=None,
+                              closes_at=None,
+                              is_open: bool = None) -> "DocumentDeadline":
+    """
+    Coordinador edita una ventana de entrega: cambiar label, mover fechas,
+    reabrir/cerrar. Cualquier campo None se ignora.
+
+    Si la ventana se REABRE (transición False→True), notifica a los estudiantes.
+    """
     from app.models.document_deadline import DocumentDeadline
-    from app.models.submission import Submission
 
     dl = DocumentDeadline.query.get(deadline_id)
     if not dl:
         raise StudentNotFound(f"Ventana {deadline_id} no encontrada")
 
-    sub_count = Submission.query.filter_by(document_deadline_id=deadline_id).count()
-    if sub_count > 0:
-        raise InvalidStateTransition(
-            f"No se puede eliminar '{dl.label}': tiene {sub_count} entrega(s) registrada(s)."
-        )
+    changed = []
 
-    label = dl.label
-    db.session.delete(dl)
+    if label is not None and label.strip() and label != dl.label:
+        dl.label = label.strip()
+        changed.append('label')
+
+    if opens_at is not None and opens_at != dl.opens_at:
+        dl.opens_at = opens_at
+        changed.append('opens_at')
+
+    if closes_at is not None and closes_at != dl.closes_at:
+        dl.closes_at = closes_at
+        changed.append('closes_at')
+
+    reopened = False
+    if is_open is not None and bool(is_open) != bool(dl.is_open):
+        if is_open and not dl.is_open:
+            reopened = True
+        dl.is_open = bool(is_open)
+        changed.append('is_open')
+
+    if not changed:
+        return dl
+
     UserHistoryService.log_action(
         user_id=coordinator_id,
         admin_id=coordinator_id,
-        action='deadline_deleted',
-        details=f'Eliminó ventana "{label}"',
+        action='deadline_updated',
+        details=f'Actualizó ventana "{dl.label}" — campos: {", ".join(changed)}',
+    )
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    # Notificar a los estudiantes si la ventana se REABRE explícitamente
+    if reopened:
+        try:
+            student_ids = [
+                up.user_id for up in
+                UserProgram.query.filter_by(
+                    program_id=dl.program_id, admission_status='enrolled'
+                ).all()
+            ]
+            if student_ids:
+                NotificationService.send_bulk(
+                    user_ids=student_ids,
+                    notification_type='deadline_reopened',
+                    title=f'Ventana reabierta: {dl.label}',
+                    message=(
+                        f'La ventana "{dl.label}" se ha reabierto. '
+                        f'Cierra: {dl.closes_at.strftime("%d/%m/%Y") if dl.closes_at else "sin fecha"}.'
+                    ),
+                    priority='medium',
+                    action_url='/user/dashboard',
+                )
+        except Exception as e:
+            logging.error(f"Error notifying students after deadline reopen: {e}")
+
+    return dl
+
+
+def archive_document_deadline(deadline_id: int, coordinator_id: int):
+    """
+    Archiva (soft-delete) una ventana de entrega. No la borra de BD: las
+    submissions ligadas conservan su FK y el historial queda intacto. La
+    ventana deja de aparecer en panels activos pero puede restaurarse.
+    """
+    from app.models.document_deadline import DocumentDeadline
+
+    dl = DocumentDeadline.query.get(deadline_id)
+    if not dl:
+        raise StudentNotFound(f"Ventana {deadline_id} no encontrada")
+
+    if dl.is_archived:
+        raise InvalidStateTransition(f"La ventana '{dl.label}' ya está archivada.")
+
+    dl.is_archived = True
+    dl.archived_at = now_local()
+    dl.archived_by = coordinator_id
+    dl.is_open = False  # Cerrar al archivar para evitar nuevas entregas
+
+    UserHistoryService.log_action(
+        user_id=coordinator_id,
+        admin_id=coordinator_id,
+        action='deadline_archived',
+        details=f'Archivó ventana "{dl.label}"',
     )
     try:
         db.session.commit()
     except Exception:
         db.session.rollback()
         raise
+
+
+def restore_document_deadline(deadline_id: int, coordinator_id: int):
+    """Desarchiva una ventana. Queda cerrada por seguridad — coordinador decide reabrir."""
+    from app.models.document_deadline import DocumentDeadline
+
+    dl = DocumentDeadline.query.get(deadline_id)
+    if not dl:
+        raise StudentNotFound(f"Ventana {deadline_id} no encontrada")
+    if not dl.is_archived:
+        raise InvalidStateTransition(f"La ventana '{dl.label}' no está archivada.")
+
+    dl.is_archived = False
+    dl.archived_at = None
+    dl.archived_by = None
+    dl.is_open = False
+
+    UserHistoryService.log_action(
+        user_id=coordinator_id,
+        admin_id=coordinator_id,
+        action='deadline_restored',
+        details=f'Restauró ventana "{dl.label}"',
+    )
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+# Alias retro-compat: endpoint DELETE existente y cualquier llamador antiguo
+# ahora archiva en vez de borrar. El borrado físico ya no se expone.
+delete_document_deadline = archive_document_deadline
 
 
 def get_student_documents_for_period(user_program_id: int) -> list:
@@ -792,6 +968,7 @@ def get_student_documents_for_period(user_program_id: int) -> list:
     deadlines = (
         DocumentDeadline.query
         .filter_by(program_id=up.program_id, academic_period_id=active_period.id)
+        .filter(DocumentDeadline.is_archived == False)  # noqa: E712
         .join(Archive, DocumentDeadline.archive_id == Archive.id)
         .filter(Archive.is_active == True)
         .order_by(DocumentDeadline.sequence)

@@ -91,6 +91,8 @@ def api_confirm_semester_enrollment(user_program_id):
     """
     academic_period_id = _extract_form_or_json('academic_period_id')
     notes = (_extract_form_or_json('notes') or '').strip() or None
+    force_raw = _extract_form_or_json('force', False)
+    force = str(force_raw).lower() in ('true', '1', 'yes', 'on') if not isinstance(force_raw, bool) else force_raw
 
     if not academic_period_id:
         return jsonify({
@@ -117,6 +119,7 @@ def api_confirm_semester_enrollment(user_program_id):
             coordinator_id=current_user.id,
             notes=notes,
             payment_proof_path=payment_proof_path,
+            force=force,
         )
         return jsonify({
             "data": se.to_dict(),
@@ -356,10 +359,16 @@ def api_get_student_permanence(user_program_id):
 @login_required
 @permission_required('permanence.api.manage_deadlines', program_id_kwarg='program_id')
 def api_get_deadlines(program_id):
-    """Lista ventanas de entrega del periodo activo para un programa."""
+    """Lista ventanas de entrega del periodo activo para un programa.
+    Acepta `?include_archived=true` para mostrar también las archivadas."""
     period_id = request.args.get('period_id', type=int)
+    include_archived = request.args.get('include_archived', 'false', type=str).lower() == 'true'
     try:
-        data = svc.get_deadlines_for_program(program_id, academic_period_id=period_id)
+        data = svc.get_deadlines_for_program(
+            program_id,
+            academic_period_id=period_id,
+            include_archived=include_archived,
+        )
         return jsonify({"data": data, "error": None, "meta": {"count": len(data)}}), 200
     except Exception as e:
         return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
@@ -469,16 +478,66 @@ def api_toggle_deadline(deadline_id):
                         "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
 
 
+@api_permanence.patch('/deadlines/<int:deadline_id>')
+@login_required
+@permission_required('permanence.api.manage_deadlines')
+def api_update_deadline(deadline_id):
+    """Edita una ventana: label / opens_at / closes_at / is_open."""
+    from datetime import datetime
+    data = request.get_json() or {}
+
+    def _parse_dt(value):
+        if value in (None, ''):
+            return None
+        try:
+            # Acepta 'YYYY-MM-DD' (date input) o ISO string
+            if 'T' in value:
+                return datetime.fromisoformat(value.replace('Z', '+00:00'))
+            return datetime.strptime(value, '%Y-%m-%d')
+        except (TypeError, ValueError):
+            return None
+
+    label = data.get('label')
+    opens_at = _parse_dt(data.get('opens_at')) if 'opens_at' in data else None
+    closes_at = _parse_dt(data.get('closes_at')) if 'closes_at' in data else None
+    is_open = data.get('is_open') if 'is_open' in data else None
+
+    try:
+        dl = svc.update_document_deadline(
+            deadline_id=deadline_id,
+            coordinator_id=current_user.id,
+            label=label,
+            opens_at=opens_at,
+            closes_at=closes_at,
+            is_open=is_open,
+        )
+        return jsonify({
+            "data": dl.to_dict(),
+            "flash": [{"level": "success", "message": "Ventana actualizada"}],
+            "error": None,
+            "meta": {}
+        }), 200
+    except svc.StudentNotFound as e:
+        return jsonify({"data": None, "flash": [{"level": "danger", "message": str(e)}],
+                        "error": {"code": "NOT_FOUND", "message": str(e)}, "meta": {}}), 404
+    except Exception as e:
+        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al actualizar ventana"}],
+                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+
+
 @api_permanence.delete('/deadlines/<int:deadline_id>')
 @login_required
 @permission_required('permanence.api.manage_deadlines')
 def api_delete_deadline(deadline_id):
-    """Elimina una ventana (solo si no tiene submissions)."""
+    """
+    Archiva una ventana (soft-delete). Mantiene FK con submissions y permite
+    restaurar después. El verbo HTTP DELETE se conserva para compatibilidad.
+    """
     try:
-        svc.delete_document_deadline(deadline_id=deadline_id, coordinator_id=current_user.id)
+        svc.archive_document_deadline(deadline_id=deadline_id, coordinator_id=current_user.id)
         return jsonify({
             "data": None,
-            "flash": [{"level": "success", "message": "Ventana eliminada"}],
+            "flash": [{"level": "success", "message": "Ventana archivada"}],
             "error": None,
             "meta": {}
         }), 200
@@ -489,7 +548,31 @@ def api_delete_deadline(deadline_id):
         return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
                         "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al eliminar ventana"}],
+        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al archivar ventana"}],
+                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+
+
+@api_permanence.post('/deadlines/<int:deadline_id>/restore')
+@login_required
+@permission_required('permanence.api.manage_deadlines')
+def api_restore_deadline(deadline_id):
+    """Restaura una ventana archivada (la deja cerrada por seguridad)."""
+    try:
+        svc.restore_document_deadline(deadline_id=deadline_id, coordinator_id=current_user.id)
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "success", "message": "Ventana restaurada (queda cerrada)"}],
+            "error": None,
+            "meta": {}
+        }), 200
+    except svc.StudentNotFound as e:
+        return jsonify({"data": None, "flash": [{"level": "danger", "message": str(e)}],
+                        "error": {"code": "NOT_FOUND", "message": str(e)}, "meta": {}}), 404
+    except svc.InvalidStateTransition as e:
+        return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
+                        "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
+    except Exception as e:
+        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al restaurar ventana"}],
                         "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
 
 
@@ -855,11 +938,25 @@ def api_toggle_conacyt_scholarship(user_program_id):
         new_value = not up.has_conacyt_scholarship
 
     up.has_conacyt_scholarship = new_value
+    label_notif = 'activada' if new_value else 'desactivada'
+
+    # Audit log
+    try:
+        from app.services.user_history_service import UserHistoryService
+        UserHistoryService.log_action(
+            user_id=up.user_id,
+            admin_id=current_user.id,
+            action='conacyt_scholarship_changed',
+            details=(
+                f'Beca CONACyT {label_notif} por coordinador en {up.program.name if up.program else "programa"}'
+            ),
+        )
+    except Exception:
+        pass
 
     # Notificar al estudiante
     try:
         from app.services.notification_service import NotificationService
-        label_notif = 'activada' if new_value else 'desactivada'
         NotificationService.create_notification(
             user_id=up.user_id,
             notification_type='conacyt_scholarship_changed',
@@ -882,6 +979,22 @@ def api_toggle_conacyt_scholarship(user_program_id):
             "error": {"code": "SERVER_ERROR", "message": "Error interno"},
             "meta": {}
         }), 500
+
+    # Socket emit: coordinadores y estudiante refrescan en tiempo real
+    try:
+        from app.sockets.emitters import emit_user_and_coordinators
+        emit_user_and_coordinators(
+            'permanence:scholarship_changed',
+            {
+                'user_id': up.user_id,
+                'program_id': up.program_id,
+                'has_conacyt_scholarship': new_value,
+            },
+            user_id=up.user_id,
+            program_id=up.program_id,
+        )
+    except Exception:
+        pass
 
     label = 'activada' if new_value else 'desactivada'
     return jsonify({
