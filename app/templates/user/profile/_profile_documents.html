@@ -2,33 +2,14 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
             <i class="bi bi-file-earmark-text me-2"></i>
-            Documentos
+            Documentos históricos
         </h5>
-        <button class="btn btn-sm btn-outline-secondary" disabled>
-            <i class="bi bi-upload me-1"></i>
-            Subir documento
-        </button>
+        <small class="text-muted">Agrupados por fase y semestre</small>
     </div>
-    <div class="card-body">
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i>
-            <strong>Próximamente:</strong> El sistema de gestión de documentos estará disponible en una futura actualización.
-            Aquí podrás gestionar todos tus documentos académicos y administrativos.
-        </div>
-
-        <div id="documentsPlaceholder" class="text-center py-5">
-            <i class="bi bi-file-earmark-plus fs-1 text-muted"></i>
-            <p class="mt-3 text-muted">Sistema de documentos en desarrollo</p>
-            <small class="text-muted">
-                En esta sección podrás:
-                <ul class="list-unstyled mt-2">
-                    <li>• Subir y descargar documentos</li>
-                    <li>• Ver el estado de revisión</li>
-                    <li>• Recibir comentarios del coordinador</li>
-                    <li>• Gestionar versiones de archivos</li>
-                    <li>• Acceder al historial de documentos</li>
-                </ul>
-            </small>
+    <div class="card-body" id="profileDocumentsHistoryContainer">
+        <div class="text-center py-3 text-muted small">
+            <div class="spinner-border spinner-border-sm me-1" role="status"></div>
+            Cargando documentos...
         </div>
     </div>
 </div>
