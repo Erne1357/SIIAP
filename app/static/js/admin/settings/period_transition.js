@@ -155,20 +155,16 @@
     setTabContent('tabBlocked',           spinnerHtml());
     setTabContent('tabAdmitMigrate',      spinnerHtml());
     setTabContent('tabAdmitExpire',       spinnerHtml());
+    setTabContent('tabAdmitAligned',      spinnerHtml());
     setTabContent('tabDeferred',          spinnerHtml());
     setTabContent('tabOnLeave',           spinnerHtml());
-    updateTabBadges({ will_advance: [], will_block: [], admission_migrate: [], admission_expire: [], deferred_reactivate: [], on_leave: [] });
+    updateTabBadges({ will_advance: [], will_block: [], admission_migrate: [], admission_expire: [], admission_already_aligned: [], deferred_reactivate: [], on_leave: [] });
     disableConfirm(true);
   }
 
   function showPreviewError(msg) {
     const html = `<div class="alert alert-danger m-3"><i class="bi bi-exclamation-triangle me-2"></i>${escHtml(msg)}</div>`;
-    setTabContent('tabAdvance', html);
-    setTabContent('tabBlocked', html);
-    setTabContent('tabAdmitMigrate', html);
-    setTabContent('tabAdmitExpire', html);
-    setTabContent('tabDeferred', html);
-    setTabContent('tabOnLeave', html);
+    ['tabAdvance','tabBlocked','tabAdmitMigrate','tabAdmitExpire','tabAdmitAligned','tabDeferred','tabOnLeave'].forEach(id => setTabContent(id, html));
     disableConfirm(true);
   }
 
@@ -178,28 +174,38 @@
         <i class="bi bi-exclamation-circle me-2"></i>
         No existe un periodo siguiente configurado. Crea el próximo periodo académico antes de ejecutar esta operación.
       </div>`;
-    ['tabAdvance','tabBlocked','tabAdmitMigrate','tabAdmitExpire','tabDeferred','tabOnLeave'].forEach(id => setTabContent(id, html));
+    ['tabAdvance','tabBlocked','tabAdmitMigrate','tabAdmitExpire','tabAdmitAligned','tabDeferred','tabOnLeave'].forEach(id => setTabContent(id, html));
     disableConfirm(true);
   }
 
   function renderPreview(data) {
-    const willAdvance      = data.will_advance        || [];
-    const willBlock        = data.will_block          || [];
-    const admitMigrate     = data.admission_migrate   || [];
-    const admitExpire      = data.admission_expire    || [];
-    const deferredReact    = data.deferred_reactivate || [];
-    const onLeave          = data.on_leave            || [];
+    const willAdvance      = data.will_advance              || [];
+    const willBlock        = data.will_block                || [];
+    const admitMigrate     = data.admission_migrate         || [];
+    const admitExpire      = data.admission_expire          || [];
+    const admitAligned     = data.admission_already_aligned || [];
+    const deferredReact    = data.deferred_reactivate       || [];
+    const onLeave          = data.on_leave                  || [];
 
-    updateTabBadges({ will_advance: willAdvance, will_block: willBlock, admission_migrate: admitMigrate, admission_expire: admitExpire, deferred_reactivate: deferredReact, on_leave: onLeave });
+    updateTabBadges({
+      will_advance: willAdvance,
+      will_block: willBlock,
+      admission_migrate: admitMigrate,
+      admission_expire: admitExpire,
+      admission_already_aligned: admitAligned,
+      deferred_reactivate: deferredReact,
+      on_leave: onLeave,
+    });
 
     setTabContent('tabAdvance',      renderAdvanceTable(willAdvance));
     setTabContent('tabBlocked',      renderBlockedTable(willBlock));
     setTabContent('tabAdmitMigrate', renderSimpleTable(admitMigrate,    'Aspirantes que serán migrados al nuevo periodo activo.'));
     setTabContent('tabAdmitExpire',  renderSimpleTable(admitExpire,     'Aspirantes que serán marcados como expirados.'));
+    setTabContent('tabAdmitAligned', renderSimpleTable(admitAligned,    'Aspirantes ya alineados al periodo destino — su admisión continuará allí sin cambios.'));
     setTabContent('tabDeferred',     renderSimpleTable(deferredReact,   'Aspirantes diferidos que serán reactivados en el nuevo periodo.'));
     setTabContent('tabOnLeave',      renderSimpleTable(onLeave,         'Estudiantes en baja temporal (no serán afectados por el avance).'));
 
-    // Habilitar confirmar solo si hay algo que hacer
+    // Habilitar confirmar solo si hay algo que hacer (already_aligned no requiere acción)
     const total = willAdvance.length + admitMigrate.length + admitExpire.length + deferredReact.length;
     disableConfirm(total === 0);
   }
@@ -228,8 +234,13 @@
   }
 
   function programName(item) {
+    // Prioridad: item.program (objeto poblado por el backend con id/name/slug)
+    // → up.program_name → up.program → '—'
+    const p = item.program || {};
+    if (p.name) return escHtml(p.name);
+    if (p.slug) return escHtml(p.slug);
     const up = item.user_program || {};
-    return escHtml(up.program_name || up.program || '—');
+    return escHtml(up.program_name || up.program_slug || up.program || '—');
   }
 
   function semesterNum(item) {
@@ -318,6 +329,7 @@
     setBadge('badgeBlocked',      count(data.will_block));
     setBadge('badgeAdmitMigrate', count(data.admission_migrate));
     setBadge('badgeAdmitExpire',  count(data.admission_expire));
+    setBadge('badgeAdmitAligned', count(data.admission_already_aligned));
     setBadge('badgeDeferred',     count(data.deferred_reactivate));
     setBadge('badgeOnLeave',      count(data.on_leave));
   }
