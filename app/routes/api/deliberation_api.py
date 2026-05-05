@@ -122,7 +122,7 @@ def api_get_applicants_by_status(program_id, status):
 def api_mark_interview_completed(user_id, program_id):
     """Marca que un aspirante completo su entrevista."""
     try:
-        up = svc.mark_interview_completed(user_id, program_id)
+        up = svc.mark_interview_completed(user_id, program_id, coordinator_id=current_user.id)
 
         return jsonify({
             "data": up.to_dict(include_deliberation=True),
@@ -200,16 +200,34 @@ def api_start_deliberation(user_id, program_id):
 @login_required
 @permission_required('deliberation.api.decide', program_id_kwarg='program_id')
 def api_accept_applicant(user_id, program_id):
-    """Acepta a un aspirante en el programa."""
-    data = request.get_json() or {}
-    notes = data.get('notes')
+    """Acepta a un aspirante en el programa. Acepta JSON o multipart/form-data
+    (cuando is_conditional=true, debe enviarse multipart con dictamen_file)."""
+    is_multipart = request.content_type and request.content_type.startswith('multipart/')
+    if is_multipart:
+        notes = request.form.get('notes')
+        is_conditional = str(request.form.get('is_conditional', '')).lower() in ('true', '1', 'yes', 'on')
+        dictamen_file = request.files.get('dictamen_file')
+    else:
+        data = request.get_json() or {}
+        notes = data.get('notes')
+        is_conditional = bool(data.get('is_conditional', False))
+        dictamen_file = None
 
     try:
-        up = svc.accept_applicant(user_id, program_id, current_user.id, notes)
+        up = svc.accept_applicant(
+            user_id, program_id, current_user.id, notes,
+            is_conditional=is_conditional,
+            dictamen_file=dictamen_file,
+        )
 
+        success_msg = (
+            "Aceptación condicionada registrada con dictamen"
+            if is_conditional else
+            "Aspirante aceptado exitosamente"
+        )
         return jsonify({
             "data": up.to_dict(include_deliberation=True),
-            "flash": [{"level": "success", "message": "Aspirante aceptado exitosamente"}],
+            "flash": [{"level": "success", "message": success_msg}],
             "error": None,
             "meta": {}
         }), 200

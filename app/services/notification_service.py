@@ -832,6 +832,32 @@ class NotificationService:
 
         return notification
 
+    @staticmethod
+    def notify_acceptance_doc_uploaded(user_id: int, program_name: str,
+                                        document_type: str, document_label: str,
+                                        dashboard_url: str = '/user/dashboard') -> Notification:
+        """
+        Notifica al aspirante cada vez que el coordinador sube uno de los documentos
+        de aceptación (carta de aceptación o tira de materias) por separado.
+        """
+        notification = NotificationService.create_notification(
+            user_id=user_id,
+            notification_type=f'acceptance_{document_type}_uploaded',
+            title=f'{document_label} disponible',
+            message=(
+                f'Tu {document_label.lower()} para {program_name} '
+                f'ya fue subida por el coordinador. Ingresa a tu dashboard para revisarla.'
+            ),
+            priority='high',
+            action_url=dashboard_url,
+            data={
+                'document_type': document_type,
+                'document_label': document_label,
+                'program_name': program_name,
+            }
+        )
+        return notification
+
     # ==================== GESTIÓN DE NOTIFICACIONES ====================
 
     @staticmethod

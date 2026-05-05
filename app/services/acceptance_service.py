@@ -21,14 +21,15 @@ from app.utils.datetime_utils import now_local, to_local_timezone
 from sqlalchemy import and_
 
 
-VALID_DOC_TYPES = {'acceptance_letter', 'course_schedule', 'enrollment_receipt'}
-COORDINATOR_DOC_TYPES = {'acceptance_letter', 'course_schedule'}
+VALID_DOC_TYPES = {'acceptance_letter', 'course_schedule', 'enrollment_receipt', 'acceptance_opinion'}
+COORDINATOR_DOC_TYPES = {'acceptance_letter', 'course_schedule', 'acceptance_opinion'}
 APPLICANT_DOC_TYPES = {'enrollment_receipt'}
 
 DOC_TYPE_LABELS = {
     'acceptance_letter': 'Carta de Aceptacion',
     'course_schedule': 'Tira de Materias',
     'enrollment_receipt': 'Boleta de Servicios Escolares',
+    'acceptance_opinion': 'Dictamen de Aceptacion',
 }
 
 
@@ -257,22 +258,37 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
     doc.uploaded_at = now_local()
     doc.status = 'uploaded'
 
-    # Notificar al aspirante cuando ambos documentos esten disponibles (en la misma transaccion)
+    program = Program.query.get(program_id)
+    from flask import url_for
+    try:
+        dashboard_url = url_for('pages_user.dashboard', _external=True)
+    except Exception:
+        dashboard_url = '/user/dashboard'
+
+    # Notificación individual por documento (solo en upload nuevo, no en re-subida)
+    if was_pending:
+        NotificationService.notify_acceptance_doc_uploaded(
+            user_id=user_id,
+            program_name=program.name,
+            document_type=document_type,
+            document_label=DOC_TYPE_LABELS[document_type],
+            dashboard_url=dashboard_url,
+        )
+        UserHistoryService.log_action(
+            user_id=user_id,
+            admin_id=coordinator_id,
+            action=f'acceptance_{document_type}_uploaded',
+            details=f'{DOC_TYPE_LABELS[document_type]} subida para {program.name}'
+        )
+
+    # Verificar si con este documento se completaron ambos (carta + tira)
     letter = AcceptanceDocument.query.filter_by(user_program_id=up.id, document_type='acceptance_letter').first()
     schedule = AcceptanceDocument.query.filter_by(user_program_id=up.id, document_type='course_schedule').first()
-
-    # Determinar si con este documento se completaron ambos
     letter_ok = (letter and letter.status in ('uploaded', 'approved')) or document_type == 'acceptance_letter'
     schedule_ok = (schedule and schedule.status in ('uploaded', 'approved')) or document_type == 'course_schedule'
 
-    # Solo notificar si el doc acaba de pasar de pendiente a subido (evita re-notificación)
+    # Notificación de "documentos completos" solo cuando AMBOS recién están listos
     if letter_ok and schedule_ok and was_pending:
-        program = Program.query.get(program_id)
-        from flask import url_for
-        try:
-            dashboard_url = url_for('pages_user.dashboard', _external=True)
-        except Exception:
-            dashboard_url = '/user/dashboard'
         NotificationService.notify_acceptance_docs_ready(
             user_id=user_id,
             program_name=program.name,
@@ -285,14 +301,22 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
             details=f'Carta de aceptación y tira de materias subidas para {program.name}'
         )
 
-    # WebSocket: actualizar pestaña de aceptación del aspirante
+    # WebSocket: actualizar pestaña de aceptación del aspirante en tiempo real
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
             'user_id': user_id,
             'program_id': program_id,
             'action': f'{document_type}_uploaded',
+            'document_type': document_type,
         }, room=f'user:{user_id}')
+        # También notificar a coordinadores del programa para que refresquen sus tablas
+        socketio.emit('acceptance:updated', {
+            'user_id': user_id,
+            'program_id': program_id,
+            'action': f'{document_type}_uploaded',
+            'document_type': document_type,
+        }, room=f'coordinator:program:{program_id}')
     except Exception:
         pass
 

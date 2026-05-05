@@ -25,6 +25,7 @@ from app.models.acceptance_document import AcceptanceDocument
 from app.models.enrollment_deferral import EnrollmentDeferral
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
+from app.sockets.emitters import emit_user_and_coordinators, emit_to_coordinators
 from app.utils.datetime_utils import now_local
 
 logger = logging.getLogger(__name__)
@@ -219,6 +220,18 @@ def defer_applicant(user_id: int, program_id: int,
     _apply_deferral(up, deferral, coordinator_id)
 
     db.session.commit()
+
+    emit_user_and_coordinators(
+        'deferral:applied',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'deferral_id': deferral.id,
+            'admission_status': 'deferred',
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
     return deferral
 
 
@@ -299,6 +312,18 @@ def request_deferral(user_id: int, program_id: int,
     )
 
     db.session.commit()
+
+    emit_user_and_coordinators(
+        'deferral:requested',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'deferral_id': deferral.id,
+            'requested_by': 'applicant',
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
     return deferral
 
 
@@ -323,6 +348,18 @@ def approve_deferral(deferral_id: int, coordinator_id: int,
     _apply_deferral(up, deferral, coordinator_id)
 
     db.session.commit()
+
+    emit_user_and_coordinators(
+        'deferral:approved',
+        {
+            'user_id': up.user_id,
+            'program_id': up.program_id,
+            'deferral_id': deferral.id,
+            'admission_status': 'deferred',
+        },
+        user_id=up.user_id,
+        program_id=up.program_id,
+    )
     return deferral
 
 
@@ -369,6 +406,17 @@ def reject_deferral(deferral_id: int, coordinator_id: int,
     )
 
     db.session.commit()
+
+    emit_user_and_coordinators(
+        'deferral:rejected',
+        {
+            'user_id': up.user_id,
+            'program_id': up.program_id,
+            'deferral_id': deferral.id,
+        },
+        user_id=up.user_id,
+        program_id=up.program_id,
+    )
     return deferral
 
 
@@ -438,6 +486,18 @@ def reactivate_deferred(user_id: int, program_id: int,
     )
 
     db.session.commit()
+
+    emit_user_and_coordinators(
+        'deferral:reactivated',
+        {
+            'user_id': user_id,
+            'program_id': program_id,
+            'admission_status': 'accepted',
+            'admission_period_id': up.admission_period_id,
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
     return up
 
 

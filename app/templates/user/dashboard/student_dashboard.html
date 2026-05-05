@@ -257,24 +257,6 @@
     </div>
     {% endif %}
 
-    {# — Referencia Bancaria (Módulo A) — #}
-    {% if up and up.id %}
-    <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-        <i class="bi bi-bank text-success"></i>
-        <strong>Referencia Bancaria</strong>
-        {% if permanence_data and permanence_data.current_period %}
-          <span class="badge bg-secondary ms-auto">{{ permanence_data.current_period.name }}</span>
-        {% endif %}
-      </div>
-      <div class="card-body" id="paymentRefContainer">
-        <div class="text-center py-2 text-muted small">
-          <div class="spinner-border spinner-border-sm me-1" role="status"></div> Verificando referencia...
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
     {# — Documentos del Semestre (Módulo B) — #}
     {% if up and up.id %}
     <div class="card mb-4">
