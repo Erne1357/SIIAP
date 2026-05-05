@@ -1,7 +1,7 @@
 {% extends 'auth_base.html' %}
 {% block title %}SIIAP – Registro de Usuario{% endblock %}
 
-{% block body_class %}register-body{% endblock %}
+{% block body_class %}auth-split-layout register-body{% endblock %}
 {% block main_class %}register-page{% endblock %}
 {% block container_class %}register-container{% endblock %}
 {% block bg_class %}register-container{% endblock %}
@@ -12,61 +12,86 @@
 {% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-body">
-    <h3 class="card-title text-center mb-3">Registro de Usuario</h3>
-    <hr class="mx-3">
-    <p class="text-center text-muted mb-4" style="font-size: 0.9rem;">
-      Completa el formulario para crear tu cuenta. 
-      <br>
-      Todos los campos marcados con <span style="color:red">*</span> son obligatorios.
-    </p>
-
-    <form method="POST" id="registerForm">
-      <div class="row g-3 mb-3">
-        <div class="col-md-4">
-          <label for="first_name" class="form-label">Nombre <span style="color:red">*</span></label>
-          <input type="text" class="form-control" id="first_name" name="first_name" required>
-        </div>
-        <div class="col-md-4">
-          <label for="last_name" class="form-label">Apellido Paterno <span style="color:red">*</span></label>
-          <input type="text" class="form-control" id="last_name" name="last_name" required>
-        </div>
-        <div class="col-md-4">
-          <label for="mother_last_name" class="form-label">Apellido Materno</label>
-          <input type="text" class="form-control" id="mother_last_name" name="mother_last_name">
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-md-6">
-          <label for="username" class="form-label">Usuario <span style="color:red">*</span></label>
-          <input type="text" class="form-control" id="username" name="username" minlength="5" required>
-        </div>
-        <div class="col-md-6">
-          <label for="email" class="form-label">Correo Electrónico <span style="color:red">*</span></label>
-          <input type="email" class="form-control" id="email" name="email" required>
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-md-6">
-          <label for="password" class="form-label">Contraseña <span style="color:red">*</span></label>
-          <input type="password" class="form-control" id="password" name="password" minlength="8" required>
-        </div>
-        <div class="col-md-6">
-          <label for="confirm_password" class="form-label">Confirmar Contraseña <span style="color:red">*</span></label>
-          <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-        </div>
-      </div>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-primary w-100">Registrarme</button>
-    </form>
-
-    <div class="mt-3 text-center">
-      ¿Ya tienes cuenta? <a href="{{ url_for('pages_auth.login_page') }}">Inicia Sesión</a>
+<div class="auth-split">
+  <aside class="auth-split__hero" aria-hidden="true">
+    <div class="auth-split__hero-content">
+      <span class="auth-split__eyebrow">
+        <i class="bi bi-person-plus-fill"></i>
+        Nueva cuenta
+      </span>
+      <h1 class="auth-split__title">
+        Inicia tu proceso de admisión al posgrado del ITCJ
+      </h1>
+      <p class="auth-split__tagline">
+        Crea tu cuenta para postular a un programa, cargar documentos y dar seguimiento a tu trámite en línea.
+      </p>
+      <ul class="auth-split__highlights">
+        <li><i class="bi bi-clipboard-check"></i><span>Una sola cuenta para todos los procesos académicos.</span></li>
+        <li><i class="bi bi-envelope-check"></i><span>Recibe avisos sobre tus documentos y entrevistas.</span></li>
+        <li><i class="bi bi-mortarboard"></i><span>Sigue tu trayectoria desde aspirante hasta egresado.</span></li>
+      </ul>
     </div>
-  </div>
+  </aside>
+
+  <main class="auth-split__form" role="main">
+    <div class="auth-split__form-inner">
+      <div class="card">
+        <div class="card-body">
+          <h2 class="h3 text-center mb-2 fw-bold">
+            <i class="bi bi-person-plus-fill text-primary me-2" aria-hidden="true"></i>Registro de usuario
+          </h2>
+          <p class="text-center text-muted mb-4 small">
+            Los campos marcados con <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr> son obligatorios.
+          </p>
+
+          <form method="POST" id="registerForm">
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label for="first_name" class="form-label">Nombre <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="text" class="form-control" id="first_name" name="first_name" required>
+              </div>
+              <div class="col-md-4">
+                <label for="last_name" class="form-label">Apellido paterno <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="text" class="form-control" id="last_name" name="last_name" required>
+              </div>
+              <div class="col-md-4">
+                <label for="mother_last_name" class="form-label">Apellido materno</label>
+                <input type="text" class="form-control" id="mother_last_name" name="mother_last_name">
+              </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="username" class="form-label">Usuario <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="text" class="form-control" id="username" name="username" minlength="5" required autocomplete="username">
+              </div>
+              <div class="col-md-6">
+                <label for="email" class="form-label">Correo electrónico <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="email" class="form-control" id="email" name="email" required autocomplete="email">
+              </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="password" class="form-label">Contraseña <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="password" class="form-control" id="password" name="password" minlength="8" required autocomplete="new-password">
+              </div>
+              <div class="col-md-6">
+                <label for="confirm_password" class="form-label">Confirmar contraseña <abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr></label>
+                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required autocomplete="new-password">
+              </div>
+            </div>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary w-100">Registrarme</button>
+          </form>
+
+          <div class="mt-4 text-center small">
+            ¿Ya tienes cuenta? <a href="{{ url_for('pages_auth.login_page') }}" class="fw-semibold">Inicia sesión</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
 </div>
 
 <script>

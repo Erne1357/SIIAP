@@ -406,3 +406,162 @@ a:hover {
   outline: 2px solid var(--bg--tecnm);
   outline-offset: 2px;
 }
+
+/* === SPLIT-PANE HERO INSTITUCIONAL (login / register) === */
+.auth-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+  min-height: 100%;
+}
+
+@media (min-width: 992px) {
+  .auth-split {
+    grid-template-columns: 6fr 5fr;
+    align-items: stretch;
+  }
+}
+
+.auth-split__hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: var(--space-12) var(--space-8);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-700) 60%,
+    var(--color-brand-accent) 130%);
+  color: var(--text-inverse);
+  overflow: hidden;
+}
+
+.auth-split__hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(178, 31, 45, 0.18), transparent 40%);
+  pointer-events: none;
+}
+
+.auth-split__hero-content {
+  position: relative;
+  max-width: 480px;
+  z-index: 1;
+}
+
+.auth-split__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  margin-bottom: var(--space-6);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.auth-split__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3.6vw, 2.75rem);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  margin-bottom: var(--space-4);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-inverse);
+}
+
+.auth-split__tagline {
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: var(--space-6);
+}
+
+.auth-split__highlights {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.auth-split__highlights li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.auth-split__highlights i {
+  font-size: var(--fs-md);
+  color: rgba(255, 255, 255, 0.95);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.auth-split__form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  background: var(--bg-page);
+}
+
+.auth-split__form-inner {
+  width: 100%;
+  max-width: 28rem;
+}
+
+@media (max-width: 991.98px) {
+  .auth-split__hero {
+    min-height: 200px;
+    padding: var(--space-8) var(--space-6);
+  }
+  .auth-split__title {
+    font-size: clamp(1.5rem, 5vw, 2rem);
+    margin-bottom: var(--space-3);
+  }
+  .auth-split__tagline {
+    margin-bottom: var(--space-4);
+  }
+  .auth-split__highlights {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .auth-split__hero {
+    min-height: 160px;
+    padding: var(--space-6) var(--space-4);
+  }
+  .auth-split__form {
+    padding: var(--space-6) var(--space-2);
+  }
+}
+
+/* Cuando se usa split, el #main-content no debe seguir cargando la imagen de fondo */
+body.auth-split-layout #main-content {
+  background: none !important;
+}
+body.auth-split-layout .auth-container {
+  padding: 0;
+  align-items: stretch;
+}
+body.auth-split-layout .auth-bg {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+body.auth-split-layout .card {
+  border-top: none !important;
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: none;
+}

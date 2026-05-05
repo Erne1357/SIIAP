@@ -213,6 +213,16 @@
   animation: siiap-spin 1s linear infinite;
 }
 
+/* Marca de campo requerido (semantica + estilo) */
+.required-mark {
+  color: var(--color-danger);
+  text-decoration: none;
+  margin-left: 2px;
+  font-weight: var(--fw-semibold);
+  cursor: help;
+  border-bottom: none;
+}
+
 /* ==========================================================================
    11. PREFERS-REDUCED-MOTION (a11y global)
    ========================================================================== */
