@@ -16,8 +16,8 @@ Migración de datos (limpieza histórica) que:
        - Cambia role_id a `student`
        - admission_status='enrolled'
        - control_number_assigned_at = registration_date
-       - current_semester=4
-       - 4 `SemesterEnrollment` backfill (20243, 20251, 20253 completed; 20261 active)
+       - current_semester=1 (primer semestre)
+       - 1 `SemesterEnrollment` activo en el periodo activo (20261, sem 1)
 
 Idempotente: re-ejecutar es no-op (chequea is-already-applied antes de actuar).
 Reversible parcialmente con `downgrade()`: revierte lo que esta migración insertó
@@ -202,18 +202,14 @@ def upgrade():
             bind.execute(sa.text("""
                 UPDATE user_program
                 SET admission_status = 'enrolled',
-                    current_semester = 4,
+                    current_semester = 1,
                     updated_at = NOW()
                 WHERE id = :up_id
             """), {'up_id': laura_up_id})
 
-            # Backfill 4 SemesterEnrollments
-            # sem 1→20243, sem 2→20251, sem 3→20253, sem 4→20261(active)
+            # Backfill 1 SemesterEnrollment: sem 1 en periodo activo 20261
             sem_map = [
-                (1, '20243', 'completed', True),
-                (2, '20251', 'completed', True),
-                (3, '20253', 'completed', True),
-                (4, '20261', 'active',    True),
+                (1, '20261', 'active', True),
             ]
             for sem_num, code, status, confirmed in sem_map:
                 period_id = bind.execute(sa.text(
