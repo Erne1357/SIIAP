@@ -13,6 +13,45 @@
     {# Hero Section #}
     {% include 'programs/view/_hero.html' %}
 
+    {# Aviso: sin periodo de admisión abierto #}
+    {% if not admission_open %}
+    <section class="py-3 my-3" id="no-period-banner" data-aos="fade-up">
+      <div class="empty-state empty-state--compact">
+        <i class="empty-state__icon bi bi-calendar-x"></i>
+        <h3 class="empty-state__title">No hay periodo de admisión abierto</h3>
+        <p class="empty-state__description">
+          {% if next_period %}
+            El próximo proceso de admisión inicia el
+            <strong>{{ next_period.admission_start_date.strftime('%d de %B de %Y') }}</strong>
+            (periodo <strong>{{ next_period.name }}</strong>).
+          {% else %}
+            Aún no hay una fecha confirmada para el próximo periodo.
+          {% endif %}
+          {% if program.coordinator %}
+            Si te interesa inscribirte en {{ program.name }}, puedes comunicarte con el coordinador del programa.
+          {% endif %}
+        </p>
+        {% if program.coordinator %}
+        <div class="empty-state__actions">
+          <a href="mailto:{{ program.coordinator.email }}" class="btn btn-primary">
+            <i class="bi bi-envelope-fill me-2"></i>Contactar al coordinador
+          </a>
+          {% if program.contact_email %}
+          <a href="mailto:{{ program.contact_email }}" class="btn btn-outline-secondary">
+            <i class="bi bi-envelope me-2"></i>Contacto del programa
+          </a>
+          {% endif %}
+        </div>
+        <p class="text-muted small mt-3 mb-0">
+          <i class="bi bi-person-fill me-1"></i>
+          <strong>{{ program.coordinator.first_name }} {{ program.coordinator.last_name }}</strong>
+          · <span class="text-muted">{{ program.coordinator.email }}</span>
+        </p>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
     {# Información del Programa #}
     {% include 'programs/view/_program_info.html' %}
 
