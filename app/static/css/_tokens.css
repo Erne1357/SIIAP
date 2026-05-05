@@ -223,6 +223,74 @@
   border-bottom: none;
 }
 
+/* === FOCUS VISIBLE GLOBAL (a11y) === */
+*:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible,
+.notification-bell-btn:focus-visible,
+.notification-fab:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: 3px;
+  box-shadow: var(--shadow-focus);
+}
+
+.btn-close:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* === UTILITIES SEMANTICAS DE FONDO SUAVE (contraste AA) === */
+.bg-success-soft {
+  background-color: var(--color-success-100);
+  color: #0e6e3a;
+  border: 1px solid rgba(31, 157, 85, 0.25);
+}
+
+.bg-warning-soft {
+  background-color: var(--color-warning-100);
+  color: #6b4f00;
+  border: 1px solid rgba(184, 134, 0, 0.25);
+}
+
+.bg-danger-soft {
+  background-color: var(--color-danger-100);
+  color: var(--color-brand-accent-600);
+  border: 1px solid rgba(178, 31, 45, 0.25);
+}
+
+.bg-info-soft {
+  background-color: var(--color-info-100);
+  color: var(--color-brand-secondary);
+  border: 1px solid rgba(26, 113, 207, 0.25);
+}
+
+.bg-primary-soft {
+  background-color: var(--color-brand-primary-100);
+  color: var(--color-brand-primary);
+  border: 1px solid rgba(11, 30, 138, 0.18);
+}
+
+.text-warning-strong { color: var(--color-warning) !important; }
+.text-success-strong { color: var(--color-success) !important; }
+.text-danger-strong  { color: var(--color-danger)  !important; }
+.text-info-strong    { color: var(--color-info)    !important; }
+.text-brand-primary  { color: var(--color-brand-primary) !important; }
+.text-brand-accent   { color: var(--color-brand-accent) !important; }
+
+/* === TOUCH TARGETS MINIMOS EN MOVIL (WCAG 2.5.5 AAA) === */
+@media (max-width: 767.98px) {
+  .btn,
+  .nav-link {
+    min-height: 2.5rem;
+  }
+}
+
 /* ==========================================================================
    11. PREFERS-REDUCED-MOTION (a11y global)
    ========================================================================== */

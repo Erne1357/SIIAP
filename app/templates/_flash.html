@@ -1,5 +1,6 @@
 {# app/templates/_flash.html #}
-<div id="flash-container" class="flash-container">
+<div id="flash-container" class="flash-container"
+     role="region" aria-live="polite" aria-label="Notificaciones del sistema">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
