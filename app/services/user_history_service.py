@@ -975,6 +975,48 @@ class UserHistoryService:
 
         # ALTA MASIVA DE ESTUDIANTES (student_bulk_service)
         'enrolled_via_bulk_import': 'Alta masiva — inscribió estudiante existente',
+
+        # ACEPTACIÓN — documentos individuales (Sprint 1)
+        'acceptance_acceptance_letter_uploaded': 'Subió carta de aceptación',
+        'acceptance_course_schedule_uploaded':   'Subió tira de materias',
+
+        # DELIBERACIÓN
+        'admission_accepted_conditional': 'Aceptación condicionada (con dictamen)',
+        'interview_completed':            'Marcó entrevista como completada',
+
+        # PERMANENCIA — coordinación
+        'document_deadline_created':   'Creó ventana de entrega de documento',
+        'conacyt_scholarship_changed': 'Activó/desactivó beca CONACyT',
+
+        # PERFIL — foto
+        'profile_photo_uploaded':         'Subió foto de perfil',
+        'profile_photo_change_requested': 'Solicitó cambio de foto de perfil',
+        'profile_photo_change_enabled':   'Habilitó cambio de foto de perfil',
+        'profile_photo_change_rejected':  'Rechazó solicitud de cambio de foto',
+
+        # EXPEDIENTE COMPLETO — edición por coordinador
+        'personal_info_updated': 'Actualizó información personal del estudiante',
+
+        # PERMANENCIA — ventanas de entrega y submissions
+        'deadline_opened':                'Abrió ventana de entrega',
+        'deadline_closed':                'Cerró ventana de entrega',
+        'deadline_deleted':               'Eliminó ventana de entrega',
+        'deadline_archived':              'Archivó ventana de entrega',
+        'deadline_restored':              'Restauró ventana de entrega archivada',
+        'deadline_updated':               'Actualizó ventana de entrega',
+        'permanence_document_submitted':  'Subió documento de permanencia',
+        'permanence_document_approved':   'Aprobó documento de permanencia',
+        'permanence_document_rejected':   'Rechazó documento de permanencia',
+        'leave_request_rejected':         'Rechazó solicitud de baja temporal',
+        'conacyt_deadlines_created':      'Creó ventanas mensuales CONACyT',
+        'leave_request_submitted':        'Solicitó baja temporal',
+        'leave_request_approved':         'Aprobó solicitud de baja temporal',
+
+        # DIFERIMIENTOS
+        'enrollment_deferred':            'Diferimiento aplicado',
+        'deferral_requested':             'Solicitó diferimiento',
+        'deferral_rejected':              'Rechazó solicitud de diferimiento',
+        'deferral_reactivated':           'Reactivó aspirante diferido',
     }
 
     @staticmethod
