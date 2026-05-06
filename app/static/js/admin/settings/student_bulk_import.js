@@ -213,7 +213,7 @@
 
     showFlash(
       'success',
-      `Estudiante creado correctamente. ID de usuario: ${data.user_id}. ` +
+      `Estudiante creado exitosamente. ID de usuario: ${data.user_id}. ` +
       `Se generaron ${data.sems_created} semestre(s). ` +
       `Se envió correo de bienvenida con enlace para configurar contraseña.`
     );
@@ -383,7 +383,7 @@
 
     // Flash summary
     if (created > 0) {
-      showFlash('success', `Se crearon ${created} estudiante(s) correctamente.`);
+      showFlash('success', `Se crearon ${created} estudiante(s) exitosamente.`);
     }
     if (failed && failed.length > 0) {
       showFlash('warning', `${failed.length} registro(s) fallaron. Revisa el reporte.`);

@@ -95,7 +95,7 @@ def delegate():
         )
         return jsonify({
             'data': up.to_dict(),
-            'flash': [['Permiso delegado correctamente.', 'success']],
+            'flash': [['Permiso delegado exitosamente.', 'success']],
         }), 201
     except svc.PermissionError as e:
         return jsonify({'error': str(e)}), 400
@@ -163,7 +163,7 @@ def add_override(role_id):
         )
         return jsonify({
             'data': override.to_dict(),
-            'flash': [['Override agregado correctamente.', 'success']],
+            'flash': [['Override agregado exitosamente.', 'success']],
         }), 201
     except svc.PermissionError as e:
         return jsonify({'error': str(e)}), 400

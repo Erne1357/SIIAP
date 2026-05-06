@@ -201,7 +201,7 @@ def api_submit_enrollment_receipt(user_id, program_id):
         )
         return jsonify({
             "data": doc.to_dict(),
-            "flash": [{"level": "success", "message": "Boleta enviada correctamente. Espera la revision del coordinador."}],
+            "flash": [{"level": "success", "message": "Boleta enviada exitosamente. Espera la revision del coordinador."}],
             "error": None,
             "meta": {}
         }), 200

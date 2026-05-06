@@ -73,6 +73,17 @@ def _extract_payment_proof(user_id: int):
     return save_user_doc(file, user_id, 'permanence', 'payment_proof')
 
 
+def _extract_schedule(user_id: int):
+    """Si viene multipart con archivo 'schedule', guarda PDF y devuelve path."""
+    file = request.files.get('schedule') if request.files else None
+    if not file or not file.filename:
+        return None
+    if not file.filename.lower().endswith('.pdf'):
+        raise ValueError("El horario debe ser PDF")
+    from app.utils.files import save_user_doc
+    return save_user_doc(file, user_id, 'permanence', 'horario_semestre')
+
+
 def _extract_form_or_json(field, default=None):
     """Lee de form-data o JSON indistintamente."""
     if request.content_type and request.content_type.startswith('application/json'):
@@ -112,6 +123,7 @@ def api_confirm_semester_enrollment(user_program_id):
             }), 404
 
         payment_proof_path = _extract_payment_proof(up.user_id)
+        schedule_path = _extract_schedule(up.user_id)
 
         se = svc.confirm_semester_enrollment(
             user_program_id=user_program_id,
@@ -119,11 +131,12 @@ def api_confirm_semester_enrollment(user_program_id):
             coordinator_id=current_user.id,
             notes=notes,
             payment_proof_path=payment_proof_path,
+            schedule_path=schedule_path,
             force=force,
         )
         return jsonify({
             "data": se.to_dict(),
-            "flash": [{"level": "success", "message": f"Inscripción del semestre {se.semester_number} confirmada"}],
+            "flash": [{"level": "success", "message": f"Inscripción del semestre {se.semester_number} confirmada exitosamente"}],
             "error": None,
             "meta": {}
         }), 200
@@ -424,7 +437,7 @@ def api_create_deadline(program_id):
         )
         return jsonify({
             "data": dl.to_dict(),
-            "flash": [{"level": "success", "message": f'Ventana "{dl.label}" creada correctamente'}],
+            "flash": [{"level": "success", "message": f'Ventana "{dl.label}" creada exitosamente'}],
             "error": None,
             "meta": {}
         }), 201
@@ -622,7 +635,7 @@ def api_submit_permanence_document(user_program_id, deadline_id):
         )
         return jsonify({
             "data": sub,
-            "flash": [{"level": "success", "message": "Documento enviado correctamente. Espera la revisión del coordinador."}],
+            "flash": [{"level": "success", "message": "Documento enviado exitosamente. Espera la revisión del coordinador."}],
             "error": None,
             "meta": {}
         }), 201
@@ -678,7 +691,7 @@ def api_review_permanence_document(submission_id):
         action = 'aprobado' if status == 'approved' else 'rechazado'
         return jsonify({
             "data": sub,
-            "flash": [{"level": "success", "message": f"Documento {action} correctamente"}],
+            "flash": [{"level": "success", "message": f"Documento {action} exitosamente"}],
             "error": None,
             "meta": {}
         }), 200
@@ -883,7 +896,7 @@ def api_create_conacyt_monthly_deadlines(program_id):
             msg = f"{created} ventana(s) creadas, {skipped} ya existían"
             level = "success"
         else:
-            msg = f"{created} ventana(s) mensuales CONACyT creadas correctamente"
+            msg = f"{created} ventana(s) mensuales CONACyT creadas exitosamente"
             level = "success"
 
         return jsonify({
@@ -999,7 +1012,7 @@ def api_toggle_conacyt_scholarship(user_program_id):
     label = 'activada' if new_value else 'desactivada'
     return jsonify({
         "data": {"has_conacyt_scholarship": new_value},
-        "flash": [{"level": "success", "message": f"Beca CONACyT {label} correctamente"}],
+        "flash": [{"level": "success", "message": f"Beca CONACyT {label} exitosamente"}],
         "error": None,
         "meta": {}
     }), 200
@@ -1401,7 +1414,7 @@ def api_upload_my_payment_proof():
 
         return jsonify({
             "data": se.to_dict(),
-            "flash": [{"level": "success", "message": "Comprobante de pago enviado correctamente. El coordinador lo revisará pronto."}],
+            "flash": [{"level": "success", "message": "Comprobante de pago enviado exitosamente. El coordinador lo revisará pronto."}],
             "error": None,
             "meta": {}
         }), 200

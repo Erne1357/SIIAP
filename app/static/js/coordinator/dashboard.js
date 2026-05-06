@@ -821,7 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        emitFlash('success', 'Documento subido correctamente por coordinador');
+        emitFlash('success', 'Documento subido exitosamente por coordinador');
 
         // Cerrar modal y recargar datos
         const modal = bootstrap.Modal.getInstance(document.getElementById('uploadForStudentModal'));
@@ -1006,13 +1006,13 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    // ── CONACyT ────────────────────────────────────────────────────
+    // ── SECIHTI ────────────────────────────────────────────────────
     const badge = document.getElementById('permConacytBadge');
     const switchEl = document.getElementById('permConacytSwitch');
     const toggleWrap = document.getElementById('permConacytToggleWrap');
 
     badge.className = `badge fs-6 ${_permCurrentConacyt ? 'bg-warning text-dark' : 'bg-light text-muted border'}`;
-    badge.textContent = _permCurrentConacyt ? 'Becario CONACyT' : 'Sin beca CONACyT';
+    badge.textContent = _permCurrentConacyt ? 'Becario SECIHTI' : 'Sin beca SECIHTI';
     switchEl.checked = _permCurrentConacyt;
     toggleWrap.classList.toggle('d-none', !can_manage);
 
@@ -1026,7 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const studentName = document.getElementById('permModalName')?.textContent || 'estudiante';
       document.getElementById('confirmConacytStudent').textContent = studentName;
       document.getElementById('confirmConacytAction').textContent =
-        desired ? 'Activar beca CONACyT' : 'Quitar beca CONACyT';
+        desired ? 'Activar beca SECIHTI' : 'Quitar beca SECIHTI';
 
       const modalEl = document.getElementById('confirmConacytModal');
       const modal = new bootstrap.Modal(modalEl);
@@ -1148,12 +1148,12 @@ document.addEventListener('DOMContentLoaded', () => {
         _permCurrentConacyt = json.data.has_conacyt_scholarship;
         const badge = document.getElementById('permConacytBadge');
         badge.className = `badge fs-6 ${_permCurrentConacyt ? 'bg-warning text-dark' : 'bg-light text-muted border'}`;
-        badge.textContent = _permCurrentConacyt ? 'Becario CONACyT' : 'Sin beca CONACyT';
+        badge.textContent = _permCurrentConacyt ? 'Becario SECIHTI' : 'Sin beca SECIHTI';
         // Actualizar también en la tabla principal
         loadStudents();
       }
     } catch (err) {
-      emitFlash('danger', 'Error al actualizar beca CONACyT');
+      emitFlash('danger', 'Error al actualizar beca SECIHTI');
     }
   }
 

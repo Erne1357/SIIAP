@@ -713,7 +713,7 @@
                 method: 'POST',
                 body: JSON.stringify({}),
             });
-            flash('success', 'Registro cancelado correctamente.');
+            flash('success', 'Registro cancelado exitosamente.');
             await loadEvents();
         } catch (err) {
             flash('danger', `Error al cancelar: ${err.message}`);

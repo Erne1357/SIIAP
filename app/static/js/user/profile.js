@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Perfil actualizado correctamente.' }];
+          : [{ level: 'success', message: 'Perfil actualizado exitosamente.' }];
 
         persistFlashes(flashes);
         window.location.reload();
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Información guardada correctamente.' }];
+          : [{ level: 'success', message: 'Información guardada exitosamente.' }];
 
         // Si acaba de completar el perfil, mostrar mensaje especial
         if (json.data?.newly_completed) {

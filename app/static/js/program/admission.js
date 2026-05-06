@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      flash('Solicitud de prórroga enviada correctamente. Recibirás una respuesta pronto', 'success');
+      flash('Solicitud de prórroga enviada exitosamente. Recibirás una respuesta pronto', 'success');
       closeModal(extensionModal);
 
       setTimeout(() => window.location.reload(), 1500);
@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Documento subido correctamente.' }];
+          : [{ level: 'success', message: 'Documento subido exitosamente.' }];
 
         if (currentStepForHash) {
           // Buscar si este step está en un tab combinado

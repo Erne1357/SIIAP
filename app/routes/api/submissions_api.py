@@ -164,7 +164,7 @@ def upload_submission():
                 "program_step_id": ps.id
             }
         },
-        "flash": [{"level": "success", "message": "Documento enviado correctamente."}],
+        "flash": [{"level": "success", "message": "Documento enviado exitosamente."}],
         "error": None,
         "meta": {}
     }), 201

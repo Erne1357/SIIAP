@@ -59,7 +59,7 @@ def api_create_period():
 
         return jsonify({
             "data": period.to_dict(),
-            "flash": [{"level": "success", "message": f"Periodo {period.code} creado correctamente."}],
+            "flash": [{"level": "success", "message": f"Periodo {period.code} creado exitosamente."}],
             "error": None,
             "meta": {}
         }), 201
@@ -161,7 +161,7 @@ def api_update_period(period_id):
 
         return jsonify({
             "data": period.to_dict(),
-            "flash": [{"level": "success", "message": "Periodo actualizado correctamente."}],
+            "flash": [{"level": "success", "message": "Periodo actualizado exitosamente."}],
             "error": None,
             "meta": {}
         }), 200
@@ -287,7 +287,7 @@ def api_delete_period(period_id):
 
         return jsonify({
             "data": None,
-            "flash": [{"level": "success", "message": "Periodo eliminado correctamente."}],
+            "flash": [{"level": "success", "message": "Periodo eliminado exitosamente."}],
             "error": None,
             "meta": {}
         }), 200

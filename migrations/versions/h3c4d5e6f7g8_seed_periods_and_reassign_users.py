@@ -12,6 +12,13 @@ Migración de datos (limpieza histórica) que:
                                          (intentaron 20261 pero la admisión
                                           ya estaba cerrada → diferidos a 20263)
        - Reg >= 2026-03-01            → 20263 directo, sin diferimiento
+     Excepciones manuales (lista MANUAL_TO_20261): aspirantes que el coordinador
+     identifica como ya iniciados en el semestre activo del 20261, aunque
+     registraron en 2026. Se mueven a 20261 SIN deferral.
+
+     Limpieza de cuentas duplicadas (DEACTIVATE_USERNAMES): cuentas duplicadas
+     de un mismo aspirante se desactivan (is_active=false). La cuenta principal
+     (con submissions/history reales) queda activa.
   4. Caso especial Laura Edith Ibarra (username/control_number M19110043):
        - Cambia role_id a `student`
        - admission_status='enrolled'
@@ -36,6 +43,33 @@ revision = 'h3c4d5e6f7g8'
 down_revision = 'g2b3c4d5e6f7'
 branch_labels = None
 depends_on = None
+
+
+# ── Excepciones manuales: usuarios que pertenecen a 20261 ──────────────────
+# Identificados por username (estable, único). Estos aspirantes registraron
+# en distintas fechas pero el coordinador confirma que ya están en proceso
+# activo del periodo 20261 (semestre activo enero-junio 2026).
+MANUAL_TO_20261 = [
+    'ntejada50',                # Nidia Tejada
+    'jgonzalezoro',             # Joel Gonzalez
+    'M19110043',                # Laura Edith Ibarra (control_number)
+    'Ma. del Refugio',          # Ma. del Refugio Pérez
+    'angieSif',                 # María de los Ángeles Sifuentes
+    'Liz Vasquez',              # Lizbeth Vásquez
+    'Angel Marcial',            # Angel Armando Marcial
+    'Rene Santos Echeverria',   # Rene Santos
+    'Maria Lopez',              # María del Socorro López
+    '16111845',                 # Cristian Trejo
+    'LuisaDominguez',           # Luisa Mitzy Dominguez
+    'DIEGOLUCEROB',             # Diego Armando Lucero (cuenta REAL — id 31)
+]
+
+# Cuentas duplicadas a desactivar (is_active=false). El usuario tiene otra
+# cuenta canónica en MANUAL_TO_20261 que conserva sus datos.
+DEACTIVATE_USERNAMES = [
+    'DIEGO A LUCERO B',         # id 13 — sin submissions
+    'DIEGO LUCERO',             # id 30 — sin submissions
+]
 
 
 # ── Definición de periodos ──────────────────────────────────────────────────
@@ -173,6 +207,36 @@ def upgrade():
             SET admission_period_id = :dest, updated_at = NOW()
             WHERE id = :up_id
         """), {'dest': p_20263, 'up_id': up_id})
+
+    # ── 3.5 Excepciones manuales: forzar 20261 + borrar deferrals previos ──
+    if MANUAL_TO_20261:
+        # Borrar EnrollmentDeferral previos creados por esta migración para
+        # estos usuarios (porque ahora se quedan en 20261, sin diferimiento).
+        bind.execute(sa.text("""
+            DELETE FROM enrollment_deferral
+            WHERE reason LIKE 'Migración:%'
+              AND user_program_id IN (
+                SELECT up.id FROM user_program up
+                JOIN "user" u ON up.user_id = u.id
+                WHERE u.username = ANY(:usernames) OR u.control_number = ANY(:usernames)
+              )
+        """), {'usernames': MANUAL_TO_20261})
+
+        bind.execute(sa.text("""
+            UPDATE user_program up
+            SET admission_period_id = :p20261, updated_at = NOW()
+            FROM "user" u
+            WHERE up.user_id = u.id
+              AND (u.username = ANY(:usernames) OR u.control_number = ANY(:usernames))
+        """), {'p20261': p_20261, 'usernames': MANUAL_TO_20261})
+
+    # ── 3.6 Desactivar cuentas duplicadas ──────────────────────────────────
+    if DEACTIVATE_USERNAMES:
+        bind.execute(sa.text("""
+            UPDATE "user"
+            SET is_active = false, updated_at = NOW()
+            WHERE username = ANY(:usernames)
+        """), {'usernames': DEACTIVATE_USERNAMES})
 
     # ── 4. Caso Laura: M19110043 → student enrolled con backfill ──────────
     laura_id = bind.execute(sa.text(

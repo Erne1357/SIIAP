@@ -81,7 +81,7 @@ def create_extension_request():
         return jsonify({
             "ok": True, 
             "id": er.id,
-            "message": "Solicitud de prórroga enviada correctamente"
+            "message": "Solicitud de prórroga enviada exitosamente"
         }), 201
         
     except Exception as e:
@@ -222,7 +222,7 @@ def decide_extension_request(req_id: int):
             "ok": True, 
             "id": er.id, 
             "status": er.status,
-            "message": f"Solicitud {status} correctamente"
+            "message": f"Solicitud {status} exitosamente"
         }), 200
         
     except Exception as e:

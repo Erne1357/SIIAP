@@ -160,12 +160,19 @@
               {% else %}bg-warning-subtle border border-warning-subtle{% endif %}">
               {% if ce and ce.enrollment_confirmed %}
                 <i class="bi bi-check-circle-fill text-success fs-4 flex-shrink-0 mt-1"></i>
-                <div>
+                <div class="flex-grow-1">
                   <div class="fw-semibold text-success">Inscripción confirmada para este periodo</div>
                   <div class="small text-muted">
                     Semestre {{ ce.semester_number }} · {{ permanence_data.current_period.name }}
                     {% if ce.notes %} · <em>{{ ce.notes }}</em>{% endif %}
                   </div>
+                  {% if ce.schedule_url %}
+                  <div class="mt-2">
+                    <a href="{{ ce.schedule_url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                      <i class="bi bi-calendar2-week me-1"></i>Ver horario del semestre
+                    </a>
+                  </div>
+                  {% endif %}
                 </div>
               {% else %}
                 <i class="bi bi-hourglass-split text-warning fs-4 flex-shrink-0 mt-1"></i>

@@ -6,7 +6,10 @@ class Submission(db.Model):
     __tablename__ = 'submission'
     
     id = db.Column(db.Integer, primary_key=True)
-    file_path = db.Column(db.String(200), nullable=False)
+    # Nullable: permite al coordinador aprobar/rechazar sin archivo
+    # (ej: validación de examen presencial). Aspirantes/estudiantes siempre
+    # deben subir archivo — la validación se hace en el endpoint.
+    file_path = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(50), nullable=False)
     upload_date = db.Column(db.DateTime, default=now_local)
     review_date = db.Column(db.DateTime)

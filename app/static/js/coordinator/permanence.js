@@ -121,7 +121,7 @@ class PermanenceManager {
       this.showCreateDeadlineModal();
     });
 
-    // Crear ventanas mensuales CONACyT
+    // Crear ventanas mensuales SECIHTI
     document.getElementById('btnConacytMonthly')?.addEventListener('click', () => {
       this.createConacytMonthlyDeadlines();
     });
@@ -375,9 +375,9 @@ class PermanenceManager {
         </div>`;
     }
 
-    // Columna CONACyT
+    // Columna SECIHTI
     const conacytBadge = up.has_conacyt_scholarship
-      ? `<span class="badge bg-success" title="Becario CONACyT activo"><i class="bi bi-patch-check-fill"></i></span>`
+      ? `<span class="badge bg-success" title="Becario SECIHTI activo"><i class="bi bi-patch-check-fill"></i></span>`
       : `<span class="badge bg-light text-muted border">—</span>`;
     const conacytToggle = `
       <button class="btn btn-sm ${up.has_conacyt_scholarship ? 'btn-outline-success' : 'btn-outline-secondary'} ms-1"
@@ -513,6 +513,8 @@ class PermanenceManager {
     document.getElementById('confirmEnrollMode').value = mode;
     document.getElementById('confirmEnrollNotes').value = '';
     document.getElementById('confirmEnrollFile').value = '';
+    const scheduleInput = document.getElementById('confirmEnrollSchedule');
+    if (scheduleInput) scheduleInput.value = '';
 
     // El render de la fila pasa el URL del comprobante (string vacío si no hay).
     // Sólo aplica al modo 'confirm'. Decodificar el escape '%27' → "'".
@@ -538,6 +540,7 @@ class PermanenceManager {
     const mode = document.getElementById('confirmEnrollMode').value || 'confirm';
     const notes = document.getElementById('confirmEnrollNotes').value.trim();
     const file = document.getElementById('confirmEnrollFile').files[0] || null;
+    const schedule = document.getElementById('confirmEnrollSchedule')?.files[0] || null;
 
     if (!this.activePeriodId) {
       showFlash('warning', 'No hay periodo académico activo.');
@@ -554,6 +557,7 @@ class PermanenceManager {
     fd.append('academic_period_id', this.activePeriodId);
     if (notes) fd.append('notes', notes);
     if (file) fd.append('payment_proof', file);
+    if (schedule) fd.append('schedule', schedule);
     // 'advance' = avance manual desde Rezagados → coordinador asume el salto explícitamente
     if (mode === 'advance') fd.append('force', 'true');
 
@@ -893,11 +897,11 @@ class PermanenceManager {
       `;
     }
 
-    // CONACyT
+    // SECIHTI
     const cStatus = document.getElementById('expConacytStatus');
     cStatus.textContent = user_program.has_conacyt_scholarship
       ? 'Becario activo — Formato de Desempeño mensual obligatorio.'
-      : 'Sin beca CONACyT activa.';
+      : 'Sin beca SECIHTI activa.';
 
     // Historial
     const hBody = document.getElementById('expHistoryBody');
@@ -1116,7 +1120,7 @@ class PermanenceManager {
       if (res.ok && !json.error) {
         bootstrap.Modal.getInstance(document.getElementById('processLeaveModal'))?.hide();
         await this.loadLeaveRequestsTab();
-        await this.loadStudents(); // refrescar badge CONACyT y estado
+        await this.loadStudents(); // refrescar badge SECIHTI y estado
       }
     } catch (e) {
       showFlash('danger', `Error al procesar solicitud: ${e.message}`);
@@ -1127,7 +1131,7 @@ class PermanenceManager {
 
   async createConacytMonthlyDeadlines() {
     if (this._isAllMode()) {
-      showFlash('info', 'Selecciona un programa específico para crear ventanas CONACyT.');
+      showFlash('info', 'Selecciona un programa específico para crear ventanas SECIHTI.');
       return;
     }
     const btn = document.getElementById('btnConacytMonthly');
@@ -1146,7 +1150,7 @@ class PermanenceManager {
         await this.loadDocumentsTabData();
       }
     } catch (e) {
-      showFlash('danger', `Error al crear ventanas CONACyT: ${e.message}`);
+      showFlash('danger', `Error al crear ventanas SECIHTI: ${e.message}`);
     } finally {
       btn.disabled = false;
       btn.innerHTML = originalHtml;
@@ -1160,7 +1164,7 @@ class PermanenceManager {
   toggleConacyt(userProgramId, newValue) {
     const student = this.students.find(s => s.user_program?.id === userProgramId);
     const fullName = student?.user?.full_name || 'estudiante';
-    const actionLabel = newValue ? 'Activar beca CONACyT' : 'Quitar beca CONACyT';
+    const actionLabel = newValue ? 'Activar beca SECIHTI' : 'Quitar beca SECIHTI';
 
     document.getElementById('confirmConacytStudent').textContent = fullName;
     document.getElementById('confirmConacytAction').textContent = actionLabel;
@@ -1181,7 +1185,7 @@ class PermanenceManager {
       (json.flash || []).forEach(f => showFlash(f.level, f.message));
       if (res.ok && !json.error) await this.loadStudents();
     } catch (e) {
-      showFlash('danger', `Error al actualizar beca CONACyT: ${e.message}`);
+      showFlash('danger', `Error al actualizar beca SECIHTI: ${e.message}`);
     }
   }
 
@@ -1433,7 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
     permanenceManager?.loadDocumentsTabData();
   });
 
-  // ── Doble confirmación CONACyT (toggle desde tabla) ──
+  // ── Doble confirmación SECIHTI (toggle desde tabla) ──
   document.getElementById('btnConfirmConacyt')?.addEventListener('click', () => {
     if (!permanenceManager) return;
     const upId = parseInt(document.getElementById('confirmConacytUserProgramId').value);

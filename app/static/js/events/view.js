@@ -768,7 +768,7 @@
                 method: 'POST',
                 body: JSON.stringify({}),
             });
-            flash('success', 'Inscripción cancelada correctamente.');
+            flash('success', 'Inscripción cancelada exitosamente.');
             await loadEventDetail();
         } catch (err) {
             flash('danger', `Error al cancelar: ${err.message}`);
@@ -818,7 +818,7 @@
             await apiRequest(`${API}/appointments/${myAppt.id}`, {
                 method: 'DELETE',
             });
-            flash('success', 'Cita cancelada correctamente.');
+            flash('success', 'Cita cancelada exitosamente.');
             await loadEventDetail();
         } catch (err) {
             flash('danger', `Error al cancelar la cita: ${err.message}`);

@@ -271,6 +271,61 @@ def create_app(test_config=None):
             "role_badge_class": role_badge_class,
         }
 
+    _ES_STATUS = {
+        'in_progress': 'En Proceso',
+        'interview_completed': 'Entrevista Completada',
+        'deliberation': 'En Deliberación',
+        'accepted': 'Aceptado',
+        'rejected': 'Rechazado',
+        'deferred': 'Diferido',
+        'enrolled': 'Inscrito',
+        'pending': 'Pendiente',
+        'active': 'Activo',
+        'completed': 'Completado',
+        'on_leave': 'Baja Temporal',
+        'dropped': 'Baja Definitiva',
+        'approved': 'Aprobado',
+        'used': 'Usado',
+        'expired': 'Expirado',
+        'registered': 'Inscrito',
+        'attended': 'Asistió',
+        'absent': 'Ausente',
+        'cancelled': 'Cancelado',
+        'confirmed': 'Confirmado',
+        'scheduled': 'Programado',
+    }
+    _ES_ROLE = {
+        'applicant': 'Aspirante',
+        'program_admin': 'Coord. de Programa',
+        'postgraduate_admin': 'Admin. de Posgrado',
+        'social_service': 'Servicio Social',
+        'student': 'Estudiante',
+    }
+    _ES_ACCEPTANCE_DOC = {
+        'acceptance_letter': 'Carta de Aceptación',
+        'course_schedule': 'Tira de Materias',
+        'enrollment_receipt': 'Boleta de Servicios Escolares',
+        'acceptance_opinion': 'Dictamen de Aceptación',
+    }
+
+    @app.template_filter('es_status')
+    def _es_status_filter(value):
+        if not value:
+            return '—'
+        return _ES_STATUS.get(value, str(value).replace('_', ' '))
+
+    @app.template_filter('es_role')
+    def _es_role_filter(value):
+        if not value:
+            return '—'
+        return _ES_ROLE.get(value, value)
+
+    @app.template_filter('es_doc_type')
+    def _es_doc_type_filter(value):
+        if not value:
+            return '—'
+        return _ES_ACCEPTANCE_DOC.get(value, value)
+
     @app.route('/')
     def index():
         if not current_user.is_authenticated:

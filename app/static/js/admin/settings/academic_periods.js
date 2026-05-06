@@ -278,7 +278,7 @@ class AcademicPeriodsManager {
                 return;
             }
 
-            this.showFlash('success', result.flash?.[0]?.message || 'Periodo guardado correctamente');
+            this.showFlash('success', result.flash?.[0]?.message || 'Periodo guardado exitosamente');
             this.modalPeriod.hide();
             this.loadPeriods();
 
@@ -307,7 +307,7 @@ class AcademicPeriodsManager {
                 return;
             }
 
-            this.showFlash('success', result.flash?.[0]?.message || 'Periodo activado correctamente');
+            this.showFlash('success', result.flash?.[0]?.message || 'Periodo activado exitosamente');
             this.loadPeriods();
 
         } catch (error) {
@@ -339,7 +339,7 @@ class AcademicPeriodsManager {
                 return;
             }
 
-            this.showFlash('success', result.flash?.[0]?.message || 'Periodo eliminado correctamente');
+            this.showFlash('success', result.flash?.[0]?.message || 'Periodo eliminado exitosamente');
             this.modalDelete.hide();
             this.currentDeleteId = null;
             this.loadPeriods();

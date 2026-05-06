@@ -137,7 +137,7 @@ def send_test_email():
             <h2>🎉 ¡Correo de Prueba Exitoso!</h2>
             <p>Hola <strong>{current_user.first_name} {current_user.last_name}</strong>,</p>
             <p>Este es un correo de prueba del sistema SIIAP.</p>
-            <p>Si recibes este mensaje, significa que la configuración de correos está funcionando correctamente.</p>
+            <p>Si recibes este mensaje, significa que la configuración de correos está funcionando exitosamente.</p>
             <hr>
             <p style="color: #666; font-size: 14px;">
                 Instituto Tecnológico de Ciudad Juárez<br>

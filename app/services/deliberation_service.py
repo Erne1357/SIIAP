@@ -51,7 +51,8 @@ def get_applicants_for_deliberation(program_id: int):
     ).filter(
         and_(
             UserProgram.program_id == program_id,
-            UserProgram.admission_status.in_(['interview_completed', 'deliberation'])
+            UserProgram.admission_status.in_(['interview_completed', 'deliberation']),
+            User.is_active == True,  # noqa: E712 — excluir cuentas desactivadas
         )
     ).order_by(UserProgram.deliberation_started_at.desc()).all()
 
@@ -59,6 +60,7 @@ def get_applicants_for_deliberation(program_id: int):
 def get_applicants_by_status(program_id: int, status: str):
     """
     Obtiene aspirantes de un programa por estado de admision.
+    Excluye usuarios desactivados (User.is_active=False).
 
     Args:
         program_id: ID del programa
@@ -72,7 +74,8 @@ def get_applicants_by_status(program_id: int, status: str):
     ).filter(
         and_(
             UserProgram.program_id == program_id,
-            UserProgram.admission_status == status
+            UserProgram.admission_status == status,
+            User.is_active == True,  # noqa: E712
         )
     ).order_by(UserProgram.updated_at.desc()).all()
 
@@ -698,13 +701,14 @@ def get_applicants_with_pending_interview(program_id: int):
         Appointment.status == 'scheduled'
     ).subquery()
 
-    # Obtener UserPrograms en in_progress que tienen cita agendada
+    # Obtener UserPrograms en in_progress que tienen cita agendada (excluye desactivados)
     applicants = UserProgram.query.join(
         User, UserProgram.user_id == User.id
     ).filter(
         UserProgram.program_id == program_id,
         UserProgram.admission_status == 'in_progress',
-        UserProgram.user_id.in_(subquery_appointments)
+        UserProgram.user_id.in_(subquery_appointments),
+        User.is_active == True,  # noqa: E712
     ).order_by(UserProgram.updated_at.desc()).all()
 
     return applicants

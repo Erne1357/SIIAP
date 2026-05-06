@@ -9,7 +9,7 @@
  *     confirmLabel: 'Sí, eliminar',
  *   });
  *
- *   await siiapAlert('Mensaje enviado correctamente.');
+ *   await siiapAlert('Mensaje enviado exitosamente.');
  *   await siiapAlert({ title: 'Listo', message: '...', type: 'success' });
  */
 (function () {

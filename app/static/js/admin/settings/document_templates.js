@@ -194,7 +194,7 @@
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'Error al subir');
-        flash('Plantilla subida correctamente.');
+        flash('Plantilla subida exitosamente.');
         bootstrap.Modal.getInstance(document.getElementById('modalUpload'))?.hide();
         document.getElementById('formUpload').reset();
         await loadTemplates();
@@ -408,7 +408,7 @@
       link.remove();
       URL.revokeObjectURL(url);
 
-      flash('Documento generado y descargado correctamente.');
+      flash('Documento generado y descargado exitosamente.');
       bootstrap.Modal.getInstance(document.getElementById('modalGenerate'))?.hide();
     } catch (e) {
       errEl.textContent = e.message;
