@@ -346,7 +346,7 @@
         body: JSON.stringify(payload)
       });
       
-      flash('Evento creado correctamente', 'success');
+      flash('Evento creado exitosamente', 'success');
       createEventModal.hide();
       createEventForm.reset();
       await loadEvents();
@@ -377,7 +377,7 @@
         body: JSON.stringify(payload)
       });
       
-      flash('Ventana de horarios creada correctamente', 'success');
+      flash('Ventana de horarios creada exitosamente', 'success');
       addWindowModal.hide();
       addWindowForm.reset();
       await loadSlots(selectedEventId);
@@ -441,7 +441,7 @@
         body: JSON.stringify(payload)
       });
       
-      flash('Cita asignada correctamente', 'success');
+      flash('Cita asignada exitosamente', 'success');
       assignSlotModal.hide();
       assignSlotForm.reset();
       await loadSlots(selectedEventId);
@@ -461,7 +461,7 @@
     try {
       // TODO Fase 4: Implementar API correcta
       // Por ahora simular
-      flash('Cita cancelada correctamente', 'success');
+      flash('Cita cancelada exitosamente', 'success');
       confirmCancelAppointmentModal.hide();
       cancelAppointmentForm.reset();
       await loadSlots(selectedEventId);
@@ -487,7 +487,7 @@
         slotsCard.style.display = 'none';
       }
       
-      flash('Evento eliminado correctamente', 'success');
+      flash('Evento eliminado exitosamente', 'success');
       confirmDeleteEventModal.hide();
       
     } catch (err) {

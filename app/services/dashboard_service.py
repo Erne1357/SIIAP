@@ -170,10 +170,14 @@ class DashboardService:
         Returns:
             dict con métricas de admisión
         """
-        # Total de solicitantes activos en este programa (no rechazados ni expirados)
-        total_applicants = db.session.query(func.count(UserProgram.user_id)).filter(
+        # Total de solicitantes activos en este programa (no rechazados ni expirados,
+        # cuentas desactivadas se excluyen)
+        total_applicants = db.session.query(func.count(UserProgram.user_id)).join(
+            User, UserProgram.user_id == User.id
+        ).filter(
             UserProgram.program_id == program_id,
-            UserProgram.admission_status.notin_(['rejected', 'expired'])
+            UserProgram.admission_status.notin_(['rejected', 'expired']),
+            User.is_active == True,  # noqa: E712
         ).scalar() or 0
 
         # Documentos pendientes de revisión (submissions con status 'review')
@@ -189,9 +193,12 @@ class DashboardService:
         approved_count = 0
         rejected_count = 0
 
-        applicants = db.session.query(UserProgram).filter(
+        applicants = db.session.query(UserProgram).join(
+            User, UserProgram.user_id == User.id
+        ).filter(
             UserProgram.program_id == program_id,
-            UserProgram.admission_status.in_(['in_progress', 'interview_completed', 'deliberation'])
+            UserProgram.admission_status.in_(['in_progress', 'interview_completed', 'deliberation']),
+            User.is_active == True,  # noqa: E712
         ).all()
 
         for applicant in applicants:
@@ -558,7 +565,7 @@ class DashboardService:
             )
             pending = []
             for dl in deadlines:
-                # Filtrar CONACyT mensual si el estudiante no es becario
+                # Filtrar SECIHTI mensual si el estudiante no es becario
                 if dl.archive.step_id == 12 and not (up and up.has_conacyt_scholarship):
                     continue
                 sub = (

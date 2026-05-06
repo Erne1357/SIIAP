@@ -46,6 +46,10 @@ class SemesterEnrollment(db.Model):
     # estructura: <user_id>/permanence/<filename>.pdf — servible vía /files/doc/<path>.
     payment_proof_path = db.Column(db.String(255), nullable=True)
 
+    # Horario del semestre subido por el coordinador al confirmar la inscripción.
+    # Mismo formato que payment_proof_path. NULL = aún no subido.
+    schedule_path = db.Column(db.String(255), nullable=True)
+
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     updated_at = db.Column(
         db.DateTime, default=now_local, onupdate=now_local, nullable=False
@@ -73,6 +77,8 @@ class SemesterEnrollment(db.Model):
             'notes': self.notes,
             'payment_proof_path': self.payment_proof_path,
             'payment_proof_url': f'/files/doc/{self.payment_proof_path}' if self.payment_proof_path else None,
+            'schedule_path': self.schedule_path,
+            'schedule_url': f'/files/doc/{self.schedule_path}' if self.schedule_path else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

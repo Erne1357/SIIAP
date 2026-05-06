@@ -463,7 +463,7 @@
             const { data } = await C.apiRequest(`${C.API}/events`, {
                 method: 'POST', body: JSON.stringify(payload)
             });
-            C.flash('Evento creado correctamente', 'success');
+            C.flash('Evento creado exitosamente', 'success');
             modalInstance('createEventModal')?.hide();
             const newId = data.event_id || data.id;
             if (newId) {

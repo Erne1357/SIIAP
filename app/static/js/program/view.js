@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
         siiapAlert({
           type: 'success',
           title: 'Mensaje enviado',
-          message: 'Mensaje enviado correctamente. Te contactaremos pronto.',
+          message: 'Mensaje enviado exitosamente. Te contactaremos pronto.',
         });
         contactForm.reset();
       }

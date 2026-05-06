@@ -255,7 +255,7 @@
                   <th class="text-center">Semestre</th>
                   <th class="text-center">Periodo Actual</th>
                   <th class="text-center">Estado Semestre</th>
-                  <th class="text-center">CONACyT</th>
+                  <th class="text-center">SECIHTI</th>
                   <th class="text-center">Acciones</th>
                 </tr>
               </thead>
@@ -293,8 +293,8 @@
             {% if active_period %}
             <div class="d-flex gap-2">
               <button class="btn btn-sm btn-outline-success" id="btnConacytMonthly"
-                title="Genera automáticamente las ventanas mensuales del semestre para becarios CONACyT">
-                <i class="bi bi-calendar-month me-1"></i>Crear ventanas CONACyT
+                title="Genera automáticamente las ventanas mensuales del semestre para becarios SECIHTI">
+                <i class="bi bi-calendar-month me-1"></i>Crear ventanas SECIHTI
               </button>
               <button class="btn btn-sm btn-primary" id="btnNewDeadline"
                 {% if not permanence_archives %}disabled title="No hay archives activos de permanencia"{% endif %}>
@@ -380,6 +380,11 @@
           <label class="form-label">Comprobante de pago (PDF, opcional)</label>
           <input type="file" class="form-control" id="confirmEnrollFile" accept="application/pdf">
           <div class="form-text">Si recibes el recibo por otro medio, adjúntalo aquí. Si el estudiante ya subió, déjalo vacío.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Horario del semestre (PDF, opcional)</label>
+          <input type="file" class="form-control" id="confirmEnrollSchedule" accept="application/pdf">
+          <div class="form-text">Adjunta el horario del estudiante para este semestre. Quedará disponible en su panel.</div>
         </div>
         <div class="mb-3">
           <label class="form-label">Notas (opcional)</label>
@@ -517,7 +522,7 @@
         <div class="mb-3">
           <label class="form-label fw-bold">Etiqueta descriptiva <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="deadlineLabel"
-            placeholder="Ej: 1er Reporte Semestral, Formato CONACyT — Enero">
+            placeholder="Ej: 1er Reporte Semestral, Formato SECIHTI — Enero">
           <div class="form-text">Se mostrará al estudiante para identificar esta entrega.</div>
         </div>
         <div class="row g-3">
@@ -679,12 +684,12 @@
             <div class="card-body" id="expEnrollmentBody"></div>
           </div>
 
-          <!-- CONACyT info -->
+          <!-- SECIHTI info -->
           <div class="card mb-3" id="expConacytCard">
             <div class="card-body d-flex align-items-center gap-2">
               <i class="bi bi-award-fill fs-4 text-warning"></i>
               <div class="flex-grow-1">
-                <div class="fw-semibold">Beca CONACyT</div>
+                <div class="fw-semibold">Beca SECIHTI</div>
                 <small class="text-muted" id="expConacytStatus"></small>
               </div>
             </div>
@@ -707,13 +712,13 @@
   </div>
 </div>
 
-<!-- Modal: Doble confirmación CONACyT -->
+<!-- Modal: Doble confirmación SECIHTI -->
 <div class="modal fade" id="confirmConacytModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-sm">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">
-          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Confirmar cambio CONACyT
+          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Confirmar cambio SECIHTI
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -721,7 +726,7 @@
         <p class="mb-2">Estudiante: <strong id="confirmConacytStudent"></strong></p>
         <p class="mb-1">Acción: <strong id="confirmConacytAction"></strong></p>
         <p class="text-muted small mb-0">
-          Activar/desactivar la beca CONACyT genera ventanas de entrega mensuales
+          Activar/desactivar la beca SECIHTI genera ventanas de entrega mensuales
           y cambia el estado del estudiante. Esta acción puede afectar reportes.
           Confirma que es correcto.
         </p>

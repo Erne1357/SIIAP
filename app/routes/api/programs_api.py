@@ -121,7 +121,7 @@ def api_update_program(slug):
 
         return jsonify({
             "data": {"program": updated_program.to_dict()},
-            "flash": [{"level": "success", "message": "Programa actualizado correctamente."}],
+            "flash": [{"level": "success", "message": "Programa actualizado exitosamente."}],
             "error": None,
             "meta": {}
         }), 200

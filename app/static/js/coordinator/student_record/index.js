@@ -33,6 +33,45 @@
     if (typeof showFlash === 'function') showFlash(level, msg);
   }
 
+  // ── Spanish label maps ─────────────────────────────────────────────────
+  const ROLE_LABELS = {
+    applicant: 'Aspirante',
+    program_admin: 'Coord. de Programa',
+    postgraduate_admin: 'Admin. de Posgrado',
+    social_service: 'Servicio Social',
+    student: 'Estudiante',
+  };
+  const STATUS_LABELS = {
+    // admission_status
+    in_progress: 'En Proceso',
+    interview_completed: 'Entrevista Completada',
+    deliberation: 'En Deliberación',
+    accepted: 'Aceptado',
+    rejected: 'Rechazado',
+    deferred: 'Diferido',
+    enrolled: 'Inscrito',
+    // semester enrollment
+    pending: 'Pendiente',
+    active: 'Activo',
+    completed: 'Completado',
+    on_leave: 'Baja Temporal',
+    dropped: 'Baja Definitiva',
+    // submission/document
+    approved: 'Aprobado',
+    // deferral
+    used: 'Usado',
+    expired: 'Expirado',
+    // attendance / event
+    registered: 'Inscrito',
+    attended: 'Asistió',
+    absent: 'Ausente',
+    cancelled: 'Cancelado',
+    confirmed: 'Confirmado',
+    scheduled: 'Programado',
+  };
+  function tStatus(s) { return s ? (STATUS_LABELS[s] || s.replace(/_/g, ' ')) : '—'; }
+  function tRole(r) { return r ? (ROLE_LABELS[r] || r) : '—'; }
+
   // ── Loaders ──────────────────────────────────────────────────────────────
   async function loadRecord() {
     try {
@@ -84,7 +123,7 @@
     document.getElementById('recordAvatar').src = u.avatar_url + '?t=' + Date.now();
     document.getElementById('recordFullName').textContent =
       `${u.first_name} ${u.last_name} ${u.mother_last_name || ''}`.trim();
-    document.getElementById('recordRole').textContent = u.role || '—';
+    document.getElementById('recordRole').textContent = tRole(u.role);
 
     const fields = [
       ['Teléfono', u.phone], ['Celular', u.mobile_phone],
@@ -244,13 +283,13 @@
     el.innerHTML = `<div class="card-body p-0"><div class="siiap-table-wrapper">
       <table class="table mb-0">
         <thead>
-          <tr><th>Programa</th><th>Estado</th><th>Periodo admisión</th><th>Semestre</th><th>CONACyT</th><th>Inscripción</th></tr>
+          <tr><th>Programa</th><th>Estado</th><th>Periodo admisión</th><th>Semestre</th><th>SECIHTI</th><th>Inscripción</th></tr>
         </thead>
         <tbody>
           ${programs.map(p => `
             <tr>
               <td>${escHtml(p.program_name || '—')}</td>
-              <td><span class="status-badge status-badge--${escHtml(p.admission_status || 'pending')}">${escHtml(p.admission_status || '—')}</span></td>
+              <td>${statusBadge(p.admission_status)}</td>
               <td>${escHtml(p.admission_period_name || '—')}</td>
               <td>${escHtml(p.current_semester || '—')}</td>
               <td>${p.has_conacyt_scholarship ? '<span class="badge bg-success-soft text-success-strong">Sí</span>' : '<span class="badge bg-secondary">No</span>'}</td>
@@ -262,7 +301,7 @@
   }
 
   function statusBadge(status) {
-    return `<span class="status-badge status-badge--${escHtml(status || 'pending')}">${escHtml(status || '—')}</span>`;
+    return `<span class="status-badge status-badge--${escHtml(status || 'pending')}">${escHtml(tStatus(status))}</span>`;
   }
 
   function docList(docs) {
@@ -364,7 +403,7 @@
     document.getElementById('recordSemesters').innerHTML = `
       <div class="siiap-table-wrapper">
         <table class="table">
-          <thead><tr><th>Semestre</th><th>Periodo</th><th>Estado</th><th>Confirmado</th><th>Confirmado el</th><th>Comprobante</th></tr></thead>
+          <thead><tr><th>Semestre</th><th>Periodo</th><th>Estado</th><th>Confirmado</th><th>Confirmado el</th><th>Comprobante</th><th>Horario</th></tr></thead>
           <tbody>
             ${items.map(s => `
               <tr>
@@ -374,6 +413,7 @@
                 <td>${s.enrollment_confirmed ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-muted"></i>'}</td>
                 <td>${escHtml(fmtDate(s.confirmed_at))}</td>
                 <td>${s.payment_proof_url ? `<a href="${escHtml(s.payment_proof_url)}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i></a>` : '—'}</td>
+                <td>${s.schedule_url ? `<a href="${escHtml(s.schedule_url)}" target="_blank" class="btn btn-sm btn-outline-success"><i class="bi bi-calendar2-week"></i></a>` : '—'}</td>
               </tr>`).join('')}
           </tbody>
         </table>

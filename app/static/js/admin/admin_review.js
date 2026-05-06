@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Acción realizada correctamente.' }];
+          : [{ level: 'success', message: 'Acción realizada exitosamente.' }];
 
         persistFlashes(flashes);
         window.location.href = nextUrl;
@@ -290,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      emitFlash('success', json.message || 'Decisión registrada correctamente');
+      emitFlash('success', json.message || 'Decisión registrada exitosamente');
 
       // Cerrar modal y recargar
       const modal = bootstrap.Modal.getInstance(extensionReviewModal);

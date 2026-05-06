@@ -75,7 +75,7 @@
         reminders.push({
           type: 'success',
           icon: 'bi-envelope-check',
-          title: 'Correo configurado correctamente',
+          title: 'Correo configurado exitosamente',
           message: `Cuenta activa: ${data.data.account.username || 'No disponible'}`,
           action: null,
         });

@@ -51,7 +51,7 @@
     enrollment_not_confirmed:  'Pago no confirmado',
     missing_documents:         'Documentos de permanencia pendientes',
     on_leave:                  'Baja temporal activa',
-    conacyt_missing:           'Reportes CONACyT pendientes',
+    conacyt_missing:           'Reportes SECIHTI pendientes',
     enrollment_missing:        'Sin inscripción en este periodo',
     status_not_active:         'Estado de inscripción no activo',
   };

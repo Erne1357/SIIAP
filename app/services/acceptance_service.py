@@ -135,7 +135,8 @@ def get_accepted_applicants(program_id: int):
     ).filter(
         and_(
             UserProgram.program_id == program_id,
-            UserProgram.admission_status == 'accepted'
+            UserProgram.admission_status == 'accepted',
+            User.is_active == True,  # noqa: E712 — excluir cuentas desactivadas
         )
     ).order_by(UserProgram.decision_at.desc()).all()
 

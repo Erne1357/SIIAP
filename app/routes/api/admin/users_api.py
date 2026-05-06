@@ -205,7 +205,7 @@ def update_user(user_id):
 
     return jsonify({
         "data": {"user": user.to_dict(include_sensitive=True)},
-        "flash": [{"level": "success", "message": "Usuario actualizado correctamente."}],
+        "flash": [{"level": "success", "message": "Usuario actualizado exitosamente."}],
         "error": None,
         "meta": {"changed_fields": list(changed_fields.keys())}
     }), 200

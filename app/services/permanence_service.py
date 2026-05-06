@@ -169,6 +169,7 @@ def confirm_semester_enrollment(
     coordinator_id: int,
     notes: str = None,
     payment_proof_path: str = None,
+    schedule_path: str = None,
     force: bool = False,
 ) -> SemesterEnrollment:
     # Webhook futuro:
@@ -257,6 +258,17 @@ def confirm_semester_enrollment(
 
         semester_number = max_sem + 1
 
+        # Validar límite de semestres del programa (duration_semesters + 4)
+        program = up.program
+        if program and program.duration_semesters:
+            max_allowed = program.duration_semesters + 4
+            if semester_number > max_allowed:
+                raise InvalidStateTransition(
+                    f"No se puede confirmar: el estudiante excedería el límite de "
+                    f"{max_allowed} semestres del programa "
+                    f"(duración oficial {program.duration_semesters} + 4 de gracia)."
+                )
+
         se = SemesterEnrollment(
             user_program_id=user_program_id,
             academic_period_id=academic_period_id,
@@ -276,6 +288,8 @@ def confirm_semester_enrollment(
     se.notes = notes
     if payment_proof_path:
         se.payment_proof_path = payment_proof_path
+    if schedule_path:
+        se.schedule_path = schedule_path
 
     user = up.user
     program = up.program
@@ -549,6 +563,7 @@ def get_enrollment_overview(program_id: int) -> dict:
         UserProgram.query
         .filter_by(program_id=program_id, admission_status='enrolled')
         .join(User, UserProgram.user_id == User.id)
+        .filter(User.is_active == True)  # noqa: E712 — excluir cuentas desactivadas
         .order_by(User.last_name, User.first_name)
         .all()
     )
@@ -951,7 +966,7 @@ def get_student_documents_for_period(user_program_id: int) -> list:
     """
     Obtiene las ventanas de entrega del periodo activo para el estudiante,
     con el estado de su última submission en cada una.
-    Omite documentos de Step 12 (CONACyT) si el estudiante no es becario.
+    Omite documentos de Step 12 (SECIHTI) si el estudiante no es becario.
     """
     from app.models.document_deadline import DocumentDeadline
     from app.models.archive import Archive
@@ -977,7 +992,7 @@ def get_student_documents_for_period(user_program_id: int) -> list:
 
     result = []
     for dl in deadlines:
-        # Filtrar Step 12 (Becarios CONACyT) si el estudiante no es becario
+        # Filtrar Step 12 (Becarios SECIHTI) si el estudiante no es becario
         if dl.archive.step_id == 12 and not up.has_conacyt_scholarship:
             continue
         sub = (
@@ -1414,10 +1429,15 @@ def get_pending_leave_requests(program_id: int) -> list:
     if not archive:
         return []
 
-    # Subquery: user_ids del programa
+    # Subquery: user_ids del programa (sólo cuentas activas)
     user_ids_subq = (
         db.session.query(UserProgram.user_id)
-        .filter_by(program_id=program_id, admission_status='enrolled')
+        .join(User, UserProgram.user_id == User.id)
+        .filter(
+            UserProgram.program_id == program_id,
+            UserProgram.admission_status == 'enrolled',
+            User.is_active == True,  # noqa: E712
+        )
     )
 
     subs = (
@@ -1590,7 +1610,7 @@ def create_monthly_conacyt_deadlines(
     coordinator_id: int,
 ) -> dict:
     """
-    Crea las ventanas de entrega mensuales para becarios CONACyT del semestre.
+    Crea las ventanas de entrega mensuales para becarios SECIHTI del semestre.
 
     Busca el archive activo de Step 12 (Formato de Desempeño) y genera un
     DocumentDeadline por cada mes dentro del rango del periodo académico,
@@ -1617,7 +1637,7 @@ def create_monthly_conacyt_deadlines(
     )
     if not conacyt_archive:
         raise ValueError(
-            "No se encontró el archive de CONACyT (Step 12) o está inactivo. "
+            "No se encontró el archive de SECIHTI (Step 12) o está inactivo. "
             "Verifica que el archive 'Formato de Desempeño' exista y esté activo."
         )
 
@@ -1663,7 +1683,7 @@ def create_monthly_conacyt_deadlines(
             program_id=program_id,
             academic_period_id=academic_period_id,
             sequence=month,
-            label=f"Formato CONACyT — {MONTH_NAMES[month]} {year}",
+            label=f"Formato SECIHTI — {MONTH_NAMES[month]} {year}",
             opens_at=opens_at,
             closes_at=closes_at,
             is_open=True,
@@ -1678,14 +1698,14 @@ def create_monthly_conacyt_deadlines(
             admin_id=coordinator_id,
             action='conacyt_deadlines_created',
             details=(
-                f'Creó {len(created)} ventana(s) mensual(es) CONACyT '
+                f'Creó {len(created)} ventana(s) mensual(es) SECIHTI '
                 f'para el periodo {period.name}'
             ),
         )
 
     db.session.commit()
 
-    # Notificar solo a becarios CONACyT del programa (vía Celery)
+    # Notificar solo a becarios SECIHTI del programa (vía Celery)
     if created:
         try:
             conacyt_student_ids = [
@@ -1700,13 +1720,13 @@ def create_monthly_conacyt_deadlines(
                 NotificationService.send_bulk(
                     user_ids=conacyt_student_ids,
                     notification_type='conacyt_deadlines_created',
-                    title='Ventanas mensuales CONACyT creadas',
-                    message=f'Se crearon {len(created)} ventana(s) de entrega CONACyT para {period.name}. Revisa tu panel.',
+                    title='Ventanas mensuales SECIHTI creadas',
+                    message=f'Se crearon {len(created)} ventana(s) de entrega SECIHTI para {period.name}. Revisa tu panel.',
                     priority='medium',
                     action_url='/user/dashboard',
                 )
         except Exception as e:
-            logging.error(f"Error sending bulk notification for CONACyT deadlines: {e}")
+            logging.error(f"Error sending bulk notification for SECIHTI deadlines: {e}")
 
     return {
         'created': len(created),

@@ -241,16 +241,22 @@ def upload_for_student():
     student_id = request.form.get('student_id', type=int)
     archive_id = request.form.get('archive_id', type=int)
     notes = request.form.get('notes', '').strip()
-    
+    decision = (request.form.get('decision') or 'approve').strip().lower()
+    if decision not in ('approve', 'reject'):
+        decision = 'approve'
+
     if not student_id or not archive_id:
         return jsonify({"error": "student_id y archive_id son requeridos"}), 400
-    
-    if 'file' not in request.files:
-        return jsonify({"error": "No se proporcionó archivo"}), 400
-    
-    file = request.files['file']
-    if not file.filename:
-        return jsonify({"error": "Archivo inválido"}), 400
+
+    # Archivo opcional: si no se proporciona, el coordinador valida sin documento
+    # (caso típico: examen presencial). Aspirantes/estudiantes siempre suben file.
+    file = request.files.get('file') if 'file' in request.files else None
+    if file and not file.filename:
+        file = None
+    if not file and not notes:
+        return jsonify({
+            "error": "Si no subes un archivo debes proporcionar al menos un comentario justificativo"
+        }), 400
     
     # Verificar permisos sobre el estudiante
     user_program = UserProgram.query.filter_by(user_id=student_id).first()
@@ -267,39 +273,45 @@ def upload_for_student():
         return jsonify({"error": "Este archivo no permite subida por coordinador"}), 403
     
     try:
-        # USAR TU FUNCIÓN DE ARCHIVOS PARA GUARDAR
-        # Esto creará un nombre consistente y manejará las validaciones
-        file_relative_path = save_user_doc(
-            file_storage=file,
-            user_id=student_id,
-            phase='admission',  # Por ahora todo es admisión
-            name=archive.name  # Usar el nombre del archivo como base
-        )
-        
-        # Buscar ProgramStep
+        # Si hay archivo, guardarlo. Si no, file_relative_path queda en None.
+        file_relative_path = None
+        if file:
+            file_relative_path = save_user_doc(
+                file_storage=file,
+                user_id=student_id,
+                phase='admission',
+                name=archive.name,
+            )
+
         program_step = ProgramStep.query.filter_by(
             program_id=user_program.program_id,
             step_id=archive.step_id
         ).first()
-        
+
         if not program_step:
             return jsonify({"error": "Configuración de programa incompleta"}), 400
-        
-        # Eliminar submission anterior si existe (tu función ya reemplaza el archivo)
+
+        # Eliminar submission anterior si existe
         existing = Submission.query.filter_by(
             user_id=student_id,
             archive_id=archive_id
         ).first()
-        
         if existing:
             db.session.delete(existing)
-        
-        # Crear nueva submission
+
+        new_status = 'approved' if decision == 'approve' else 'rejected'
+        prefix = '[Coordinador]'
+        if not file:
+            prefix = '[Coordinador · validación sin archivo]'
+        comment_body = notes if notes else (
+            'Documento subido y aprobado' if decision == 'approve' else 'Documento rechazado'
+        )
+
         submission = Submission(
             file_path=file_relative_path,
-            status='approved',  # Coordinador aprueba directamente
+            status=new_status,
             review_date=datetime.now(),
-            reviewer_comment="[Coordinador] Documento subido y aprobado",
+            reviewer_comment=f"{prefix} {comment_body}",
             user_id=student_id,
             archive_id=archive_id,
             program_step_id=program_step.id,
@@ -307,14 +319,13 @@ def upload_for_student():
             uploaded_by=current_user.id,
             uploaded_by_role='program_admin'
         )
-        
-        if notes:
-            submission.reviewer_comment = f"[Coordinador] {notes}"
-        
+
+        # Marcar reviewer_id si la decisión es revisar (no solo subir)
+        submission.reviewer_id = current_user.id
+
         db.session.add(submission)
         db.session.commit()
-        
-        # Registrar en el historial
+
         try:
             UserHistoryService.log_document_upload(
                 user_id=student_id,
@@ -326,16 +337,19 @@ def upload_for_student():
             db.session.commit()
         except Exception as e:
             current_app.logger.error(f"Error al registrar subida por coordinador en historial: {e}")
-        
+
+        msg = (
+            f"Documento {'aprobado' if decision == 'approve' else 'rechazado'} exitosamente por coordinador"
+            + ('' if file else ' (sin archivo adjunto)')
+        )
         return jsonify({
-            "ok": True, 
+            "ok": True,
             "submission_id": submission.id,
-            "message": "Documento subido correctamente por coordinador"
+            "message": msg,
         }), 201
-        
+
     except Exception as e:
         db.session.rollback()
-        # Tu función save_user_doc ya maneja la limpieza de archivos en caso de error
         return jsonify({"error": f"Error al guardar: {str(e)}"}), 500
 
 

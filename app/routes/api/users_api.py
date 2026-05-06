@@ -95,7 +95,7 @@ def complete_profile():
         flash_message = "¡Perfil completado exitosamente! Ahora eres elegible para entrevistas."
         flash_level = "success"
     elif is_complete_now:
-        flash_message = "Información del perfil actualizada correctamente."
+        flash_message = "Información del perfil actualizada exitosamente."
         flash_level = "success"
     else:
         flash_message = "Información guardada. Completa todos los campos requeridos para finalizar tu perfil."
@@ -189,7 +189,7 @@ def update_me():
             "scolarship_type": current_user.scolarship_type,
             "profile_completed": current_user.profile_completed
         }},
-        "flash": [{"level": "success", "message": "Perfil actualizado correctamente."}],
+        "flash": [{"level": "success", "message": "Perfil actualizado exitosamente."}],
         "error": None, "meta": {}
     }), 200
 

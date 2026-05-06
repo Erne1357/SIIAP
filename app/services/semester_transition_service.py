@@ -104,14 +104,14 @@ def _delta_periods(admission_period_id: Optional[int], target_period_id: int) ->
 
 
 def _get_conacyt_archive_step_id() -> Optional[int]:
-    """Devuelve el step_id del archive de CONACyT (step 12), o None si no existe."""
-    # El archive CONACyT está en Step 12 por convención del proyecto.
+    """Devuelve el step_id del archive de SECIHTI (step 12), o None si no existe."""
+    # El archive SECIHTI está en Step 12 por convención del proyecto.
     return 12
 
 
 def _is_conacyt_deadline(deadline) -> bool:
     """
-    Determina si un DocumentDeadline es de tipo CONACyT mensual
+    Determina si un DocumentDeadline es de tipo SECIHTI mensual
     (i.e., su archive pertenece al step 12 / Formato de Desempeño).
     """
     return deadline.archive and deadline.archive.step_id == 12
@@ -176,6 +176,23 @@ def evaluate_student(
         })
         return {'can_advance': False, 'blockers': blockers}
 
+    # ── Regla nueva: Límite máximo de semestres (duration_semesters + 4) ──
+    # Maestrías: 4 normal → 8 máx. Doctorado: 6 normal → 10 máx.
+    # Bajas temporales NO descuentan: el contador sigue creciendo.
+    program = up.program
+    if program and program.duration_semesters:
+        max_allowed = program.duration_semesters + 4
+        next_sem = (source_se.semester_number or 0) + 1
+        if next_sem > max_allowed:
+            blockers.append({
+                'code': 'semester_limit_exceeded',
+                'message': (
+                    f'Excede el límite de semestres del programa '
+                    f'(máx {max_allowed}: duración {program.duration_semesters} + 4). '
+                    f'Avanzaría al semestre {next_sem}.'
+                ),
+            })
+
     if not source_se.enrollment_confirmed:
         blockers.append({
             'code': 'enrollment_not_confirmed',
@@ -235,7 +252,7 @@ def evaluate_student(
             continue
 
         if _is_conacyt_deadline(dl):
-            # Las ventanas CONACyT mensual se acumulan por separado
+            # Las ventanas SECIHTI mensual se acumulan por separado
             missing_conacyt.append({
                 'id': dl.id,
                 'label': dl.label,
@@ -256,16 +273,16 @@ def evaluate_student(
             'deadlines': missing_docs,
         })
 
-    # ── Regla 4: CONACyT mensual (sólo becarios) ──
+    # ── Regla 4: SECIHTI mensual (sólo becarios) ──
     if up.has_conacyt_scholarship and missing_conacyt:
         blockers.append({
             'code': 'missing_conacyt_months',
             'message': (
-                f'{len(missing_conacyt)} entrega(s) mensual(es) CONACyT cerrada(s) sin aprobación'
+                f'{len(missing_conacyt)} entrega(s) mensual(es) SECIHTI cerrada(s) sin aprobación'
             ),
             'months': missing_conacyt,
         })
-    # Si no es becario, ignorar ventanas CONACyT (ya se omitieron de missing_docs)
+    # Si no es becario, ignorar ventanas SECIHTI (ya se omitieron de missing_docs)
 
     return {
         'can_advance': len(blockers) == 0,

@@ -504,7 +504,7 @@ class EventsService:
             force: Si True, elimina aunque esté ocupado (cancela la cita)
         
         Returns:
-            True si se eliminó correctamente
+            True si se eliminó exitosamente
         """
         slot = db.session.get(EventSlot, slot_id)
         if not slot:
@@ -535,7 +535,7 @@ class EventsService:
             force: Si True, elimina aunque tenga slots ocupados
         
         Returns:
-            True si se eliminó correctamente
+            True si se eliminó exitosamente
         """
         window = db.session.get(EventWindow, window_id)
         if not window:

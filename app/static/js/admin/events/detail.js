@@ -297,7 +297,7 @@
             await C.apiRequest(`${C.API}/events/${eventId}/windows`, {
                 method: 'POST', body: JSON.stringify(payload)
             });
-            C.flash('Plazo creado correctamente', 'success');
+            C.flash('Plazo creado exitosamente', 'success');
             modal('addWindowModal')?.hide();
             el('addWindowForm').reset();
             await loadWindows();
@@ -375,7 +375,7 @@
                 if (!confirmed) return;
                 await C.apiRequest(`${C.API}/events/windows/${windowId}?force=true`, { method: 'DELETE' });
             }
-            C.flash('Plazo eliminado correctamente', 'success');
+            C.flash('Plazo eliminado exitosamente', 'success');
             modal('confirmDeleteWindowModal')?.hide();
             await loadWindows();
             if (loaded.slots) await loadSlots();
@@ -578,7 +578,7 @@
         }
         try {
             await C.apiRequest(`${C.API}/appointments`, { method: 'POST', body: JSON.stringify(payload) });
-            C.flash('Cita asignada correctamente', 'success');
+            C.flash('Cita asignada exitosamente', 'success');
             modal('assignSlotModal')?.hide();
             el('assignSlotForm').reset();
             await loadSlots();
@@ -605,7 +605,7 @@
                 method: 'POST',
                 body: JSON.stringify({ reason: reason || 'Cancelada por coordinador' })
             });
-            C.flash('Cita cancelada correctamente', 'success');
+            C.flash('Cita cancelada exitosamente', 'success');
             modal('confirmCancelAppointmentModal')?.hide();
             el('cancelAppointmentForm').reset();
             await loadSlots();
@@ -645,7 +645,7 @@
                 if (!confirmed) return;
                 await C.apiRequest(`${C.API}/events/slots/${slotId}?force=true`, { method: 'DELETE' });
             }
-            C.flash('Slot eliminado correctamente', 'success');
+            C.flash('Slot eliminado exitosamente', 'success');
             modal('confirmDeleteSlotModal')?.hide();
             await loadWindows();
             await loadSlots();
@@ -934,7 +934,7 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        C.flash('Archivo exportado correctamente', 'success');
+        C.flash('Archivo exportado exitosamente', 'success');
     }
 
     // =================================================================
@@ -1293,7 +1293,7 @@
             await C.apiRequest(`${C.API}/events/${evId}`, {
                 method: 'PUT', body: JSON.stringify(payload)
             });
-            C.flash('Evento actualizado correctamente', 'success');
+            C.flash('Evento actualizado exitosamente', 'success');
             modal('editEventInfoModal')?.hide();
             await loadEventDetails();
         } catch (err) {
@@ -1844,7 +1844,7 @@
             await C.apiRequest(`${C.API}/events/${eventId}/hosts`, {
                 method: 'PUT', body: JSON.stringify({ hosts: currentEventHosts })
             });
-            C.flash('Ponentes guardados correctamente', 'success');
+            C.flash('Ponentes guardados exitosamente', 'success');
             renderSummaryHosts();
         } catch (err) {
             C.flash(`Error al guardar ponentes: ${err.message}`, 'danger');
@@ -1872,7 +1872,7 @@
         if (!ok) return;
         try {
             await C.apiRequest(`${C.API}/events/${eventId}/conclude`, { method: 'POST' });
-            C.flash('Evento concluido correctamente', 'success');
+            C.flash('Evento concluido exitosamente', 'success');
             await loadEventDetails();
         } catch (err) {
             C.flash(`Error al concluir: ${err.message}`, 'danger');
@@ -1938,7 +1938,7 @@
                 if (!confirmed) return;
                 await C.apiRequest(`${C.API}/events/${eventId}?force=true`, { method: 'DELETE' });
             }
-            C.flash('Evento eliminado correctamente', 'success');
+            C.flash('Evento eliminado exitosamente', 'success');
             modal('confirmDeleteEventModal')?.hide();
             window.location.href = ctx.listUrl;
         } catch (err) {

@@ -261,7 +261,7 @@
           body: JSON.stringify(body)
         });
         
-        flash("Configuración guardada correctamente", "success");
+        flash("Configuración guardada exitosamente", "success");
         await loadArchives();
       } catch (err) {
         flash(`Error al guardar: ${err.message}`, "danger");
@@ -320,7 +320,7 @@
         body: fd
       });
       
-      flash("Plantilla actualizada correctamente", "success");
+      flash("Plantilla actualizada exitosamente", "success");
       modalTpl.hide();
       await loadArchives();
     } catch (err) {
@@ -380,7 +380,7 @@
         body: JSON.stringify(body)
       });
       
-      flash(`Archivo ${isEdit ? 'actualizado' : 'creado'} correctamente`, "success");
+      flash(`Archivo ${isEdit ? 'actualizado' : 'creado'} exitosamente`, "success");
       modalEdit.hide();
       await loadArchives();
     } catch (err) {
@@ -420,7 +420,7 @@
         throw new Error(data.error || "No se pudo eliminar");
       }
       
-      flash("Archivo eliminado correctamente", "success");
+      flash("Archivo eliminado exitosamente", "success");
       modalDel.hide();
       await loadArchives();
     } catch (err) {

@@ -65,12 +65,12 @@
   <h2>Información académica</h2>
   {% if record.programs %}
   <table>
-    <thead><tr><th>Programa</th><th>Estado</th><th>Periodo admisión</th><th>Semestre actual</th><th>CONACyT</th></tr></thead>
+    <thead><tr><th>Programa</th><th>Estado</th><th>Periodo admisión</th><th>Semestre actual</th><th>SECIHTI</th></tr></thead>
     <tbody>
     {% for p in record.programs %}
       <tr>
         <td>{{ p.program_name }}</td>
-        <td>{{ p.admission_status }}</td>
+        <td>{{ p.admission_status|es_status }}</td>
         <td>{{ p.admission_period_name or '—' }}</td>
         <td>{{ p.current_semester or '—' }}</td>
         <td>{{ 'Sí' if p.has_conacyt_scholarship else 'No' }}</td>
@@ -87,8 +87,8 @@
     <tbody>
     {% for d in record.acceptance_documents %}
       <tr>
-        <td>{{ d.document_type }}</td>
-        <td><span class="badge">{{ d.status }}</span></td>
+        <td>{{ d.document_type|es_doc_type }}</td>
+        <td><span class="badge">{{ d.status|es_status }}</span></td>
         <td>{{ d.uploaded_at or '—' }}</td>
       </tr>
     {% endfor %}
@@ -105,7 +105,7 @@
       <tr>
         <td>{{ s.semester_number }}</td>
         <td>{{ s.academic_period_name or '—' }}</td>
-        <td>{{ s.status }}</td>
+        <td>{{ s.status|es_status }}</td>
         <td>{{ 'Sí' if s.enrollment_confirmed else 'No' }}</td>
         <td>{{ s.confirmed_at or '—' }}</td>
       </tr>
@@ -117,7 +117,7 @@
   <h2>Entrevista</h2>
   {% if record.interview %}
   <p>
-    <strong>{{ record.interview.event_title }}</strong> ({{ record.interview.status }})
+    <strong>{{ record.interview.event_title }}</strong> ({{ record.interview.status|es_status }})
     {% if record.interview.event_date %}· {{ record.interview.event_date }}{% endif %}
   </p>
   {% if record.interview.interviewer %}
@@ -132,7 +132,7 @@
     <thead><tr><th>Evento</th><th>Fecha</th><th>Estado</th></tr></thead>
     <tbody>
     {% for ev in record.events_attended %}
-      <tr><td>{{ ev.title }}</td><td>{{ ev.event_date or '—' }}</td><td>{{ ev.status }}</td></tr>
+      <tr><td>{{ ev.title }}</td><td>{{ ev.event_date or '—' }}</td><td>{{ ev.status|es_status }}</td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -146,7 +146,7 @@
     {% for d in record.deferrals %}
       <tr>
         <td>{{ d.deferral_number }}</td>
-        <td>{{ d.status }}</td>
+        <td>{{ d.status|es_status }}</td>
         <td>{{ d.requested_by }}</td>
         <td>{{ d.original_period_name or '—' }}</td>
         <td>{{ d.deferred_to_period_name or '—' }}</td>

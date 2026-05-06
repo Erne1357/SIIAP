@@ -90,6 +90,33 @@ def get_active_period():
     return AcademicPeriod.get_active_period()
 
 
+def get_period_in_admission_window(today: date | None = None):
+    """
+    Devuelve el periodo cuya ventana de admisión está abierta hoy
+    (today entre admission_start_date y admission_end_date, inclusive).
+
+    El periodo de admisión corresponde al SIGUIENTE ciclo académico, no al
+    activo actual. Si hay solapes (no debería), regresa el más cercano a abrir.
+
+    Args:
+        today: fecha de referencia. Por defecto, hoy en zona local.
+
+    Returns:
+        AcademicPeriod o None si no hay convocatoria abierta.
+    """
+    if today is None:
+        from app.utils.datetime_utils import now_local
+        today = now_local().date()
+
+    return (
+        AcademicPeriod.query
+        .filter(AcademicPeriod.admission_start_date <= today)
+        .filter(AcademicPeriod.admission_end_date >= today)
+        .order_by(AcademicPeriod.admission_start_date.desc())
+        .first()
+    )
+
+
 def create_academic_period(data: dict, created_by: int = None):
     """
     Crea un nuevo periodo académico.
@@ -311,7 +338,7 @@ def delete_academic_period(period_id: int):
         period_id: ID del periodo a eliminar
 
     Returns:
-        bool: True si se eliminó correctamente
+        bool: True si se eliminó exitosamente
 
     Raises:
         AcademicPeriodNotFound: Si no existe el periodo

@@ -275,6 +275,11 @@ def _semester_enrollments(user_programs: list) -> list:
                 f'/files/doc/{se.payment_proof_path}'
                 if getattr(se, 'payment_proof_path', None) else None
             ),
+            'schedule_path': getattr(se, 'schedule_path', None),
+            'schedule_url': (
+                f'/files/doc/{se.schedule_path}'
+                if getattr(se, 'schedule_path', None) else None
+            ),
         }
         out.append(item)
     return out

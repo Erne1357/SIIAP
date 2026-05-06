@@ -442,7 +442,7 @@ async function saveSchedule() {
 
     bootstrap.Modal.getInstance(document.getElementById('modalEditSchedule')).hide();
     await loadSchedules();
-    showToast('Schedule actualizado correctamente.', 'success');
+    showToast('Schedule actualizado exitosamente.', 'success');
   } catch (e) {
     alert.textContent = `Error: ${e.message}`;
     alert.classList.remove('d-none');
@@ -551,7 +551,7 @@ async function sendBulkNotification() {
       }),
     });
 
-    showToast('Envío masivo encolado correctamente.', 'success');
+    showToast('Envío masivo encolado exitosamente.', 'success');
     resetBulkForm();
     bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-historial')).show();
     setTimeout(() => loadHistorial(), 1500);

@@ -556,6 +556,7 @@ def get_deferred_applicants(program_id: int) -> list:
         .filter(
             UserProgram.program_id == program_id,
             UserProgram.admission_status == 'deferred',
+            User.is_active == True,  # noqa: E712
         )
         .order_by(User.last_name.asc())
         .all()

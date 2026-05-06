@@ -82,6 +82,7 @@ docker/.env.dev
 
 #claude local
 .claude/
+CLAUDE.md
 
 # Archivos de notas/documentación local
 MEJORAS_BACKEND.md
