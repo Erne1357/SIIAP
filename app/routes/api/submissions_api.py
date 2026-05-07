@@ -1,10 +1,10 @@
 # app/routes/api/submissions_api.py
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
+from app.utils.permissions import permission_required
 from app import db
 from app.models import Program, Archive, Submission, UserProgram, ProgramStep
 from app.utils.files import save_user_doc
-from app.utils.utils import getPeriod
 from app.services.admission_service import get_admission_state
 from app.services.user_history_service import UserHistoryService
 import logging
@@ -13,6 +13,7 @@ api_submissions = Blueprint("api_submissions", __name__, url_prefix="/api/v1/sub
 
 @api_submissions.post("")
 @login_required
+@permission_required('submissions.api.create')
 def upload_submission():
     """
     multipart/form-data:
@@ -95,7 +96,6 @@ def upload_submission():
         archive_id=archive.id,
         program_step_id=ps.id,
         file_path=rel,
-        period=getPeriod(),
         semester=0,
         uploaded_by=current_user.id,
         uploaded_by_role=current_user.role.name,
@@ -123,6 +123,36 @@ def upload_submission():
     except Exception as e:
         current_app.logger.error(f"Error al registrar subida de documento en historial: {e}")
 
+    # Notificar al coordinador del programa
+    try:
+        from app.services.notification_service import NotificationService
+        if program.coordinator_id:
+            student_name = f"{current_user.first_name} {current_user.last_name}"
+            NotificationService.create_notification(
+                user_id=program.coordinator_id,
+                notification_type='document_submitted',
+                title='Nuevo documento recibido',
+                message=f'{student_name} ha subido el documento "{archive.name}" en {program.name}.',
+                priority='low',
+                action_url='/admin/review',
+                data={'student_id': current_user.id, 'program_id': program.id},
+            )
+            db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error al notificar subida de documento: {e}")
+
+    # WebSocket: notificar a coordinadores en tiempo real
+    try:
+        from app.extensions import socketio
+        socketio.emit('submission:new', {
+            'user_id': current_user.id,
+            'submission_id': sub.id,
+            'archive_name': archive.name,
+            'program_id': program.id,
+        }, room=f'role:coordinator')
+    except Exception:
+        pass
+
     return jsonify({
         "data": {
             "submission": {
@@ -134,13 +164,14 @@ def upload_submission():
                 "program_step_id": ps.id
             }
         },
-        "flash": [{"level": "success", "message": "Documento enviado correctamente."}],
+        "flash": [{"level": "success", "message": "Documento enviado exitosamente."}],
         "error": None,
         "meta": {}
     }), 201
 
 @api_submissions.delete("/<int:sub_id>")
 @login_required
+@permission_required('submissions.api.delete_own')
 def delete_submission(sub_id: int):
     sub = Submission.query.get(sub_id)
     if not sub:

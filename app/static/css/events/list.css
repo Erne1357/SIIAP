@@ -1,0 +1,372 @@
+/* app/static/css/events/list.css */
+
+/* ====================================================
+   HERO
+   ==================================================== */
+
+.events-hero {
+    background: linear-gradient(135deg,
+      var(--color-brand-primary) 0%,
+      var(--color-brand-secondary) 50%,
+      var(--color-brand-accent) 100%);
+    color: white;
+    border-radius: var(--radius-xl);
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.events-hero h1 {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.events-hero .hero-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.18);
+    padding: 0.35rem 0.85rem;
+    border-radius: 2rem;
+    font-size: 0.88rem;
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
+}
+
+.events-hero .hero-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.events-hero .btn-hero {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(4px);
+    border-radius: 2rem;
+    font-size: 0.88rem;
+    padding: 0.35rem 1rem;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.events-hero .btn-hero:hover {
+    background: rgba(255, 255, 255, 0.28);
+    color: white;
+}
+
+/* ====================================================
+   SECCIÓN INVITACIONES PENDIENTES
+   ==================================================== */
+
+.pending-invitations-section {
+    background: var(--bs-warning-bg-subtle);
+    border: 1px solid var(--bs-warning-border-subtle);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.pending-invitations-section .section-title {
+    font-weight: 600;
+    color: var(--bs-warning-text-emphasis);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.invitation-highlight-card {
+    background: white;
+    border: 2px solid var(--bs-warning);
+    border-radius: 0.5rem;
+    padding: 0.875rem 1rem;
+}
+
+/* ====================================================
+   FILTROS
+   ==================================================== */
+
+.events-filters-card {
+    border-radius: 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    margin-bottom: 1.5rem;
+}
+
+/* ====================================================
+   GRID DE EVENTOS — CARDS PÚBLICAS
+   ==================================================== */
+
+.event-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: white;
+}
+
+.event-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.09);
+}
+
+.event-card.has-invitation {
+    border: 2px solid var(--bs-warning);
+}
+
+.event-card.invitation-pending {
+    border: 2px solid var(--bs-warning);
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.18), 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+    animation: invitation-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes invitation-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.18), 0 0.5rem 1rem rgba(0, 0, 0, 0.08); }
+    50%      { box-shadow: 0 0 0 8px rgba(255, 193, 7, 0.10), 0 0.5rem 1rem rgba(0, 0, 0, 0.08); }
+}
+
+.event-card.invitation-accepted {
+    border: 2px solid var(--bs-success);
+}
+
+/* ── Portada ── */
+
+.event-card-cover {
+    aspect-ratio: 21 / 9;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--bs-secondary-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.event-card-cover.fallback {
+    color: white;
+}
+
+.event-card-cover.fallback i {
+    font-size: 2.75rem;
+    opacity: 0.9;
+}
+
+.event-card-cover .cover-invitation-ribbon {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--bs-warning);
+    color: var(--bs-warning-text-emphasis);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2rem;
+    box-shadow: 0 0.15rem 0.4rem rgba(0, 0, 0, 0.15);
+}
+
+.event-card-cover .cover-invitation-ribbon.ribbon-accepted {
+    background: var(--bs-success);
+    color: #fff;
+}
+
+.event-card-cover .cover-invitation-ribbon.ribbon-pending {
+    animation: ribbon-blink 2s ease-in-out infinite;
+}
+
+@keyframes ribbon-blink {
+    0%, 100% { transform: scale(1);   }
+    50%      { transform: scale(1.06); }
+}
+
+/* ── Body ── */
+
+.event-card .card-body {
+    flex: 1;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.event-card .card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.event-card .card-meta {
+    font-size: 0.82rem;
+    color: var(--bs-secondary-color);
+}
+
+.event-card .card-meta i {
+    width: 1rem;
+    text-align: center;
+}
+
+.event-card .card-description {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+}
+
+/* Barra de cupo */
+.card-capacity-bar {
+    height: 6px;
+    border-radius: 50px;
+    background: var(--bs-border-color);
+    overflow: hidden;
+    margin-top: 0.25rem;
+}
+
+.card-capacity-bar-fill {
+    height: 100%;
+    border-radius: 50px;
+    transition: width 0.5s ease;
+}
+
+.card-capacity-bar-fill.fill-ok     { background: var(--color-success); }
+.card-capacity-bar-fill.fill-warn   { background: var(--color-warning); }
+.card-capacity-bar-fill.fill-danger { background: var(--color-danger); }
+
+/* ── Chips de ponentes ── */
+
+.host-chips {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 1.5rem;
+}
+
+.host-avatars {
+    display: flex;
+}
+
+.host-avatars .h-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid white;
+    object-fit: cover;
+    background: var(--bs-secondary-bg);
+    margin-left: -8px;
+    flex-shrink: 0;
+}
+
+.host-avatars .h-avatar:first-child {
+    margin-left: 0;
+}
+
+.host-extra {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bs-secondary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: -8px;
+    border: 2px solid white;
+    flex-shrink: 0;
+}
+
+.host-chips .host-names {
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Footer ── */
+
+.event-card .card-footer {
+    background: transparent;
+    border-top: 1px solid var(--bs-border-color);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.event-card .card-footer .footer-status {
+    min-width: 0;
+}
+
+.event-card .card-footer .footer-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+/* ====================================================
+   ESTADO VACÍO
+   ==================================================== */
+
+.events-empty-state {
+    text-align: center;
+    padding: 4rem 1rem;
+    color: var(--bs-secondary-color);
+}
+
+.events-empty-state i {
+    font-size: 3.5rem;
+    opacity: 0.4;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.events-empty-state h5 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--bs-body-color);
+}
+
+/* ====================================================
+   PANEL MIS REGISTROS (modal / offcanvas)
+   ==================================================== */
+
+#myRegistrationsModal .reg-item {
+    border-left: 3px solid var(--bs-primary);
+}
+
+/* ====================================================
+   RESPONSIVE
+   ==================================================== */
+
+@media (max-width: 575.98px) {
+    .events-hero {
+        padding: 1.25rem 1.25rem;
+    }
+
+    .events-hero .hero-stat {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.65rem;
+    }
+
+    .event-card .card-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .event-card .card-footer .footer-actions {
+        width: 100%;
+    }
+
+    .event-card .card-footer .footer-actions .btn {
+        flex: 1;
+    }
+}

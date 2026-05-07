@@ -1,22 +1,51 @@
 {% extends "base.html" %}
 {% block title %}Eventos Disponibles{% endblock %}
 
+{% block styles %}
+<link href="{{ url_for('static', filename='css/events/list.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
 {% block content %}
 <div class="container py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3">Eventos Disponibles</h1>
+
+  <!-- Hero -->
+  <div class="events-hero d-flex flex-column flex-sm-row justify-content-between align-items-start gap-3" id="eventsHero">
     <div>
-      <button class="btn btn-outline-secondary btn-sm" id="btnShowMyRegistrations">
-        <i class="fas fa-list"></i> Mis Registros
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-calendar3 fs-3"></i>
+        <h1 class="h3 mb-0">Eventos</h1>
+      </div>
+      <div class="d-flex flex-wrap gap-2 mt-2" id="heroStats">
+        <!-- Se llena por JS -->
+      </div>
+    </div>
+    <div class="hero-actions mt-1">
+      <button class="btn-hero" id="btnShowMyRegistrations">
+        <i class="bi bi-list-check me-1"></i>Mis Registros
       </button>
+      <a href="#pendingInvitationsSection" class="btn-hero" id="btnScrollInvitations" style="display:none;">
+        <i class="bi bi-envelope me-1"></i>Ver invitaciones
+      </a>
+    </div>
+  </div>
+
+  <!-- Sección invitaciones pendientes (pinned, solo si hay) -->
+  <div class="pending-invitations-section d-none" id="pendingInvitationsSection">
+    <div class="section-title">
+      <i class="bi bi-envelope-exclamation-fill"></i>
+      Invitaciones pendientes
+      <span class="badge bg-warning text-dark" id="pendingInvitationsCount">0</span>
+    </div>
+    <div class="row g-3" id="pendingInvitationsList">
+      <!-- Se llena por JS -->
     </div>
   </div>
 
   <!-- Filtros -->
-  <div class="card mb-4">
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-md-3">
+  <div class="card events-filters-card mb-4">
+    <div class="card-body py-3">
+      <div class="row g-2">
+        <div class="col-sm-6 col-md-3">
           <select class="form-select form-select-sm" id="filterType">
             <option value="">Todos los tipos</option>
             <option value="interview">Entrevista</option>
@@ -27,28 +56,66 @@
             <option value="info_session">Sesión Informativa</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-sm-6 col-md-3">
           <select class="form-select form-select-sm" id="filterCapacity">
-            <option value="">Todas las capacidades</option>
-            <option value="multiple">Con cupo limitado</option>
-            <option value="unlimited">Sin límite</option>
+            <option value="">Todos los cupos</option>
+            <option value="available">Con cupo disponible</option>
+            <option value="full">Sin cupo</option>
           </select>
         </div>
-        <div class="col-md-6">
-          <input type="search" class="form-control form-control-sm" 
-                 id="searchEvents" placeholder="Buscar eventos...">
+        <div class="col-sm-6 col-md-2">
+          <select class="form-select form-select-sm" id="filterDate">
+            <option value="">Todas las fechas</option>
+            <option value="week">Próximos 7 días</option>
+            <option value="month">Este mes</option>
+          </select>
+        </div>
+        <div class="col-sm-6 col-md-2">
+          <div class="form-check form-switch pt-1">
+            <input class="form-check-input" type="checkbox" id="filterRegistered">
+            <label class="form-check-label small" for="filterRegistered">Solo inscritos</label>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <input type="search" class="form-control form-control-sm" id="searchEvents" placeholder="Buscar eventos...">
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Lista de eventos -->
+  <!-- Grid de eventos -->
   <div class="row g-4" id="eventsContainer">
     <div class="col-12 text-center py-5">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Cargando...</span>
       </div>
       <p class="text-muted mt-2">Cargando eventos disponibles...</p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal: Mis Registros -->
+<div class="modal fade" id="myRegistrationsModal" tabindex="-1" aria-labelledby="myRegistrationsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="myRegistrationsModalLabel">
+          <i class="bi bi-list-check me-2"></i>Mis Registros
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="myRegistrationsBody">
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="text-muted mt-2">Cargando registros...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
     </div>
   </div>
 </div>

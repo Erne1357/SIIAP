@@ -59,23 +59,29 @@ class HistoryRetentionService:
             'entries_deleted': 0,
             'users_affected': set(),
             'oldest_entry_kept': None,
-            'dry_run': dry_run
+            'dry_run': dry_run,
+            'breakdown_by_category': {}
         }
-        
+
         # 1. Obtener todos los usuarios y clasificarlos
         users_status = HistoryRetentionService._classify_users()
-        
+
         # 2. Para cada categoría de usuario, aplicar políticas
         for user_status, user_ids in users_status.items():
             if not user_ids:
                 continue
-                
+
             retention_years = config.get(f"{user_status}_users", config['active_users'])
             if retention_years == -1:  # Permanente
+                stats['breakdown_by_category'][user_status] = {
+                    'users': len(user_ids),
+                    'retention_years': 'permanente',
+                    'entries_to_delete': 0,
+                }
                 continue
-                
+
             cutoff_date = now - timedelta(days=retention_years * 365)
-            
+
             # 3. Encontrar entradas a eliminar (excluyendo acciones críticas)
             entries_to_delete = db.session.query(UserHistory).filter(
                 and_(
@@ -84,11 +90,21 @@ class HistoryRetentionService:
                     ~UserHistory.action.in_(HistoryRetentionService.CRITICAL_ACTIONS)
                 )
             ).all()
-            
+
+            affected_in_category = {e.user_id for e in entries_to_delete}
+
+            stats['breakdown_by_category'][user_status] = {
+                'users': len(user_ids),
+                'retention_years': retention_years,
+                'cutoff_date': cutoff_date.isoformat(),
+                'entries_to_delete': len(entries_to_delete),
+                'users_affected': len(affected_in_category),
+            }
+
             stats['total_entries_analyzed'] += len(entries_to_delete)
             stats['entries_to_delete'] += len(entries_to_delete)
-            stats['users_affected'].update(user_ids)
-            
+            stats['users_affected'].update(affected_in_category)
+
             # 4. Eliminar o simular eliminación
             if not dry_run and entries_to_delete:
                 for entry in entries_to_delete:
@@ -129,7 +145,7 @@ class HistoryRetentionService:
             User.is_active,
             func.max(UserProgram.graduation_date).label('graduation_date'),
             func.count(UserProgram.id).label('program_count')
-        ).outerjoin(UserProgram).group_by(User.id, User.is_active).subquery()
+        ).outerjoin(UserProgram, User.id == UserProgram.user_id).group_by(User.id, User.is_active).subquery()
         
         results = db.session.query(subquery).all()
         

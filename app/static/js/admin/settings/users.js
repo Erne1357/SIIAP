@@ -114,11 +114,12 @@
                             <i class="bi bi-123"></i>
                         </button>
                         ` : ''}
-                        <button class="btn btn-outline-${user.is_active ? 'danger' : 'success'}" 
-                                onclick="window.usersManager.toggleUserActive(${user.id})" 
+                        <button class="btn btn-outline-${user.is_active ? 'danger' : 'success'}"
+                                onclick="window.usersManager.toggleUserActive(${user.id})"
                                 title="${user.is_active ? 'Desactivar' : 'Activar'}">
                             <i class="bi bi-${user.is_active ? 'x-circle' : 'check-circle'}"></i>
                         </button>
+                        ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
                     </div>
                 </td>
             </tr>
@@ -252,8 +253,18 @@
                         ` : ''}
                     </div>
                 </div>
+                <div id="userDelegationsSection"></div>
             `;
-            
+
+            if (user.role === 'social_service') {
+                const section = document.getElementById('userDelegationsSection');
+                if (section) {
+                    section.innerHTML = '<div class="text-center py-2"><div class="spinner-border spinner-border-sm"></div></div>';
+                    const delsHtml = await loadUserDelegations(userId);
+                    section.innerHTML = delsHtml;
+                }
+            }
+
         } catch (error) {
             content.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
         }
@@ -300,7 +311,7 @@
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 },
                 body: JSON.stringify(data)
             });
@@ -323,15 +334,19 @@
     
     // Resetear contraseña
     async function resetPassword(userId, userName) {
-        if (!confirm(`¿Resetear la contraseña de ${userName} a "tecno#2K"?\n\nEl usuario deberá cambiarla en su próximo inicio de sesión.`)) {
-            return;
-        }
+        const ok = await siiapConfirm({
+            type: 'warning',
+            title: 'Resetear contraseña',
+            message: `¿Resetear la contraseña de ${userName} a "tecno#2K"?\n\nEl usuario deberá cambiarla en su próximo inicio de sesión.`,
+            confirmLabel: 'Sí, resetear',
+        });
+        if (!ok) return;
         
         try {
             const res = await fetch(`${API_BASE}/${userId}/reset-password`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 }
             });
             
@@ -354,7 +369,7 @@
             const res = await fetch(`${API_BASE}/${userId}/toggle-active`, {
                 method: 'PATCH',
                 headers: {
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 }
             });
             
@@ -421,7 +436,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-Token': getCsrf()
+                    'X-CSRFToken': getCsrf()
                 },
                 body: JSON.stringify({ control_number: controlNumber })
             });
@@ -485,6 +500,270 @@
         }
     }
     
+    // ========================================================================
+    // Servicio Social — crear usuario con delegación
+    // ========================================================================
+
+    const PERMISSIONS_API = `${window.location.origin}/api/v1/permissions`;
+
+    let delegatableCache = null;
+
+    async function openCreateSocialService() {
+        const ctx = window.SIIAP_USERS_CTX || {};
+        const form = document.getElementById('createSocialServiceForm');
+        if (form) form.reset();
+
+        const scopeInfo = document.getElementById('ss_scope_info');
+        if (ctx.canDelegateGlobal) {
+            scopeInfo.style.display = 'none';
+        } else {
+            const progs = (ctx.coordinatedProgramNames || []).join(', ') || '(sin programas)';
+            scopeInfo.innerHTML = `<i class="bi bi-diagram-3 me-1"></i>Ámbito de delegación: <strong>${progs}</strong>. Los permisos se aplicarán a cada uno de tus programas coordinados.`;
+            scopeInfo.style.display = 'block';
+        }
+
+        const list = document.getElementById('ss_permissions_list');
+        const loading = document.getElementById('ss_permissions_loading');
+        list.style.display = 'none';
+        loading.style.display = 'block';
+
+        const modal = new bootstrap.Modal(document.getElementById('createSocialServiceModal'));
+        modal.show();
+
+        try {
+            if (!delegatableCache) {
+                const res = await fetch(`${PERMISSIONS_API}/delegatable`);
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.error?.message || 'Error al cargar permisos');
+                delegatableCache = json.data || [];
+            }
+            renderDelegatablePermissions(delegatableCache);
+        } catch (error) {
+            loading.innerHTML = `<div class="alert alert-danger mb-0">${error.message}</div>`;
+        }
+    }
+
+    function renderDelegatablePermissions(perms) {
+        const list = document.getElementById('ss_permissions_list');
+        const loading = document.getElementById('ss_permissions_loading');
+
+        if (!perms.length) {
+            loading.innerHTML = `<div class="alert alert-warning mb-0">No tienes permisos delegables.</div>`;
+            return;
+        }
+
+        const byResource = {};
+        perms.forEach(p => {
+            const res = p.codename.split('.')[0];
+            if (!byResource[res]) byResource[res] = [];
+            byResource[res].push(p);
+        });
+
+        const html = Object.keys(byResource).sort().map(resource => {
+            const items = byResource[resource].map(p => `
+                <div class="form-check">
+                    <input class="form-check-input ss-perm-check" type="checkbox"
+                           id="ss_perm_${p.permission_id}" value="${p.codename}">
+                    <label class="form-check-label small" for="ss_perm_${p.permission_id}">
+                        <code class="small">${p.codename}</code>
+                        <span class="text-muted ms-1">— ${p.display_name}</span>
+                    </label>
+                </div>
+            `).join('');
+            return `
+                <div class="mb-2">
+                    <div class="fw-semibold text-uppercase small text-muted mb-1">${resource}</div>
+                    ${items}
+                </div>
+            `;
+        }).join('');
+
+        list.innerHTML = `
+            <div class="d-flex justify-content-between mb-2">
+                <small class="text-muted"><span id="ssSelectedCount">0</span> de ${perms.length} seleccionados</small>
+                <div>
+                    <button type="button" class="btn btn-link btn-sm p-0 me-2" id="ssSelectAllBtn">Seleccionar todos</button>
+                    <button type="button" class="btn btn-link btn-sm p-0" id="ssClearAllBtn">Limpiar</button>
+                </div>
+            </div>
+            <div class="border rounded p-3" style="max-height: 320px; overflow-y: auto;">${html}</div>
+        `;
+
+        loading.style.display = 'none';
+        list.style.display = 'block';
+
+        list.querySelectorAll('.ss-perm-check').forEach(cb => {
+            cb.addEventListener('change', updateSelectedCount);
+        });
+        document.getElementById('ssSelectAllBtn').addEventListener('click', () => {
+            list.querySelectorAll('.ss-perm-check').forEach(cb => cb.checked = true);
+            updateSelectedCount();
+        });
+        document.getElementById('ssClearAllBtn').addEventListener('click', () => {
+            list.querySelectorAll('.ss-perm-check').forEach(cb => cb.checked = false);
+            updateSelectedCount();
+        });
+
+        updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+        const count = document.querySelectorAll('.ss-perm-check:checked').length;
+        const el = document.getElementById('ssSelectedCount');
+        if (el) el.textContent = count;
+    }
+
+    async function submitCreateSocialService(event) {
+        event.preventDefault();
+
+        const selected = Array.from(document.querySelectorAll('.ss-perm-check:checked')).map(cb => cb.value);
+        if (!selected.length) {
+            showFlash('warning', 'Selecciona al menos un permiso.');
+            return;
+        }
+
+        const ctx = window.SIIAP_USERS_CTX || {};
+        const expiresDate = document.getElementById('ss_expires_at').value;
+        let expires_at = null;
+        if (expiresDate) {
+            expires_at = new Date(expiresDate + 'T23:59:59').toISOString();
+        }
+
+        const payload = {
+            first_name:       document.getElementById('ss_first_name').value.trim(),
+            last_name:        document.getElementById('ss_last_name').value.trim(),
+            mother_last_name: document.getElementById('ss_mother_last_name').value.trim() || null,
+            email:            document.getElementById('ss_email').value.trim().toLowerCase(),
+            permissions:      selected,
+            expires_at:       expires_at,
+        };
+
+        if (ctx.canDelegateGlobal) {
+            payload.program_ids = null;
+        }
+
+        const btn = event.submitter;
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creando...'; }
+
+        try {
+            const res = await fetch(`${API_BASE}/social-service`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf()
+                },
+                body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error?.message || 'Error al crear usuario');
+
+            if (json.flash) json.flash.forEach(f => showFlash(f.level, f.message));
+
+            bootstrap.Modal.getInstance(document.getElementById('createSocialServiceModal')).hide();
+            delegatableCache = null;
+            currentFilters = { role: 'social_service' };
+            document.getElementById('roleFilter').value = 'social_service';
+            loadUsers(1);
+        } catch (error) {
+            showFlash('danger', error.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Crear y Delegar'; }
+        }
+    }
+
+    // ========================================================================
+    // Delegaciones de un usuario (vista + revocación)
+    // ========================================================================
+
+    async function loadUserDelegations(userId) {
+        const ctx = window.SIIAP_USERS_CTX || {};
+        if (!ctx.canViewDelegations) return '';
+
+        try {
+            const res = await fetch(`${PERMISSIONS_API}/user/${userId}`);
+            const json = await res.json();
+            if (!res.ok) return '';
+            const dels = json.data || [];
+            if (!dels.length) {
+                return `<div class="text-muted small mt-2">Sin permisos delegados directos.</div>`;
+            }
+
+            const rows = dels.map(d => {
+                const active = d.is_active && !d.is_expired;
+                const scope = d.program_name
+                    ? d.program_name
+                    : (d.program_id ? `Programa #${d.program_id}` : 'Global');
+                const expires = d.expires_at
+                    ? `<small class="text-muted ms-2">Vence: ${formatDate(d.expires_at)}</small>`
+                    : '';
+                const revokeBtn = (active && ctx.canRevokeDelegations)
+                    ? `<button class="btn btn-sm btn-outline-danger" onclick="window.usersManager.revokeDelegation(${d.id}, ${userId})" title="Revocar">
+                           <i class="bi bi-x-circle"></i>
+                       </button>`
+                    : '';
+                return `
+                    <tr class="${active ? '' : 'text-muted'}">
+                        <td>
+                            <code class="small">${d.permission_codename || ''}</code>
+                            ${d.permission_display_name ? `<div class="text-muted small">${d.permission_display_name}</div>` : ''}
+                        </td>
+                        <td>${scope}</td>
+                        <td>
+                            ${active
+                                ? '<span class="badge bg-success">Activa</span>'
+                                : (d.is_expired
+                                    ? '<span class="badge bg-warning text-dark">Vencida</span>'
+                                    : '<span class="badge bg-secondary">Revocada</span>')}
+                            ${expires}
+                        </td>
+                        <td class="text-end">${revokeBtn}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <h6 class="mt-3"><i class="bi bi-shield-check me-1"></i>Permisos Delegados</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr><th>Permiso</th><th>Ámbito</th><th>Estado</th><th></th></tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            `;
+        } catch (error) {
+            return `<div class="alert alert-warning small mt-2">No se pudieron cargar las delegaciones.</div>`;
+        }
+    }
+
+    async function revokeDelegation(upId, userId) {
+        const ok = await siiapConfirm({
+            type: 'warning',
+            title: 'Revocar delegación',
+            message: '¿Revocar este permiso delegado? El usuario perderá acceso inmediatamente.',
+            confirmLabel: 'Sí, revocar',
+        });
+        if (!ok) return;
+
+        try {
+            const res = await fetch(`${PERMISSIONS_API}/delegation/${upId}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': getCsrf() }
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error?.message || 'Error al revocar');
+            if (json.flash) json.flash.forEach(f => {
+                const level = Array.isArray(f) ? f[1] : f.level;
+                const message = Array.isArray(f) ? f[0] : f.message;
+                showFlash(level, message);
+            });
+            if (userId) showUserDetail(userId);
+        } catch (error) {
+            showFlash('danger', error.message);
+        }
+    }
+
     // Aplicar filtros
     function applyFilters() {
         currentFilters = {};
@@ -557,7 +836,16 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Cargar usuarios inicial
         loadUsers();
-        
+
+        // Tiempo real: otro admin creó/modificó/eliminó un usuario → refrescar lista
+        window.addEventListener('siiap:admin_user:changed', (e) => {
+            const d = e.detail || {};
+            const labels = { created: 'creado', updated: 'modificado', deleted: 'eliminado' };
+            const verb = labels[d.action] || 'modificado';
+            showFlash('info', `Usuario ${verb}: ${d.full_name || d.email || ''}. Actualizando lista...`);
+            loadUsers(currentPage);
+        });
+
         // Búsqueda
         document.getElementById('btnSearch').addEventListener('click', applyFilters);
         document.getElementById('searchInput').addEventListener('keypress', (e) => {
@@ -570,6 +858,12 @@
         // Formularios
         document.getElementById('editUserForm').addEventListener('submit', saveUserEdit);
         document.getElementById('assignControlNumberForm').addEventListener('submit', saveControlNumber);
+
+        // Crear servicio social
+        const btnCreateSS = document.getElementById('btnCreateSocialService');
+        if (btnCreateSS) btnCreateSS.addEventListener('click', openCreateSocialService);
+        const ssForm = document.getElementById('createSocialServiceForm');
+        if (ssForm) ssForm.addEventListener('submit', submitCreateSocialService);
         
         // Validación en tiempo real del número de control
         const controlInput = document.getElementById('control_number');
@@ -603,6 +897,8 @@
         resetPassword,
         toggleUserActive,
         assignControlNumber,
-        showHistory
+        showHistory,
+        openCreateSocialService,
+        revokeDelegation
     };
 })();

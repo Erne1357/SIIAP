@@ -44,7 +44,11 @@ Plataforma web para la **División de Posgrados** del TecNM‑ITCJ que digitaliz
 | **M5 – Reportes & Admin** | Dashboard, gestión de programas/usuarios, exportación PDF/Excel. |
 | **M6 – Notificaciones** | Bandeja in‑app, eventos automáticos, sin e‑mail externo. |
 
-Roles incorporados (`role`): `postgraduate_admin`, `program_admin`, `document_reviewer`, `applicant`.
+Roles incorporados (`role`): `postgraduate_admin`, `program_admin`, `social_service`, `applicant`, `student`.
+
+Un "coordinador" NO es un rol aparte: es un usuario con rol `program_admin` cuyo id aparece en `Program.coordinator_id`. El ámbito de coordinación se determina por ese FK + permisos delegados con scope de programa.
+
+El control de acceso usa un **sistema de permisos granulares** con formato `recurso.tipo.acción` (ej: `acceptance.api.upload_doc`). Los roles reciben un conjunto base por seed; `postgraduate_admin` puede agregar overrides por UI; los program_admin pueden delegar permisos a usuarios de servicio social. Ver `PLAN_PERMISOS_GRANULARES.md`.
 
 ---
 
@@ -56,7 +60,7 @@ Nginx (caché estática)  ←→  Flask app (Gunicorn)  ←→  PostgreSQL
 
 * **Monolito modular** en Flask (Blueprints por dominio).  
 * Contenedores separados para infra, pero **una sola base de código**.  
-* Frontend SSR (Jinja + Bootstrap) con **Swup** para transiciones SPA‑like y **AOS** para animaciones.  
+* Frontend SSR (Jinja + Bootstrap) con **AOS** para animaciones.  
 * Hot‑reload y tareas async preparados para Celery/RQ.
 
 ---
@@ -65,7 +69,7 @@ Nginx (caché estática)  ←→  Flask app (Gunicorn)  ←→  PostgreSQL
 | Capa | Stack |
 |------|-------|
 | Backend | Python 3.9, Flask 2.x, SQLAlchemy, Flask‑Login, WTForms |
-| Frontend | Jinja2, Bootstrap 5, Swup 4, AOS, Vanilla JS |
+| Frontend | Jinja2, Bootstrap 5, AOS, Vanilla JS |
 | Persistencia | PostgreSQL 14, Alembic/Flask‑Migrate |
 | Contenedores | Docker + docker‑compose |
 | Otros | Gunicorn, Nginx, pytest, ruff |
@@ -122,10 +126,33 @@ docker compose up --build
 
 La app estará en **http://localhost**.
 
-### Migraciones + datos seed
+### Migraciones + seed de permisos
+
+El deploy requiere dos pasos en este orden exacto:
+
 \`\`\`bash
+# 1. Aplicar migraciones de esquema (crea tablas del sistema de permisos)
 docker compose exec web flask db upgrade
-docker compose exec web flask seed
+
+# 2. Poblar catalogo de permisos y mapeo rol->permiso
+docker compose exec web flask seed-permissions --confirm
+\`\`\`
+
+Ambos comandos son **idempotentes** — se pueden re-ejecutar sobre una BD poblada sin duplicar datos ni sobrescribir overrides manuales.
+
+- Catálogo: `database/DML/permissions/01_permissions.sql` (ON CONFLICT DO UPDATE — refresca display_name/description)
+- Mapeo rol→permiso: `database/DML/permissions/02_role_permissions.sql` (ON CONFLICT DO NOTHING — nunca pisa datos)
+- `role_permission_override` y `user_permission` **no** se tocan al re-seedar: los overrides por UI y delegaciones sobreviven.
+
+Al agregar un permiso nuevo en el código:
+1. Editar `01_permissions.sql` con la nueva fila.
+2. Editar `02_role_permissions.sql` si debe ir en algún rol base.
+3. Correr `flask seed-permissions --confirm` dentro del contenedor.
+
+### Datos de prueba (solo desarrollo)
+\`\`\`bash
+docker compose exec web flask seed-test-data --confirm   # 18 usuarios + docs de ejemplo
+docker compose exec web flask clean-test-data --confirm  # elimina todo
 \`\`\`
 
 ---
@@ -135,7 +162,8 @@ docker compose exec web flask seed
 |--------|---------|
 | Hot reload | \`docker compose -f docker-compose.debug.yml up\` |
 | Linters | \`ruff check app/\` |
-| Migraciones | \`flask db migrate -m "msg"\` |
+| Migraciones | \`flask db migrate -m "msg"\` && \`flask db upgrade\` |
+| Re-seed permisos | \`flask seed-permissions --confirm\` |
 | Pruebas | \`pytest -q\` |
 
 ---

@@ -21,7 +21,7 @@
     <!-- ========== ARCHIVOS ========== -->
     <div class="tab-pane fade show active" id="pane-archives" role="tabpanel" aria-labelledby="tab-archives">
       <div class="d-flex align-items-center mb-3 gap-2">
-        <button id="btnNew" class="btn btn-success"><i class="fa fa-plus me-1"></i>Nuevo archivo</button>
+        <button id="btnNew" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Nuevo archivo</button>
         <input id="search" type="search" class="form-control" placeholder="Buscar por nombre/step…"
           style="max-width: 360px;">
         <button id="btnReload" class="btn btn-outline-secondary">Recargar</button>
@@ -244,8 +244,7 @@
 {% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/archives.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/admin/settings/archives.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block scripts %}

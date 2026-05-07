@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.models.user import User
 from app.services.user_history_service import UserHistoryService
+from app.utils.csrf import generate_csrf_token
 from app import db
 import re
 
@@ -65,6 +66,10 @@ def api_login():
 
     login_user(user)
     session['last_activity'] = datetime.now().timestamp()
+    
+    # Generar token CSRF para la nueva sesión
+    new_csrf_token = generate_csrf_token(force_new=True)
+    
     user.last_login = datetime.now()
     db.session.commit()
 
@@ -73,7 +78,8 @@ def api_login():
         "id": user.id, 
         "username": user.username, 
         "role": getattr(getattr(user, "role", None), "name", None),
-        "must_change_password": user.must_change_password  # Flag importante
+        "must_change_password": user.must_change_password,  # Flag importante
+        "csrf_token": new_csrf_token  # Token para actualizar en cliente
     }
 
     return jsonify({
@@ -266,6 +272,10 @@ def api_me():
     Incluye el flag must_change_password.
     """
     u = current_user
+    # Obtener el token CSRF actual de la sesión
+    from flask import session
+    csrf_token = session.get("_csrf_token", "")
+    
     return jsonify({
         "data": {
             "id": u.id, 
@@ -274,7 +284,8 @@ def api_me():
             "first_name": u.first_name, 
             "last_name": u.last_name,
             "role": getattr(getattr(u, "role", None), "name", None),
-            "must_change_password": u.must_change_password
+            "must_change_password": u.must_change_password,
+            "csrf_token": csrf_token  # Para que el cliente pueda actualizar si es necesario
         }, 
         "error": None, 
         "meta": {}
@@ -287,7 +298,142 @@ def api_keepalive():
     """Mantiene la sesión activa"""
     session['last_activity'] = datetime.now().timestamp()
     return jsonify({
-        "data": "OK", 
-        "error": None, 
+        "data": "OK",
+        "error": None,
+        "meta": {}
+    }), 200
+
+
+# ---------------------------------------------------------------------------
+# Password reset / set via token (no auth required — token IS the auth)
+# ---------------------------------------------------------------------------
+
+@api_auth_bp.get("/reset-password/<token>/info")
+def api_reset_password_info(token):
+    """
+    Verifica que el token sea válido y devuelve datos mínimos del usuario
+    para mostrar en la página de configuración de contraseña.
+    """
+    from app.services import password_reset_service as prs
+
+    try:
+        prt = prs.get_token(token)
+    except prs.TokenNotFound as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "TOKEN_NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+    except prs.TokenExpired as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "TOKEN_EXPIRED", "message": str(e)},
+            "meta": {}
+        }), 410
+    except prs.TokenAlreadyUsed as e:
+        return jsonify({
+            "data": None,
+            "error": {"code": "TOKEN_USED", "message": str(e)},
+            "meta": {}
+        }), 410
+
+    user = prt.user
+    return jsonify({
+        "data": {
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "purpose": prt.purpose,
+            "expires_at": prt.expires_at.isoformat() if prt.expires_at else None,
+        },
+        "error": None,
+        "meta": {}
+    }), 200
+
+
+@api_auth_bp.post("/reset-password/<token>")
+def api_reset_password(token):
+    """
+    Consume el token y establece una nueva contraseña.
+    JSON: {new_password, confirm_password}
+    """
+    from app.services import password_reset_service as prs
+
+    data = request.get_json(silent=True) or {}
+    new_password = (data.get("new_password") or "").strip()
+    confirm_password = (data.get("confirm_password") or "").strip()
+
+    if not new_password or not confirm_password:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Todos los campos son obligatorios."}],
+            "error": {"code": "VALIDATION_ERROR", "message": "Campos requeridos faltantes"},
+            "meta": {}
+        }), 400
+
+    if new_password != confirm_password:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Las contraseñas no coinciden."}],
+            "error": {"code": "PASSWORD_MISMATCH", "message": "Las contraseñas no coinciden"},
+            "meta": {}
+        }), 400
+
+    if new_password == DEFAULT_PASSWORD:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "No puedes usar la contraseña por defecto del sistema."}],
+            "error": {"code": "INVALID_PASSWORD", "message": "Contraseña no permitida"},
+            "meta": {}
+        }), 400
+
+    try:
+        user = prs.consume_token(token, new_password)
+        db.session.commit()
+    except prs.TokenNotFound as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "TOKEN_NOT_FOUND", "message": str(e)},
+            "meta": {}
+        }), 404
+    except prs.TokenExpired as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "TOKEN_EXPIRED", "message": str(e)},
+            "meta": {}
+        }), 410
+    except prs.TokenAlreadyUsed as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "TOKEN_USED", "message": str(e)},
+            "meta": {}
+        }), 410
+    except prs.WeakPassword as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "WEAK_PASSWORD", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+    return jsonify({
+        "data": {"username": user.username},
+        "flash": [{"level": "success", "message": "Contraseña configurada. Ya puedes iniciar sesión."}],
+        "error": None,
         "meta": {}
     }), 200

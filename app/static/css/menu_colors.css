@@ -3,7 +3,7 @@
 /* Sidebar - Enlaces normales */
 #sidebar .nav-link,
 .offcanvas-body .nav-link {
-  color: #495057 !important;
+  color: var(--color-neutral-700) !important;
   background-color: transparent;
 }
 
@@ -11,20 +11,20 @@
 #sidebar .nav-link:hover,
 .offcanvas-body .nav-link:hover {
   background-color: rgba(11, 30, 138, 0.08) !important;
-  color: var(--bg--tecnm) !important;
+  color: var(--color-brand-primary) !important;
 }
 
 /* Sidebar - Enlaces activos */
 #sidebar .nav-link.active,
 .offcanvas-body .nav-link.active {
-  background-color: var(--bg--tecnm) !important;
-  color: #ffffff !important;
+  background-color: var(--color-brand-primary) !important;
+  color: var(--text-inverse) !important;
 }
 
 #sidebar .nav-link.active:hover,
 .offcanvas-body .nav-link.active:hover {
-  background-color: #0a1a7a !important;
-  color: #ffffff !important;
+  background-color: var(--color-brand-primary-700) !important;
+  color: var(--text-inverse) !important;
 }
 
 /* Iconos dentro de enlaces activos */
@@ -37,24 +37,24 @@
 
 /* Nav-tabs de Bootstrap */
 .nav-tabs .nav-link {
-  color: #495057;
+  color: var(--color-neutral-700);
   border: 1px solid transparent;
 }
 
 .nav-tabs .nav-link:hover {
-  color: var(--bg--tecnm);
-  border-color: #e9ecef #e9ecef #dee2e6;
+  color: var(--color-brand-primary);
+  border-color: var(--border-default) var(--border-default) var(--border-strong);
 }
 
 .nav-tabs .nav-link.active {
-  color: #ffffff !important;
-  background-color: var(--bg--tecnm) !important;
-  border-color: var(--bg--tecnm) var(--bg--tecnm) #fff !important;
+  color: var(--text-inverse) !important;
+  background-color: var(--color-brand-primary) !important;
+  border-color: var(--color-brand-primary) var(--color-brand-primary) var(--bg-surface) !important;
 }
 
 /* Pills */
 .nav-pills .nav-link {
-  color: #495057;
+  color: var(--color-neutral-700);
 }
 
 .nav-pills .nav-link:hover {
@@ -153,14 +153,14 @@
   box-shadow: none;
 }
 
-/* === CORRECCIÓN ESPECÍFICA PARA TEXTO DANGER === */
+/* === CORRECCIÓN ESPECÍFICA PARA TEXTO DANGER (cerrar sesión) === */
 .nav-link.text-danger {
-  color: #dc3545 !important;
+  color: var(--color-danger) !important;
 }
 
 .nav-link.text-danger:hover {
-  color: #c82333 !important;
-  background-color: rgba(220, 53, 69, 0.08) !important;
+  color: var(--color-brand-accent-600) !important;
+  background-color: rgba(178, 31, 45, 0.08) !important;
 }
 
 .dropdown-menu-container {
@@ -185,12 +185,11 @@
 
 .dropdown-submenu {
   display: none;
-  padding-left: 1rem;
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
-  border-left: 2px solid rgba(0, 0, 0, 0.1);
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 0 4px 4px 0;
+  padding-left: 0.5rem;
+  margin: 0.15rem 0.65rem 0.4rem 1.4rem;
+  border-left: 2px solid rgba(11, 30, 138, 0.15);
+  background: rgba(11, 30, 138, 0.025);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .dropdown-submenu.show {
@@ -199,8 +198,9 @@
 }
 
 .submenu-item {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
+  padding: 0.55rem 0.85rem !important;
+  font-size: 0.9rem !important;
+  margin: 0.1rem 0 !important;
 }
 
 .submenu-item:hover {

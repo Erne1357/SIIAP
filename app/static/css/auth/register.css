@@ -1,136 +1,282 @@
-/* === ESTILOS ESPECÍFICOS PARA REGISTRO === */
-:root {
-  --register-wrapper-top: 1rem;    /* espacio superior del área scrollable (desktop) */
-  --register-inner-top: 0.75rem;   /* separación interior antes de la tarjeta */
-  --register-inner-bottom: calc(var(--footer-h) + 2.5rem); /* espacio para mostrar enlaces antes del footer */
-  --mobile-register-offset: 0.035rem; /* espacio entre el banner y la tarjeta en móvil */
-}
+/*
+ * REGISTER — estilos custom dedicados.
+ * Layout: split-pane en desktop (hero izq + form der), pero el form ocupa
+ * todo el ancho de su columna y el hero llena toda la altura visible.
+ * En mobile: hero compacto arriba + form completo (scroll natural).
+ */
 
-body.register-body {
+/* ── Reset del shell del auth_base sobre register ──────────────────────── */
+body.register-page-body {
+  overflow: hidden !important;
+}
+body.register-page-body .siiapec-welcome-banner {
+  display: none !important;
+}
+body.register-page-body #main-content {
+  position: fixed !important;
+  top: var(--header-h) !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: var(--footer-h) !important;
+  background: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  display: block !important;
+}
+body.register-page-body .auth-container,
+body.register-page-body .auth-bg {
+  all: unset;
+  display: block;
+  width: 100%;
   height: 100%;
-  min-height: 100vh;
-  overflow: hidden;
 }
 
-html:has(body.register-body) {
+/* ── Layout del register ───────────────────────────────────────────────── */
+.register-shell {
+  width: 100%;
   height: 100%;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  background: var(--bg-page);
 }
 
-.register-body #main-content {
-  position: fixed;
-  top: calc(var(--header-h) + var(--banner-h));
-  left: 0;
-  right: 0;
-  bottom: var(--footer-h);
+@media (min-width: 992px) {
+  .register-shell {
+    grid-template-columns: 5fr 7fr; /* form mas ancho que el hero (al reves que login) */
+    grid-template-rows: 1fr;
+  }
+}
+
+/* ── HERO (mismo estilo que login pero con mensajes propios) ────────── */
+.register-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: var(--space-12) var(--space-8);
+  background-image:
+    linear-gradient(135deg,
+      rgba(11, 30, 138, 0.92) 0%,
+      rgba(8, 21, 112, 0.88) 55%,
+      rgba(178, 31, 45, 0.85) 130%),
+    url("../../assets/images/fondo2.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: var(--text-inverse);
   overflow: hidden;
+}
+.register-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.10), transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.06), transparent 40%);
+  pointer-events: none;
+}
+.register-hero__content {
+  position: relative;
+  max-width: 480px;
+  z-index: 1;
+}
+.register-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  margin-bottom: var(--space-6);
+  color: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(4px);
+}
+.register-hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 3vw, 2.5rem);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--space-4);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-inverse);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+.register-hero__tagline {
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0 0 var(--space-6);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
+}
+.register-hero__highlights {
+  list-style: none;
   padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.register-hero__highlights li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--fs-sm);
+  color: rgba(255, 255, 255, 0.94);
+}
+.register-hero__highlights i {
+  font-size: var(--fs-md);
+  color: rgba(255, 255, 255, 1);
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-#main-content.register-page {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: var(--register-wrapper-top) 1.5rem calc(var(--footer-h) + 3rem);
-  height: calc(100vh - var(--header-h) - var(--banner-h) - var(--footer-h));
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-#main-content.register-page .auth-container.register-container {
-  width: 100%;
-  max-width: 52rem;
-  flex: 1 1 auto;
-  min-height: 0; /* permite que el scroll interior funcione dentro de flex */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: var(--register-inner-top) 1.5rem var(--register-inner-bottom);
+/* ── COLUMNA DEL FORM ──────────────────────────────────────────────────── */
+.register-form-col {
+  display: grid;
+  align-content: safe center;
+  justify-items: center;
+  padding: var(--space-5) var(--space-6);
+  background: var(--bg-page);
   overflow-y: auto;
+  min-height: 0;
 }
 
-#main-content.register-page .auth-container.register-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-#main-content.register-page .auth-container.register-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 4px;
-}
-
-#main-content.register-page .auth-bg.register-container {
-  max-width: 48rem;
+.register-card {
   width: 100%;
-  margin: 0 auto;
+  /* sin max-width: ocupa todo el ancho de la columna */
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-4);
+}
+.register-card__body {
+  padding: var(--space-6) var(--space-7, 1.75rem);
 }
 
-.register-container .card {
+.register-card__header {
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+.register-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 130%);
+  color: var(--text-inverse);
+  font-size: 1.4rem;
+  margin-bottom: var(--space-2);
+  box-shadow: var(--shadow-2);
+}
+.register-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  margin: 0 0 var(--space-1);
+  color: var(--text-primary);
+}
+.register-card__subtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.register-card .form-label {
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-2);
+}
+.register-card .form-control {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+.register-card .form-text {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+/* Fieldset/legend semantico */
+.register-card fieldset {
+  border: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.register-card legend.form-section-legend {
+  display: flex;
+  align-items: center;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-brand-primary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: 0 0 var(--space-2);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
   width: 100%;
-  margin: 0 auto;
 }
 
-.register-container .card-body {
-  padding: 2.5rem;
+.register-card__footer {
+  margin-top: var(--space-4);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+.register-card__footer a {
+  color: var(--color-brand-primary);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.register-card__footer a:hover {
+  text-decoration: underline;
 }
 
-.register-container .row.g-3 {
-  margin-bottom: 1.25rem;
-}
-
+/* ── RESPONSIVE ────────────────────────────────────────────────────────── */
 @media (max-width: 991.98px) {
-  :root {
-    --register-wrapper-top: 0.75rem;
-    --register-inner-top: 0.6rem;
-    --register-inner-bottom: calc(var(--footer-h) + 2.1rem);
+  body.register-page-body #main-content {
+    overflow-y: auto !important;
   }
-
-  #main-content.register-page {
-    padding: var(--register-wrapper-top) 1rem calc(var(--footer-h) + 2.75rem);
+  .register-shell {
+    height: auto;
+    min-height: 100%;
   }
-
-  #main-content.register-page .auth-container.register-container {
-    padding: var(--register-inner-top) 1rem var(--register-inner-bottom);
+  .register-hero {
+    min-height: auto;
+    padding: var(--space-3) var(--space-4);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
   }
-}
-
-@media (max-width: 767.98px) {
-  :root {
-    --register-wrapper-top: var(--mobile-register-offset);
-    --register-inner-top: 0.5rem;
-    --register-inner-bottom: calc(var(--footer-h) + 2.6rem);
+  .register-hero__title,
+  .register-hero__tagline,
+  .register-hero__highlights {
+    display: none;
   }
-
-  #main-content.register-page {
-    padding: var(--register-wrapper-top) 1rem calc(var(--footer-h) + 2.5rem);
+  .register-hero__eyebrow {
+    margin-bottom: 0;
   }
-
-  #main-content.register-page .auth-container.register-container {
-    padding: var(--register-inner-top) 1rem var(--register-inner-bottom);
+  .register-form-col {
+    overflow: visible;
+    align-content: start;
+    padding: var(--space-5) var(--space-4);
   }
 }
 
 @media (max-width: 575.98px) {
-  :root {
-    --register-inner-top: 0.35rem;
-    --register-inner-bottom: calc(var(--footer-h) + 2.4rem);
+  .register-form-col {
+    padding: var(--space-4) var(--space-3);
   }
-
-  #main-content.register-page .auth-container.register-container {
-    padding: var(--register-inner-top) 0.75rem var(--register-inner-bottom);
-  }
-
-  .register-container .card-body {
-    padding: 1rem !important;
-  }
-
-  .register-container .row.g-3 {
-    margin-bottom: 1rem;
-  }
-
-  .auth-bg.register-container {
-    max-width: 100%;
-    padding: 0.75rem;
+  .register-card__body {
+    padding: var(--space-5) var(--space-4);
   }
 }

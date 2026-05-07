@@ -1,0 +1,27 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#0d6efd' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Tus documentos de aceptación ya están disponibles en tu portal.</p>
+
+<div class="notification-card">
+    <h2>📄 Documentos de Aceptación Disponibles</h2>
+    <p><strong>Programa: {{ program_name }}</strong></p>
+    <p style="margin-top: 10px; color: #0d6efd;">
+        El coordinador ha subido tu <strong>carta de aceptación</strong> y tu <strong>tira de materias</strong>.
+    </p>
+</div>
+
+<p>Los próximos pasos son:</p>
+<ol>
+    <li>Descarga tu carta de aceptación y tira de materias desde tu portal.</li>
+    <li>Realiza los trámites de pago en servicios escolares.</li>
+    <li>Sube tu boleta de servicios escolares en el portal para completar tu inscripción.</li>
+</ol>
+
+<a href="{{ dashboard_url }}" class="btn">Ver Mis Documentos</a>
+
+<p>Ante cualquier duda, comunícate con el coordinador de tu programa.</p>
+{% endblock %}

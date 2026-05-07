@@ -14,7 +14,7 @@
     div.innerHTML = `
       <input type="text" class="form-control" placeholder="Objetivo ${count}">
       <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="fas fa-trash"></i>
+        <i class="bi bi-trash"></i>
       </button>
     `;
     container.appendChild(div);
@@ -29,7 +29,7 @@
     div.innerHTML = `
       <input type="text" class="form-control" placeholder="Competencia ${count}">
       <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="fas fa-trash"></i>
+        <i class="bi bi-trash"></i>
       </button>
     `;
     container.appendChild(div);
@@ -98,15 +98,20 @@
     renderCurriculumEditor();
   };
 
-  window.removeSemester = function(index) {
-    if (confirm('¿Eliminar este semestre y todas sus materias?')) {
-      curriculumData.semesters.splice(index, 1);
-      // Reindexar semestres
-      curriculumData.semesters.forEach((sem, idx) => {
-        sem.semester = idx + 1;
-      });
-      renderCurriculumEditor();
-    }
+  window.removeSemester = async function(index) {
+    const ok = await siiapConfirm({
+      type: 'danger',
+      title: 'Eliminar semestre',
+      message: '¿Eliminar este semestre y todas sus materias?',
+      confirmLabel: 'Sí, eliminar',
+    });
+    if (!ok) return;
+    curriculumData.semesters.splice(index, 1);
+    // Reindexar semestres
+    curriculumData.semesters.forEach((sem, idx) => {
+      sem.semester = idx + 1;
+    });
+    renderCurriculumEditor();
   };
 
   window.addCourse = function(semesterIndex) {
@@ -131,10 +136,10 @@
     if (curriculumData.semesters.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <i class="fas fa-book-open"></i>
+          <i class="bi bi-book-half"></i>
           <p>No hay semestres configurados</p>
           <button type="button" class="btn btn-primary" onclick="addSemester()">
-            <i class="fas fa-plus me-2"></i>Agregar Primer Semestre
+            <i class="bi bi-plus-lg me-2"></i>Agregar Primer Semestre
           </button>
         </div>
       `;
@@ -144,6 +149,16 @@
     let html = '<div class="accordion accordion-curriculum" id="curriculumAccordion">';
 
     curriculumData.semesters.forEach((semester, semIdx) => {
+      // Defensa: si semester es null/undefined (sparse array, JSON malformado),
+      // se sustituye por un placeholder mínimo para que el render no rompa.
+      if (!semester || typeof semester !== 'object') {
+        semester = { semester: semIdx + 1, courses: [] };
+        curriculumData.semesters[semIdx] = semester;
+      }
+      if (!Array.isArray(semester.courses)) semester.courses = [];
+      if (!Number.isInteger(semester.semester) || semester.semester <= 0) {
+        semester.semester = semIdx + 1;
+      }
       const collapseId = `collapse-sem-${semIdx}`;
       const isFirst = semIdx === 0;
 
@@ -152,8 +167,8 @@
           <h2 class="accordion-header" id="heading-${semIdx}">
             <button class="accordion-button ${isFirst ? '' : 'collapsed'}" type="button" 
                     data-bs-toggle="collapse" data-bs-target="#${collapseId}">
-              Semestre ${semester.semester} 
-              <span class="badge bg-secondary ms-2">${semester.courses.length} materia(s)</span>
+              Semestre ${semester.semester}
+              <span class="badge bg-secondary ms-2">${(semester.courses || []).length} materia(s)</span>
             </button>
           </h2>
           <div id="${collapseId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}" 
@@ -163,19 +178,20 @@
                 <h6 class="mb-0">Materias del Semestre ${semester.semester}</h6>
                 <div class="btn-group btn-group-sm">
                   <button type="button" class="btn btn-outline-primary" onclick="addCourse(${semIdx})">
-                    <i class="fas fa-plus me-1"></i>Agregar Materia
+                    <i class="bi bi-plus-lg me-1"></i>Agregar Materia
                   </button>
                   <button type="button" class="btn btn-outline-danger" onclick="removeSemester(${semIdx})">
-                    <i class="fas fa-trash me-1"></i>Eliminar Semestre
+                    <i class="bi bi-trash me-1"></i>Eliminar Semestre
                   </button>
                 </div>
               </div>
       `;
 
-      if (semester.courses.length === 0) {
+      const courses = semester.courses || [];
+      if (courses.length === 0) {
         html += `<p class="text-muted text-center py-3">No hay materias en este semestre</p>`;
       } else {
-        semester.courses.forEach((course, courseIdx) => {
+        courses.forEach((course, courseIdx) => {
           html += `
             <div class="course-item">
               <input type="text" class="form-control form-control-sm" 
@@ -198,7 +214,7 @@
               </select>
               <button type="button" class="btn btn-sm btn-outline-danger" 
                       onclick="removeCourse(${semIdx}, ${courseIdx})">
-                <i class="fas fa-trash"></i>
+                <i class="bi bi-trash"></i>
               </button>
             </div>
           `;
@@ -218,7 +234,7 @@
     html += `
       <div class="text-center mt-3">
         <button type="button" class="btn btn-outline-primary" onclick="addSemester()">
-          <i class="fas fa-plus me-2"></i>Agregar Semestre ${curriculumData.semesters.length + 1}
+          <i class="bi bi-plus-lg me-2"></i>Agregar Semestre ${curriculumData.semesters.length + 1}
         </button>
       </div>
     `;
@@ -244,11 +260,16 @@
     renderResearchEditor();
   };
 
-  window.removeResearchLine = function(index) {
-    if (confirm('¿Eliminar esta línea de investigación?')) {
-      researchLinesData.splice(index, 1);
-      renderResearchEditor();
-    }
+  window.removeResearchLine = async function(index) {
+    const ok = await siiapConfirm({
+      type: 'danger',
+      title: 'Eliminar línea de investigación',
+      message: '¿Eliminar esta línea de investigación?',
+      confirmLabel: 'Sí, eliminar',
+    });
+    if (!ok) return;
+    researchLinesData.splice(index, 1);
+    renderResearchEditor();
   };
 
   window.updateResearchLine = function(index, field, value) {
@@ -262,10 +283,10 @@
     if (researchLinesData.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <i class="fas fa-flask"></i>
+          <i class="bi bi-eyedropper"></i>
           <p>No hay líneas de investigación configuradas</p>
           <button type="button" class="btn btn-primary" onclick="addResearchLine()">
-            <i class="fas fa-plus me-2"></i>Agregar Primera Línea
+            <i class="bi bi-plus-lg me-2"></i>Agregar Primera Línea
           </button>
         </div>
       `;
@@ -295,7 +316,7 @@
             <div class="research-line-actions">
               <button type="button" class="btn btn-outline-danger btn-sm" 
                       onclick="removeResearchLine(${idx})">
-                <i class="fas fa-trash"></i>
+                <i class="bi bi-trash"></i>
               </button>
             </div>
           </div>
@@ -306,7 +327,7 @@
     html += `
       <div class="text-center mt-3">
         <button type="button" class="btn btn-outline-primary" onclick="addResearchLine()">
-          <i class="fas fa-plus me-2"></i>Agregar Línea de Investigación
+          <i class="bi bi-plus-lg me-2"></i>Agregar Línea de Investigación
         </button>
       </div>
     `;
@@ -327,8 +348,21 @@
           : programData.curriculum_structure;
         
         // Validar estructura
+        if (!curriculumData || typeof curriculumData !== 'object') {
+          curriculumData = { type: 'semestral', semesters: [] };
+        }
         if (!curriculumData.type) curriculumData.type = 'semestral';
-        if (!curriculumData.semesters) curriculumData.semesters = [];
+        if (!Array.isArray(curriculumData.semesters)) curriculumData.semesters = [];
+        // Normalizar cada semestre: filtrar null/undefined; garantizar que tenga
+        // courses array y un número de semestre válido (>0). Datos legacy podían
+        // tener 0/null/undefined o arrays sparse.
+        curriculumData.semesters = curriculumData.semesters
+          .filter(sem => sem && typeof sem === 'object')
+          .map((sem, idx) => ({
+            ...sem,
+            semester: (Number.isInteger(sem.semester) && sem.semester > 0) ? sem.semester : (idx + 1),
+            courses: Array.isArray(sem.courses) ? sem.courses.filter(c => c && typeof c === 'object') : [],
+          }));
       } catch (e) {
         console.error('Error parsing curriculum:', e);
         curriculumData = { type: 'semestral', semesters: [] };
@@ -342,8 +376,17 @@
         researchLinesData = typeof programData.research_lines === 'string'
           ? JSON.parse(programData.research_lines)
           : programData.research_lines;
-        
+
         if (!Array.isArray(researchLinesData)) researchLinesData = [];
+        // Normalizar cada entrada: data legacy puede ser string ("Inteligencia Artificial")
+        // en lugar de objeto {name, description}.
+        researchLinesData = researchLinesData
+          .filter(line => line !== null && line !== undefined)
+          .map(line => {
+            if (typeof line === 'string') return { name: line, description: '' };
+            if (typeof line === 'object') return { name: line.name || '', description: line.description || '' };
+            return { name: String(line), description: '' };
+          });
       } catch (e) {
         console.error('Error parsing research lines:', e);
         researchLinesData = [];

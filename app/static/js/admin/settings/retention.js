@@ -124,7 +124,13 @@
 
     btnDelete.addEventListener("click", async () => {
         if (!polId.value) return;
-        if (!confirm("¿Eliminar esta política? Esta acción no se puede deshacer.")) return;
+        const ok = await siiapConfirm({
+            type: 'danger',
+            title: 'Eliminar política',
+            message: '¿Eliminar esta política? Esta acción no se puede deshacer.',
+            confirmLabel: 'Sí, eliminar',
+        });
+        if (!ok) return;
         try {
             const res = await fetch(`${API}/retention/policies/${polId.value}`, {
                 method: "DELETE",

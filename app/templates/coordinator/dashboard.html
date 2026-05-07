@@ -2,8 +2,7 @@
 {% block title %}Coordinación - Gestión de Estudiantes{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/coordinator/dashboard.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/coordinator/dashboard.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -17,7 +16,7 @@
         </div>
         <div class="mt-3 mt-md-0">
           <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#uploadForStudentModal">
-            <i class="fas fa-upload me-2"></i>Subir por Estudiante
+            <i class="bi bi-upload me-2"></i>Subir por Estudiante
           </button>
         </div>
       </div>
@@ -66,13 +65,13 @@
               <div class="input-group">
                 <input type="search" class="form-control" placeholder="Buscar estudiante..." id="studentSearch">
                 <button class="btn btn-outline-secondary" type="button" id="searchBtn">
-                  <i class="fas fa-search"></i>
+                  <i class="bi bi-search"></i>
                 </button>
               </div>
             </div>
             <div class="col-12 col-md-6 text-md-end mt-2 mt-md-0">
               <button class="btn btn-outline-primary" id="refreshBtn">
-                <i class="fas fa-sync-alt me-1"></i>Actualizar
+                <i class="bi bi-arrow-repeat me-1"></i>Actualizar
               </button>
             </div>
           </div>
@@ -84,22 +83,29 @@
         <li class="nav-item" role="presentation">
           <button class="nav-link active" id="admission-tab" data-bs-toggle="tab" data-bs-target="#admission-pane"
             type="button" role="tab">
-            <i class="fas fa-user-plus me-2"></i>Admisión
+            <i class="bi bi-person-plus-fill me-2"></i>Admisión
             <span class="badge bg-primary ms-2" id="admissionCount">0</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="permanence-tab" data-bs-toggle="tab" data-bs-target="#permanence-pane"
             type="button" role="tab">
-            <i class="fas fa-graduation-cap me-2"></i>Permanencia
+            <i class="bi bi-mortarboard-fill me-2"></i>Permanencia
             <span class="badge bg-info ms-2" id="permanenceCount">0</span>
           </button>
         </li>
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="conclusion-tab" data-bs-toggle="tab" data-bs-target="#conclusion-pane"
             type="button" role="tab">
-            <i class="fas fa-award me-2"></i>Conclusión
+            <i class="bi bi-award-fill me-2"></i>Conclusión
             <span class="badge bg-success ms-2" id="conclusionCount">0</span>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="photo-requests-tab" data-bs-toggle="tab"
+                  data-bs-target="#photo-requests-pane" type="button" role="tab">
+            <i class="bi bi-camera-fill me-2"></i>Solicitudes de foto
+            <span class="badge bg-warning text-dark ms-2 d-none" id="photoRequestsCount">0</span>
           </button>
         </li>
       </ul>
@@ -117,17 +123,17 @@
                 <table class="table table-hover mb-0" id="admissionTable">
                   <thead class="table-light">
                     <tr>
-                      <th style="width: 50px;"></th>
+                      <th class="w-px-50"></th>
                       <th>Estudiante</th>
                       <th>Programa</th>
-                      <th class="text-center" style="width: 120px;">Progreso</th>
-                      <th class="text-center" style="width: 140px;">Documentos</th>
-                      <th class="text-center" style="width: 100px;">Estado</th>
-                      <th style="width: 150px;">Acciones</th>
+                      <th class="text-center w-px-120">Progreso</th>
+                      <th class="text-center w-px-140">Documentos</th>
+                      <th class="text-center w-px-100">Estado</th>
+                      <th class="w-px-150">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colspan="7" class="text-center py-4 text-muted">Cargando estudiantes...</td></tr>
+                    <tr><td colspan="7" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 7">{% for _ in range(7) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
                   </tbody>
                 </table>
               </div>
@@ -146,17 +152,17 @@
                 <table class="table table-hover mb-0" id="permanenceTable">
                   <thead class="table-light">
                     <tr>
-                      <th style="width: 50px;"></th>
+                      <th class="w-px-50"></th>
                       <th>Estudiante</th>
                       <th>Programa</th>
                       <th class="text-center">Semestre</th>
                       <th class="text-center">Avance</th>
                       <th class="text-center">Estado</th>
-                      <th style="width: 150px;">Acciones</th>
+                      <th class="w-px-150">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colspan="7" class="text-center py-4 text-muted">Cargando estudiantes...</td></tr>
+                    <tr><td colspan="7" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 7">{% for _ in range(7) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
                   </tbody>
                 </table>
               </div>
@@ -175,17 +181,58 @@
                 <table class="table table-hover mb-0" id="conclusionTable">
                   <thead class="table-light">
                     <tr>
-                      <th style="width: 50px;"></th>
+                      <th class="w-px-50"></th>
                       <th>Estudiante</th>
                       <th>Programa</th>
                       <th class="text-center">Etapa</th>
                       <th class="text-center">Progreso</th>
                       <th class="text-center">Estado</th>
-                      <th style="width: 150px;">Acciones</th>
+                      <th class="w-px-150">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colspan="7" class="text-center py-4 text-muted">Cargando estudiantes...</td></tr>
+                    <tr><td colspan="7" class="p-0"><div class="skeleton-table p-2" aria-hidden="true">{% for _ in range(4) %}<div class="skeleton-row" style="--cols: 7">{% for _ in range(7) %}<span class="skeleton skeleton-cell"></span>{% endfor %}</div>{% endfor %}</div></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Solicitudes de cambio de foto -->
+        <div class="tab-pane fade" id="photo-requests-pane" role="tabpanel">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <h5 class="mb-0">
+                  <i class="bi bi-camera-fill me-2 text-warning"></i>
+                  Solicitudes de cambio de foto de perfil
+                </h5>
+                <small class="text-muted">Habilita o rechaza solicitudes de tus estudiantes</small>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshPhotoRequests">
+                <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0" id="photoRequestsTable">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="w-px-60"></th>
+                      <th>Estudiante</th>
+                      <th>Email</th>
+                      <th class="text-center">Solicitado</th>
+                      <th class="w-px-200 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="photoRequestsTbody">
+                    <tr>
+                      <td colspan="5" class="text-center py-4 text-muted small">
+                        <div class="spinner-border spinner-border-sm me-1" role="status"></div>
+                        Cargando solicitudes...
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -200,17 +247,46 @@
 {% endblock %}
 
 {% block modals %}
+<!-- Modal: subir foto del estudiante (coordinador desde lista) -->
+<div class="modal fade" id="coordPhotoUploadFromListModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Subir foto del estudiante</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="coordPhotoUploadFromListForm" enctype="multipart/form-data">
+        <input type="hidden" id="coordPhotoTargetUserId">
+        <div class="modal-body">
+          <p class="small text-muted">Sube la foto en nombre del estudiante. Se comprime automáticamente.</p>
+          <div class="mb-3">
+            <label class="form-label" for="coordPhotoFile">Foto (JPG, PNG o WebP)</label>
+            <input type="file" class="form-control" id="coordPhotoFile" name="photo"
+                   accept="image/jpeg,image/png,image/webp" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-upload me-1"></i>Subir
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Detalles del Estudiante -->
 <div class="modal fade" id="studentDetailsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
         <div class="d-flex align-items-center">
-          <img src="" alt="Avatar" class="rounded-circle me-3" style="width: 48px; height: 48px;" id="modalStudentAvatar">
+          <img src="" alt="Avatar" class="rounded-circle me-3 avatar-md" id="modalStudentAvatar">
           <div>
             <h5 class="modal-title mb-0" id="modalStudentName">Cargando...</h5>
             <small class="text-muted" id="modalStudentEmail"></small><br>
-            <small class="text-muted"><i class="fas fa-graduation-cap me-1"></i><span id="modalStudentProgram"></span></small>
+            <small class="text-muted"><i class="bi bi-mortarboard-fill me-1"></i><span id="modalStudentProgram"></span></small>
           </div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -221,19 +297,19 @@
           <li class="nav-item" role="presentation">
             <button class="nav-link active" id="general-tab" data-bs-toggle="tab" 
                     data-bs-target="#general-pane" type="button" role="tab">
-              <i class="fas fa-user me-1"></i>General
+              <i class="bi bi-person me-1"></i>General
             </button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="documents-tab" data-bs-toggle="tab" 
                     data-bs-target="#documents-pane" type="button" role="tab">
-              <i class="fas fa-file-alt me-1"></i>Documentos
+              <i class="bi bi-file-earmark-text me-1"></i>Documentos
             </button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="interview-tab" data-bs-toggle="tab" 
                     data-bs-target="#interview-pane" type="button" role="tab">
-              <i class="fas fa-calendar-alt me-1"></i>Entrevista
+              <i class="bi bi-calendar3 me-1"></i>Entrevista
             </button>
           </li>
         </ul>
@@ -257,6 +333,148 @@
     </div>
   </div>
 </div>
+<!-- Modal: Detalle de Permanencia -->
+<div class="modal fade" id="permanenceDetailsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <img src="" alt="Avatar" class="rounded-circle flex-shrink-0 avatar-md"
+            id="permModalAvatar">
+          <div>
+            <h5 class="modal-title mb-0" id="permModalName">Cargando...</h5>
+            <small class="text-muted" id="permModalEmail"></small><br>
+            <small class="text-muted">
+              <i class="bi bi-mortarboard-fill me-1"></i><span id="permModalProgram"></span>
+              &nbsp;·&nbsp;
+              <span class="font-monospace fw-semibold" id="permModalControlNumber"></span>
+            </small>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Spinner de carga -->
+        <div id="permModalSpinner" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted small">Cargando...</p>
+        </div>
+
+        <!-- Contenido real (oculto hasta que cargue) -->
+        <div id="permModalContent" class="d-none">
+
+          <!-- Alerta: docs admisión pendientes -->
+          <div id="permAdmissionAlert" class="alert alert-warning d-flex align-items-center gap-2 mb-3 d-none">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <div>
+              <strong>Documentos de admisión pendientes:</strong>
+              <span id="permAdmissionCount"></span> documento(s) sin aprobar.
+              <button type="button" class="btn btn-link btn-sm p-0 ms-1"
+                id="permOpenAdmissionBtn">Ver expediente</button>
+            </div>
+          </div>
+
+          <!-- Pestañas -->
+          <ul class="nav nav-tabs mb-3" id="permTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="permTab-resumen" data-bs-toggle="tab"
+                data-bs-target="#permPane-resumen" type="button" role="tab">
+                <i class="bi bi-layout-text-sidebar-reverse me-1"></i>Resumen
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="permTab-historial" data-bs-toggle="tab"
+                data-bs-target="#permPane-historial" type="button" role="tab">
+                <i class="bi bi-clock-history me-1"></i>Historial
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="permTabContent">
+            <!-- Tab Resumen -->
+            <div class="tab-pane fade show active" id="permPane-resumen" role="tabpanel">
+
+              <!-- Tarjetas de estado -->
+              <div class="row g-3 mb-4" id="permSummaryCards"></div>
+
+              <!-- Beca SECIHTI -->
+              <div class="card mb-3" id="permConacytCard">
+                <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-award-fill fs-4 text-warning"></i>
+                    <div>
+                      <div class="fw-semibold">Beca SECIHTI</div>
+                      <small class="text-muted">Módulo C — Formato de Desempeño mensual</small>
+                    </div>
+                  </div>
+                  <div class="d-flex align-items-center gap-3">
+                    <span id="permConacytBadge" class="badge fs-6"></span>
+                    <div class="form-check form-switch mb-0" id="permConacytToggleWrap">
+                      <input class="form-check-input" type="checkbox" role="switch"
+                        id="permConacytSwitch" class="cursor-pointer">
+                      <label class="form-check-label small" for="permConacytSwitch">Becario activo</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Estado de inscripción semestral -->
+              <div class="card" id="permEnrollmentCard">
+                <div class="card-header fw-semibold">
+                  <i class="bi bi-calendar-check me-1"></i>Inscripción Semestral — Periodo Activo
+                </div>
+                <div class="card-body" id="permEnrollmentBody"></div>
+              </div>
+
+            </div>
+
+            <!-- Tab Historial -->
+            <div class="tab-pane fade" id="permPane-historial" role="tabpanel">
+              <div id="permHistoryContent"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="permOpenFullBtn">
+          <i class="bi bi-folder2-open me-1"></i>Ver expediente de admisión
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Doble confirmación SECIHTI -->
+<div class="modal fade" id="confirmConacytModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Confirmar cambio SECIHTI
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Estudiante: <strong id="confirmConacytStudent"></strong></p>
+        <p class="mb-1">Acción: <strong id="confirmConacytAction"></strong></p>
+        <p class="text-muted small mb-0">
+          Activar/desactivar la beca SECIHTI puede afectar reportes y ventanas
+          de entrega mensuales. Confirma que es correcto.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelConacyt" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning btn-sm" id="btnConfirmConacyt">
+          <i class="bi bi-check-lg me-1"></i>Sí, continuar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para subir documento por estudiante -->
 <div class="modal fade" id="uploadForStudentModal" tabindex="-1" aria-labelledby="uploadForStudentLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
@@ -284,14 +502,20 @@
             </select>
           </div>
           <div class="col-12">
-            <label for="coordinatorFile" class="form-label">Archivo</label>
-            <input type="file" class="form-control" id="coordinatorFile" name="file" accept=".pdf" required>
-            <div class="form-text">Solo PDF, máximo 3MB</div>
+            <label for="coordinatorFile" class="form-label">Archivo (opcional)</label>
+            <input type="file" class="form-control" id="coordinatorFile" name="file" accept=".pdf">
+            <div class="form-text">Solo PDF, máximo 3MB. Si no adjuntas archivo, el comentario es obligatorio.</div>
           </div>
           <div class="col-12">
-            <label for="coordinatorNotes" class="form-label">Notas del coordinador (opcional)</label>
-            <textarea class="form-control" id="coordinatorNotes" name="notes" rows="3" 
-                      placeholder="Observaciones sobre el documento subido..."></textarea>
+            <label for="coordinatorNotes" class="form-label">
+              Notas del coordinador
+              <span class="text-muted small" id="coordinatorNotesHint">(opcional si adjuntas archivo, obligatorio si no)</span>
+            </label>
+            <textarea class="form-control" id="coordinatorNotes" name="notes" rows="3"
+                      placeholder="Observaciones sobre el documento o motivo de la validación sin archivo..."></textarea>
+            <div class="invalid-feedback" id="coordinatorNotesError">
+              El comentario es obligatorio cuando no adjuntas un archivo.
+            </div>
           </div>
         </div>
       </div>
@@ -308,4 +532,5 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/coordinator/dashboard.js')}}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/coordinator/photo_requests.js')}}?v={{ static_version }}"></script>
 {% endblock %}

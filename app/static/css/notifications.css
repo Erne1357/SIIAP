@@ -3,7 +3,7 @@
     position: absolute;
     top: -5px;
     right: -10px;
-    background: #dc3545;
+    background: var(--color-danger);
     color: white;
     border-radius: 50%;
     padding: 2px 6px;
@@ -49,7 +49,7 @@
     background: white;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    z-index: 1050;
+    z-index: var(--z-backdrop);
     display: none;
     max-height: 600px;
     overflow: hidden;
@@ -198,7 +198,7 @@
 
 .notification-content p {
     font-size: 0.85rem;
-    color: #6c757d;
+    color: var(--text-muted);
     margin: 0;
 }
 
@@ -222,7 +222,7 @@
 .btn-mark-read {
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--text-muted);
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
@@ -243,7 +243,7 @@
 
 .notification-dropdown-footer a {
     font-size: 0.85rem;
-    color: #007bff;
+    color: var(--color-brand-primary);
     text-decoration: none;
 }
 
@@ -254,7 +254,7 @@
 .notification-empty {
     padding: 40px 20px;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-empty i {
@@ -296,7 +296,7 @@
     align-items: center;
     margin-top: 8px;
     font-size: 0.8rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-priority {
@@ -309,7 +309,7 @@
 
 .notification-priority.low {
     background: #e9ecef;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-priority.medium {
@@ -380,7 +380,7 @@
 .notification-loading {
     padding: 20px;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .notification-loading .spinner-border {
@@ -397,12 +397,12 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #007bff;
+    background: var(--color-brand-primary);
     color: white;
     border: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     cursor: pointer;
-    z-index: 1040;
+    z-index: var(--z-fab);
     transition: all 0.3s ease;
 }
 
@@ -423,7 +423,7 @@
     position: absolute;
     top: -5px;
     right: -5px;
-    background: #dc3545;
+    background: var(--color-danger);
     color: white;
     border-radius: 50%;
     padding: 2px 6px;
@@ -435,7 +435,7 @@
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    border: 2px solid #007bff;
+    border: 2px solid var(--color-brand-primary);
 }
 
 /* Mostrar solo en móvil */

@@ -151,8 +151,11 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (isValid) {
-        // Aquí puedes enviar el formulario o mostrar un mensaje de éxito
-        alert('Mensaje enviado correctamente. Te contactaremos pronto.');
+        siiapAlert({
+          type: 'success',
+          title: 'Mensaje enviado',
+          message: 'Mensaje enviado exitosamente. Te contactaremos pronto.',
+        });
         contactForm.reset();
       }
     });
@@ -245,14 +248,6 @@ document.addEventListener('DOMContentLoaded', function() {
   window.addEventListener('load', equalizeCardHeights);
   // También ejecutar cuando se redimensione la ventana
   window.addEventListener('resize', equalizeCardHeights);
-
-  // Manejar eventos de Swup para reinicializar AOS personalizado
-  document.addEventListener('swup:contentReplaced', () => {
-    // Reinicializar AOS personalizado
-    setTimeout(() => {
-      initCustomAOS();
-    }, 100);
-  });
 
   // Función para forzar la detección después de la carga
   setTimeout(() => {

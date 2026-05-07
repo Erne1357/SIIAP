@@ -11,23 +11,36 @@
 
   <div class="row">
     <div class="col-lg-11 mx-auto">
+      {# Filtrar semestres mal-formados: sin courses o con courses vacío y sin numero válido #}
+      {% set valid_semesters = [] %}
       {% if program.curriculum_structure and program.curriculum_structure.semesters %}
+        {% for s in program.curriculum_structure.semesters %}
+          {% if (s.semester and s.semester|int > 0) or (s.courses and s.courses|length > 0) %}
+            {% set _ = valid_semesters.append(s) %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+      {% if valid_semesters %}
         <!-- Mapa Curricular por Semestres -->
         <div class="accordion accordion-flush" id="curriculumAccordion" data-aos="fade-up">
-          {% for semester in program.curriculum_structure.semesters %}
+          {% for semester in valid_semesters %}
+          {% set sem_num = semester.semester if (semester.semester and semester.semester|int > 0) else loop.index %}
+          {% set sem_uid = loop.index %}
           <div class="accordion-item mb-3 border rounded overflow-hidden shadow-sm">
-            <h2 class="accordion-header" id="heading-semester-{{ semester.semester }}">
-              <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold bg-primary text-white" 
-                      type="button" 
-                      data-bs-toggle="collapse" 
-                      data-bs-target="#collapse-semester-{{ semester.semester }}">
+            <h2 class="accordion-header" id="heading-semester-{{ sem_uid }}">
+              <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %} fw-bold bg-primary text-white"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapse-semester-{{ sem_uid }}"
+                      aria-expanded="{{ 'true' if loop.index == 1 else 'false' }}"
+                      aria-controls="collapse-semester-{{ sem_uid }}">
                 <i class="bi bi-calendar-check me-2"></i>
-                Semestre {{ semester.semester }}
-                <span class="badge bg-light text-dark ms-2">{{ semester.courses | length }} materia{{ 's' if semester.courses | length != 1 else '' }}</span>
+                Semestre {{ sem_num }}
+                <span class="badge bg-light text-dark ms-2">{{ semester.courses | length if semester.courses else 0 }} materia{{ 's' if (semester.courses | length if semester.courses else 0) != 1 else '' }}</span>
               </button>
             </h2>
-            <div id="collapse-semester-{{ semester.semester }}" 
-                 class="accordion-collapse collapse {% if loop.index == 1 %}show{% endif %}" 
+            <div id="collapse-semester-{{ sem_uid }}"
+                 class="accordion-collapse collapse {% if loop.index == 1 %}show{% endif %}"
                  data-bs-parent="#curriculumAccordion">
               <div class="accordion-body p-0">
                 {% if semester.courses %}
@@ -79,8 +92,8 @@
 
         <!-- Resumen de Créditos -->
         {% set total_credits = namespace(value=0) %}
-        {% for semester in program.curriculum_structure.semesters %}
-          {% for course in semester.courses %}
+        {% for semester in valid_semesters %}
+          {% for course in (semester.courses or []) %}
             {% set total_credits.value = total_credits.value + (course.credits | int if course.credits else 0) %}
           {% endfor %}
         {% endfor %}

@@ -10,7 +10,7 @@ export async function api(path, { method = 'GET', headers = {}, body } = {}) {
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRF-Token': getCsrf(),
+      'X-CSRFToken': getCsrf(),
       ...headers
     }
   };

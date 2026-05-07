@@ -1,0 +1,24 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#dc3545' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Tu carta de asignación de número de control requiere correcciones.</p>
+
+<div class="notification-card">
+    <h2>⚠️ Carta Rechazada</h2>
+    <p><strong>Programa:</strong> {{ program_name }}</p>
+    {% if reason %}
+    <div class="divider"></div>
+    <p><strong>Motivo:</strong></p>
+    <p style="color: #dc3545;">{{ reason }}</p>
+    {% endif %}
+</div>
+
+<p>Por favor, vuelve a subir el documento corregido en tu portal.</p>
+
+<a href="{{ dashboard_url }}" class="btn" style="background: #dc3545;">Subir Documento Corregido</a>
+
+<p>Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% endblock %}

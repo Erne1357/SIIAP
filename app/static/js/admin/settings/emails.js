@@ -8,54 +8,65 @@ class EmailConfigManager {
     init() {
         this.wireEvents();
         this.loadPendingEmails();
-        this.startAutoRefresh();
+        this.listenWebSocket();
     }
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+
+    listenWebSocket() {
+        /**
+         * Escucha 'siiap:email:queue_update' de socket-client.js.
+         * Actualiza contadores y recarga la lista sin recargar la página.
+         */
+        window.addEventListener('siiap:email:queue_update', (e) => {
+            const { pending, failed } = e.detail || {};
+            this.updateQueueCounters(pending, failed);
+            this.loadPendingEmails();
+        });
+    }
+
+    updateQueueCounters(pending, failed) {
+        const elPending = document.getElementById('queuePendingCount');
+        const elFailed = document.getElementById('queueFailedCount');
+        if (elPending !== null && pending !== undefined) elPending.textContent = pending;
+        if (elFailed !== null && failed !== undefined) elFailed.textContent = failed;
+    }
+
+    // ── Eventos de UI ─────────────────────────────────────────────────────────
 
     wireEvents() {
-        // Desconectar
         const btnDisconnect = document.getElementById('btnDisconnect');
-        if (btnDisconnect) {
-            btnDisconnect.addEventListener('click', () => this.disconnect());
-        }
+        if (btnDisconnect) btnDisconnect.addEventListener('click', () => this.disconnect());
 
-        // Procesar cola
         const btnProcessQueue = document.getElementById('btnProcessQueue');
-        if (btnProcessQueue) {
-            btnProcessQueue.addEventListener('click', () => this.processQueue());
-        }
+        if (btnProcessQueue) btnProcessQueue.addEventListener('click', () => this.processQueue());
 
-        // Reintentar fallidos
         const btnRetryFailed = document.getElementById('btnRetryFailed');
-        if (btnRetryFailed) {
-            btnRetryFailed.addEventListener('click', () => this.retryFailed());
-        }
+        if (btnRetryFailed) btnRetryFailed.addEventListener('click', () => this.retryFailed());
 
-        // Enviar prueba
         const btnSendTest = document.getElementById('btnSendTest');
-        if (btnSendTest) {
-            btnSendTest.addEventListener('click', () => this.sendTest());
-        }
+        if (btnSendTest) btnSendTest.addEventListener('click', () => this.sendTest());
 
-        // Actualizar lista
         const btnRefreshList = document.getElementById('btnRefreshList');
-        if (btnRefreshList) {
-            btnRefreshList.addEventListener('click', () => this.loadPendingEmails());
-        }
+        if (btnRefreshList) btnRefreshList.addEventListener('click', () => this.loadPendingEmails());
     }
 
+    // ── Acciones ──────────────────────────────────────────────────────────────
+
     async disconnect() {
-        if (!confirm('¿Desconectar la cuenta de Microsoft? Los correos pendientes no se enviarán hasta que vuelvas a conectar.')) {
-            return;
-        }
+        const ok = await siiapConfirm({
+            type: 'warning',
+            title: 'Desconectar cuenta',
+            message: '¿Desconectar la cuenta de Microsoft? Los correos pendientes no se enviarán hasta que vuelvas a conectar.',
+            confirmLabel: 'Sí, desconectar',
+        });
+        if (!ok) return;
 
         try {
             const res = await fetch('/admin/emails/logout', {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-Token': this.getCsrf()
-                }
+                headers: { 'X-CSRFToken': this.getCsrf() }
             });
-
             if (res.ok) {
                 window.location.reload();
             } else {
@@ -76,17 +87,12 @@ class EmailConfigManager {
         try {
             const res = await fetch('/admin/emails/process-queue', {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-Token': this.getCsrf()
-                }
+                headers: { 'X-CSRFToken': this.getCsrf() }
             });
-
             const json = await res.json();
-
             if (res.ok && json.ok) {
-                const result = json.result;
-                this.showFlash('success', `Procesados: ${result.processed}, Enviados: ${result.sent}, Fallidos: ${result.failed}`);
-                await this.refreshStats();
+                const r = json.result;
+                this.showFlash('success', `Procesados: ${r.processed}, Enviados: ${r.sent}, Fallidos: ${r.failed}`);
                 await this.loadPendingEmails();
             } else if (json.error) {
                 this.showFlash('error', json.error);
@@ -109,17 +115,12 @@ class EmailConfigManager {
         try {
             const res = await fetch('/admin/emails/retry-failed', {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-Token': this.getCsrf()
-                }
+                headers: { 'X-CSRFToken': this.getCsrf() }
             });
-
             const json = await res.json();
-
             if (res.ok && json.ok) {
-                const result = json.result;
-                this.showFlash('success', `Reintentados: ${result.processed}, Enviados: ${result.sent}`);
-                await this.refreshStats();
+                const r = json.result;
+                this.showFlash('success', `Reintentados: ${r.processed}, Enviados: ${r.sent}`);
                 await this.loadPendingEmails();
             } else if (json.error) {
                 this.showFlash('error', json.error);
@@ -137,16 +138,12 @@ class EmailConfigManager {
         this.showFlash('info', 'Funcionalidad de correo de prueba próximamente disponible');
     }
 
-    async refreshStats() {
-        // Las estadísticas se actualizar´an con el reload de la página por ahora
-        // Ya que están en el template y se calculan en el servidor
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
-    }
+    // ── Lista de correos pendientes ───────────────────────────────────────────
 
     async loadPendingEmails() {
         const container = document.getElementById('pendingEmailsList');
+        if (!container) return;
+
         container.innerHTML = `
             <div class="text-center py-4">
                 <div class="spinner-border" role="status">
@@ -159,9 +156,7 @@ class EmailConfigManager {
             const res = await fetch('/admin/emails/queue?per_page=20');
             const json = await res.json();
 
-            if (!res.ok) {
-                throw new Error('Error al cargar correos');
-            }
+            if (!res.ok) throw new Error('Error al cargar correos');
 
             const emails = json.emails;
 
@@ -189,19 +184,11 @@ class EmailConfigManager {
     }
 
     renderEmailItem(email) {
-        const statusClass = email.status;
-        const statusText = {
-            'pending': 'Pendiente',
-            'sent': 'Enviado',
-            'failed': 'Fallido'
-        }[email.status] || email.status;
+        const statusText = { 'pending': 'Pendiente', 'sent': 'Enviado', 'failed': 'Fallido' }[email.status] || email.status;
 
         const createdAt = new Date(email.created_at).toLocaleString('es-MX', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
         });
 
         const errorHtml = email.error_message ? `
@@ -218,7 +205,7 @@ class EmailConfigManager {
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <div class="d-flex align-items-center gap-2 mb-2">
-                            <span class="email-status ${statusClass}">${statusText}</span>
+                            <span class="email-status ${email.status}">${statusText}</span>
                             ${email.attempts > 0 ? `
                                 <span class="badge bg-warning text-dark">
                                     ${email.attempts} ${email.attempts === 1 ? 'intento' : 'intentos'}
@@ -227,14 +214,8 @@ class EmailConfigManager {
                         </div>
                         <strong>${this.escapeHtml(email.subject)}</strong>
                         <div class="email-meta">
-                            <span>
-                                <i class="bi bi-envelope me-1"></i>
-                                ${this.escapeHtml(email.recipient_email)}
-                            </span>
-                            <span>
-                                <i class="bi bi-clock me-1"></i>
-                                ${createdAt}
-                            </span>
+                            <span><i class="bi bi-envelope me-1"></i>${this.escapeHtml(email.recipient_email)}</span>
+                            <span><i class="bi bi-clock me-1"></i>${createdAt}</span>
                         </div>
                         ${errorHtml}
                     </div>
@@ -243,17 +224,10 @@ class EmailConfigManager {
         `;
     }
 
-    startAutoRefresh() {
-        // Refrescar estadísticas cada 30 segundos
-        setInterval(() => {
-            this.refreshStats();
-        }, 30000);
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     showFlash(level, message) {
-        window.dispatchEvent(new CustomEvent('flash', {
-            detail: { level, message }
-        }));
+        window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
     }
 
     getCsrf() {
@@ -268,7 +242,8 @@ class EmailConfigManager {
     }
 }
 
-// Inicializar
+// ── Inicialización ────────────────────────────────────────────────────────────
+
 let emailConfigManager = null;
 
 function initEmailConfig() {
@@ -279,13 +254,4 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initEmailConfig);
 } else {
     initEmailConfig();
-}
-
-// Reiniciar con Swup si está disponible
-if (typeof swup !== 'undefined') {
-    swup.on('contentReplaced', () => {
-        if (document.getElementById('pendingEmailsList')) {
-            initEmailConfig();
-        }
-    });
 }

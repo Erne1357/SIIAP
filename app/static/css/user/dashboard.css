@@ -1,0 +1,101 @@
+/* app/static/css/user/dashboard.css
+ * Estilos compartidos para los dashboards de usuario (applicant / student /
+ * program_admin / postgraduate_admin). Reemplaza los <style> inline y los
+ * style="..." dispersos en las plantillas.
+ */
+
+/* ── Tarjetas de acciones rápidas ──────────────────────────────────────── */
+.quick-action-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.quick-action-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Variante deshabilitada (cuando el admin selecciona "Todos los programas") */
+.quick-action-card-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── KPI cards (postgraduate admin) ────────────────────────────────────── */
+.kpi-card {
+  transition: all 0.3s ease;
+}
+
+.kpi-card:hover {
+  transform: scale(1.02);
+}
+
+/* Pestañas con color primario para rol activo */
+.nav-tabs .nav-link {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.nav-tabs .nav-link.active {
+  color: var(--color-brand-primary);
+  font-weight: 600;
+}
+
+/* ── Iconos grandes (reemplaza style="font-size: 2.5rem;" inline) ─────── */
+.icon-xl    { font-size: 2rem; }
+.icon-2xl   { font-size: 2.5rem; }
+.icon-3xl   { font-size: 3rem; }
+.icon-5xl   { font-size: 5rem; }
+
+/* ── Banner del aspirante aceptado / en progreso ──────────────────────── */
+.applicant-banner {
+  background: linear-gradient(135deg, var(--color-brand-primary-50) 0%, var(--bg-surface-sunken) 100%);
+  border-left: 4px solid var(--color-brand-primary);
+}
+
+.applicant-banner-icon {
+  font-size: 2rem;
+}
+
+/* Tarjetas "Aceptación" y "Diferido" con borde lateral de color */
+.card-accent-success { border-left: 4px solid var(--color-success) !important; }
+.card-accent-warning { border-left: 4px solid var(--color-warning) !important; }
+.card-accent-danger  { border-left: 4px solid var(--color-danger) !important; }
+.card-accent-info    { border-left: 4px solid var(--color-info) !important; }
+.card-accent-primary { border-left: 4px solid var(--color-brand-primary) !important; }
+
+/* Barra de progreso del aspirante */
+.progress-admission {
+  height: 25px;
+  border-radius: 8px;
+}
+
+.progress-admission .progress-bar {
+  font-weight: 600;
+}
+
+/* ── Selector de programa (program admin) ─────────────────────────────── */
+.program-selector {
+  width: auto;
+  min-width: 250px;
+}
+
+/* ── Inputs de upload dentro de tarjetas (student dashboard) ──────────── */
+.doc-upload-input   { max-width: 180px; }
+.leave-upload-input { max-width: 200px; }
+
+/* ── Auditoría (permissions.html) ─────────────────────────────────────── */
+.audit-log-body {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.audit-meta {
+  font-size: 0.75rem;
+}
+
+/* Toast stack superior-derecho (permissions.html, applicant_dashboard.js) */
+.toast-stack-top,
+.siiap-toast-stack {
+  z-index: var(--z-toast);
+}

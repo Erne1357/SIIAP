@@ -14,3 +14,20 @@
 .btn-group-sm .btn {
     padding: 0.25rem 0.5rem;
 }
+
+/* Segmento del semestre en curso (parpadea) en la tabla de Permanencia */
+.progress-bar.perm-blink {
+    background-color: var(--color-info);
+    opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .progress-bar.perm-blink {
+        animation: perm-blink 1.4s ease-in-out infinite;
+    }
+}
+
+@keyframes perm-blink {
+    0%, 100% { opacity: 0.30; }
+    50%      { opacity: 1.00; }
+}

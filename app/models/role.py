@@ -10,6 +10,20 @@ class Role(db.Model):
     # Relación: Un rol tiene muchos usuarios
     users = db.relationship('User', back_populates='role')
 
+    # Permisos base del rol (definidos por seed)
+    role_permissions = db.relationship(
+        'RolePermission',
+        back_populates='role',
+        cascade='all, delete-orphan'
+    )
+
+    # Overrides de permisos agregados desde la UI por el jefe de posgrado
+    permission_overrides = db.relationship(
+        'RolePermissionOverride',
+        back_populates='role',
+        cascade='all, delete-orphan'
+    )
+
     def __init__(self, name, description):
         self.name = name
         self.description = description

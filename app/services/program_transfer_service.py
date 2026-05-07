@@ -210,7 +210,6 @@ class ProgramTransferService:
             if user_program:
                 user_program.program_id = to_program_id
                 user_program.enrollment_date = now_local()
-                user_program.status = 'active'
             
             db.session.commit()
             

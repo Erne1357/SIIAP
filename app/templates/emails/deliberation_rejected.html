@@ -1,0 +1,38 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#dc3545' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+{% if rejection_type == 'partial' %}
+<div class="notification-card">
+    <h2>⚠️ Se requieren correcciones en tu expediente</h2>
+    <p><strong>Programa: {{ program_name }}</strong></p>
+    <p style="margin-top: 10px; color: #856404;">
+        El comité de admisión ha solicitado algunas correcciones en tu expediente antes de poder continuar.
+    </p>
+    {% if notes %}
+    <p><strong>Observaciones:</strong> {{ notes }}</p>
+    {% endif %}
+</div>
+
+<p>Deberás corregir tu expediente y volver a enviarlo para su revisión. Ingresa a tu portal para ver los detalles.</p>
+{% else %}
+<div class="notification-card">
+    <h2>❌ Resultado del proceso de admisión</h2>
+    <p><strong>Programa: {{ program_name }}</strong></p>
+    <p style="margin-top: 10px; color: #721c24;">
+        Lamentamos informarte que tu solicitud de ingreso al programa no ha sido aprobada en esta ocasión.
+    </p>
+    {% if notes %}
+    <p><strong>Motivo:</strong> {{ notes }}</p>
+    {% endif %}
+</div>
+
+<p>Si tienes preguntas sobre este resultado, puedes contactar directamente al coordinador del programa.</p>
+{% endif %}
+
+<a href="{{ dashboard_url }}" class="btn">Ver Mi Portal</a>
+
+<p>Gracias por tu interés en nuestro programa de posgrado.</p>
+{% endblock %}

@@ -1,12 +1,56 @@
 /* === VARIABLES === */
 :root {
   --header-h: 80px;
-  --sidebar-w: 240px;
   --footer-h: 56px;
   --bg--tecnm: #0b1e8a;
   --banner-h: 3.5rem;
   --rojoTec: #b21f2d;
   --azulFuerte: #1a71cf;
+}
+
+/* === LAYOUT HELPERS === */
+/* Botón hamburguesa — icono grande (reemplaza inline style="font-size:1.75rem") */
+.btn-menu-toggle i {
+  font-size: 1.75rem;
+}
+
+/* Oculta el footer mientras el offcanvas está abierto (lo manejaba JS antes) */
+body.offcanvas-open footer {
+  display: none;
+}
+
+/* === UTILITY: column widths en tablas (reemplazan style="width:Xpx") === */
+.w-px-32  { width: 32px; }
+.w-px-50  { width: 50px; }
+.w-px-60  { width: 60px; }
+.w-px-80  { width: 80px; }
+.w-px-90  { width: 90px; }
+.w-px-100 { width: 100px; }
+.w-px-110 { width: 110px; }
+.w-px-120 { width: 120px; }
+.w-px-130 { width: 130px; }
+.w-px-140 { width: 140px; }
+.w-px-150 { width: 150px; }
+.w-px-160 { width: 160px; }
+.w-px-180 { width: 180px; }
+.w-px-200 { width: 200px; }
+
+/* Avatar circular mediano */
+.avatar-md {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+}
+
+/* Cursor pointer para switches/labels interactivos */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* Modal-body con scroll propio */
+.modal-body-scroll {
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
 /* === RESET BASE === */
@@ -20,7 +64,15 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, .h1, .h2, .h3, .display-1, .display-2, .display-3, .display-4 {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-tight);
 }
 
 * {
@@ -55,7 +107,7 @@ body {
   left: 0;
   right: 0;
   height: var(--header-h);
-  z-index: 1030;
+  z-index: var(--z-fixed);
   background-color: #fff;
   display: flex;
   align-items: center;
@@ -100,12 +152,12 @@ body {
 }
 
 .brand-text {
-  font-weight: 700;
-  font-size: clamp(2rem, 5vw, 4rem);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-display);
   line-height: 1;
-  color: var(--rojoTec);
-  letter-spacing: 0.08em;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  color: var(--color-brand-accent);
+  letter-spacing: var(--tracking-display);
 }
 
 /* === WRAPPER Y LAYOUT === */
@@ -142,20 +194,66 @@ body {
 /* === USER CARD === */
 .user-card {
   margin-top: 1rem;
-  background: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  padding: 0.75rem !important;
+}
+
+.user-card img {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.user-card .fw-semibold {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.user-card .badge {
+  font-size: 0.65rem;
+  padding: 0.2rem 0.45rem;
+  margin-top: 2px;
+}
+
+/* === SECTION LABELS EN SIDEBAR === */
+.sidebar-section-label {
+  font-size: 0.7rem;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: var(--space-4) var(--space-4) var(--space-1);
+  margin: 0;
+}
+
+/* La primera section label no necesita tanto padding superior */
+#sidebar .nav > .sidebar-section-label:first-child,
+.offcanvas-body .nav > .sidebar-section-label:first-child {
+  padding-top: var(--space-2);
 }
 
 /* === NAV LINKS === */
 .nav-link {
-  padding: 0.65rem 1.25rem;
-  color: #495057;
+  padding: 0.7rem 1rem;
+  color: var(--color-neutral-700);
   transition: all 0.2s ease;
-  border-radius: 0.375rem;
-  margin: 0.125rem 0.75rem;
+  border-radius: var(--radius-md);
+  margin: 0.15rem 0.65rem;
   text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: var(--fw-medium);
+  display: flex;
+  align-items: center;
+}
+
+#sidebar .nav-link i,
+.offcanvas-body .nav-link i {
+  font-size: 1.1rem;
+  width: 1.5rem;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .nav-link:hover {
@@ -174,11 +272,6 @@ body {
   color: #fff !important;
 }
 
-.nav-link i {
-  width: 1.25rem;
-  text-align: center;
-}
-
 /* === FOOTER FIJO === */
 footer {
   position: fixed;
@@ -186,13 +279,33 @@ footer {
   left: 0;
   right: 0;
   height: var(--footer-h);
-  background: #212529;
-  color: #fff;
-  z-index: 1020;
+  background: var(--color-neutral-800);
+  color: var(--text-inverse);
+  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+footer a:hover {
+  color: var(--color-neutral-0) !important;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-neutral-400);
+}
+
+.status-dot--ok {
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px rgba(31, 157, 85, 0.25);
+}
+
+.status-dot--warn { background: var(--color-warning); }
+.status-dot--down { background: var(--color-danger); }
 
 /* === RESPONSIVE TABLETS === */
 @media (max-width: 991.98px) {
@@ -273,25 +386,23 @@ footer {
   width: 280px !important;
   display: flex;
   flex-direction: column;
-  z-index: 1055 !important; /* Mayor que el footer (1020) para superponerse */
-  height: 100vh !important; /* Ocupar toda la altura de la pantalla */
+  z-index: var(--z-offcanvas) !important;
+  height: 100vh !important;
   max-height: 100vh !important;
-  max-height: 100dvh !important; /* Usar dynamic viewport height en navegadores compatibles */
+  max-height: 100dvh !important;
 }
 
-/* Cuando el offcanvas está abierto, asegurar que se superponga */
 .offcanvas.show,
 .offcanvas.showing {
-  z-index: 1055 !important;
+  z-index: var(--z-offcanvas) !important;
 }
 
-/* Backdrop del offcanvas también debe estar sobre el footer */
 .offcanvas-backdrop {
-  z-index: 1050 !important;
+  z-index: var(--z-backdrop) !important;
 }
 
 .offcanvas-backdrop.show {
-  z-index: 1050 !important;
+  z-index: var(--z-backdrop) !important;
 }
 
 .offcanvas.offcanvas-start {
@@ -299,9 +410,8 @@ footer {
   bottom: 0 !important;
 }
 
-/* Asegurar que el footer esté debajo del offcanvas cuando este está abierto */
 body.offcanvas-open footer {
-  z-index: 1020;
+  z-index: var(--z-sticky);
 }
 
 /* Header del offcanvas (título y botón cerrar) */
@@ -327,12 +437,10 @@ body.offcanvas-open footer {
   border-radius: 0.5rem;
 }
 
-/* Body scrollable solo para navegación */
+/* Body scrollable solo para navegación — flex layout robusto sin hardcoded heights */
 .offcanvas-body {
-  flex: 1 1 auto;
-  min-height: 0; /* Importante para que el flex funcione correctamente */
-  max-height: calc(100vh - 220px); /* Restar header(56) + user(80) + footer(84) */
-  max-height: calc(100dvh - 220px); /* Versión con dynamic viewport */
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0.5rem 0;
@@ -459,7 +567,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1055 !important;
+  z-index: var(--z-backdrop) !important;
   width: 100vw;
   height: 100vh;
   background-color: #000;
@@ -474,7 +582,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1060 !important;
+  z-index: var(--z-modal) !important;
   width: 100%;
   height: 100%;
   overflow-x: hidden;
@@ -488,7 +596,7 @@ body[data-aos-easing="ease-in-out"] [data-aos] {
   width: auto;
   margin: 0.5rem;
   pointer-events: none;
-  z-index: 1061 !important;
+  z-index: calc(var(--z-modal) + 1) !important;
 }
 
 .modal.show .modal-dialog {
@@ -696,10 +804,10 @@ body.modal-open #wrapper {
   padding: 0.25rem 0.5rem;
 }
 
-/* Checkmark en tabs completados */
-.nav-tabs .nav-link i.fa-check-circle,
-.nav-pills .nav-link i.fa-check-circle {
-  color: #28a745;
+/* Checkmark en tabs completados (BI: bi-check-circle-fill) */
+.nav-tabs .nav-link i.bi-check-circle-fill,
+.nav-pills .nav-link i.bi-check-circle-fill {
+  color: var(--color-success);
 }
 
 /* === RESPONSIVE TABS === */
@@ -744,12 +852,11 @@ body.modal-open #wrapper {
 }
 
 .nav-tabs .nav-link[data-status="complete"]::after {
-  content: '\f00c';
-  font-family: 'Font Awesome 5 Free';
-  font-weight: 900;
+  content: '\F26B'; /* bi-check-lg en Bootstrap Icons */
+  font-family: 'bootstrap-icons';
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
   font-size: 0.7rem;
-  color: #28a745;
+  color: var(--color-success);
 }

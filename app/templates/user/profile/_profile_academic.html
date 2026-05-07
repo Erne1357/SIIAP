@@ -49,7 +49,7 @@
                 {% else %}
                 <div class="alert alert-info">
                     No estás inscrito en ningún programa académico actualmente.
-                    {% if current_user.role.name == 'applicant' %}
+                    {% if has_perm('programs.api.enroll') %}
                     <a href="{{ url_for('program.list_programs') }}" class="alert-link">Explora nuestros programas</a>.
                     {% endif %}
                 </div>
@@ -58,7 +58,7 @@
         </div>
     </div>
 
-    {% if current_user.role.name == 'applicant' %}
+    {% if has_perm('programs.api.enroll') %}
     <div class="col-md-6 mb-4">
         <div class="card shadow-sm">
             <div class="card-header">

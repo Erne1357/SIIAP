@@ -76,8 +76,20 @@ database/
 
 #Variables de entorno
 .env
+.env.dev-real
 docker/.env.prod
 docker/.env.dev
 
 #claude local
 .claude/
+CLAUDE.md
+
+# Archivos de notas/documentación local
+MEJORAS_BACKEND.md
+MEJORAS_FRONTEND.md
+MIGRACION_REACT.md
+
+#Contrucción con datos reales
+docker/scripts/init-dev-real.sh
+docker/docker-compose.dev-real.yml
+docker/Dockerfile.db.dev-real

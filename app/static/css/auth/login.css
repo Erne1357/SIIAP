@@ -1,43 +1,273 @@
-/* === ESTILOS ESPECÍFICOS PARA LOGIN === */
-:root {
-  --mobile-login-offset: 0.035rem; /* espacio entre el banner y la tarjeta en móvil */
-}
+/*
+ * LOGIN — estilos custom dedicados.
+ * Sustituye al sistema split-pane generico (auth-split) con un layout
+ * propio que evita conflictos con auth/common.css.
+ *
+ * Layout:
+ *   - body con overflow hidden (auth_base.html ya lo aplica)
+ *   - #main-content fixed entre header y footer
+ *   - .login-shell ocupa toda la altura disponible, grid 2 col en desktop
+ *   - .login-hero: imagen institucional + overlay TECNM, padding generoso
+ *   - .login-form-col: centra el card vertical y horizontal, scroll interno solo si rebasa
+ */
 
-#main-content:not(.register-page) .auth-container.login-container {
-  min-height: calc(100vh - var(--header-h) - var(--banner-h) - var(--footer-h));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: calc(var(--header-h) + var(--banner-h) + 1rem) 1.5rem calc(var(--footer-h) + 3.5rem);
+/* ── Reset del shell del auth_base sobre login ─────────────────────────── */
+body.login-page-body {
+  overflow: hidden !important;
 }
-
-#main-content:not(.register-page) .auth-container.login-container .card {
+body.login-page-body .siiapec-welcome-banner {
+  display: none !important;
+}
+body.login-page-body #main-content {
+  position: fixed !important;
+  top: var(--header-h) !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: var(--footer-h) !important;
+  background: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  display: block !important;
+}
+body.login-page-body .auth-container,
+body.login-page-body .auth-bg {
+  all: unset;
+  display: block;
   width: 100%;
-  margin-bottom: 2.25rem;
+  height: 100%;
 }
 
-#main-content:not(.register-page) .auth-container.login-container .card-body {
-  padding-bottom: 2.5rem;
+/* ── Layout del login ──────────────────────────────────────────────────── */
+.login-shell {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  background: var(--bg-page);
 }
 
-#main-content:not(.register-page) .auth-container.login-container .card-body .mt-3 {
-  margin-top: 2rem;
-}
-
-@media (max-width: 991.98px) {
-  #main-content:not(.register-page) .auth-container.login-container {
-    padding: calc(var(--header-h) + var(--banner-h) + 0.75rem) 1rem calc(var(--footer-h) + 3.25rem);
+@media (min-width: 992px) {
+  .login-shell {
+    grid-template-columns: 6fr 5fr;
+    grid-template-rows: 1fr;
   }
 }
 
-@media (max-width: 767.98px) {
-  #main-content:not(.register-page) .auth-container.login-container {
-    padding: calc(var(--header-h) + var(--banner-h) + var(--mobile-login-offset)) 1rem calc(var(--footer-h) + 3.75rem);
+/* ── HERO con imagen institucional ─────────────────────────────────────── */
+.login-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: var(--space-12) var(--space-8);
+  background-image:
+    linear-gradient(135deg,
+      rgba(11, 30, 138, 0.92) 0%,
+      rgba(8, 21, 112, 0.88) 55%,
+      rgba(178, 31, 45, 0.85) 130%),
+    url("../../assets/images/fondo2.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: var(--text-inverse);
+  overflow: hidden;
+}
+.login-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.10), transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.06), transparent 40%);
+  pointer-events: none;
+}
+.login-hero__content {
+  position: relative;
+  max-width: 520px;
+  z-index: 1;
+}
+.login-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  margin-bottom: var(--space-6);
+  color: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(4px);
+}
+.login-hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3.4vw, 2.85rem);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--space-4);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-inverse);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+.login-hero__tagline {
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0 0 var(--space-6);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
+}
+.login-hero__highlights {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.login-hero__highlights li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--fs-sm);
+  color: rgba(255, 255, 255, 0.94);
+}
+.login-hero__highlights i {
+  font-size: var(--fs-md);
+  color: rgba(255, 255, 255, 1);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ── COLUMNA DEL FORM ──────────────────────────────────────────────────── */
+.login-form-col {
+  display: grid;
+  align-content: safe center;
+  justify-items: center;
+  padding: var(--space-6) var(--space-5);
+  background: var(--bg-page);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 28rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-4);
+}
+.login-card__body {
+  padding: var(--space-6) var(--space-6);
+}
+
+.login-card__header {
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+.login-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 130%);
+  color: var(--text-inverse);
+  font-size: 1.4rem;
+  margin-bottom: var(--space-2);
+  box-shadow: var(--shadow-2);
+}
+.login-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  margin: 0 0 var(--space-1);
+  color: var(--text-primary);
+}
+.login-card__subtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.login-card .form-label {
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-2);
+}
+.login-card .input-group-text {
+  background: var(--bg-surface-sunken);
+  border-color: var(--border-default);
+  color: var(--text-muted);
+}
+.login-card .input-group:focus-within .input-group-text {
+  border-color: var(--color-brand-primary);
+  color: var(--color-brand-primary);
+}
+.login-card .form-control {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+.login-card__footer {
+  margin-top: var(--space-4);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+.login-card__footer a {
+  color: var(--color-brand-primary);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.login-card__footer a:hover {
+  text-decoration: underline;
+}
+
+/* ── RESPONSIVE: < 992px (tablet/mobile) ──────────────────────────────── */
+@media (max-width: 991.98px) {
+  /* En movil dejamos que la pagina scrollee naturalmente */
+  body.login-page-body #main-content {
+    overflow-y: auto !important;
+  }
+  .login-shell {
+    height: auto;
+    min-height: 100%;
+  }
+  .login-hero {
+    min-height: auto;
+    padding: var(--space-3) var(--space-4);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .login-hero__title,
+  .login-hero__tagline,
+  .login-hero__highlights {
+    display: none;
+  }
+  .login-hero__eyebrow {
+    margin-bottom: 0;
+  }
+  .login-form-col {
+    overflow: visible;
+    align-content: start;
+    padding: var(--space-5) var(--space-4);
   }
 }
 
 @media (max-width: 575.98px) {
-  #main-content:not(.register-page) .auth-container.login-container .card {
-    margin-bottom: 1.5rem;
+  .login-form-col {
+    padding: var(--space-4) var(--space-3);
+  }
+  .login-card__body {
+    padding: var(--space-5) var(--space-4);
   }
 }

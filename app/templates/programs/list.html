@@ -3,13 +3,30 @@
 {% block title %}Programas de Posgrado{% endblock %}
 
 {% block styles %}
-{{ super() }}
-  <link rel="stylesheet" href="{{url_for('static', filename='css/program/list.css') }}?v={{ static_version }}" data-swup-include-style>
+<link href="{{ url_for('static', filename='css/program/list.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
 <div class="container program-container">
-  <h1 class="text-center programs-title mb-5" data-aos="fade-up">Programas de Posgrado</h1>
+  <header class="programs-hero" data-aos="fade-up">
+    <div class="programs-hero__content">
+      <span class="programs-hero__eyebrow">
+        <i class="bi bi-mortarboard-fill"></i>
+        ITCJ · TECNM
+      </span>
+      <h1 class="programs-hero__title">
+        Forma parte del posgrado de excelencia<br>
+        del Tecnológico Nacional de México
+      </h1>
+      <p class="programs-hero__lead">
+        {% if programs %}
+          {{ programs|length }} programa{{ 's' if programs|length != 1 else '' }} de posgrado disponibles. Conoce sus planes de estudio, perfiles de egreso y proceso de admisión.
+        {% else %}
+          Conoce nuestros programas de posgrado y descubre tu próxima etapa académica.
+        {% endif %}
+      </p>
+    </div>
+  </header>
 
   {% if programs %}
     <div class="row g-4" data-aos="fade-up" data-aos-delay="100">
@@ -22,12 +39,14 @@
               <img
                 src="{{ url_for('static', filename='assets/images/' ~ p.image_filename) }}?v={{ static_version }}"
                 alt="{{ p.name }}"
-                class="program-image w-100">
+                class="program-image w-100"
+                loading="lazy" decoding="async">
               {% else %}
               <img
                 src="{{ url_for('static', filename='assets/images/default-program.webp') }}?v={{ static_version }}"
                 alt="{{ p.name }}"
-                class="program-image w-100">
+                class="program-image w-100"
+                loading="lazy" decoding="async">
               {% endif %}
 
               {% if 'Doctorado' in p.name or (p.program_level and 'Doctorado' in p.program_level) %}
@@ -43,12 +62,12 @@
               <h5 class="card-title">{{ p.name }}</h5>
               
               <div class="program-meta">
-                <i class="fas fa-calendar-alt program-icon"></i>
+                <i class="bi bi-calendar3 program-icon"></i>
                 <span>{{ p.duration_display }}</span>
               </div>
               
               <div class="program-meta">
-                <i class="fas fa-graduation-cap program-icon"></i>
+                <i class="bi bi-mortarboard-fill program-icon"></i>
                 <span>{{ p.program_level or 'Posgrado' }}</span>
               </div>
               
@@ -59,16 +78,15 @@
               <div class="d-flex gap-2">
                 <a
                   href="{{ url_for('program.view_program', slug = p.slug) }}"
-                  class="btn btn-primary btn-ver-mas flex-grow-1"
-                  data-swup-animation="zoom-card">
-                  Ver detalles <i class="fas fa-arrow-right ms-1"></i>
+                  class="btn btn-primary btn-ver-mas flex-grow-1">
+                  Ver detalles <i class="bi bi-arrow-right ms-1"></i>
                 </a>
-                {% if current_user.role.name == 'postgraduate_admin' or (current_user.role.name == 'program_admin' and p.coordinator_id == current_user.id) %}
+                {% if has_perm('academic_periods.api.create') or p.coordinator_id == current_user.id %}
                 <a
                   href="{{ url_for('pages_admin.pages_settings.config_program', slug=p.slug) }}"
                   class="btn btn-outline-secondary"
                   title="Configurar programa">
-                  <i class="fas fa-cog"></i>
+                  <i class="bi bi-gear-fill"></i>
                 </a>
                 {% endif %}
               </div>
@@ -79,7 +97,7 @@
     </div>
   {% else %}
     <div class="alert alert-info text-center" data-aos="fade-up">
-      <i class="fas fa-info-circle me-2"></i>
+      <i class="bi bi-info-circle-fill me-2"></i>
       No hay programas disponibles en este momento.
     </div>
   {% endif %}

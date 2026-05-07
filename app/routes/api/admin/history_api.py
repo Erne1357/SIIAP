@@ -1,7 +1,7 @@
 # app/routes/api/admin/history_api.py
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.user_history_service import UserHistoryService
 from app.services.history_retention_service import HistoryRetentionService
 from app.utils.history_formatter import HistoryFormatter
@@ -10,7 +10,7 @@ api_admin_history = Blueprint('api_admin_history', __name__, url_prefix='/api/v1
 
 @api_admin_history.route('/statistics', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_history.api.statistics')
 def get_history_statistics():
     """Obtiene estadísticas del historial de usuarios"""
     try:
@@ -27,7 +27,7 @@ def get_history_statistics():
 
 @api_admin_history.route('/cleanup/preview', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin')  # Solo admin de posgrado puede hacer limpieza
+@permission_required('admin_history.api.cleanup_preview')
 def preview_cleanup():
     """Previsualiza qué registros se eliminarían en una limpieza"""
     data = request.get_json() or {}
@@ -51,7 +51,7 @@ def preview_cleanup():
 
 @api_admin_history.route('/cleanup/execute', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin')  # Solo admin de posgrado puede ejecutar limpieza
+@permission_required('admin_history.api.cleanup_execute')
 def execute_cleanup():
     """Ejecuta la limpieza del historial (OPERACIÓN DESTRUCTIVA)"""
     data = request.get_json() or {}
@@ -84,7 +84,7 @@ def execute_cleanup():
 
 @api_admin_history.route('/actions/critical', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_history.api.critical_actions')
 def get_critical_actions():
     """Lista todas las acciones críticas definidas"""
     return jsonify({
@@ -97,7 +97,7 @@ def get_critical_actions():
 
 @api_admin_history.route('/recent', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_history.api.statistics')
 def get_recent_history():
     """Obtiene historial reciente de todos los usuarios con formato legible"""
     limit = request.args.get('limit', 50, type=int)
@@ -133,7 +133,7 @@ def get_recent_history():
 
 @api_admin_history.route('/retention-policies', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('admin_history.api.statistics')
 def get_retention_policies():
     """Obtiene las políticas de retención para cada tipo de acción"""
     try:

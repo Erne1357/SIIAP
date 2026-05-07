@@ -1,24 +1,9 @@
-# docker/docker-compose.yml
+# docker/docker-compose.dev.yml
 name: SIIAP
+
 services:
-  web:
-    #reinicia el contenedor si se detiene
-    restart: always
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    # ya no publica directamente el 5000 a host, lo deja interno
-    expose:
-      - "5000"
-    depends_on:
-      - db
-    env_file:
-      - .env
-    volumes:
-      - ../instance:/app/instance
-      - ../:/app
+  # ─── Base de datos ────────────────────────────────────────────────────────
   db:
-    ## reinicia el contenedor si se detiene
     restart: always
     build:
       context: ..
@@ -28,12 +13,87 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # ─── Cache / Broker (Redis) ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: always
+    environment:
+      - TZ=America/Ciudad_Juarez
+    volumes:
+      - redisdata:/data
+
+  # ─── Aplicación web ───────────────────────────────────────────────────────
+  web:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    expose:
+      - "5000"
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    volumes:
+      - ../instance:/app/instance
+      - ../:/app
+    command: >
+      gunicorn
+      --bind 0.0.0.0:5000
+      --worker-class eventlet
+      --workers 1
+      --timeout 120
+      app:app
+
+  # ─── Celery worker (tareas asíncronas) ────────────────────────────────────
+  celery-worker:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: >
+      celery -A app.celery_worker.celery worker
+      --loglevel=info
+      --concurrency=2
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    environment:
+      - SKIP_MIGRATIONS=true
+    volumes:
+      - ../instance:/app/instance
+      - ../:/app
+
+  # ─── Celery Beat (tareas periódicas) ──────────────────────────────────────
+  celery-beat:
+    restart: always
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: >
+      celery -A app.celery_worker.celery beat
+      --loglevel=info
+      --scheduler redbeat.RedBeatScheduler
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    environment:
+      - SKIP_MIGRATIONS=true
+    volumes:
+      - ../instance:/app/instance
+      - ../:/app
+
+  # ─── Reverse proxy ────────────────────────────────────────────────────────
   nginx:
-    # reinicia el contenedor si se detiene
     restart: always
     image: nginx:stable-alpine
     ports:
-      - "80:80"                   # expone el puerto HTTP
+      - "80:80"
     depends_on:
       - web
     environment:
@@ -44,3 +104,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:

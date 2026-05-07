@@ -1,7 +1,7 @@
 # app/routes/api/extensions_api.py - Actualizado
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.extensions_service import ExtensionsService
 from app.services.user_history_service import UserHistoryService
 from app.models import ExtensionRequest,ProgramStep, User, Archive
@@ -25,7 +25,7 @@ def create_extension_request():
     data = request.get_json() or {}
     archive_id = data.get('archive_id')
     requested_until = data.get('requested_until')
-    reason = data.get('reason', '').strip()
+    reason = (data.get('reason') or '').strip()
 
     if not archive_id or not requested_until or not reason:
         return jsonify({
@@ -49,9 +49,7 @@ def create_extension_request():
             "error": "La fecha solicitada debe ser futura"
         }), 400
 
-    role = 'student'
-    if current_user.role and current_user.role.name in ('postgraduate_admin', 'program_admin'):
-        role = 'coordinator'
+    role = 'coordinator' if current_user.has_permission('extensions.api.list_for_review') else 'student'
 
     try:
         er = ExtensionsService.create_request(
@@ -83,7 +81,7 @@ def create_extension_request():
         return jsonify({
             "ok": True, 
             "id": er.id,
-            "message": "Solicitud de prórroga enviada correctamente"
+            "message": "Solicitud de prórroga enviada exitosamente"
         }), 201
         
     except Exception as e:
@@ -109,7 +107,7 @@ def list_extension_requests():
     program_id = request.args.get('program_id', type=int)
 
     # Restricción de permisos
-    if current_user.role.name not in ('postgraduate_admin', 'program_admin'):
+    if not current_user.has_permission('extensions.api.list_for_review'):
         user_id = current_user.id  # Los estudiantes solo ven las suyas
 
     try:
@@ -146,7 +144,7 @@ def list_extension_requests():
 
 @api_extensions.route('/requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('extensions.api.decide')
 def decide_extension_request(req_id: int):
     """
     Decide sobre una solicitud de prórroga.
@@ -224,7 +222,7 @@ def decide_extension_request(req_id: int):
             "ok": True, 
             "id": er.id, 
             "status": er.status,
-            "message": f"Solicitud {status} correctamente"
+            "message": f"Solicitud {status} exitosamente"
         }), 200
         
     except Exception as e:
@@ -276,7 +274,7 @@ def get_archive_extension_status(archive_id: int):
     
 @api_extensions.route('/requests/for-review', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin', 'social_service')
+@permission_required('extensions.api.list_for_review')
 def list_extension_requests_for_review():
     """
     Lista solicitudes con información adicional del usuario para revisión administrativa.

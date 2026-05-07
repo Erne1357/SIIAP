@@ -5,9 +5,17 @@ from app.models.program import Program
 from app.models.step import Step
 from app.models.program_step import ProgramStep
 from app.models.user_program import UserProgram
+from app.utils.datetime_utils import now_local
 
 class AlreadyEnrolledError(Exception): ...
 class ProgramNotFound(Exception): ...
+
+
+class AdmissionClosedError(Exception):
+    """Se lanza cuando no hay un periodo de admisión activo abierto."""
+    def __init__(self, next_period=None):
+        self.next_period = next_period
+        super().__init__("El periodo de admisión no está activo.")
 
 def list_programs():
     return Program.query.order_by(Program.name).all()
@@ -27,6 +35,36 @@ def get_program_by_slug(slug: str):
         raise ProgramNotFound()
     return program
 
+def get_open_admission_period():
+    """
+    Retorna el periodo cuya ventana de admisión está abierta hoy.
+    Un periodo puede tener admisiones abiertas aunque no sea el periodo académico activo
+    (p.ej. el siguiente semestre abre inscripciones mientras el actual está en clases).
+    """
+    from app.models.academic_period import AcademicPeriod
+    today = now_local().date()
+    return (
+        AcademicPeriod.query
+        .filter(
+            AcademicPeriod.admission_start_date <= today,
+            AcademicPeriod.admission_end_date >= today,
+        )
+        .first()
+    )
+
+
+def get_next_upcoming_period():
+    """Retorna el próximo periodo cuya ventana de admisión aún no ha iniciado."""
+    from app.models.academic_period import AcademicPeriod
+    today = now_local().date()
+    return (
+        AcademicPeriod.query
+        .filter(AcademicPeriod.admission_start_date > today)
+        .order_by(AcademicPeriod.admission_start_date.asc())
+        .first()
+    )
+
+
 def enroll_user_once(program_id: int, user_id: int):
     program = Program.query.get(program_id)
     if not program:
@@ -36,7 +74,16 @@ def enroll_user_once(program_id: int, user_id: int):
     if already:
         raise AlreadyEnrolledError("Ya estás inscrito en un programa.")
 
-    db.session.add(UserProgram(user_id=user_id, program_id=program.id))
+    # Verificar que haya un periodo con ventana de admisión abierta hoy
+    open_period = get_open_admission_period()
+    if not open_period:
+        raise AdmissionClosedError(next_period=get_next_upcoming_period())
+
+    db.session.add(UserProgram(
+        user_id=user_id,
+        program_id=program.id,
+        admission_period_id=open_period.id,
+    ))
     db.session.commit()
     return program
 

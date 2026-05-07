@@ -1,0 +1,24 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#dc3545' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Tu documento de permanencia requiere correcciones.</p>
+
+<div class="notification-card">
+    <h2>⚠️ Documento Rechazado</h2>
+    <p><strong>{{ document_label }}</strong></p>
+    {% if reason %}
+    <div class="divider"></div>
+    <p><strong>Motivo:</strong></p>
+    <p style="color: #dc3545;">{{ reason }}</p>
+    {% endif %}
+</div>
+
+<p>Vuelve a subir el documento corregido cuando la ventana de entrega esté abierta.</p>
+
+<a href="{{ dashboard_url }}" class="btn" style="background: #dc3545;">Ver mi panel de permanencia</a>
+
+<p>Si tienes dudas, contacta a tu coordinador de programa.</p>
+{% endblock %}

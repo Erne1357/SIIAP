@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% block title %}Expediente · {{ target_user.first_name }} {{ target_user.last_name }}{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/student_record/index.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-xl py-4" id="studentRecordPage">
+  <!-- Header -->
+  <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 mb-4">
+    <a href="{{ url_for('pages_coordinator.dashboard') }}"
+       id="recordBackLink"
+       class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Volver
+    </a>
+    <div class="flex-grow-1">
+      <h1 class="h3 mb-1" id="recordHeaderName">
+        <span class="placeholder-glow"><span class="placeholder col-6"></span></span>
+      </h1>
+      <p class="text-muted mb-0 small" id="recordHeaderMeta"></p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="/api/v1/students/{{ target_user.id }}/record/pdf" target="_blank"
+         class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-file-earmark-pdf me-1"></i>Exportar PDF
+      </a>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-3" id="recordTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-info" type="button"><i class="bi bi-person me-1"></i>Información</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-academic" type="button"><i class="bi bi-mortarboard me-1"></i>Académico</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-documents" type="button"><i class="bi bi-folder2-open me-1"></i>Documentos</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-acceptance" type="button"><i class="bi bi-file-earmark-check me-1"></i>Aceptación</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-semesters" type="button"><i class="bi bi-list-ol me-1"></i>Semestres</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-interview" type="button"><i class="bi bi-chat-dots me-1"></i>Entrevista</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-events" type="button"><i class="bi bi-calendar-event me-1"></i>Eventos</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-deferrals" type="button"><i class="bi bi-pause-circle me-1"></i>Diferimientos</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history" type="button"><i class="bi bi-clock-history me-1"></i>Historial</button></li>
+  </ul>
+
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-info" role="tabpanel">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="card shadow-sm">
+            <div class="card-body text-center">
+              <img id="recordAvatar" class="rounded-circle border border-3 border-light shadow profile-avatar mb-3"
+                   src="{{ target_user.avatar_url }}" alt="Foto">
+              <h5 class="mb-1" id="recordFullName">—</h5>
+              <p class="text-muted small mb-2" id="recordRole">—</p>
+              <div id="recordPhotoActions"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-8">
+          <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Información personal</h5>
+              <button type="button" class="btn btn-primary btn-sm d-none" id="btnEditPersonalInfo">
+                <i class="bi bi-pencil-fill me-1"></i>Editar
+              </button>
+            </div>
+            <div class="card-body" id="recordPersonalInfo">
+              <div class="text-center py-3 text-muted small">
+                <div class="spinner-border spinner-border-sm me-1" role="status"></div>Cargando...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-academic" role="tabpanel">
+      <div class="card shadow-sm" id="recordAcademic">
+        <div class="card-body text-muted small">Cargando...</div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-documents" role="tabpanel">
+      <div class="card shadow-sm">
+        <div class="card-body" id="recordDocuments">
+          <div class="text-center py-3 text-muted small">Cargando documentos...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-acceptance" role="tabpanel">
+      <div class="card shadow-sm">
+        <div class="card-body" id="recordAcceptance">
+          <div class="text-center py-3 text-muted small">Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-semesters" role="tabpanel">
+      <div class="card shadow-sm">
+        <div class="card-body" id="recordSemesters">
+          <div class="text-center py-3 text-muted small">Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-interview" role="tabpanel">
+      <div class="card shadow-sm">
+        <div class="card-body" id="recordInterview">
+          <div class="text-center py-3 text-muted small">Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-events" role="tabpanel">
+      <div class="card shadow-sm">
+        <div class="card-body" id="recordEvents">
+          <div class="text-center py-3 text-muted small">Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-deferrals" role="tabpanel">
+      <div class="card shadow-sm">
+        <div class="card-body" id="recordDeferrals">
+          <div class="text-center py-3 text-muted small">Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-history" role="tabpanel">
+      <div class="card shadow-sm">
+        <div class="card-body" id="recordHistory">
+          <div class="text-center py-3 text-muted small">Cargando historial...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal: editar información personal -->
+<div class="modal fade" id="editPersonalInfoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Editar información personal</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editPersonalInfoForm">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label">Teléfono</label>
+              <input type="tel" class="form-control" name="phone">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Celular</label>
+              <input type="tel" class="form-control" name="mobile_phone">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Dirección</label>
+              <textarea class="form-control" name="address" rows="2"></textarea>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">CURP</label>
+              <input type="text" class="form-control" name="curp" maxlength="18">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">RFC</label>
+              <input type="text" class="form-control" name="rfc" maxlength="13">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">NSS</label>
+              <input type="text" class="form-control" name="nss">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Cédula profesional</label>
+              <input type="text" class="form-control" name="cedula_profesional">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Fecha de nacimiento</label>
+              <input type="date" class="form-control" name="birth_date">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Lugar de nacimiento</label>
+              <input type="text" class="form-control" name="birth_place">
+            </div>
+            <hr class="my-2">
+            <h6 class="mb-2">Contacto de emergencia</h6>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Nombre</label>
+              <input type="text" class="form-control" name="emergency_contact_name">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Teléfono</label>
+              <input type="tel" class="form-control" name="emergency_contact_phone">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Parentesco</label>
+              <input type="text" class="form-control" name="emergency_contact_relationship">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Guardar cambios
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: subir foto del estudiante (coordinador) -->
+<div class="modal fade" id="coordUploadPhotoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Subir foto del estudiante</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="coordUploadPhotoForm" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Foto</label>
+            <input type="file" class="form-control" name="photo" accept="image/jpeg,image/png,image/webp" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-upload me-1"></i>Subir
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  window.SIIAP_RECORD = {
+    userId: {{ target_user.id | tojson }},
+  };
+</script>
+<script src="{{ url_for('static', filename='js/coordinator/student_record/index.js') }}?v={{ static_version }}"></script>
+{% endblock %}

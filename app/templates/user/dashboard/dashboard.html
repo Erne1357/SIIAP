@@ -3,8 +3,8 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/user/profile.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/user/profile.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/user/dashboard.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -15,14 +15,15 @@
     <p class="lead text-muted">Panel de Control</p>
   </div>
 
-  {% if current_user.role.name == 'applicant' %}
+  {% if has_perm('programs.api.enroll') %}
     {% include 'user/dashboard/applicant_dashboard.html' %}
-  {% elif current_user.role.name == 'program_admin' %}
+  {% elif has_perm('permanence.api.view_status') %}
+    {% include 'user/dashboard/student_dashboard.html' %}
+  {% elif has_perm('coordinator.page.view') and not has_perm('academic_periods.api.create') %}
     {% include 'user/dashboard/program_admin_dashboard.html' %}
-  {% elif current_user.role.name == 'postgraduate_admin' %}
+  {% elif has_perm('academic_periods.api.create') %}
     {% include 'user/dashboard/postgraduate_admin_dashboard.html' %}
   {% else %}
-    <!-- Mensaje para otros roles -->
     <div class="row justify-content-center">
       <div class="col-md-8">
         <div class="alert alert-info text-center">
@@ -33,4 +34,80 @@
     </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block modals %}
+{% if has_perm('permanence.api.upload_my_payment') %}
+<!-- Modal: Subir comprobante de pago de inscripción -->
+<div class="modal fade" id="modalPaymentProof" tabindex="-1"
+     aria-labelledby="modalPaymentProofLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalPaymentProofLabel">
+          <i class="bi bi-upload me-2"></i>Subir comprobante de pago
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="formPaymentProof" enctype="multipart/form-data" novalidate>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Sube tu comprobante de pago en formato PDF. El coordinador revisará y confirmará tu inscripción.
+          </p>
+          <div class="mb-3">
+            <label for="paymentProofFile" class="form-label">
+              Comprobante de pago <span class="text-danger">*</span>
+            </label>
+            <input type="file" class="form-control" id="paymentProofFile"
+                   accept=".pdf" required>
+            <div class="form-text">Solo se aceptan archivos PDF.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitPaymentProof">
+            <i class="bi bi-upload me-1"></i>Subir comprobante
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_perm('programs.api.enroll') or has_perm('permanence.api.view_status') %}
+  <script src="{{ url_for('static', filename='js/events/widget.js') }}?v={{ static_version }}"></script>
+{% endif %}
+{% if has_perm('programs.api.enroll') %}
+  <script>
+    window.SIIAP_APPLICANT_DASH = {
+      userId:          {{ current_user.id|tojson }},
+      userProgramId:   {{ (user_program_id or 0)|tojson }},
+      admissionStatus: {{ (admission_status or '')|tojson }},
+      programId:       {{ (program.id if program else 0)|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/user/applicant_dashboard.js') }}?v={{ static_version }}"></script>
+{% elif has_perm('permanence.api.view_status') %}
+  {% if up and up.id %}
+  <script>
+    window.SIIAP_STUDENT_DASH = { upId: {{ up.id|tojson }} };
+  </script>
+  <script src="{{ url_for('static', filename='js/user/student_dashboard.js') }}?v={{ static_version }}"></script>
+  {% endif %}
+{% elif has_perm('coordinator.page.view') and not has_perm('academic_periods.api.create') %}
+  <script src="{{ url_for('static', filename='js/user/program_admin_dashboard.js') }}?v={{ static_version }}"></script>
+{% elif has_perm('academic_periods.api.create') %}
+  <script>
+    window.SIIAP_POSTGRAD_DASH = {
+      emailConfigUrl:  {{ url_for('pages_admin.pages_emails.email_config')|tojson }},
+      pendingReviews:  {{ (metrics.pending_reviews if metrics else 0)|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/user/postgraduate_admin_dashboard.js') }}?v={{ static_version }}"></script>
+{% endif %}
 {% endblock %}

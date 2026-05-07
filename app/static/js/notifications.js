@@ -2,8 +2,6 @@
 
 class NotificationManager {
     constructor() {
-        this.pollInterval = 30000; // 30 segundos
-        this.pollTimer = null;
         this.dropdownOpen = false;
         this.isMobile = window.innerWidth < 768;
         this.init();
@@ -11,13 +9,101 @@ class NotificationManager {
 
     async init() {
         await this.updateBadge();
-        this.startPolling();
         this.wireEvents();
         this.wireFabEvents();
+        this.listenWebSocket();
         window.addEventListener('resize', () => {
             this.isMobile = window.innerWidth < 768;
         });
     }
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+
+    listenWebSocket() {
+        /**
+         * Escucha el CustomEvent global 'siiap:notification:new' emitido por socket-client.js.
+         * Actualiza el badge inmediatamente y muestra un toast.
+         * Si el dropdown ya está abierto, recarga la lista.
+         */
+        window.addEventListener('siiap:notification:new', (e) => {
+            const notification = e.detail?.notification;
+            if (!notification) return;
+
+            this.incrementBadge();
+            this.showToast(notification);
+
+            if (this.dropdownOpen) {
+                this.loadUnreadNotifications();
+            }
+
+            // Permite que otros módulos reaccionen al tipo de notificación
+            window.dispatchEvent(new CustomEvent('siiap:notification:received', {
+                detail: notification
+            }));
+        });
+    }
+
+    // ── Badge ─────────────────────────────────────────────────────────────────
+
+    async updateBadge() {
+        try {
+            const res = await window.apiClient.get('/api/v1/notifications/unread-count');
+            const json = await res.json();
+            this.setBadgeCount(json.data.count);
+        } catch (error) {
+            console.error('Error updating notification badge:', error);
+        }
+    }
+
+    setBadgeCount(count) {
+        const label = count > 99 ? '99+' : count;
+        const show = count > 0;
+        const ariaLabel = count === 0
+            ? 'Sin notificaciones nuevas'
+            : count === 1
+                ? '1 notificación no leída'
+                : `${count > 99 ? 'Más de 99' : count} notificaciones no leídas`;
+
+        ['notificationBadge', 'notificationBadgeMobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = label;
+            el.classList.toggle('d-none', !show);
+            el.setAttribute('aria-label', ariaLabel);
+        });
+    }
+
+    incrementBadge() {
+        ['notificationBadge', 'notificationBadgeMobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const current = parseInt(el.textContent) || 0;
+            const next = current + 1;
+            el.textContent = next > 99 ? '99+' : next;
+            el.classList.remove('d-none');
+            const ariaLabel = next === 1
+                ? '1 notificación no leída'
+                : `${next > 99 ? 'Más de 99' : next} notificaciones no leídas`;
+            el.setAttribute('aria-label', ariaLabel);
+        });
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+
+    showToast(notification) {
+        const level = {
+            'critical': 'danger',
+            'high': 'warning',
+            'medium': 'info',
+            'low': 'secondary',
+        }[notification.priority] || 'info';
+
+        window.dispatchEvent(new CustomEvent('flash', {
+            detail: { level, message: notification.title }
+        }));
+    }
+
+    // ── Dropdown ──────────────────────────────────────────────────────────────
 
     wireEvents() {
         const bell = document.getElementById('notificationBell');
@@ -25,34 +111,31 @@ class NotificationManager {
 
         if (!bell || !dropdown) return;
 
-        // Toggle dropdown
         bell.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleDropdown();
         });
 
-        // Cerrar al hacer click fuera
         document.addEventListener('click', (e) => {
             if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
                 this.closeDropdown();
             }
         });
 
-        // Marcar todas como leídas
         const markAllBtn = document.getElementById('markAllReadBtn');
         if (markAllBtn) {
             markAllBtn.addEventListener('click', () => this.markAllAsRead());
         }
     }
+
     wireFabEvents() {
         const fab = document.getElementById('notificationFab');
         const dropdown = document.getElementById('notificationDropdown');
-
         if (!fab || !dropdown) return;
 
         fab.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.toggleDropdown(true); // true = es desde FAB
+            this.toggleDropdown(true);
         });
     }
 
@@ -64,55 +147,18 @@ class NotificationManager {
         } else {
             await this.loadUnreadNotifications();
             dropdown.classList.add('show');
-
-            if (fromFab) {
-                dropdown.classList.add('from-fab');
-            }
-
+            if (fromFab) dropdown.classList.add('from-fab');
             this.dropdownOpen = true;
         }
-
-
     }
 
     closeDropdown() {
         const dropdown = document.getElementById('notificationDropdown');
-        dropdown.classList.remove('show');
-        dropdown.classList.remove('from-fab');
+        dropdown.classList.remove('show', 'from-fab');
         this.dropdownOpen = false;
     }
 
-    async updateBadge() {
-        try {
-            const res = await window.apiClient.get('/api/v1/notifications/unread-count');
-            const json = await res.json();
-            const count = json.data.count;
-
-            // Badge del header (desktop)
-            const badge = document.getElementById('notificationBadge');
-            if (badge) {
-                if (count > 0) {
-                    badge.textContent = count > 99 ? '99+' : count;
-                    badge.classList.remove('d-none');
-                } else {
-                    badge.classList.add('d-none');
-                }
-            }
-
-            //  Badge del FAB (móvil)
-            const badgeMobile = document.getElementById('notificationBadgeMobile');
-            if (badgeMobile) {
-                if (count > 0) {
-                    badgeMobile.textContent = count > 99 ? '99+' : count;
-                    badgeMobile.classList.remove('d-none');
-                } else {
-                    badgeMobile.classList.add('d-none');
-                }
-            }
-        } catch (error) {
-            console.error('Error updating notification badge:', error);
-        }
-    }
+    // ── Lista de notificaciones ───────────────────────────────────────────────
 
     async loadUnreadNotifications() {
         const container = document.getElementById('notificationsList');
@@ -137,7 +183,6 @@ class NotificationManager {
 
             container.innerHTML = notifications.map(n => this.renderNotificationItem(n)).join('');
 
-            // Wire eventos de click
             container.querySelectorAll('.notification-item').forEach(item => {
                 item.addEventListener('click', (e) => {
                     if (!e.target.closest('.notification-actions') && !e.target.closest('.btn-mark-read')) {
@@ -154,7 +199,6 @@ class NotificationManager {
                 }
             });
 
-            // Wire botones de invitación
             container.querySelectorAll('[data-respond-invitation]').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
@@ -180,20 +224,21 @@ class NotificationManager {
         const color = this.getColorForType(notification.type);
         const unreadClass = notification.is_read ? '' : 'unread';
         const timeAgo = this.getTimeAgo(notification.created_at);
+        const hasLink = !!notification.action_url;
+        const cursorStyle = hasLink ? 'cursor:pointer;' : '';
 
         let actionsHtml = '';
 
-        // Si es invitación y no leída, mostrar botones
         if (notification.type === 'event_invitation' && !notification.is_read && notification.related_invitation_id) {
             actionsHtml = `
                 <div class="notification-actions">
-                    <button class="btn btn-sm btn-success" 
-                            data-respond-invitation="accepted" 
+                    <button class="btn btn-sm btn-success"
+                            data-respond-invitation="accepted"
                             data-notification-id="${notification.id}">
                         <i class="bi bi-check"></i> Aceptar
                     </button>
-                    <button class="btn btn-sm btn-danger" 
-                            data-respond-invitation="rejected" 
+                    <button class="btn btn-sm btn-danger"
+                            data-respond-invitation="rejected"
                             data-notification-id="${notification.id}">
                         <i class="bi bi-x"></i> Rechazar
                     </button>
@@ -202,7 +247,9 @@ class NotificationManager {
         }
 
         return `
-            <div class="notification-item ${unreadClass}" data-id="${notification.id}">
+            <div class="notification-item ${unreadClass}" data-id="${notification.id}"
+                 data-action-url="${this.escapeHtml(notification.action_url || '')}"
+                 style="${cursorStyle}">
                 <div class="d-flex gap-3">
                     <div class="notification-icon bg-${color}">
                         <i class="${icon}"></i>
@@ -211,7 +258,7 @@ class NotificationManager {
                         <strong>${this.escapeHtml(notification.title)}</strong>
                         <p class="mb-1">${this.escapeHtml(notification.message)}</p>
                         ${actionsHtml}
-                        <small>${timeAgo}</small>
+                        <small>${timeAgo}${hasLink ? ' &nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:.7rem;opacity:.6;"></i>' : ''}</small>
                     </div>
                     ${!notification.is_read ? `
                         <button class="btn-mark-read" title="Marcar como leída">
@@ -232,11 +279,47 @@ class NotificationManager {
             'extension_rejected': 'bi bi-calendar-x',
             'appointment_assigned': 'bi bi-calendar-event',
             'appointment_cancelled': 'bi bi-calendar-x',
+            'appointment_change_accepted': 'bi bi-calendar-check',
             'event_invitation': 'bi bi-envelope',
             'password_reset': 'bi bi-shield-lock',
             'control_number_assigned': 'bi bi-person-badge',
             'account_deactivated': 'bi bi-person-x',
-            'program_changed': 'bi bi-arrow-left-right'
+            'program_changed': 'bi bi-arrow-left-right',
+            // Deliberación
+            'deliberation_accepted': 'bi bi-mortarboard',
+            'deliberation_rejected': 'bi bi-x-octagon',
+            'deliberation_corrections': 'bi bi-pencil-square',
+            // Aceptación
+            'acceptance_docs_ready': 'bi bi-file-earmark-check',
+            'enrollment_receipt_approved': 'bi bi-check2-circle',
+            'enrollment_receipt_rejected': 'bi bi-x-circle',
+            // Permanencia
+            'semester_enrolled': 'bi bi-journal-check',
+            'enrollment_status_changed': 'bi bi-journal-x',
+            'permanence_doc_approved': 'bi bi-file-check',
+            'permanence_doc_rejected': 'bi bi-file-x',
+            'permanence_doc_submitted': 'bi bi-file-earmark-arrow-up',
+            'leave_request_approved': 'bi bi-door-open',
+            'leave_request_rejected': 'bi bi-door-closed',
+            'leave_request_submitted': 'bi bi-door-open',
+            'deadline_created': 'bi bi-calendar-plus',
+            'deadline_opened': 'bi bi-calendar-check',
+            'conacyt_deadlines_created': 'bi bi-calendar-range',
+            'conacyt_scholarship_changed': 'bi bi-award',
+            // Deliberación extra
+            'deliberation_started': 'bi bi-hourglass-split',
+            'deliberation_reset': 'bi bi-arrow-counterclockwise',
+            // Admisión
+            'document_submitted': 'bi bi-file-earmark-arrow-up',
+            'enrollment_receipt_submitted': 'bi bi-file-earmark-arrow-up',
+            'extension_request_submitted': 'bi bi-calendar-plus',
+            // Diferimiento
+            'deferral_applied': 'bi bi-calendar2-minus',
+            'deferral_rejected': 'bi bi-calendar2-x',
+            'deferral_reactivated': 'bi bi-calendar2-check',
+            'deferral_request_received': 'bi bi-calendar2-plus',
+            'deferral_expired': 'bi bi-hourglass-bottom',
+            'deferral_expiring': 'bi bi-hourglass-split',
         };
         return icons[type] || 'bi bi-bell';
     }
@@ -245,16 +328,49 @@ class NotificationManager {
         const colors = {
             'document_approved': 'success',
             'extension_approved': 'success',
+            'appointment_change_accepted': 'success',
+            'deliberation_accepted': 'success',
+            'enrollment_receipt_approved': 'success',
+            'semester_enrolled': 'success',
+            'deferral_reactivated': 'success',
+            'acceptance_docs_ready': 'success',
             'document_rejected': 'danger',
             'extension_rejected': 'danger',
             'appointment_cancelled': 'danger',
             'account_deactivated': 'danger',
+            'deliberation_rejected': 'danger',
+            'enrollment_receipt_rejected': 'danger',
+            'deferral_expired': 'danger',
+            'enrollment_status_changed': 'danger',
             'appointment_assigned': 'primary',
             'event_invitation': 'primary',
+            'deliberation_corrections': 'warning',
+            'deferral_applied': 'warning',
+            'deferral_rejected': 'warning',
+            'deferral_expiring': 'warning',
             'control_number_assigned': 'info',
             'coordinator_uploaded': 'info',
             'password_reset': 'warning',
-            'program_changed': 'warning'
+            'program_changed': 'warning',
+            'deferral_request_received': 'info',
+            // Permanencia
+            'permanence_doc_approved': 'success',
+            'permanence_doc_rejected': 'danger',
+            'permanence_doc_submitted': 'info',
+            'leave_request_approved': 'success',
+            'leave_request_rejected': 'danger',
+            'leave_request_submitted': 'warning',
+            'deadline_created': 'primary',
+            'deadline_opened': 'primary',
+            'conacyt_deadlines_created': 'info',
+            'conacyt_scholarship_changed': 'info',
+            // Deliberación extra
+            'deliberation_started': 'warning',
+            'deliberation_reset': 'warning',
+            // Admisión (coordinador)
+            'document_submitted': 'info',
+            'enrollment_receipt_submitted': 'info',
+            'extension_request_submitted': 'warning',
         };
         return colors[type] || 'info';
     }
@@ -276,18 +392,39 @@ class NotificationManager {
         });
     }
 
-    async handleNotificationClick(notificationId) {
-        // Marcar como leída
-        await this.markAsRead(notificationId);
+    // ── Acciones ──────────────────────────────────────────────────────────────
 
-        // Cerrar dropdown
+    async handleNotificationClick(notificationId) {
+        const item = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
+        const actionUrl = item?.dataset?.actionUrl;
+
+        await this.markAsRead(notificationId);
         this.closeDropdown();
+
+        if (actionUrl) {
+            await this._navigateToUrl(actionUrl);
+        }
+    }
+
+    async _navigateToUrl(url) {
+        try {
+            const res = await fetch(url, { method: 'HEAD', credentials: 'same-origin' });
+            if (res.ok) {
+                window.location.href = url;
+            } else {
+                window.dispatchEvent(new CustomEvent('flash', {
+                    detail: { level: 'warning', message: 'Esta página ya no está disponible.' }
+                }));
+            }
+        } catch {
+            // Si hay error de red, intentar navegar de todas formas
+            window.location.href = url;
+        }
     }
 
     async markAsRead(notificationId) {
         try {
             const res = await window.apiClient.patch(`/api/v1/notifications/${notificationId}/read`);
-
             if (res.ok) {
                 await this.updateBadge();
                 await this.loadUnreadNotifications();
@@ -300,7 +437,6 @@ class NotificationManager {
     async markAllAsRead() {
         try {
             const res = await window.apiClient.post('/api/v1/notifications/mark-all-read');
-
             if (res.ok) {
                 const json = await res.json();
                 if (json.flash) {
@@ -316,33 +452,20 @@ class NotificationManager {
 
     async respondInvitation(notificationId, response) {
         try {
-            const res = await window.apiClient.post(`/api/v1/notifications/${notificationId}/respond-invitation`, { response });
-
+            const res = await window.apiClient.post(
+                `/api/v1/notifications/${notificationId}/respond-invitation`,
+                { response }
+            );
             const json = await res.json();
-
             if (json.flash) {
                 json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
             }
-
             if (res.ok) {
                 await this.updateBadge();
                 await this.loadUnreadNotifications();
             }
         } catch (error) {
             console.error('Error responding to invitation:', error);
-        }
-    }
-
-    startPolling() {
-        this.pollTimer = setInterval(() => {
-            this.updateBadge();
-        }, this.pollInterval);
-    }
-
-    stopPolling() {
-        if (this.pollTimer) {
-            clearInterval(this.pollTimer);
-            this.pollTimer = null;
         }
     }
 
@@ -353,7 +476,8 @@ class NotificationManager {
     }
 }
 
-// Inicializar cuando el DOM esté listo
+// ── Inicialización ────────────────────────────────────────────────────────────
+
 let notificationManager = null;
 
 function initNotifications() {
@@ -366,14 +490,4 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initNotifications);
 } else {
     initNotifications();
-}
-
-// Reiniciar con Swup si está disponible
-if (typeof swup !== 'undefined') {
-    swup.on('contentReplaced', () => {
-        if (notificationManager) {
-            notificationManager.stopPolling();
-        }
-        initNotifications();
-    });
 }

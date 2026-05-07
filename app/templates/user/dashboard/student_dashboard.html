@@ -1,0 +1,303 @@
+{# Student Dashboard - Fase 6: Permanencia Semestral #}
+{% from '_macros.html' import role_banner %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+
+    {{ role_banner(
+      user=current_user,
+      role_key='student',
+      context_line=(active_program.name if active_program else 'Estudiante activo'),
+      next_action=(
+        'Tienes ' ~ pending_admission_docs|length ~ ' documento(s) de admisión pendientes' if pending_admission_docs and pending_admission_docs|length > 0
+        else 'Tienes ' ~ pending_permanence_docs|length ~ ' documento(s) del semestre por subir' if pending_permanence_docs and pending_permanence_docs|length > 0
+        else 'Tu permanencia está al día. Revisa los avisos y módulos siguientes.'
+      )
+    ) }}
+
+    {% include 'partials/_events_widget.html' %}
+
+    {# — Alertas de documentos pendientes — #}
+    {% if pending_admission_docs %}
+      <div class="alert alert-danger border-danger shadow-sm mb-4 d-flex align-items-start gap-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-2 flex-shrink-0 mt-1"></i>
+        <div>
+          <h5 class="alert-heading fw-bold mb-1">Documentos de admisión pendientes</h5>
+          <p class="mb-2">
+            Tienes <strong>{{ pending_admission_docs|length }}</strong> documento{{ 's' if pending_admission_docs|length > 1 else '' }}
+            de admisión sin aprobar. Debes regularizar tu situación lo antes posible.
+          </p>
+          <ul class="mb-0 small">
+            {% for doc in pending_admission_docs %}
+              <li>
+                <strong>{{ doc.name }}</strong>
+                {% if doc.status == 'rejected' %}
+                  — <span class="text-danger fw-bold">Rechazado</span>
+                {% elif doc.status == 'pending' %}
+                  — <span class="text-warning fw-bold">No entregado</span>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if pending_permanence_docs %}
+      <div class="alert alert-danger border-danger shadow-sm mb-4 d-flex align-items-start gap-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-2 flex-shrink-0 mt-1"></i>
+        <div>
+          <h5 class="alert-heading fw-bold mb-1">Documentos de permanencia pendientes</h5>
+          <p class="mb-2">
+            Tienes <strong>{{ pending_permanence_docs|length }}</strong> documento{{ 's' if pending_permanence_docs|length > 1 else '' }}
+            de seguimiento semestral sin aprobar.
+          </p>
+          <ul class="mb-0 small">
+            {% for doc in pending_permanence_docs %}
+              <li>
+                <strong>{{ doc.name }}</strong>
+                {% if doc.status == 'rejected' %}
+                  — <span class="text-danger fw-bold">Rechazado</span>
+                {% elif doc.status == 'pending' %}
+                  — <span class="text-warning fw-bold">No entregado</span>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
+    {# — Banner de bienvenida como estudiante — #}
+    <div class="card border-success shadow-sm mb-4">
+      <div class="card-body d-flex align-items-center gap-3 py-3">
+        <i class="bi bi-mortarboard-fill text-success fs-1 flex-shrink-0"></i>
+        <div>
+          <h5 class="mb-0 fw-bold text-success">¡Bienvenido, estudiante!</h5>
+          <p class="mb-0 text-muted small">
+            {% if program %}{{ program.name }}{% endif %}
+            {% if current_user.control_number %}
+              &nbsp;·&nbsp; <strong>Matrícula:</strong> {{ current_user.control_number }}
+            {% endif %}
+            {% if up and up.current_semester %}
+              &nbsp;·&nbsp; Semestre {{ up.current_semester }}
+            {% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {# — Tarjetas de estado — #}
+    <div class="row g-3 mb-4">
+      <div class="col-sm-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-hash fs-2 text-primary mb-2"></i>
+            <div class="small text-muted">Número de Control</div>
+            <div class="fw-bold">{{ current_user.control_number or '—' }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-journal-bookmark-fill fs-2 text-info mb-2"></i>
+            <div class="small text-muted">Semestre Actual</div>
+            <div class="fw-bold">{{ up.current_semester if up and up.current_semester else '1' }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            {% if permanence_data and permanence_data.current_enrollment and permanence_data.current_enrollment.enrollment_confirmed %}
+              <i class="bi bi-check-circle-fill fs-2 text-success mb-2"></i>
+              <div class="small text-muted">Estado Semestre</div>
+              <div class="fw-bold text-success">Inscrito</div>
+            {% else %}
+              <i class="bi bi-hourglass-split fs-2 text-warning mb-2"></i>
+              <div class="small text-muted">Estado Semestre</div>
+              <div class="fw-bold text-warning">Pendiente</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# — Módulo de Permanencia — #}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-calendar2-check-fill text-primary"></i>
+        <strong>Permanencia Semestral</strong>
+        {% if permanence_data and permanence_data.current_period %}
+          <span class="badge bg-success ms-auto">{{ permanence_data.current_period.name }}</span>
+        {% else %}
+          <span class="badge bg-secondary ms-auto">Sin periodo activo</span>
+        {% endif %}
+      </div>
+
+      <div class="card-body">
+        {% if permanence_data %}
+
+          {# Inscripción del semestre actual #}
+          {% set ce = permanence_data.current_enrollment %}
+          {% if permanence_data.current_period %}
+            {% if ce and ce.status == 'on_leave' %}
+            <div class="d-flex align-items-start gap-3 p-3 rounded mb-4 bg-secondary-subtle border border-secondary-subtle">
+              <i class="bi bi-person-dash text-secondary fs-4 flex-shrink-0 mt-1"></i>
+              <div>
+                <div class="fw-semibold text-secondary">Baja temporal activa</div>
+                <div class="small text-muted">
+                  Tu solicitud de baja temporal fue aprobada para el semestre {{ ce.semester_number }}
+                  ({{ permanence_data.current_period.name }}).
+                  Para reincorporarte, contacta al coordinador del programa.
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <div class="d-flex align-items-start gap-3 p-3 rounded mb-4
+              {% if ce and ce.enrollment_confirmed %}bg-success-subtle border border-success-subtle
+              {% else %}bg-warning-subtle border border-warning-subtle{% endif %}">
+              {% if ce and ce.enrollment_confirmed %}
+                <i class="bi bi-check-circle-fill text-success fs-4 flex-shrink-0 mt-1"></i>
+                <div class="flex-grow-1">
+                  <div class="fw-semibold text-success">Inscripción confirmada para este periodo</div>
+                  <div class="small text-muted">
+                    Semestre {{ ce.semester_number }} · {{ permanence_data.current_period.name }}
+                    {% if ce.notes %} · <em>{{ ce.notes }}</em>{% endif %}
+                  </div>
+                  {% if ce.schedule_url %}
+                  <div class="mt-2">
+                    <a href="{{ ce.schedule_url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                      <i class="bi bi-calendar2-week me-1"></i>Ver horario del semestre
+                    </a>
+                  </div>
+                  {% endif %}
+                </div>
+              {% else %}
+                <i class="bi bi-hourglass-split text-warning fs-4 flex-shrink-0 mt-1"></i>
+                <div>
+                  <div class="fw-semibold">Inscripción pendiente de confirmación</div>
+                  <div class="small text-muted">
+                    El coordinador confirmará tu inscripción para {{ permanence_data.current_period.name }}
+                    una vez que verifique tu pago.
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+            {% endif %}
+          {% else %}
+            <div class="alert alert-secondary d-flex gap-2 align-items-center mb-4">
+              <i class="bi bi-info-circle"></i>
+              No hay un periodo académico activo actualmente.
+            </div>
+          {% endif %}
+
+          {# Historial de semestres #}
+          {% if permanence_data.history %}
+            <h6 class="fw-bold mb-3 text-muted text-uppercase small">Historial</h6>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center">Semestre</th>
+                    <th>Periodo</th>
+                    <th class="text-center">Estado</th>
+                    <th class="text-center">Confirmado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for sem in permanence_data.history %}
+                    {% if sem.status == 'active' %}{% set badge_cls = 'bg-success' %}{% set status_label = 'Activo' %}
+                    {% elif sem.status == 'completed' %}{% set badge_cls = 'bg-primary' %}{% set status_label = 'Completado' %}
+                    {% elif sem.status == 'on_leave' %}{% set badge_cls = 'bg-secondary' %}{% set status_label = 'Baja temporal' %}
+                    {% elif sem.status == 'dropped' %}{% set badge_cls = 'bg-danger' %}{% set status_label = 'Baja definitiva' %}
+                    {% else %}{% set badge_cls = 'bg-warning text-dark' %}{% set status_label = 'Pendiente' %}
+                    {% endif %}
+                  <tr>
+                    <td class="text-center fw-bold">Sem. {{ sem.semester_number }}</td>
+                    <td>
+                      {{ sem.period_name }}
+                      <span class="badge bg-light text-dark border">{{ sem.period_code }}</span>
+                    </td>
+                    <td class="text-center">
+                      <span class="badge {{ badge_cls }}">{{ status_label }}</span>
+                    </td>
+                    <td class="text-center">
+                      {% if sem.enrollment_confirmed %}
+                        <i class="bi bi-check-circle-fill text-success"></i>
+                      {% else %}
+                        <i class="bi bi-dash-circle text-muted"></i>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+        {% else %}
+          <div class="text-center py-3 text-muted">
+            <i class="bi bi-calendar-x fs-2 mb-2 d-block"></i>
+            No hay información de permanencia disponible aún.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# — Pago de inscripción semestral — #}
+    {% if up and up.id %}
+    <div class="card mb-4" id="cardEnrollmentPayment">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-credit-card-2-front text-primary"></i>
+        <strong>Pago de inscripción</strong>
+        {% if permanence_data and permanence_data.current_period %}
+          <span class="badge bg-secondary ms-auto">{{ permanence_data.current_period.name }}</span>
+        {% endif %}
+      </div>
+      <div class="card-body" id="enrollmentPaymentContainer">
+        <div class="text-center py-2 text-muted small">
+          <div class="spinner-border spinner-border-sm me-1" role="status"></div> Verificando inscripción...
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# — Documentos del Semestre (Módulo B) — #}
+    {% if up and up.id %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-folder2-open text-warning"></i>
+        <strong>Documentos del Semestre</strong>
+        {% if permanence_data and permanence_data.current_period %}
+          <span class="badge bg-secondary ms-auto">{{ permanence_data.current_period.name }}</span>
+        {% endif %}
+      </div>
+      <div class="card-body p-0" id="studentDocsContainer">
+        <div class="text-center py-3 text-muted small" id="studentDocsLoading">
+          <div class="spinner-border spinner-border-sm me-1" role="status"></div> Cargando documentos...
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# — Solicitud de Baja Temporal (Módulo D) — #}
+    {% set ce = permanence_data.current_enrollment if permanence_data else None %}
+    {% if up and up.id and ce and ce.status == 'active' %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-person-dash text-secondary"></i>
+        <strong>Solicitud de Baja Temporal</strong>
+      </div>
+      <div class="card-body" id="leaveRequestContainer">
+        <div class="text-center py-2 text-muted small" id="leaveRequestLoading">
+          <div class="spinner-border spinner-border-sm me-1" role="status"></div> Verificando...
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+

@@ -1,7 +1,7 @@
 # app/routes/api/invitations_api.py
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.events_service import EventsService
 from app.models.event import Event
 from app.models.program import Program
@@ -12,33 +12,32 @@ api_invitations = Blueprint('api_invitations', __name__, url_prefix='/api/v1/inv
 
 @api_invitations.route('/event/<int:event_id>/invite', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('invitations.api.send')
 def invite_students(event_id: int):
     """Invitar estudiantes a un evento"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     data = request.get_json() or {}
     user_ids = data.get('user_ids', [])
     notes = data.get('notes')
-    
+    allow_external = bool(data.get('allow_external', False))
+
     if not user_ids or not isinstance(user_ids, list):
         return jsonify({"ok": False, "error": "user_ids debe ser una lista"}), 400
-    
+
     try:
         results = EventsService.invite_students(
             event_id=event_id,
             user_ids=user_ids,
             invited_by=current_user.id,
-            notes=notes
+            notes=notes,
+            allow_external=allow_external
         )
         
         return jsonify({
@@ -58,20 +57,17 @@ def invite_students(event_id: int):
 
 @api_invitations.route('/event/<int:event_id>/list', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('invitations.api.list')
 def list_event_invitations(event_id: int):
     """Listar invitaciones de un evento"""
     event = db.session.get(Event, event_id)
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     try:
         invitations = EventsService.get_event_invitations(event_id)
         
@@ -131,7 +127,7 @@ def my_invitations():
 
 @api_invitations.route('/<int:invitation_id>', methods=['DELETE'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('invitations.api.manage')
 def cancel_invitation(invitation_id: int):
     """Cancelar una invitación"""
     try:
@@ -151,7 +147,7 @@ def cancel_invitation(invitation_id: int):
 
 @api_invitations.route('/event/<int:event_id>/dates', methods=['PUT'])
 @login_required
-@roles_required('postgraduate_admin', 'program_admin')
+@permission_required('invitations.api.manage')
 def update_event_dates(event_id: int):
     """Actualizar fechas del evento"""
     from datetime import datetime
@@ -160,15 +156,12 @@ def update_event_dates(event_id: int):
     if not event:
         return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
     
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if event.program_id:
-            program = db.session.get(Program, event.program_id)
-            if not program or program.coordinator_id != current_user.id:
-                return jsonify({"ok": False, "error": "Sin permisos"}), 403
-    
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and event.program_id and event.program_id not in accessible_pids:
+        return jsonify({"ok": False, "error": "Sin permisos"}), 403
+
     data = request.get_json() or {}
-    
+
     event_date = None
     event_end_date = None
     

@@ -1,13 +1,13 @@
 # app/routes/api/programs_api.py
 from flask import Blueprint, jsonify, request, abort
 from flask_login import login_required, current_user
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required, any_permission_required
 from app.services import programs_service as svc
 from app.services.user_history_service import UserHistoryService
 
 api_programs = Blueprint('api_programs', __name__, url_prefix='/api/v1/programs')
 
-@api_programs.get('/')
+@api_programs.get('')
 @login_required
 def api_list_programs():
     items = svc.list_programs()
@@ -37,7 +37,7 @@ def api_get_program(slug):
 
 @api_programs.post('/<int:program_id>/inscription')
 @login_required
-@roles_required('applicant')
+@permission_required('programs.api.enroll')
 def api_enroll(program_id):
     try:
         program = svc.enroll_user_once(program_id, current_user.id)
@@ -78,7 +78,7 @@ def api_enroll(program_id):
 
 @api_programs.patch('/<string:slug>')
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('programs.api.update')
 def api_update_program(slug):
     """
     Actualizar configuración del programa.
@@ -95,15 +95,15 @@ def api_update_program(slug):
             "meta": {}
         }), 404
 
-    # Verificar permisos
-    if current_user.role.name == 'program_admin':
-        if program.coordinator_id != current_user.id:
-            return jsonify({
-                "data": None,
-                "flash": [{"level": "danger", "message": "No tienes permiso para editar este programa."}],
-                "error": {"code": "FORBIDDEN", "message": "No autorizado"},
-                "meta": {}
-            }), 403
+    # Verificar permisos: scoped users solo pueden editar sus programas accesibles
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and program.id not in accessible_pids:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "No tienes permiso para editar este programa."}],
+            "error": {"code": "FORBIDDEN", "message": "No autorizado"},
+            "meta": {}
+        }), 403
 
     # Obtener datos del request
     data = request.get_json()
@@ -121,7 +121,7 @@ def api_update_program(slug):
 
         return jsonify({
             "data": {"program": updated_program.to_dict()},
-            "flash": [{"level": "success", "message": "Programa actualizado correctamente."}],
+            "flash": [{"level": "success", "message": "Programa actualizado exitosamente."}],
             "error": None,
             "meta": {}
         }), 200
