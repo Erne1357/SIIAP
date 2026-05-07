@@ -721,3 +721,121 @@ def assign_control_number(user_id: int, program_id: int,
     db.session.commit()
 
     return up
+
+
+def assign_control_number_admin(user_id: int, program_id: int,
+                                 control_number: str, admin_id: int) -> UserProgram:
+    """
+    Variante administrativa de assign_control_number sin los chequeos rigurosos
+    de flujo (admission_status='accepted', enrollment_receipt approved, deuda
+    documental). Sirve para casos legacy donde el estudiante ya está cursando
+    pero nunca pasó por el flujo formal de aceptación.
+
+    SÍ hace toda la transición:
+      - control_number + username
+      - role -> 'student'
+      - admission_status -> 'enrolled'
+      - current_semester = 1 (si no tenía)
+      - SemesterEnrollment(semester=1, active, confirmed) — idempotente: si
+        ya existe SE para sem 1 no lo duplica.
+      - Notificación + email + socket emit
+
+    Args:
+        user_id: ID del usuario.
+        program_id: ID del programa.
+        control_number: Número de control a asignar.
+        admin_id: ID del administrador que ejecuta la operación.
+
+    Returns:
+        UserProgram actualizado.
+    """
+    from app.models.user import User as UserModel
+    from app.models.role import Role
+    from app.models.academic_period import AcademicPeriod
+    from app.models.semester_enrollment import SemesterEnrollment
+
+    if not control_number or not control_number.strip():
+        raise ValueError("El número de control no puede estar vacío")
+
+    ctrl = control_number.strip()
+
+    # Verificar que el número de control no esté ya asignado a otro usuario
+    existing = UserModel.query.filter_by(control_number=ctrl).first()
+    if existing and existing.id != user_id:
+        raise ValueError(f"El número de control '{ctrl}' ya está asignado a otro usuario")
+
+    up = _get_user_program(user_id, program_id)
+
+    student_role = Role.query.filter_by(name='student').first()
+    if not student_role:
+        raise ValueError("El rol 'student' no está configurado en el sistema. Ejecuta las migraciones.")
+
+    user = UserModel.query.get(user_id)
+    if not user:
+        raise ApplicantNotFound(f"Usuario {user_id} no encontrado")
+
+    program = Program.query.get(program_id)
+
+    # 1. Asignar número de control (también actualiza username)
+    user.assign_control_number(ctrl)
+
+    # 2. Cambiar rol a 'student'
+    user.role_id = student_role.id
+
+    # 3. Actualizar estado de inscripción (forzado, sin verificar transición previa)
+    up.admission_status = 'enrolled'
+    if not up.current_semester or up.current_semester < 1:
+        up.current_semester = 1
+
+    # 4. Crear SemesterEnrollment idempotente: solo si no existe SE alguno.
+    #    Si el usuario ya tenía SE históricos (ej. legacy con backfill), no
+    #    crear uno nuevo: respetar lo existente.
+    has_any_se = SemesterEnrollment.query.filter_by(user_program_id=up.id).first() is not None
+    if not has_any_se:
+        enrollment_period_id = up.admission_period_id
+        if not enrollment_period_id:
+            active_period = AcademicPeriod.get_active_period()
+            if active_period:
+                enrollment_period_id = active_period.id
+
+        if enrollment_period_id:
+            db.session.add(SemesterEnrollment(
+                user_program_id=up.id,
+                academic_period_id=enrollment_period_id,
+                semester_number=up.current_semester or 1,
+                status='active',
+                enrollment_confirmed=True,
+                confirmed_by=admin_id,
+                confirmed_at=now_local(),
+            ))
+
+    # 5. Historial + notificación con email + socket
+    UserHistoryService.log_action(
+        user_id=user_id,
+        admin_id=admin_id,
+        action='control_number_assigned_admin',
+        details=(
+            f'Número de control {ctrl} asignado por administrador (sin chequeos '
+            f'de flujo) en {program.name if program else f"program {program_id}"}. '
+            f'Transición a estudiante completada.'
+        )
+    )
+
+    NotificationService.notify_control_number_assigned(
+        user_id=user_id,
+        control_number=ctrl,
+    )
+
+    try:
+        from app.extensions import socketio
+        socketio.emit('acceptance:updated', {
+            'user_id': user_id,
+            'program_id': program_id,
+            'action': 'control_number_assigned_admin',
+        }, room=f'user:{user_id}')
+    except Exception:
+        pass
+
+    db.session.commit()
+
+    return up
