@@ -246,6 +246,7 @@ def user_history():
 
 @api_users.get('/me/activity')
 @login_required
+@permission_required('profile.api.view_own_activity')
 def my_activity():
     """Unified recent-activity feed (history + notifications + submissions + events)."""
     from app.services import profile_activity_service as profile_svc
@@ -264,6 +265,7 @@ def my_activity():
 
 @api_users.get('/me/upcoming-events')
 @login_required
+@permission_required('profile.api.view_own_upcoming_events')
 def my_upcoming_events():
     """Events the user is registered for whose date is in the future."""
     from app.services import profile_activity_service as profile_svc
@@ -282,6 +284,7 @@ def my_upcoming_events():
 
 @api_users.get('/me/documents-history')
 @login_required
+@permission_required('profile.api.view_own_documents')
 def my_documents_history():
     """Submissions grouped by phase (admission/permanence/conclusion). Permanence by semester."""
     from app.services import profile_activity_service as profile_svc

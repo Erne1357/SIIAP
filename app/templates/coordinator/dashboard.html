@@ -502,14 +502,20 @@
             </select>
           </div>
           <div class="col-12">
-            <label for="coordinatorFile" class="form-label">Archivo</label>
-            <input type="file" class="form-control" id="coordinatorFile" name="file" accept=".pdf" required>
-            <div class="form-text">Solo PDF, máximo 3MB</div>
+            <label for="coordinatorFile" class="form-label">Archivo (opcional)</label>
+            <input type="file" class="form-control" id="coordinatorFile" name="file" accept=".pdf">
+            <div class="form-text">Solo PDF, máximo 3MB. Si no adjuntas archivo, el comentario es obligatorio.</div>
           </div>
           <div class="col-12">
-            <label for="coordinatorNotes" class="form-label">Notas del coordinador (opcional)</label>
-            <textarea class="form-control" id="coordinatorNotes" name="notes" rows="3" 
-                      placeholder="Observaciones sobre el documento subido..."></textarea>
+            <label for="coordinatorNotes" class="form-label">
+              Notas del coordinador
+              <span class="text-muted small" id="coordinatorNotesHint">(opcional si adjuntas archivo, obligatorio si no)</span>
+            </label>
+            <textarea class="form-control" id="coordinatorNotes" name="notes" rows="3"
+                      placeholder="Observaciones sobre el documento o motivo de la validación sin archivo..."></textarea>
+            <div class="invalid-feedback" id="coordinatorNotesError">
+              El comentario es obligatorio cuando no adjuntas un archivo.
+            </div>
           </div>
         </div>
       </div>

@@ -495,7 +495,7 @@ class PermanenceManager {
   showConfirmModal(userProgramId, studentName, mode = 'confirm', proofUrlArg = '') {
     const TITLES = {
       confirm: ['Confirmar Inscripción Semestral', 'Esto confirmará la inscripción del estudiante en el periodo activo.', 'Confirmar Inscripción', 'btn-success'],
-      advance: ['Avanzar Semestre Manualmente', 'Avanzará al estudiante al siguiente semestre en el periodo activo aunque tenga rezagos.', 'Avanzar Semestre', 'btn-primary'],
+      advance: ['Avanzar Semestre Manualmente', 'Avanzará al estudiante al siguiente semestre en el periodo activo aunque tenga rezagos. El semestre anterior se cerrará como completado en la misma operación.', 'Avanzar Semestre', 'btn-primary'],
       reinstate: ['Reincorporar Estudiante', 'Crea un nuevo semestre activo en el periodo actual saliendo de la baja temporal.', 'Reincorporar', 'btn-warning'],
     };
     const [title, desc, btnLabel, btnCls] = TITLES[mode] || TITLES.confirm;
@@ -952,6 +952,12 @@ class PermanenceManager {
     const seId = parseInt(document.getElementById('updateStatusEnrollmentId').value);
     const newStatus = document.getElementById('updateStatusSelect').value;
     const notes = document.getElementById('updateStatusNotes').value.trim();
+
+    if (!Number.isInteger(seId) || seId <= 0) {
+      showFlash('danger', 'Inscripción inválida — recarga la página e intenta de nuevo.');
+      return;
+    }
+
     bootstrap.Modal.getInstance(document.getElementById('updateStatusModal'))?.hide();
 
     try {
@@ -1365,6 +1371,11 @@ class PermanenceManager {
   async submitReview(status) {
     const subId = parseInt(document.getElementById('reviewDocSubmissionId').value);
     const notes = document.getElementById('reviewDocNotes').value.trim();
+
+    if (!Number.isInteger(subId) || subId <= 0) {
+      showFlash('danger', 'Submission inválida — recarga la página e intenta de nuevo.');
+      return;
+    }
 
     if (status === 'rejected' && !notes) {
       showFlash('warning', 'Escribe el motivo del rechazo antes de continuar.');

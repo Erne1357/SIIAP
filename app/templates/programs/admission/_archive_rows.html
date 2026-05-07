@@ -64,19 +64,19 @@
       {# Versión móvil #}
       <div class="btn-group-vertical btn-group-sm d-md-none w-100" role="group">
         {% if arch.is_uploadable %}
-          {% if sub %}
-          <a class="btn btn-outline-primary btn-sm" title="Ver documento" 
+          {% if sub and sub.file_path %}
+          <a class="btn btn-outline-primary btn-sm" title="Ver documento"
              href="{{ url_for('api_files.user_doc', user_id=current_user.id, phase='admission', filename=sub.file_path.split('/')[-1]) }}" target="_blank">
             <i class="bi bi-eye me-1"></i>Ver Documento
           </a>
           {% endif %}
 
-          <button class="btn btn-outline-success btn-sm" 
-                  title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo" 
-                  data-bs-toggle="modal" data-bs-target="#uploadModal" 
+          <button class="btn btn-outline-success btn-sm"
+                  title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
+                  data-bs-toggle="modal" data-bs-target="#uploadModal"
                   data-archive="{{ arch.id }}" data-step="{{ step.id }}"
                   data-archive-name="{{ arch.name }}"
-                  {% if sub %}data-has-existing="true"
+                  {% if sub and sub.file_path %}data-has-existing="true"
                   data-existing-filename="{{ sub.file_path.split('/')[-1] }}"
                   data-existing-date="{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') }}"{% else %}data-has-existing="false"{% endif %}>
             <i class="bi bi-upload me-1"></i>{% if sub %}Reemplazar{% else %}Subir{% endif %}
@@ -103,19 +103,19 @@
       {# Versión desktop #}
       <div class="btn-group btn-group-sm d-none d-md-flex" role="group">
         {% if arch.is_uploadable %}
-          {% if sub %}
-          <a class="btn btn-outline-primary" title="Ver documento" 
+          {% if sub and sub.file_path %}
+          <a class="btn btn-outline-primary" title="Ver documento"
              href="{{ url_for('api_files.user_doc', user_id=current_user.id, phase='admission', filename=sub.file_path.split('/')[-1]) }}" target="_blank">
             <i class="bi bi-eye"></i>
           </a>
           {% endif %}
 
-          <button class="btn btn-outline-success" 
-                  title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo" 
-                  data-bs-toggle="modal" data-bs-target="#uploadModal" 
+          <button class="btn btn-outline-success"
+                  title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
+                  data-bs-toggle="modal" data-bs-target="#uploadModal"
                   data-archive="{{ arch.id }}" data-step="{{ step.id }}"
                   data-archive-name="{{ arch.name }}"
-                  {% if sub %}data-has-existing="true"
+                  {% if sub and sub.file_path %}data-has-existing="true"
                   data-existing-filename="{{ sub.file_path.split('/')[-1] }}"
                   data-existing-date="{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') }}"{% else %}data-has-existing="false"{% endif %}>
             <i class="bi bi-upload"></i>

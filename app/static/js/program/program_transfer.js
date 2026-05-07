@@ -52,7 +52,7 @@
   // ==================== CARGAR PROGRAMAS ====================
   async function loadAvailablePrograms() {
     try {
-      const res = await fetch('/api/v1/programs/', {
+      const res = await fetch('/api/v1/programs', {
         credentials: 'same-origin'
       });
       

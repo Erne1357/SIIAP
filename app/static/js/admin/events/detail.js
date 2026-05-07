@@ -1003,7 +1003,7 @@
                 const { data } = await C.apiRequest(`${C.API}/coordinator/students`);
                 users = (data.students || []).map(s => ({ ...s, role_name: 'student' }));
             } else if (scope === 'all_users' || (scope === 'event_program' && !currentEvent.program_id)) {
-                const { data } = await C.apiRequest(`${C.API}/admin/users/?per_page=500&active=true`);
+                const { data } = await C.apiRequest(`${C.API}/admin/users?per_page=500&active=true`);
                 const raw = data?.data?.users || data?.users || data?.items || [];
                 users = raw.map(u => ({
                     id: u.id,
@@ -1731,7 +1731,7 @@
 
     async function searchUsers(query) {
         try {
-            const { data } = await C.apiRequest(`${C.API}/admin/users/?search=${encodeURIComponent(query)}&per_page=10&active=true`);
+            const { data } = await C.apiRequest(`${C.API}/admin/users?search=${encodeURIComponent(query)}&per_page=10&active=true`);
             const users = data?.data?.users || data?.users || data?.items || [];
             renderUserDropdown(users);
         } catch (err) {

@@ -88,9 +88,9 @@
             <!-- Versión móvil: botones apilados -->
             {% set is_informative = step.program_steps and step.program_steps[0].sequence == 0 %}
             {% if arch.is_uploadable and not is_informative %}
-              {% if sub %}
-              <a class="btn btn-outline-primary btn-sm" 
-                 title="Ver documento" 
+              {% if sub and sub.file_path %}
+              <a class="btn btn-outline-primary btn-sm"
+                 title="Ver documento"
                  href="{{ url_for('api_files.user_doc',
                                  user_id=current_user.id,
                                  phase='admission',
@@ -100,15 +100,15 @@
               </a>
               {% endif %}
 
-              <button class="btn btn-outline-success btn-sm" 
-                      title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo" 
+              <button class="btn btn-outline-success btn-sm"
+                      title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
                       data-bs-toggle="modal"
-                      data-bs-target="#uploadModal" 
-                      data-archive="{{ arch.id }}" 
+                      data-bs-target="#uploadModal"
+                      data-archive="{{ arch.id }}"
                       data-step="{{ step.id }}"
                       data-archive-name="{{ arch.name }}"
-                      data-has-existing="{{ 'true' if sub else 'false' }}"
-                      data-existing-filename="{{ sub.file_path.split('/')[-1] if sub else '' }}"
+                      data-has-existing="{{ 'true' if sub and sub.file_path else 'false' }}"
+                      data-existing-filename="{{ sub.file_path.split('/')[-1] if sub and sub.file_path else '' }}"
                       data-existing-date="{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') if sub else '' }}">
                 <i class="bi bi-upload me-1"></i>
                 {% if sub %}Reemplazar{% else %}Subir{% endif %}
@@ -145,9 +145,9 @@
           <!-- Versión desktop: botones horizontales -->
           <div class="btn-group btn-group-sm d-none d-md-flex" role="group">
             {% if arch.is_uploadable and not is_informative %}
-              {% if sub %}
-              <a class="btn btn-outline-primary" 
-                 title="Ver documento" 
+              {% if sub and sub.file_path %}
+              <a class="btn btn-outline-primary"
+                 title="Ver documento"
                  href="{{ url_for('api_files.user_doc',
                                  user_id=current_user.id,
                                  phase='admission',
@@ -157,15 +157,15 @@
               </a>
               {% endif %}
 
-              <button class="btn btn-outline-success" 
-                      title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo" 
+              <button class="btn btn-outline-success"
+                      title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
                       data-bs-toggle="modal"
-                      data-bs-target="#uploadModal" 
-                      data-archive="{{ arch.id }}" 
+                      data-bs-target="#uploadModal"
+                      data-archive="{{ arch.id }}"
                       data-step="{{ step.id }}"
                       data-archive-name="{{ arch.name }}"
-                      data-has-existing="{{ 'true' if sub else 'false' }}"
-                      data-existing-filename="{{ sub.file_path.split('/')[-1] if sub else '' }}"
+                      data-has-existing="{{ 'true' if sub and sub.file_path else 'false' }}"
+                      data-existing-filename="{{ sub.file_path.split('/')[-1] if sub and sub.file_path else '' }}"
                       data-existing-date="{{ sub.upload_date.strftime('%d/%m/%Y %H:%M') if sub else '' }}">
                 <i class="bi bi-upload"></i>
               </button>

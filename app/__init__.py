@@ -17,6 +17,9 @@ login_manager = LoginManager()
 
 def create_app(test_config=None):
     app = Flask(__name__, template_folder='templates', static_folder='static')
+    # Aceptar rutas con o sin trailing slash sin emitir 308 redirect.
+    # Evita que llamadas JS a /api/v1/x y /api/v1/x/ se comporten distinto.
+    app.url_map.strict_slashes = False
     Bootstrap(app)
 
     if test_config is None:
@@ -191,6 +194,49 @@ def create_app(test_config=None):
                 track_user_session(current_user.id)
             except Exception:
                 pass  # Redis caído no debe interrumpir la request
+
+    @app.before_request
+    def reject_malformed_api_paths():
+        """
+        Rechaza rutas /api/v1/* donde un segmento del path o un valor de query
+        contiene literales 'undefined' / 'null' / 'NaN' producidos por bugs en JS
+        (template literal interpolando una variable indefinida).
+
+        En lugar de devolver 404 críptico o reventar al castear a int, devolvemos
+        400 con código MALFORMED_PATH para que el bug sea evidente en el frontend.
+        """
+        if not request.path.startswith('/api/'):
+            return None
+
+        BAD_TOKENS = ('undefined', 'null', 'NaN')
+
+        # Path segments
+        for segment in request.path.split('/'):
+            if segment in BAD_TOKENS:
+                return jsonify({
+                    "data": None,
+                    "error": {
+                        "code": "MALFORMED_PATH",
+                        "message": f"Segmento inválido '{segment}' en la URL — probable bug de frontend (variable sin definir).",
+                        "path": request.path,
+                    },
+                    "meta": {}
+                }), 400
+
+        # Query string values
+        for key, value in request.args.items():
+            if value in BAD_TOKENS:
+                return jsonify({
+                    "data": None,
+                    "error": {
+                        "code": "MALFORMED_QUERY",
+                        "message": f"Parámetro '{key}={value}' inválido — probable bug de frontend (variable sin definir).",
+                        "path": request.full_path,
+                    },
+                    "meta": {}
+                }), 400
+
+        return None
 
     @app.before_request
     def check_password_change_required():

@@ -104,9 +104,6 @@ def _get_active_period() -> AcademicPeriod | None:
 def _build_login_url() -> str:
     """
     Construye la URL absoluta de la página de login.
-    El estudiante inicia sesión con su número de control (username) y
-    el sistema le solicita cambiar la contraseña de inmediato
-    (must_change_password=True).
     """
     try:
         from flask import url_for
@@ -117,6 +114,22 @@ def _build_login_url() -> str:
             return f"{request.host_url.rstrip('/')}/login"
         except Exception:
             return '/login'
+
+
+def _build_reset_password_url(token: str) -> str:
+    """
+    Construye la URL absoluta de la página de configuración de contraseña
+    con el token incrustado.
+    """
+    try:
+        from flask import url_for
+        return url_for('pages_auth.reset_password_page', token=token, _external=True)
+    except Exception:
+        try:
+            from flask import request
+            return f"{request.host_url.rstrip('/')}/reset-password/{token}"
+        except Exception:
+            return f'/reset-password/{token}'
 
 
 # ---------------------------------------------------------------------------
@@ -453,11 +466,18 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
             created_by_id=created_by_id,
         )
 
-        # 5. Encolar email de bienvenida
-        # El estudiante usa su número de control como username para hacer login.
-        # must_change_password=True fuerza el cambio de contraseña al primer acceso.
-        login_url = _build_login_url()
+        # 5. Generar token de set-password (TTL 7 días) y encolar email
+        from app.services import password_reset_service as prs
 
+        prt = prs.generate_token(
+            user_id=user.id,
+            purpose='set_password',
+            ttl_days=7,
+            created_by_id=created_by_id,
+        )
+        token_link = _build_reset_password_url(prt.token)
+
+        email_sent = False
         try:
             from app.services.email_templates import EmailTemplates
             from app.services.email_service import EmailService
@@ -467,15 +487,16 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
                 user_name=full_name,
                 control_number=normalized['control_number'],
                 program_name=program.name,
-                login_url=login_url,
+                token_link=token_link,
+                expires_at=prt.expires_at,
             )
             EmailService.queue_email(
                 user_id=user.id,
                 subject=subject,
                 html_content=html,
             )
+            email_sent = True
         except Exception as email_exc:
-            # El email falla de forma silenciosa — no interrumpe la creación
             logger.warning(
                 f'[student_bulk] No se pudo encolar email de bienvenida para '
                 f'usuario {user.id}: {email_exc}'
@@ -494,6 +515,7 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
                 'current_semester': normalized['current_semester'],
                 'sems_created': sems_created,
                 'has_conacyt': normalized['has_conacyt'],
+                'set_password_token_sent': email_sent,
             },
         )
 
@@ -505,6 +527,8 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
             'user_program_id': up.id,
             'sems_created': sems_created,
             'email': user.email,
+            'email_sent': email_sent,
+            'token_link': token_link if not email_sent else None,
         }
 
     except (ValidationError, StudentCreationError):
