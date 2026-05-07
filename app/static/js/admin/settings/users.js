@@ -108,9 +108,9 @@
                                 title="Resetear contraseña">
                             <i class="bi bi-key"></i>
                         </button>
-                        ${!user.control_number ? `
-                        <button class="btn btn-outline-info" onclick="window.usersManager.assignControlNumber(${user.id})" 
-                                title="Asignar # control">
+                        ${(!user.control_number && user.role === 'applicant') ? `
+                        <button class="btn btn-outline-info" onclick="window.usersManager.assignControlNumber(${user.id})"
+                                title="Asignar # control y transicionar a estudiante">
                             <i class="bi bi-123"></i>
                         </button>
                         ` : ''}
