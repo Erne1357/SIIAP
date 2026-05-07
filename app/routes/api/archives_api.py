@@ -11,7 +11,7 @@ from sqlalchemy import select, func, join
 from werkzeug.utils import secure_filename
 
 from app import db
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.models.archive import Archive
 from app.models.step import Step
 from app.models.phase import Phase
@@ -54,22 +54,21 @@ def _abs_path_from_archive(a: Archive) -> tuple[str|None, str|None]:
     return abs_path, os.path.basename(abs_path)
 
 def _permitted_step_ids_for_user() -> Set[int]:
-    """Devuelve los step_ids que el usuario actual puede administrar."""
-    role = (current_user.role.name if current_user.role else None)
-    if role in ("postgraduate_admin", "program_admin"):
+    """Devuelve los step_ids que el usuario actual puede administrar.
+
+    - Si el usuario tiene acceso global (p. ej. postgraduate_admin): todos los steps.
+    - Si es scoped (program_admin o delegado): steps de sus programas accesibles.
+    """
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is None:
         ids = db.session.execute(select(Step.id)).scalars().all()
         return set(ids)
-    if role == "program_admin":
-        prog_ids = db.session.execute(
-            select(Program.id).where(Program.coordinator_id == current_user.id)
-        ).scalars().all()
-        if not prog_ids:
-            return set()
-        step_ids = db.session.execute(
-            select(ProgramStep.step_id).where(ProgramStep.program_id.in_(prog_ids))
-        ).scalars().all()
-        return set(step_ids)
-    return set()
+    if not accessible_pids:
+        return set()
+    step_ids = db.session.execute(
+        select(ProgramStep.step_id).where(ProgramStep.program_id.in_(accessible_pids))
+    ).scalars().all()
+    return set(step_ids)
 
 def _delete_archive_files(archive_id: int):
     """Borra el directorio de plantillas y los archivos de entrega (submissions) de un archivo."""
@@ -111,7 +110,7 @@ def list_archives():
     Filtrado por alcance de coordinador (solo archivos en steps permitidos).
     """
     include_step = request.args.get("include") == "step"
-    role = (current_user.role.name if current_user.role else None)
+    is_scoped = current_user.get_accessible_program_ids() is not None
 
     if include_step:
         j = join(Archive, Step, Archive.step_id == Step.id)
@@ -123,8 +122,8 @@ def list_archives():
             getattr(Archive, "allow_coordinator_upload"),
             getattr(Archive, "allow_extension_request", None),
         ).select_from(j)
-        # alcance coordinador
-        if role == "program_admin":
+        # alcance: usuarios scoped (no globales) sólo ven steps de sus programas accesibles
+        if is_scoped:
             permitted = _permitted_step_ids_for_user()
             if not permitted:
                 return jsonify({"ok": True, "items": []}), 200
@@ -150,7 +149,7 @@ def list_archives():
 
     # sin join
     sel = select(Archive)
-    if role == "program_admin":
+    if is_scoped:
         permitted = _permitted_step_ids_for_user()
         if not permitted:
             return jsonify({"ok": True, "items": []}), 200
@@ -185,14 +184,15 @@ def list_steps():
     Devuelve: id, name, phase_id, phase_name
     """
     scope = request.args.get("scope", "permitted")
-    role = (current_user.role.name if current_user.role else None)
+    is_scoped = current_user.get_accessible_program_ids() is not None
 
     j = join(Step, Phase, Step.phase_id == Phase.id)
     sel = select(
         Step.id, Step.name, Step.phase_id, Phase.name.label("phase_name")
     ).select_from(j)
 
-    if scope != "all" or role == "program_admin":
+    # Usuarios scoped siempre quedan filtrados; los globales sólo si scope=permitted
+    if scope != "all" or is_scoped:
         permitted = _permitted_step_ids_for_user()
         if not permitted:
             return jsonify({"ok": True, "items": []}), 200
@@ -207,7 +207,7 @@ def list_steps():
 # =========================
 @api_archives.route("", methods=["POST"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('archives.api.create')
 def create_archive():
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
@@ -215,9 +215,8 @@ def create_archive():
     if not name or not step_id:
         return jsonify({"ok": False, "error": "name y step_id son requeridos"}), 400
 
-    # permiso por step
-    role = (current_user.role.name if current_user.role else None)
-    if role == "program_admin":
+    # permiso por step: usuarios scoped sólo pueden crear en sus steps permitidos
+    if current_user.get_accessible_program_ids() is not None:
         permitted = _permitted_step_ids_for_user()
         if step_id not in permitted:
             return jsonify({"ok": False, "error": "No tienes permiso para crear en ese step"}), 403
@@ -259,16 +258,15 @@ def create_archive():
 # =========================
 @api_archives.route("/<int:archive_id>", methods=["PUT", "PATCH"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('archives.api.update')
 def update_archive(archive_id: int):
     data = request.get_json() or {}
     a = db.session.get(Archive, archive_id)
     if not a:
         return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
 
-    # permiso por step (actual y destino si cambia)
-    role = (current_user.role.name if current_user.role else None)
-    if role == "program_admin":
+    # permiso por step (actual y destino si cambia): usuarios scoped sólo tocan sus steps
+    if current_user.get_accessible_program_ids() is not None:
         permitted = _permitted_step_ids_for_user()
         if a.step_id not in permitted:
             return jsonify({"ok": False, "error": "No puedes modificar este archivo"}), 403
@@ -353,7 +351,7 @@ def update_archive(archive_id: int):
 # =========================
 @api_archives.route("/<int:archive_id>", methods=["DELETE"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('archives.api.delete')
 def delete_archive(archive_id: int):
     force = request.args.get("force") in ("1", "true", "True", "yes")
     a = db.session.get(Archive, archive_id)
@@ -405,7 +403,7 @@ def delete_archive(archive_id: int):
 # =========================
 @api_archives.route("/<int:archive_id>/template", methods=["POST"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('archives.api.manage_template')
 def upload_template(archive_id: int):
     a = db.session.get(Archive, archive_id)
     if not a:

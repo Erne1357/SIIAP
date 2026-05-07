@@ -1,0 +1,124 @@
+/* Acceptance & Enrollment Page Styles */
+
+/* Student-name-link: nombre clickeable que abre expediente */
+.student-name-link {
+    color: var(--color-brand-primary);
+    cursor: pointer;
+    transition: color 0.15s;
+}
+.student-name-link:hover {
+    color: var(--color-brand-primary-700);
+    text-decoration: underline !important;
+}
+
+
+/* Stats Cards */
+.stat-card {
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    border-left: 4px solid var(--color-neutral-500);
+    box-shadow: var(--shadow-1);
+    min-width: 120px;
+}
+
+.stat-card.stat-pending {
+    border-left-color: var(--color-neutral-500);
+}
+
+.stat-card.stat-warning {
+    border-left-color: var(--color-warning);
+}
+
+.stat-card.stat-info {
+    border-left-color: var(--color-info);
+}
+
+.stat-card.stat-success {
+    border-left-color: var(--color-success);
+}
+
+.stat-card .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stat-card .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Table Styles */
+.table th {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.applicant-name {
+    font-weight: 600;
+    color: #212529;
+}
+
+.applicant-email {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+/* Action Buttons */
+.btn-action {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.btn-group-actions {
+    display: flex;
+    gap: 0.25rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* Tab badges */
+.nav-tabs .badge {
+    font-size: 0.7rem;
+    padding: 0.25em 0.5em;
+}
+
+/* Empty state */
+.empty-state {
+    padding: 3rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+    display: block;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stat-card {
+        min-width: 100px;
+        padding: 10px 12px;
+    }
+
+    .stat-card .stat-value {
+        font-size: 1.25rem;
+    }
+
+    .btn-group-actions {
+        flex-direction: column;
+    }
+}

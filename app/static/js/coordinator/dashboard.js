@@ -15,8 +15,30 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentFilters = {};
 
   // ==================== INICIALIZACIÓN ====================
+  loadPrograms();  // Cargar programas primero
   loadStudents();
   setupEventListeners();
+
+  // ==================== CARGA DE PROGRAMAS ====================
+  async function loadPrograms() {
+    try {
+      const res = await fetch('/api/v1/coordinator/programs', {
+        credentials: 'same-origin'
+      });
+
+      if (!res.ok) throw new Error('No se pudieron cargar los programas');
+
+      const data = await res.json();
+      const programFilter = document.getElementById('programFilter');
+      
+      if (programFilter && data.programs) {
+        programFilter.innerHTML = '<option value="">Todos los programas</option>' +
+          data.programs.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      }
+    } catch (err) {
+      console.error('Error loading programs:', err);
+    }
+  }
 
   // ==================== CARGA DE DATOS ====================
   async function loadStudents() {
@@ -53,7 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateAdmissionTable() {
     const tbody = document.querySelector('#admissionTable tbody');
-    const admissionStudents = studentsData.filter(s => s.current_phase === 'admission');
+    // Ordenar por progreso ascendente (menor progreso primero = necesita más atención)
+    const admissionStudents = studentsData
+      .filter(s => s.current_phase === 'admission')
+      .sort((a, b) => a.progress_percentage - b.progress_percentage);
 
     tbody.innerHTML = admissionStudents.map(student => `
       <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}" 
@@ -70,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-primary">${student.program_name}</span>
+          ${!student.can_manage ? '<i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <div class="progress">
@@ -91,14 +117,15 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-outline-primary btn-view-student" 
                     data-student-id="${student.id}" title="Ver detalles">
-              <i class="fas fa-eye"></i>
+              <i class="bi bi-eye"></i>
             </button>
             ${student.can_manage ? `
-            <button class="btn btn-outline-success btn-upload-for" 
+            <button class="btn btn-outline-success btn-upload-for"
                     data-student-id="${student.id}" title="Subir documento">
-              <i class="fas fa-upload"></i>
+              <i class="bi bi-upload"></i>
             </button>
             ` : ''}
+            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
       </tr>
@@ -107,12 +134,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updatePermanenceTable() {
     const tbody = document.querySelector('#permanenceTable tbody');
-    const permanenceStudents = studentsData.filter(s => s.current_phase === 'permanence');
+    // Ordenar por progreso ascendente (menor progreso primero = necesita más atención)
+    const permanenceStudents = studentsData
+      .filter(s => s.current_phase === 'permanence')
+      .sort((a, b) => a.academic_progress - b.academic_progress);
 
     tbody.innerHTML = permanenceStudents.map(student => `
-      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}">
+      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}"
+          title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
-          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
+          <img src="${student.avatar_url || '/static/assets/images/default.jpg'}"
                alt="Avatar" class="rounded-circle student-avatar">
         </td>
         <td>
@@ -123,26 +154,25 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-info">${student.program_name}</span>
+          ${!student.can_manage ? '<i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <span class="badge bg-light text-dark">${student.current_semester || 'N/A'}</span>
         </td>
         <td class="text-center">
-          <div class="progress">
-            <div class="progress-bar bg-info" role="progressbar" 
-                 style="width: ${student.academic_progress}%"></div>
-          </div>
-          <small class="text-muted">${student.academic_progress}%</small>
+          ${renderPermanenceProgress(student)}
         </td>
         <td class="text-center">
-          ${getStatusBadge(student.academic_status)}
+          ${getPermanenceStatusBadge(student.academic_status)}
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary btn-view-student" 
-                    data-student-id="${student.id}">
-              <i class="fas fa-eye"></i>
+            <button class="btn btn-outline-info btn-view-permanence"
+                    data-student-id="${student.id}"
+                    title="Ver detalle de permanencia">
+              <i class="bi bi-person-badge"></i>
             </button>
+            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
       </tr>
@@ -151,10 +181,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateConclusionTable() {
     const tbody = document.querySelector('#conclusionTable tbody');
-    const conclusionStudents = studentsData.filter(s => s.current_phase === 'conclusion');
+    // Ordenar por progreso ascendente (menor progreso primero = necesita más atención)
+    const conclusionStudents = studentsData
+      .filter(s => s.current_phase === 'conclusion')
+      .sort((a, b) => a.conclusion_progress - b.conclusion_progress);
 
     tbody.innerHTML = conclusionStudents.map(student => `
-      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}">
+      <tr data-student-id="${student.id}" class="${student.can_manage ? '' : 'table-secondary'}"
+          title="${student.can_manage ? '' : 'Solo consulta - Programa de otro coordinador'}">
         <td>
           <img src="${student.avatar_url || '/static/assets/images/default.jpg'}" 
                alt="Avatar" class="rounded-circle student-avatar">
@@ -167,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <span class="badge bg-success">${student.program_name}</span>
+          ${!student.can_manage ? '<i class="bi bi-eye text-muted ms-1" title="Solo consulta"></i>' : ''}
         </td>
         <td class="text-center">
           <span class="badge bg-light text-dark">${student.conclusion_stage || 'Inicial'}</span>
@@ -183,10 +218,11 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary btn-view-student" 
+            <button class="btn btn-outline-primary btn-view-student"
                     data-student-id="${student.id}">
-              <i class="fas fa-eye"></i>
+              <i class="bi bi-eye"></i>
             </button>
+            ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
       </tr>
@@ -203,6 +239,36 @@ document.addEventListener('DOMContentLoaded', () => {
       'completed': '<span class="badge bg-success">Completado</span>'
     };
     return statusMap[status] || '<span class="badge bg-light">Desconocido</span>';
+  }
+
+  function getPermanenceStatusBadge(status) {
+    const map = {
+      'active':    '<span class="badge bg-success">Cursando</span>',
+      'completed': '<span class="badge bg-primary">Completado</span>',
+      'on_leave':  '<span class="badge bg-warning text-dark">Baja temporal</span>',
+      'dropped':   '<span class="badge bg-danger">Baja definitiva</span>',
+      'pending':   '<span class="badge bg-secondary">Sin inscripción</span>',
+    };
+    return map[status] || '<span class="badge bg-light text-dark">N/A</span>';
+  }
+
+  function renderPermanenceProgress(student) {
+    const completed = Number(student.academic_progress) || 0;
+    const inProgress = Number(student.in_progress_segment) || 0;
+    const completedSemesters = student.completed_semesters ?? 0;
+    const total = student.total_semesters ?? 4;
+    const inProgressBar = inProgress > 0
+      ? `<div class="progress-bar bg-info perm-blink" role="progressbar"
+              style="width: ${inProgress}%" aria-label="Semestre en curso"></div>`
+      : '';
+    return `
+      <div class="progress" role="progressbar" aria-valuenow="${completed}"
+           aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar bg-info" style="width: ${completed}%"></div>
+        ${inProgressBar}
+      </div>
+      <small class="text-muted">${completedSemesters}/${total} sem · ${completed}%</small>
+    `;
   }
 
   function updateCounts() {
@@ -233,6 +299,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Subida de archivos por coordinador
     setupCoordinatorUpload();
+
+    // ==================== TIEMPO REAL ====================
+    // Estrategia: partial refresh (loadStudents) en lugar de reload completo,
+    // para preservar filtros activos y no interrumpir workflow del coordinador.
+    // Se debounces para evitar ráfagas si llegan muchos eventos juntos.
+    //
+    // Eventos que SÍ llegan a la sala role:coordinator:
+    //   - submission:new         → aspirante/estudiante subió documento
+    //   - acceptance:updated     → receipt_submitted (aspirante subió boleta)
+    //   - deliberation:updated   → sólo si el coordinador entró a la sala deliberation:{pid}
+    // Otros eventos (submission:reviewed, admission:status_changed, permanence:status_changed,
+    // extension:decided) se emiten sólo al usuario afectado; ver PLAN_SOCKETS.md Fase 5
+    // para agregar canal coordinator:feed si se requiere propagar todos los cambios.
+    const refreshDebounced = debounce(loadStudents, 800);
+
+    window.addEventListener('siiap:submission:new', (e) => {
+      const d = e.detail || {};
+      emitFlash('info', `Nuevo documento: ${d.archive_name || 'documento'}`);
+      refreshDebounced();
+    });
+
+    window.addEventListener('siiap:acceptance:updated',   refreshDebounced);
+    window.addEventListener('siiap:deliberation:updated', refreshDebounced);
   }
 
   function updateFilters() {
@@ -260,6 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (button.classList.contains('btn-view-student')) {
       viewStudentDetails(studentId);
+    } else if (button.classList.contains('btn-view-permanence')) {
+      viewPermanenceDetails(studentId);
     } else if (button.classList.contains('btn-upload-for')) {
       openUploadModal(studentId);
     }
@@ -305,19 +396,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error desconocido');
 
-      renderStudentDetails(data.student, data.documents, data.interview, data.metrics, data.missing_documents);
+      renderStudentDetails(data.student, data.documents, data.interview, data.metrics, data.missing_documents, data.can_manage);
 
     } catch (err) {
       console.error('Error loading student details:', err);
       document.getElementById('modalContent').innerHTML = `
       <div class="alert alert-danger">
-        <i class="fas fa-exclamation-triangle me-2"></i>
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
         Error al cargar información: ${err.message}
       </div>
     `;
     }
   }
-  function renderStudentDetails(student, documents, interview, metrics, missing) {
+  function renderStudentDetails(student, documents, interview, metrics, missing, canManage) {
     // Header
     document.getElementById('modalStudentName').textContent = student.full_name;
     document.getElementById('modalStudentEmail').textContent = student.email;
@@ -328,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGeneralTab(student, metrics, missing);
 
     // Tab Documentos
-    renderDocumentsTab(documents, student.id);
+    renderDocumentsTab(documents, student.id, canManage);
 
     // Tab Entrevista
     renderInterviewTab(interview, student);
@@ -388,7 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <!-- Estado del Perfil -->
     <div class="alert ${student.profile_completed ? 'alert-success' : 'alert-warning'} mb-4">
       <h6 class="mb-2">
-        <i class="fas fa-user-check me-2"></i>Estado del Perfil
+        <i class="bi bi-person-check-fill me-2"></i>Estado del Perfil
       </h6>
       ${student.profile_completed
         ? '<p class="mb-0">✅ Perfil completo - Elegible para entrevista</p>'
@@ -399,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ${missing.length > 0 ? `
       <div class="mb-4">
         <h6 class="mb-2">
-          <i class="fas fa-exclamation-circle text-warning me-2"></i>
+          <i class="bi bi-exclamation-circle-fill text-warning me-2"></i>
           Documentos Pendientes (${missing.length})
         </h6>
         <ul class="list-group">
@@ -453,10 +544,18 @@ document.addEventListener('DOMContentLoaded', () => {
   `;
   }
 
-  function renderDocumentsTab(documents, studentId) {
+  function renderDocumentsTab(documents, studentId, canManage) {
     const docsContent = document.getElementById('documentsTabContent');
 
-    docsContent.innerHTML = documents.map(step => `
+    // Si es solo lectura, mostrar advertencia
+    const readOnlyWarning = !canManage ? `
+      <div class="alert alert-info mb-3">
+        <i class="bi bi-eye me-2"></i>
+        <strong>Modo solo lectura:</strong> Este estudiante pertenece a un programa de otro coordinador.
+      </div>
+    ` : '';
+
+    docsContent.innerHTML = readOnlyWarning + documents.map(step => `
     <div class="card mb-3">
       <div class="card-header bg-light">
         <h6 class="mb-0">
@@ -483,7 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr>
                   <td>
                     <strong>${arch.name}</strong>
-                    ${arch.uploaded_by_role === 'program_admin' ? '<i class="fas fa-user-tie text-primary ms-1" title="Subido por coordinador"></i>' : ''}
+                    ${arch.uploaded_by_role === 'program_admin' ? '<i class="bi bi-person-vcard-fill text-primary ms-1" title="Subido por coordinador"></i>' : ''}
                   </td>
                   <td class="text-center">
                     ${getArchiveStatusBadge(arch.status)}
@@ -498,14 +597,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="btn-group btn-group-sm" role="group">
                       ${arch.has_submission ? `
                         <a href="${arch.file_url}" target="_blank" class="btn btn-outline-primary" title="Ver documento">
-                          <i class="fas fa-eye"></i>
+                          <i class="bi bi-eye"></i>
                         </a>
                       ` : ''}
-                      ${arch.allow_coordinator_upload ? `
+                      ${canManage && arch.allow_coordinator_upload ? `
                         <button class="btn btn-outline-success btn-upload-for-modal" 
                                 data-student-id="${studentId}" data-archive-id="${arch.id}" 
                                 title="Subir documento">
-                          <i class="fas fa-upload"></i>
+                          <i class="bi bi-upload"></i>
                         </button>
                       ` : ''}
                     </div>
@@ -522,11 +621,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderInterviewTab(interview, student) {
     const interviewContent = document.getElementById('interviewTabContent');
-
     const eligibility = interview.eligibility;
+    const appt = interview.appointment;
+    const apptStatus = appt?.status;
+    const interviewDone = apptStatus === 'done' || apptStatus === 'no_show';
+
+    // Mapa de estado de cita → badge + color header
+    const apptStatusMap = {
+      scheduled: { badge: 'bg-primary',   label: 'Programada',       headerBg: 'bg-primary'  },
+      done:      { badge: 'bg-success',   label: 'Realizada',        headerBg: 'bg-success'  },
+      no_show:   { badge: 'bg-danger',    label: 'No se presentó',   headerBg: 'bg-danger'   },
+    };
+    const apptStyle = apptStatusMap[apptStatus] || { badge: 'bg-secondary', label: apptStatus, headerBg: 'bg-secondary' };
 
     interviewContent.innerHTML = `
-    <!-- Estado de Elegibilidad -->
+    <!-- Estado de Elegibilidad (solo si la entrevista no se realizó todavía) -->
+    ${!interviewDone ? `
     <div class="alert ${eligibility.eligible ? 'alert-success' : 'alert-warning'} mb-4">
       <h6 class="mb-2">
         <i class="fas ${eligibility.eligible ? 'fa-check-circle' : 'fa-exclamation-triangle'} me-2"></i>
@@ -534,8 +644,8 @@ document.addEventListener('DOMContentLoaded', () => {
       </h6>
       <p class="mb-0">
         ${eligibility.eligible
-        ? '✅ El estudiante cumple con todos los requisitos para entrevista'
-        : '⚠️ El estudiante NO cumple con los requisitos para entrevista'}
+          ? '✅ El estudiante cumple con todos los requisitos para entrevista'
+          : '⚠️ El estudiante NO cumple con los requisitos para entrevista'}
       </p>
       ${!eligibility.eligible && eligibility.missing_items.length > 0 ? `
         <hr>
@@ -547,48 +657,49 @@ document.addEventListener('DOMContentLoaded', () => {
         </ul>
       ` : ''}
     </div>
-    
-    <!-- Estado de Entrevista -->
+    ` : ''}
+
+    <!-- Detalle de la cita de entrevista -->
     ${interview.has_interview ? `
       <div class="card">
-        <div class="card-header bg-success text-white">
+        <div class="card-header ${apptStyle.headerBg} text-white">
           <h6 class="mb-0">
-            <i class="fas fa-calendar-check me-2"></i>
-            Entrevista Asignada
+            <i class="bi bi-calendar-check me-2"></i>
+            ${interviewDone ? 'Entrevista Completada' : 'Entrevista Asignada'}
           </h6>
         </div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
               <label class="small text-muted">Evento</label>
-              <p class="mb-0"><strong>${interview.appointment.event.title}</strong></p>
+              <p class="mb-0"><strong>${appt.event.title}</strong></p>
             </div>
             <div class="col-md-6">
               <label class="small text-muted">Fecha y Hora</label>
               <p class="mb-0">
-                ${new Date(interview.appointment.slot.starts_at).toLocaleDateString('es-MX', {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        })}<br>
+                ${new Date(appt.slot.starts_at).toLocaleDateString('es-MX', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                })}<br>
                 <small class="text-muted">
-                  ${new Date(interview.appointment.slot.starts_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} - 
-                  ${new Date(interview.appointment.slot.ends_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                  ${new Date(appt.slot.starts_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} –
+                  ${new Date(appt.slot.ends_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                 </small>
               </p>
             </div>
             <div class="col-md-6">
               <label class="small text-muted">Lugar</label>
-              <p class="mb-0">${interview.appointment.event.location || 'Por confirmar'}</p>
+              <p class="mb-0">${appt.event.location || 'Por confirmar'}</p>
             </div>
             <div class="col-md-6">
               <label class="small text-muted">Estado</label>
               <p class="mb-0">
-                <span class="badge bg-success">Programada</span>
+                <span class="badge ${apptStyle.badge}">${apptStyle.label}</span>
               </p>
             </div>
-            ${interview.appointment.notes ? `
+            ${appt.notes ? `
               <div class="col-12">
                 <label class="small text-muted">Notas</label>
-                <p class="mb-0 small">${interview.appointment.notes}</p>
+                <p class="mb-0 small">${appt.notes}</p>
               </div>
             ` : ''}
           </div>
@@ -596,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     ` : `
       <div class="alert alert-info">
-        <i class="fas fa-info-circle me-2"></i>
+        <i class="bi bi-info-circle-fill me-2"></i>
         El estudiante no tiene entrevista asignada aún.
         ${eligibility.eligible ? ' Sin embargo, cumple con los requisitos y puede ser asignado.' : ''}
       </div>
@@ -651,6 +762,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar lista de estudiantes
     loadStudentsList();
 
+    // Auto-clear estado inválido del textarea cuando el coordinador empieza a escribir
+    // o adjunta archivo
+    const notesEl = document.getElementById('coordinatorNotes');
+    const fileEl = document.getElementById('coordinatorFile');
+    notesEl?.addEventListener('input', () => notesEl.classList.remove('is-invalid'));
+    fileEl?.addEventListener('change', () => notesEl?.classList.remove('is-invalid'));
+
     // Cambio de estudiante -> cargar archivos
     studentSelect.addEventListener('change', (e) => {
       const studentId = e.target.value;
@@ -672,34 +790,52 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData(form);
       const studentId = formData.get('student_id');
       const archiveId = formData.get('archive_id');
-      const file = formData.get('file');
+      const fileRaw = formData.get('file');
+      const file = (fileRaw && fileRaw.name) ? fileRaw : null;
+      const notes = (formData.get('notes') || '').trim();
+      const notesEl = document.getElementById('coordinatorNotes');
 
-      if (!studentId || !archiveId || !file) {
-        emitFlash('warning', 'Completa todos los campos obligatorios');
+      // Reset visual error
+      notesEl?.classList.remove('is-invalid');
+
+      if (!studentId || !archiveId) {
+        emitFlash('warning', 'Selecciona estudiante y archivo destino');
         return;
       }
 
-      // Validar archivo
-      if (file.size > 3 * 1024 * 1024) {
-        emitFlash('danger', 'El archivo no puede superar los 3MB');
+      // Comentario obligatorio si no hay archivo
+      if (!file && !notes) {
+        notesEl?.classList.add('is-invalid');
+        notesEl?.focus();
+        emitFlash('warning', 'Si no adjuntas archivo, el comentario es obligatorio');
         return;
       }
 
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
-        emitFlash('danger', 'Solo se permiten archivos PDF');
-        return;
+      // Validar archivo solo si fue provisto
+      if (file) {
+        if (file.size > 3 * 1024 * 1024) {
+          emitFlash('danger', 'El archivo no puede superar los 3MB');
+          return;
+        }
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+          emitFlash('danger', 'Solo se permiten archivos PDF');
+          return;
+        }
+      } else {
+        // No mandar campo file vacío al backend
+        formData.delete('file');
       }
 
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Subiendo...';
       submitBtn.disabled = true;
 
       try {
         const res = await fetch('/api/v1/coordinator/upload-for-student', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'X-CSRF-Token': csrf },
+          headers: { 'X-CSRFToken': csrf },
           body: formData
         });
 
@@ -710,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        emitFlash('success', 'Documento subido correctamente por coordinador');
+        emitFlash('success', json.message || 'Documento registrado exitosamente por coordinador');
 
         // Cerrar modal y recargar datos
         const modal = bootstrap.Modal.getInstance(document.getElementById('uploadForStudentModal'));
@@ -787,4 +923,263 @@ document.addEventListener('DOMContentLoaded', () => {
       timeout = setTimeout(later, wait);
     };
   }
+
+  // ==================== MODAL DE PERMANENCIA ====================
+
+  // Estado del modal para acciones internas
+  let _permCurrentStudentId = null;
+  let _permCurrentUserProgramId = null;
+  let _permCurrentConacyt = false;
+
+  async function viewPermanenceDetails(studentId) {
+    _permCurrentStudentId = parseInt(studentId);
+
+    // Resetear modal
+    document.getElementById('permModalAvatar').src = '/static/assets/images/default.jpg';
+    document.getElementById('permModalName').textContent = 'Cargando...';
+    document.getElementById('permModalEmail').textContent = '';
+    document.getElementById('permModalProgram').textContent = '';
+    document.getElementById('permModalControlNumber').textContent = '';
+    document.getElementById('permModalSpinner').classList.remove('d-none');
+    document.getElementById('permModalContent').classList.add('d-none');
+
+    const modal = new bootstrap.Modal(document.getElementById('permanenceDetailsModal'));
+    modal.show();
+
+    try {
+      const res = await fetch(`/api/v1/coordinator/student/${studentId}/permanence-details`, {
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar');
+      renderPermanenceModal(data);
+    } catch (err) {
+      document.getElementById('permModalSpinner').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-exclamation-triangle me-2"></i>Error: ${err.message}
+        </div>`;
+    }
+  }
+
+  function renderPermanenceModal(data) {
+    const { student, user_program, program, active_period, current_enrollment,
+            pending_admission_count, semester_history, can_manage } = data;
+
+    _permCurrentUserProgramId = user_program.id;
+    _permCurrentConacyt = user_program.has_conacyt_scholarship;
+
+    // Header
+    document.getElementById('permModalAvatar').src = student.avatar_url || '/static/assets/images/default.jpg';
+    document.getElementById('permModalName').textContent = student.full_name;
+    document.getElementById('permModalEmail').textContent = student.email;
+    document.getElementById('permModalProgram').textContent = program.name;
+    document.getElementById('permModalControlNumber').textContent = student.control_number || '(sin N° control)';
+
+    // Alerta docs admisión pendientes
+    const admAlert = document.getElementById('permAdmissionAlert');
+    if (pending_admission_count > 0) {
+      document.getElementById('permAdmissionCount').textContent = pending_admission_count;
+      admAlert.classList.remove('d-none');
+      document.getElementById('permOpenAdmissionBtn').onclick = () => {
+        bootstrap.Modal.getInstance(document.getElementById('permanenceDetailsModal'))?.hide();
+        viewStudentDetails(_permCurrentStudentId);
+      };
+    } else {
+      admAlert.classList.add('d-none');
+    }
+
+    // Botón "Ver expediente completo"
+    document.getElementById('permOpenFullBtn').onclick = () => {
+      bootstrap.Modal.getInstance(document.getElementById('permanenceDetailsModal'))?.hide();
+      viewStudentDetails(_permCurrentStudentId);
+    };
+
+    // ── Tarjetas resumen ──────────────────────────────────────────
+    const statusEnrollment = current_enrollment
+      ? (current_enrollment.enrollment_confirmed
+          ? ['bg-success', 'Confirmada', 'bi-check-circle-fill']
+          : ['bg-warning text-dark', 'Pendiente', 'bi-hourglass-split'])
+      : ['bg-secondary', 'Sin registro', 'bi-dash-circle'];
+
+    document.getElementById('permSummaryCards').innerHTML = `
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-mortarboard-fill fs-3 text-primary mb-1"></i>
+            <div class="fw-bold fs-4 lh-1">${user_program.current_semester}</div>
+            <div class="small text-muted">Semestre actual</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi bi-calendar-event-fill fs-3 text-info mb-1"></i>
+            <div class="fw-bold lh-1 small">${active_period ? active_period.name : '—'}</div>
+            <div class="small text-muted">${active_period ? active_period.code : 'Sin periodo activo'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4">
+        <div class="card text-center h-100">
+          <div class="card-body py-3">
+            <i class="bi ${statusEnrollment[2]} fs-3 mb-1"></i>
+            <div><span class="badge ${statusEnrollment[0]}">${statusEnrollment[1]}</span></div>
+            <div class="small text-muted mt-1">Inscripción semestral</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // ── SECIHTI ────────────────────────────────────────────────────
+    const badge = document.getElementById('permConacytBadge');
+    const switchEl = document.getElementById('permConacytSwitch');
+    const toggleWrap = document.getElementById('permConacytToggleWrap');
+
+    badge.className = `badge fs-6 ${_permCurrentConacyt ? 'bg-warning text-dark' : 'bg-light text-muted border'}`;
+    badge.textContent = _permCurrentConacyt ? 'Becario SECIHTI' : 'Sin beca SECIHTI';
+    switchEl.checked = _permCurrentConacyt;
+    toggleWrap.classList.toggle('d-none', !can_manage);
+
+    switchEl.onchange = () => {
+      // Doble confirmación: capturamos el deseo y pedimos confirmación
+      const desired = switchEl.checked;
+      // Revertir visualmente hasta que confirme
+      switchEl.checked = _permCurrentConacyt;
+      switchEl.disabled = true;
+
+      const studentName = document.getElementById('permModalName')?.textContent || 'estudiante';
+      document.getElementById('confirmConacytStudent').textContent = studentName;
+      document.getElementById('confirmConacytAction').textContent =
+        desired ? 'Activar beca SECIHTI' : 'Quitar beca SECIHTI';
+
+      const modalEl = document.getElementById('confirmConacytModal');
+      const modal = new bootstrap.Modal(modalEl);
+
+      const onConfirm = async () => {
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        await toggleConacytScholarship(_permCurrentUserProgramId, desired);
+        switchEl.disabled = false;
+      };
+      const onCancel = () => { switchEl.disabled = false; };
+
+      // Listeners one-shot
+      const confirmBtn = document.getElementById('btnConfirmConacyt');
+      const cancelBtn  = document.getElementById('btnCancelConacyt');
+      const confirmHandler = () => { confirmBtn.removeEventListener('click', confirmHandler); onConfirm(); };
+      const cancelHandler  = () => { cancelBtn.removeEventListener('click', cancelHandler); onCancel(); };
+      confirmBtn.addEventListener('click', confirmHandler);
+      cancelBtn.addEventListener('click', cancelHandler);
+      modalEl.addEventListener('hidden.bs.modal', () => { switchEl.disabled = false; }, { once: true });
+
+      modal.show();
+    };
+
+    // ── Inscripción semestral detalle ──────────────────────────────
+    const enrollBody = document.getElementById('permEnrollmentBody');
+    if (!active_period) {
+      enrollBody.innerHTML = '<p class="text-muted mb-0">No hay periodo académico activo.</p>';
+    } else if (!current_enrollment) {
+      enrollBody.innerHTML = `
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-warning text-dark">Pendiente de confirmación</span>
+          <span class="small text-muted">El estudiante no tiene inscripción registrada para el periodo activo.</span>
+        </div>`;
+    } else {
+      const statusMap = {
+        active: ['bg-success', 'Activo'],
+        pending: ['bg-warning text-dark', 'Pendiente'],
+        completed: ['bg-primary', 'Completado'],
+        on_leave: ['bg-secondary', 'Baja temporal'],
+        dropped: ['bg-danger', 'Baja definitiva'],
+      };
+      const [cls, label] = statusMap[current_enrollment.status] || ['bg-secondary', current_enrollment.status];
+      const confirmedAt = current_enrollment.confirmed_at
+        ? new Date(current_enrollment.confirmed_at).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+        : null;
+      enrollBody.innerHTML = `
+        <div class="row g-2 align-items-center">
+          <div class="col-auto">
+            <span class="badge ${cls}">${label}</span>
+          </div>
+          ${current_enrollment.enrollment_confirmed
+            ? `<div class="col-auto small text-muted">Confirmada${confirmedAt ? ' el ' + confirmedAt : ''}</div>`
+            : `<div class="col-auto small text-muted">Pendiente de confirmación por el coordinador</div>`}
+          ${current_enrollment.notes
+            ? `<div class="col-12"><small class="text-muted fst-italic">"${current_enrollment.notes}"</small></div>`
+            : ''}
+        </div>`;
+    }
+
+    // ── Historial ─────────────────────────────────────────────────
+    const histContainer = document.getElementById('permHistoryContent');
+    if (!semester_history.length) {
+      histContainer.innerHTML = '<p class="text-muted text-center py-4">Sin historial semestral registrado.</p>';
+    } else {
+      const statusMap = {
+        active: ['bg-success', 'Activo'],
+        pending: ['bg-warning text-dark', 'Pendiente'],
+        completed: ['bg-primary', 'Completado'],
+        on_leave: ['bg-secondary', 'Baja temporal'],
+        dropped: ['bg-danger', 'Baja definitiva'],
+      };
+      histContainer.innerHTML = `
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="text-center">Semestre</th>
+              <th>Periodo</th>
+              <th class="text-center">Estado</th>
+              <th class="text-center">Confirmado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${semester_history.map(h => {
+              const [cls, label] = statusMap[h.status] || ['bg-secondary', h.status];
+              const confirmedIcon = h.enrollment_confirmed
+                ? '<i class="bi bi-check-circle-fill text-success fs-5"></i>'
+                : '<i class="bi bi-dash-circle text-muted fs-5"></i>';
+              return `
+                <tr>
+                  <td class="text-center fw-bold">Sem. ${h.semester_number}</td>
+                  <td>
+                    ${h.period_name}
+                    <span class="badge bg-light text-dark border ms-1">${h.period_code}</span>
+                  </td>
+                  <td class="text-center"><span class="badge ${cls}">${label}</span></td>
+                  <td class="text-center">${confirmedIcon}</td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    // Mostrar contenido
+    document.getElementById('permModalSpinner').classList.add('d-none');
+    document.getElementById('permModalContent').classList.remove('d-none');
+  }
+
+  async function toggleConacytScholarship(userProgramId, newValue) {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      const res = await fetch(`/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ value: newValue }),
+      });
+      const json = await res.json();
+      (json.flash || []).forEach(f => emitFlash(f.level, f.message));
+      if (res.ok && !json.error) {
+        _permCurrentConacyt = json.data.has_conacyt_scholarship;
+        const badge = document.getElementById('permConacytBadge');
+        badge.className = `badge fs-6 ${_permCurrentConacyt ? 'bg-warning text-dark' : 'bg-light text-muted border'}`;
+        badge.textContent = _permCurrentConacyt ? 'Becario SECIHTI' : 'Sin beca SECIHTI';
+        // Actualizar también en la tabla principal
+        loadStudents();
+      }
+    } catch (err) {
+      emitFlash('danger', 'Error al actualizar beca SECIHTI');
+    }
+  }
+
 });

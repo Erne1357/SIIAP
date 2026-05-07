@@ -56,6 +56,29 @@ class ExtensionsService:
         
         db.session.add(er)
         db.session.commit()
+
+        # Notificar al coordinador del programa
+        try:
+            from app.services.notification_service import NotificationService
+            from app.models.user import User
+            from app.models.program import Program
+            program = Program.query.get(user_program.program_id)
+            if program and program.coordinator_id:
+                user = User.query.get(user_id)
+                student_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
+                NotificationService.create_notification(
+                    user_id=program.coordinator_id,
+                    notification_type='extension_request_submitted',
+                    title='Nueva solicitud de prórroga',
+                    message=f'{student_name} ha solicitado una prórroga para "{archive.name}" en {program.name}.',
+                    priority='medium',
+                    action_url='/coordinator/extensions',
+                    data={'student_id': user_id, 'archive_id': archive_id, 'program_id': program.id},
+                )
+                db.session.commit()
+        except Exception:
+            pass
+
         return er
 
     @staticmethod
@@ -92,6 +115,24 @@ class ExtensionsService:
         er.condition_text = condition_text
 
         db.session.commit()
+
+        # Notificar al solicitante + coordinadores del programa en tiempo real
+        from app.sockets.emitters import emit_user_and_coordinators
+        program_id = er.program_step.program_id if er.program_step else None
+        emit_user_and_coordinators(
+            'extension:decided',
+            {
+                'user_id': er.user_id,
+                'extension_request_id': er.id,
+                'archive_id': er.archive_id,
+                'program_id': program_id,
+                'status': status,
+                'granted_until': er.granted_until.isoformat() if er.granted_until else None,
+            },
+            user_id=er.user_id,
+            program_id=program_id,
+        )
+
         return er
 
     @staticmethod

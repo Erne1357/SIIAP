@@ -7,6 +7,7 @@ from datetime import datetime
 from app.models.user_history import UserHistory
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
+from app.utils.permissions import permission_required
 
 api_users = Blueprint("api_users", __name__, url_prefix="/api/v1/users")
 
@@ -94,7 +95,7 @@ def complete_profile():
         flash_message = "¡Perfil completado exitosamente! Ahora eres elegible para entrevistas."
         flash_level = "success"
     elif is_complete_now:
-        flash_message = "Información del perfil actualizada correctamente."
+        flash_message = "Información del perfil actualizada exitosamente."
         flash_level = "success"
     else:
         flash_message = "Información guardada. Completa todos los campos requeridos para finalizar tu perfil."
@@ -188,7 +189,7 @@ def update_me():
             "scolarship_type": current_user.scolarship_type,
             "profile_completed": current_user.profile_completed
         }},
-        "flash": [{"level": "success", "message": "Perfil actualizado correctamente."}],
+        "flash": [{"level": "success", "message": "Perfil actualizado exitosamente."}],
         "error": None, "meta": {}
     }), 200
 
@@ -237,3 +238,275 @@ def user_history():
             "limit_applied": limit
         }
     }), 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Profile Activity Feed + Upcoming Events + Documents grouped by phase
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_users.get('/me/activity')
+@login_required
+@permission_required('profile.api.view_own_activity')
+def my_activity():
+    """Unified recent-activity feed (history + notifications + submissions + events)."""
+    from app.services import profile_activity_service as profile_svc
+    try:
+        limit = min(int(request.args.get('limit', 6)), 50)
+    except (TypeError, ValueError):
+        limit = 6
+
+    items = profile_svc.get_recent_activity(current_user.id, limit=limit)
+    return jsonify({
+        "data": items,
+        "error": None,
+        "meta": {"count": len(items), "limit": limit}
+    }), 200
+
+
+@api_users.get('/me/upcoming-events')
+@login_required
+@permission_required('profile.api.view_own_upcoming_events')
+def my_upcoming_events():
+    """Events the user is registered for whose date is in the future."""
+    from app.services import profile_activity_service as profile_svc
+    try:
+        limit = min(int(request.args.get('limit', 5)), 20)
+    except (TypeError, ValueError):
+        limit = 5
+
+    items = profile_svc.get_upcoming_events(current_user.id, limit=limit)
+    return jsonify({
+        "data": items,
+        "error": None,
+        "meta": {"count": len(items), "limit": limit}
+    }), 200
+
+
+@api_users.get('/me/documents-history')
+@login_required
+@permission_required('profile.api.view_own_documents')
+def my_documents_history():
+    """Submissions grouped by phase (admission/permanence/conclusion). Permanence by semester."""
+    from app.services import profile_activity_service as profile_svc
+    grouped = profile_svc.get_user_documents_grouped(current_user.id)
+    return jsonify({
+        "data": grouped,
+        "error": None,
+        "meta": {}
+    }), 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Profile Photo
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_users.get('/me/photo-status')
+@login_required
+def my_photo_status():
+    """Returns the current photo flags so the UI can decide which button to show."""
+    has_photo = bool(current_user.avatar and current_user.avatar != 'default.jpg')
+    return jsonify({
+        "data": {
+            "has_photo": has_photo,
+            "avatar_url": current_user.avatar_url,
+            "photo_change_allowed": bool(current_user.photo_change_allowed),
+            "photo_change_requested_at": (
+                current_user.photo_change_requested_at.isoformat()
+                if current_user.photo_change_requested_at else None
+            ),
+            "can_upload": (not has_photo) or bool(current_user.photo_change_allowed),
+        },
+        "error": None,
+        "meta": {}
+    }), 200
+
+
+@api_users.post('/me/photo')
+@login_required
+@permission_required('profile.api.upload_photo')
+def upload_my_photo():
+    """Upload a new profile photo. Compressed to 512px JPEG q85."""
+    from app.services import profile_photo_service as photo_svc
+
+    file_storage = request.files.get('photo')
+    if not file_storage:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "No se recibió ningún archivo."}],
+            "error": {"code": "MISSING_FILE", "message": "Falta el archivo 'photo'"},
+            "meta": {}
+        }), 400
+
+    try:
+        photo_svc.upload_photo(
+            user_id=current_user.id,
+            file_storage=file_storage,
+            requester_id=current_user.id,
+            is_self=True,
+        )
+        return jsonify({
+            "data": {"avatar_url": current_user.avatar_url},
+            "flash": [{"level": "success", "message": "Foto de perfil actualizada"}],
+            "error": None,
+            "meta": {}
+        }), 200
+    except photo_svc.PhotoChangeNotAllowed as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "NOT_ALLOWED", "message": str(e)},
+            "meta": {}
+        }), 403
+    except photo_svc.ProfilePhotoError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "PHOTO_ERROR", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al actualizar foto"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+@api_users.post('/me/photo/request-change')
+@login_required
+@permission_required('profile.api.request_photo_change')
+def request_my_photo_change():
+    """Student requests permission from the coordinator to change their photo."""
+    from app.services import profile_photo_service as photo_svc
+
+    payload = request.get_json(silent=True) or {}
+    reason = (payload.get('reason') or '').strip() or None
+
+    try:
+        photo_svc.request_photo_change(user_id=current_user.id, reason=reason)
+        return jsonify({
+            "data": {"requested": True},
+            "flash": [{"level": "success", "message": "Solicitud enviada al coordinador"}],
+            "error": None,
+            "meta": {}
+        }), 200
+    except photo_svc.ProfilePhotoError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "INVALID_STATE", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al enviar solicitud"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+# Coordinator endpoints
+
+@api_users.get('/photo-requests')
+@login_required
+@permission_required('profile.api.list_photo_requests')
+def list_photo_requests():
+    """Coordinator: lists pending photo-change requests for their programs."""
+    from app.services import profile_photo_service as photo_svc
+    items = photo_svc.list_pending_photo_requests(coordinator_id=current_user.id)
+    return jsonify({"data": items, "error": None, "meta": {"count": len(items)}}), 200
+
+
+@api_users.post('/<int:user_id>/photo/enable-change')
+@login_required
+@permission_required('profile.api.enable_photo_change')
+def enable_photo_change(user_id):
+    """Coordinator approves or rejects a photo-change request."""
+    from app.services import profile_photo_service as photo_svc
+
+    payload = request.get_json(silent=True) or {}
+    approve = bool(payload.get('approve', True))
+    reason = (payload.get('reason') or '').strip() or None
+
+    try:
+        photo_svc.enable_photo_change(
+            target_user_id=user_id,
+            coordinator_id=current_user.id,
+            approve=approve,
+            reason=reason,
+        )
+        msg = (
+            'Cambio de foto habilitado para el estudiante'
+            if approve else 'Solicitud de cambio rechazada'
+        )
+        return jsonify({
+            "data": {"approved": approve},
+            "flash": [{"level": "success", "message": msg}],
+            "error": None,
+            "meta": {}
+        }), 200
+    except photo_svc.ProfilePhotoError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "INVALID_STATE", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al procesar solicitud"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
+@api_users.post('/<int:user_id>/photo')
+@login_required
+@permission_required('profile.api.upload_photo_for_student')
+def coordinator_upload_photo(user_id):
+    """Coordinator uploads a photo on behalf of a student."""
+    from app.services import profile_photo_service as photo_svc
+
+    file_storage = request.files.get('photo')
+    if not file_storage:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "No se recibió ningún archivo."}],
+            "error": {"code": "MISSING_FILE", "message": "Falta el archivo 'photo'"},
+            "meta": {}
+        }), 400
+
+    try:
+        photo_svc.upload_photo(
+            user_id=user_id,
+            file_storage=file_storage,
+            requester_id=current_user.id,
+            is_self=False,
+        )
+        return jsonify({
+            "data": {"user_id": user_id},
+            "flash": [{"level": "success", "message": "Foto del estudiante actualizada"}],
+            "error": None,
+            "meta": {}
+        }), 200
+    except photo_svc.ProfilePhotoError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "PHOTO_ERROR", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al actualizar foto"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500

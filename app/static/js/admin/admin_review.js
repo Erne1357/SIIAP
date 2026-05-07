@@ -33,7 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!pendingAction) return;
 
       if (pendingAction === 'reject') {
-        const ok = confirm('¿Estás seguro de rechazar este documento?');
+        const ok = await siiapConfirm({
+          type: 'danger',
+          title: 'Rechazar documento',
+          message: '¿Estás seguro de rechazar este documento?',
+          confirmLabel: 'Sí, rechazar',
+        });
         if (!ok) return;
       }
 
@@ -43,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
           credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': csrf
+            'X-CSRFToken': csrf
           },
           body: JSON.stringify({ action: pendingAction, comment })
         });
@@ -61,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Acción realizada correctamente.' }];
+          : [{ level: 'success', message: 'Acción realizada exitosamente.' }];
 
         persistFlashes(flashes);
         window.location.href = nextUrl;
@@ -162,12 +167,12 @@ document.addEventListener('DOMContentLoaded', () => {
             ${ext.status === 'pending' ? `
               <button class="btn btn-sm btn-outline-primary btn-review-extension" 
                       data-extension-id="${ext.id}">
-                <i class="fas fa-eye me-1"></i>Revisar
+                <i class="bi bi-eye me-1"></i>Revisar
               </button>
             ` : `
               <button class="btn btn-sm btn-outline-secondary btn-view-extension" 
                       data-extension-id="${ext.id}">
-                <i class="fas fa-info-circle me-1"></i>Ver
+                <i class="bi bi-info-circle-fill me-1"></i>Ver
               </button>
             `}
           </td>
@@ -242,7 +247,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Rechazar prórroga
   document.getElementById('rejectExtensionBtn')?.addEventListener('click', async () => {
-    if (!confirm('¿Estás seguro de rechazar esta solicitud?')) return;
+    const ok = await siiapConfirm({
+      type: 'danger',
+      title: 'Rechazar solicitud',
+      message: '¿Estás seguro de rechazar esta solicitud?',
+      confirmLabel: 'Sí, rechazar',
+    });
+    if (!ok) return;
 
     const extId = document.getElementById('reviewExtensionId').value;
     const conditions = document.getElementById('extensionConditions').value.trim() || 
@@ -267,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrf
+          'X-CSRFToken': csrf
         },
         body: JSON.stringify(payload)
       });
@@ -279,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      emitFlash('success', json.message || 'Decisión registrada correctamente');
+      emitFlash('success', json.message || 'Decisión registrada exitosamente');
 
       // Cerrar modal y recargar
       const modal = bootstrap.Modal.getInstance(extensionReviewModal);
@@ -292,4 +303,46 @@ document.addEventListener('DOMContentLoaded', () => {
       emitFlash('danger', 'Error al procesar la decisión');
     }
   }
+
+  // ==================== TIEMPO REAL: NUEVO DOCUMENTO RECIBIDO ====================
+  window.addEventListener('siiap:submission:new', (e) => {
+    const data = e.detail;
+    if (!data) return;
+    emitFlash('info', `Nuevo documento recibido: "${data.archive_name || 'documento'}". Recarga para verlo.`);
+
+    // Si hay una tabla de submissions visible, recargarla automáticamente
+    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
+    if (submissionsTable) {
+      setTimeout(() => { window.location.reload(); }, 3000);
+    }
+  });
+
+  // ==================== TIEMPO REAL: DOCUMENTO REVISADO POR OTRO ADMIN ====================
+  // Se emite a role:coordinator cuando cualquier revisor decide sobre una submission.
+  window.addEventListener('siiap:submission:reviewed', (e) => {
+    const data = e.detail;
+    if (!data) return;
+
+    // Caso 1: estamos en la página de detalle de la misma submission
+    const decisionForm = document.querySelector('[data-review-form]');
+    if (decisionForm) {
+      const subId = parseInt(decisionForm.dataset.subId);
+      if (subId === data.submission_id) {
+        emitFlash('warning', 'Otro revisor ya decidió este documento. Redirigiendo al listado...');
+        setTimeout(() => {
+          const next = decisionForm.dataset.nextUrl || '/admin/submissions';
+          window.location.href = next;
+        }, 2500);
+        return;
+      }
+    }
+
+    // Caso 2: estamos en la lista → reload para eliminar la fila resuelta
+    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
+    if (submissionsTable) {
+      const action = data.status === 'approved' ? 'aprobado' : 'rechazado';
+      emitFlash('info', `Un documento fue ${action} por otro revisor. Actualizando...`);
+      setTimeout(() => { window.location.reload(); }, 1500);
+    }
+  });
 });

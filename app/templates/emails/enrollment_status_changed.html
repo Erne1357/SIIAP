@@ -1,0 +1,23 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#dc3545' if status in ('dropped',) else '#ffc107' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Ha habido un cambio en tu estado de inscripción.</p>
+
+<div class="notification-card">
+    <h2>{{ '🚫' if status == 'dropped' else '⏸️' }} {{ status_label }}</h2>
+    <p><strong>Programa:</strong> {{ program_name }}</p>
+    <p><strong>Periodo:</strong> {{ period_name }}</p>
+    <p><strong>Semestre:</strong> {{ semester_number }}</p>
+</div>
+
+{% if status == 'dropped' %}
+<p>Si crees que esto es un error, contacta a tu coordinador de programa lo antes posible.</p>
+{% elif status == 'on_leave' %}
+<p>Tu baja temporal ha sido registrada. Para reincorporarte, contacta al coordinador de tu programa.</p>
+{% endif %}
+
+<a href="{{ dashboard_url }}" class="btn" style="background: {{ '#dc3545' if status == 'dropped' else '#ffc107' }};">Ver mi portal</a>
+{% endblock %}

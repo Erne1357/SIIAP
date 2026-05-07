@@ -856,6 +856,7 @@ class UserHistoryService:
         # Acciones irreversibles del sistema
         'deleted',                 # Eliminaciones de usuarios
         'document_reviewed',       # Decisiones de revisión de documentos
+        'purge_run_confirmed',     # Purga física post-respaldo (irreversible)
         
         # Seguridad y acceso
         'deactivated',            # Desactivaciones (pueden ser disciplinarias)
@@ -922,6 +923,9 @@ class UserHistoryService:
         'extension_decided': 'Decidió sobre prórroga',
         'appointment_assigned': 'Asignó cita a estudiante',
         'event_invited': 'Invitó estudiante a evento',
+        'event_concluded': 'Concluyó evento',
+        'event_archived': 'Archivó evento',
+        'event_unarchived': 'Reactivó evento archivado',
         'document_purged': 'Eliminó documento por retención',
         
         # ACCIONES ADMINISTRATIVAS - Gestión de Archivos (se guardan en el historial del administrador)
@@ -929,6 +933,90 @@ class UserHistoryService:
         'archive_updated': 'Modificó configuración de archivo',
         'archive_deleted': 'Eliminó archivo/documento',
         'template_uploaded': 'Subió plantilla para archivo',
+
+        # ACCIONES DE DELIBERACIÓN (se guardan en el historial del aspirante/coordinador)
+        'deliberation_started': 'Inició proceso de deliberación',
+        'admission_accepted': 'Aceptó aspirante al programa',
+        'admission_rejected': 'Rechazó aspirante del programa',
+        'correction_requested': 'Solicitó correcciones al aspirante',
+        'admission_reset': 'Reinició estado de admisión a en proceso',
+
+        # ACCIONES DE ACEPTACIÓN E INSCRIPCIÓN (Fase 4)
+        'acceptance_docs_uploaded': 'Subió carta de aceptación y tira de materias',
+        'acceptance_doc_deleted': 'Eliminó documento de aceptación',
+        'enrollment_receipt_submitted': 'Subió carta de asignación de número de control',
+        'enrollment_receipt_approved': 'Aprobó carta de asignación de número de control',
+        'enrollment_receipt_rejected': 'Rechazó carta de asignación de número de control',
+
+        # ACCIONES DE PERMANENCIA SEMESTRAL (Fase 6)
+        'semester_enrollment_confirmed': 'Confirmó inscripción semestral del estudiante',
+        'semester_enrollment_status_updated': 'Actualizó estado de inscripción semestral',
+        'semester_enrollment_reinstated': 'Reincorporó estudiante de baja temporal',
+
+        # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
+        'semester_advanced': 'Avanzó al siguiente semestre',
+        'admission_period_migrated': 'Migró el periodo de admisión al siguiente',
+        'admission_expired': 'Expiró el proceso de admisión por antigüedad',
+        'deferral_reactivated_by_transition': 'Reactivó diferimiento durante transición semestral',
+        'payment_proof_uploaded': 'Subió comprobante de pago de inscripción',
+
+        # ACCIONES DE PURGA Y RESPALDO ZIP (Sección 15)
+        'purge_run_created':   'Generó respaldo ZIP previo a purga',
+        'purge_run_downloaded':'Descargó respaldo ZIP de purga',
+        'purge_run_confirmed': 'Confirmó purga física post-respaldo',
+        'purge_run_cancelled': 'Canceló respaldo ZIP de purga',
+
+        # ACCIONES DEL SISTEMA DE PERMISOS GRANULARES (Fase 7-8)
+        'social_service_created': 'Creó usuario de servicio social con delegación',
+        'permission_delegated': 'Delegó permiso a usuario',
+        'permission_revoked': 'Revocó delegación de permiso',
+        'role_override_granted': 'Agregó override de permiso a rol',
+        'role_override_reverted': 'Revirtió override de permiso de rol',
+
+        # ALTA MASIVA DE ESTUDIANTES (student_bulk_service)
+        'enrolled_via_bulk_import': 'Alta masiva — inscribió estudiante existente',
+
+        # ACEPTACIÓN — documentos individuales (Sprint 1)
+        'acceptance_acceptance_letter_uploaded': 'Subió carta de aceptación',
+        'acceptance_course_schedule_uploaded':   'Subió tira de materias',
+
+        # DELIBERACIÓN
+        'admission_accepted_conditional': 'Aceptación condicionada (con dictamen)',
+        'interview_completed':            'Marcó entrevista como completada',
+
+        # PERMANENCIA — coordinación
+        'document_deadline_created':   'Creó ventana de entrega de documento',
+        'conacyt_scholarship_changed': 'Activó/desactivó beca CONACyT',
+
+        # PERFIL — foto
+        'profile_photo_uploaded':         'Subió foto de perfil',
+        'profile_photo_change_requested': 'Solicitó cambio de foto de perfil',
+        'profile_photo_change_enabled':   'Habilitó cambio de foto de perfil',
+        'profile_photo_change_rejected':  'Rechazó solicitud de cambio de foto',
+
+        # EXPEDIENTE COMPLETO — edición por coordinador
+        'personal_info_updated': 'Actualizó información personal del estudiante',
+
+        # PERMANENCIA — ventanas de entrega y submissions
+        'deadline_opened':                'Abrió ventana de entrega',
+        'deadline_closed':                'Cerró ventana de entrega',
+        'deadline_deleted':               'Eliminó ventana de entrega',
+        'deadline_archived':              'Archivó ventana de entrega',
+        'deadline_restored':              'Restauró ventana de entrega archivada',
+        'deadline_updated':               'Actualizó ventana de entrega',
+        'permanence_document_submitted':  'Subió documento de permanencia',
+        'permanence_document_approved':   'Aprobó documento de permanencia',
+        'permanence_document_rejected':   'Rechazó documento de permanencia',
+        'leave_request_rejected':         'Rechazó solicitud de baja temporal',
+        'conacyt_deadlines_created':      'Creó ventanas mensuales CONACyT',
+        'leave_request_submitted':        'Solicitó baja temporal',
+        'leave_request_approved':         'Aprobó solicitud de baja temporal',
+
+        # DIFERIMIENTOS
+        'enrollment_deferred':            'Diferimiento aplicado',
+        'deferral_requested':             'Solicitó diferimiento',
+        'deferral_rejected':              'Rechazó solicitud de diferimiento',
+        'deferral_reactivated':           'Reactivó aspirante diferido',
     }
 
     @staticmethod

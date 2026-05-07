@@ -6,7 +6,10 @@ class Submission(db.Model):
     __tablename__ = 'submission'
     
     id = db.Column(db.Integer, primary_key=True)
-    file_path = db.Column(db.String(200), nullable=False)
+    # Nullable: permite al coordinador aprobar/rechazar sin archivo
+    # (ej: validación de examen presencial). Aspirantes/estudiantes siempre
+    # deben subir archivo — la validación se hace en el endpoint.
+    file_path = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(50), nullable=False)
     upload_date = db.Column(db.DateTime, default=now_local)
     review_date = db.Column(db.DateTime)
@@ -16,27 +19,36 @@ class Submission(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     archive_id = db.Column(db.Integer,db.ForeignKey('archive.id') , nullable = False)
     program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id') , nullable = False)
-    period = db.Column(db.String(50), nullable=True)
     semester = db.Column(db.Integer, nullable=True)
+    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     uploaded_by_role = db.Column(db.String(20))  # 'student' | 'coordinator'
     deadline_at = db.Column(db.DateTime)         # fecha límite efectiva (si hay prórroga)
     is_in_extension = db.Column(db.Boolean, default=False, nullable=False)
+
+    # FK nullable: solo submissions de permanencia con ventana configurada
+    document_deadline_id = db.Column(
+        db.Integer, db.ForeignKey('document_deadline.id'), nullable=True
+    )
 
     user          = db.relationship('User',foreign_keys=[user_id],back_populates='submissions')
     reviewer      = db.relationship('User',foreign_keys=[reviewer_id],back_populates='reviews')
     archive       = db.relationship('Archive',back_populates='submissions')
     program_step  = db.relationship('ProgramStep',back_populates='submissions')
     uploader = db.relationship('User', foreign_keys=[uploaded_by], viewonly=True)
+    academic_period = db.relationship('AcademicPeriod', back_populates='submissions')
+    document_deadline = db.relationship(
+        'DocumentDeadline',
+        backref=db.backref('submissions', lazy='dynamic')
+    )
 
-    def __init__(self, file_path, status, user_id, archive_id, program_step_id, period, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
+    def __init__(self, file_path, status, user_id, archive_id, program_step_id, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
         self.file_path = file_path
         self.status = status
         self.user_id = user_id
         self.archive_id = archive_id
         self.program_step_id = program_step_id
         self.review_date = review_date
-        self.period = period
         self.semester = semester
         self.reviewer_id = reviewer_id
         self.reviewer_comment = reviewer_comment
@@ -58,10 +70,11 @@ class Submission(db.Model):
             'user_id': self.user_id,
             'archive_id': self.archive_id,
             'program_step_id': self.program_step_id,
-            'period': self.period,
             'semester': self.semester,
+            'academic_period_id': self.academic_period_id,
             'uploaded_by': self.uploaded_by,
             'uploaded_by_role': self.uploaded_by_role,
             'deadline_at': self.deadline_at.isoformat() if self.deadline_at else None,
-            'is_in_extension': self.is_in_extension
+            'is_in_extension': self.is_in_extension,
+            'document_deadline_id': self.document_deadline_id,
         }

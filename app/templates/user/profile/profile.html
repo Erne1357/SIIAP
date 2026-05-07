@@ -3,9 +3,7 @@
 {% block title %}{{super()}} - Perfil{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/user/profile.css') }}?v={{ static_version }}">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+<link href="{{ url_for('static', filename='css/user/profile.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -20,14 +18,21 @@
                         <div class="col-12 col-md-3 text-center mb-3 mb-md-0">
                             <div class="position-relative d-inline-block">
                                 <img src="{{ current_user.avatar_url }}" alt="Foto de perfil"
+                                    id="profileAvatarImg"
                                     class="rounded-circle border border-3 border-light shadow profile-avatar">
-                                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+                                {% if has_perm('coordinator.page.view') %}
                                 <span
                                     class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                                     Admin
                                 </span>
                                 {% endif %}
+                                <button type="button" id="btnPhotoAction"
+                                        class="btn btn-sm btn-primary rounded-circle position-absolute bottom-0 end-0 d-none"
+                                        title="Cambiar foto">
+                                    <i class="bi bi-camera-fill"></i>
+                                </button>
                             </div>
+                            <div class="mt-2 small" id="photoStatusText"></div>
                             <!-- Botón de editar en móvil -->
                             <div class="d-md-none mt-3">
                                 <button class="btn btn-primary btn-sm w-100" data-bs-toggle="modal"
@@ -45,19 +50,7 @@
                                         {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{%
                                         endif %}
                                     </h2>
-                                    <p class="text-muted mb-2">
-                                        {% if current_user.role.name == 'applicant' %}
-                                        Aspirante
-                                        {% elif current_user.role.name == 'social_service' %}
-                                        Servicio Social
-                                        {% elif current_user.role.name == 'program_admin' %}
-                                        Administrador de Programa
-                                        {% elif current_user.role.name == 'postgraduate_admin' %}
-                                        Administrador de Posgrado
-                                        {% elif current_user.role.name == 'coordinator' %}
-                                        Coordinador de Programa
-                                        {% endif %}
-                                    </p>
+                                    <p class="text-muted mb-2">{{ role_label or '—' }}</p>
                                 </div>
                                 <!-- Botón de editar en desktop -->
                                 <div class="d-none d-md-block">
@@ -80,7 +73,7 @@
                                 {% if current_user.is_internal %}
                                 <span class="badge bg-info me-2">Usuario Interno</span>
                                 {% endif %}
-                                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+                                {% if has_perm('coordinator.page.view') %}
                                 <span class="badge bg-danger me-2">Admin</span>
                                 {% endif %}
                                 {% if current_user.scolarship_type and current_user.scolarship_type != 'none'%}
@@ -118,7 +111,7 @@
                                         <small class="text-muted">Fecha de registro</small>
                                     </div>
                                 </div>
-                                {% if current_user.role.name in ['program_admin', 'postgraduate_admin'] %}
+                                {% if has_perm('coordinator.page.view') %}
                                 <div class="col-6 col-md-3">
                                     <div class="border rounded p-2 p-md-3 text-center">
                                         <h5 class="mb-1 h6 h-md-5">
@@ -380,6 +373,74 @@
         </div>
     </div>
 </div>
+<!-- Modal: Subir foto de perfil -->
+<div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cambiar foto de perfil</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="uploadPhotoForm" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="alert alert-info small">
+            <i class="bi bi-info-circle me-2"></i>
+            La imagen se redimensiona a 512 px y se comprime a JPEG (máximo 5 MB de entrada).
+            Formatos permitidos: JPG, PNG, WebP.
+          </div>
+          <div class="text-center mb-3">
+            <img id="photoPreview" src="" alt="Vista previa"
+                 class="rounded-circle border border-3 border-light shadow d-none"
+                 style="width: 160px; height: 160px; object-fit: cover;">
+          </div>
+          <div class="mb-3">
+            <label for="photoFile" class="form-label">Selecciona tu foto</label>
+            <input type="file" class="form-control" id="photoFile" name="photo"
+                   accept="image/jpeg,image/png,image/webp" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnUploadPhotoSubmit">
+            <i class="bi bi-upload me-1"></i>Subir foto
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Solicitar cambio de foto -->
+<div class="modal fade" id="requestPhotoChangeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Solicitar cambio de foto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="requestPhotoChangeForm">
+        <div class="modal-body">
+          <p class="small text-muted">
+            Tu foto de perfil sólo puede modificarse con autorización del coordinador.
+            Envía una solicitud explicando el motivo del cambio.
+          </p>
+          <div class="mb-3">
+            <label for="photoChangeReason" class="form-label">Motivo (opcional)</label>
+            <textarea class="form-control" id="photoChangeReason" rows="3"
+                      placeholder="Describe brevemente por qué necesitas cambiar tu foto..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send me-1"></i>Enviar solicitud
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para subir documento -->
 <div class="modal fade" id="uploadDocumentModal" tabindex="-1" aria-labelledby="uploadDocumentModalLabel"
     aria-hidden="true">
@@ -433,4 +494,6 @@
 {{ super() }}
 <script src="{{ url_for('static', filename='js/user/profile.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/user/profile_notifications.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/user/profile_activity.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/user/profile_photo.js') }}?v={{ static_version }}"></script>
 {% endblock %}

@@ -1,0 +1,190 @@
+{#
+  app/templates/_macros.html
+  Componentes reutilizables del sistema de diseño SIIAP.
+  Importar con: {% from '_macros.html' import <macro> %}
+#}
+
+{# === SKELETON LOADERS === #}
+
+{% macro skeleton_table(rows=5, cols=4, with_header=true) %}
+<div class="skeleton-table" aria-hidden="true">
+  {% if with_header %}
+  <div class="skeleton-row skeleton-row--header" style="--cols: {{ cols }}">
+    {% for _ in range(cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
+  </div>
+  {% endif %}
+  {% for _ in range(rows) %}
+  <div class="skeleton-row" style="--cols: {{ cols }}">
+    {% for _ in range(cols) %}<span class="skeleton skeleton-cell"></span>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+
+{% macro skeleton_cards(count=3, height='200px', col_class='col-md-4') %}
+<div class="row g-3" aria-hidden="true">
+  {% for _ in range(count) %}
+  <div class="{{ col_class }}">
+    <div class="skeleton skeleton-card" style="height: {{ height }};"></div>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+
+{% macro skeleton_text_block(lines=3) %}
+<div aria-hidden="true">
+  {% for i in range(lines) %}
+  <span class="skeleton skeleton-text {% if loop.last %}skeleton-text--md{% else %}skeleton-text--full{% endif %}"></span>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# === MARCA DE CAMPO REQUERIDO === #}
+
+{% macro required_mark() %}<abbr title="Campo requerido" class="required-mark" aria-label="requerido">*</abbr>{% endmacro %}
+
+
+{# === STATUS BADGE === #}
+{# Mapa de estados (sincronizado con app/static/js/utils/status.js) #}
+
+{% set _STATUS_META = {
+  'in_progress':         {'icon': 'arrow-repeat',         'label': 'En proceso'},
+  'interview_completed': {'icon': 'mic-fill',             'label': 'Entrevista completada'},
+  'deliberation':        {'icon': 'hourglass-split',      'label': 'En deliberación'},
+  'accepted':            {'icon': 'check-circle-fill',    'label': 'Aceptado'},
+  'approved':            {'icon': 'check-circle-fill',    'label': 'Aprobado'},
+  'rejected':            {'icon': 'x-circle-fill',        'label': 'Rechazado'},
+  'deferred':            {'icon': 'arrow-right-circle',   'label': 'Diferido'},
+  'enrolled':            {'icon': 'mortarboard-fill',     'label': 'Inscrito'},
+  'pending':             {'icon': 'clock',                'label': 'Pendiente'},
+} %}
+
+{% macro status_badge(status, label=none, size='') %}
+  {% set s = _STATUS_META.get(status, {'icon': 'circle', 'label': status}) %}
+  {% set size_class = 'status-badge--' ~ size if size else '' %}
+  <span class="status-badge status-badge--{{ status|replace('_', '-') }} {{ size_class }}">
+    <i class="bi bi-{{ s.icon }}" aria-hidden="true"></i>
+    <span>{{ label or s.label }}</span>
+  </span>
+{% endmacro %}
+
+
+{# === EMPTY STATE === #}
+
+{% macro empty_state(icon='inbox', title='Sin resultados',
+                     description='', action_label=none, action_url=none,
+                     compact=false) %}
+<div class="empty-state {% if compact %}empty-state--compact{% endif %}">
+  <div class="empty-state__icon"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></div>
+  <h3 class="empty-state__title">{{ title }}</h3>
+  {% if description %}<p class="empty-state__description">{{ description }}</p>{% endif %}
+  {% if action_label %}
+    <div class="empty-state__actions">
+      <a href="{{ action_url or '#' }}" class="btn btn-primary">
+        <span class="btn-label">{{ action_label }}</span>
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{# === STEPPER === #}
+
+{% macro stepper(steps, current=1) %}
+<ol class="stepper" aria-label="Progreso del proceso">
+  {% for step in steps %}
+    {% set state = 'completed' if loop.index < current else ('active' if loop.index == current else 'pending') %}
+    <li class="stepper__step stepper__step--{{ state }}"
+        {% if loop.index == current %}aria-current="step"{% endif %}>
+      <span class="stepper__number" aria-hidden="true">
+        {% if state == 'completed' %}<i class="bi bi-check-lg"></i>{% else %}{{ loop.index }}{% endif %}
+      </span>
+      <span class="stepper__label">{{ step.label }}</span>
+    </li>
+  {% endfor %}
+</ol>
+{% endmacro %}
+
+
+{# === ROLE BANNER === #}
+
+{% set _ROLE_META = {
+  'applicant':          {'icon': 'mortarboard-fill',     'label': 'Aspirante'},
+  'student':            {'icon': 'book-half',            'label': 'Estudiante'},
+  'program_admin':      {'icon': 'building-fill-gear',   'label': 'Coordinador de programa'},
+  'postgraduate_admin': {'icon': 'building-fill-check',  'label': 'Administración de posgrado'},
+  'social_service':     {'icon': 'heart-fill',           'label': 'Servicio social'},
+} %}
+
+{% macro role_banner(user, role_key, role_label=none, context_line=none, next_action=none, progress=none) %}
+  {% set meta = _ROLE_META.get(role_key, {'icon': 'person-fill', 'label': role_key}) %}
+  <header class="role-banner" role="region" aria-label="Bienvenida y rol del usuario">
+    <div class="role-banner__avatar" aria-hidden="true">
+      <i class="bi bi-{{ meta.icon }}"></i>
+    </div>
+    <div class="role-banner__content">
+      <h2 class="role-banner__greeting">
+        Hola, {{ user.first_name }}{% if user.last_name %} {{ user.last_name }}{% endif %}
+      </h2>
+      <p class="role-banner__role">
+        <span class="status-badge status-badge--enrolled">{{ role_label or meta.label }}</span>
+        {% if context_line %}<span>· {{ context_line }}</span>{% endif %}
+      </p>
+      {% if next_action %}
+        <p class="role-banner__next-action">
+          <i class="bi bi-arrow-right-circle-fill"></i>
+          <span><strong>Próximo paso:</strong> {{ next_action }}</span>
+        </p>
+      {% endif %}
+    </div>
+    {% if progress is not none %}
+      <div class="role-banner__progress">
+        <div class="role-banner__progress-bar" role="progressbar"
+             aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="Progreso global">
+          <span style="width: {{ progress }}%"></span>
+        </div>
+        <span class="role-banner__progress-label">{{ progress }}% completado</span>
+      </div>
+    {% endif %}
+  </header>
+{% endmacro %}
+
+
+{# === CONFIRM MODAL === #}
+
+{% macro confirm_modal(id, title, body, confirm_label='Confirmar',
+                       confirm_variant='primary', consequence=none,
+                       icon='question-circle') %}
+<div class="modal fade" id="{{ id }}" tabindex="-1" role="dialog" aria-labelledby="{{ id }}-title">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="{{ id }}-title">
+          <i class="bi bi-{{ icon }} me-2" aria-hidden="true"></i>{{ title }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">{{ body }}</p>
+        {% if consequence %}
+          <div class="alert bg-warning-soft mt-3 mb-0" role="note">
+            <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+            <strong>Atención:</strong> {{ consequence }}
+          </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-{{ confirm_variant }}" data-confirm-trigger>
+          <span class="btn-label">{{ confirm_label }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}

@@ -5,7 +5,7 @@
         <div class="card shadow border-0">
             <div class="card-body text-center py-5">
                 <div class="mb-4">
-                    <i class="bi bi-folder-x text-muted" style="font-size: 5rem;"></i>
+                    <i class="bi bi-folder-x text-muted icon-5xl"></i>
                 </div>
                 <h3 class="mb-3">No estás registrado en ningún programa</h3>
                 <p class="text-muted mb-4 lead">
@@ -21,6 +21,37 @@
 </div>
 {% else %}
 <!-- Usuario SÍ está registrado en un programa -->
+{% from '_macros.html' import role_banner %}
+
+{# Calculo de progreso aproximado basado en estado de admision #}
+{% set _status_progress = {
+  'in_progress': 20,
+  'interview_completed': 50,
+  'deliberation': 70,
+  'accepted': 95,
+  'enrolled': 100,
+  'rejected': 100,
+  'deferred': 50,
+} %}
+{% set _next_actions = {
+  'in_progress': 'Completa la carga de tus documentos pendientes para tu admisión',
+  'interview_completed': 'Tu entrevista fue registrada. Espera la deliberación del comité',
+  'deliberation': 'Tu solicitud está en revisión por el comité de admisión',
+  'accepted': '¡Felicidades! Sube tu comprobante de inscripción para formalizar',
+  'enrolled': 'Acceso a tu trayectoria académica como estudiante activo',
+  'rejected': 'Revisa los comentarios del comité; puedes intentar otro periodo',
+  'deferred': 'Tu admisión fue diferida. Revisa los detalles del periodo destino',
+} %}
+
+{{ role_banner(
+  user=current_user,
+  role_key='applicant',
+  context_line=program.name,
+  next_action=_next_actions.get(admission_status, 'Sigue el avance de tu proceso desde aquí'),
+  progress=_status_progress.get(admission_status)
+) }}
+
+{% include 'partials/_events_widget.html' %}
 
 <!-- Acciones Rápidas -->
 <div class="row mb-4">
@@ -36,7 +67,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-file-earmark-arrow-up text-primary icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Subir Documentos</h6>
                             <small class="text-muted">Envía tus requisitos</small>
@@ -52,7 +83,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-book text-success" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-book text-success icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Ver Programa</h6>
                             <small class="text-muted">Detalles del programa</small>
@@ -68,7 +99,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-person-circle text-info" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-person-circle text-info icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Mi Perfil</h6>
                             <small class="text-muted">Información personal</small>
@@ -84,7 +115,7 @@
                     <div class="card h-100 border-0 shadow-sm quick-action-card">
                         <div class="card-body text-center py-4">
                             <div class="mb-3">
-                                <i class="bi bi-mortarboard text-warning" style="font-size: 2.5rem;"></i>
+                                <i class="bi bi-mortarboard text-warning icon-2xl"></i>
                             </div>
                             <h6 class="mb-1 fw-bold">Otros Programas</h6>
                             <small class="text-muted">Explorar catálogo</small>
@@ -109,10 +140,10 @@
             </div>
             <div class="card-body">
                 <!-- Nombre del Programa -->
-                <div class="mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #e7f1ff 0%, #f8f9fa 100%); border-left: 4px solid #0d6efd;">
+                <div class="mb-4 p-3 rounded-3 applicant-banner">
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0 me-3">
-                            <i class="bi bi-mortarboard-fill text-primary" style="font-size: 2rem;"></i>
+                            <i class="bi bi-mortarboard-fill text-primary icon-xl"></i>
                         </div>
                         <div class="flex-grow-1">
                             <h5 class="mb-0 fw-bold text-primary">{{ program.name }}</h5>
@@ -138,7 +169,7 @@
                 </div>
 
                 <!-- Barra de progreso -->
-                <div class="progress mb-3" style="height: 25px; border-radius: 8px;">
+                <div class="progress mb-3 progress-admission">
                     {% if progress_segments %}
                         {% for seg in progress_segments %}
                         <div class="progress-bar bg-{{ seg.class }} {% if seg.class == 'warning' %}text-dark{% endif %}"
@@ -300,7 +331,7 @@
     <div class="col-12">
         <div class="card border-0 shadow bg-success bg-opacity-10">
             <div class="card-body text-center py-4">
-                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <i class="bi bi-check-circle-fill text-success icon-3xl"></i>
                 <h5 class="mt-3 mb-2 text-success fw-bold">¡Excelente!</h5>
                 <p class="text-muted mb-0">No tienes documentos pendientes. Tu solicitud está en revisión.</p>
             </div>
@@ -309,16 +340,131 @@
 </div>
 {% endif %}
 
-<!-- Estilos CSS adicionales para las tarjetas de acciones rápidas -->
-<style>
-.quick-action-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
+<!-- Sección de Diferimiento (visible cuando la inscripción está diferida) -->
+{% if admission_status == 'deferred' %}
+<div class="row mt-4" id="deferral-section">
+  <div class="col-12">
+    <div class="card border-0 shadow card-accent-warning">
+      <div class="card-header bg-white border-0 pt-4 pb-3">
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-arrow-clockwise text-warning fs-4 me-2"></i>
+            <h5 class="mb-0 fw-bold">Inscripción Diferida</h5>
+          </div>
+          <span class="badge bg-warning text-dark px-3 py-2">Diferida</span>
+        </div>
+        <p class="text-muted small mt-1 mb-0">
+          Tu carta de aceptación sigue vigente. Podrás completar tu inscripción en el nuevo periodo.
+        </p>
+      </div>
+      <div class="card-body">
 
-.quick-action-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
-</style>
+        {% if deferral_status and deferral_status.active_deferral %}
+          {% set d = deferral_status.active_deferral %}
+          <div class="alert alert-warning d-flex gap-3 align-items-start mb-4">
+            <i class="bi bi-exclamation-triangle-fill text-warning fs-4 flex-shrink-0 mt-1"></i>
+            <div>
+              <strong>Tu inscripción fue diferida</strong><br>
+              <span class="text-muted small">
+                Fuiste aceptado en el periodo
+                <strong>{{ d.original_period_name or 'original' }}</strong>
+                pero no completaste tu inscripción.
+                Tu proceso continúa en el periodo
+                <strong>{{ d.deferred_to_period_name or 'siguiente' }}</strong>.
+              </span>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-4">
+              <div class="card text-center h-100 border-warning">
+                <div class="card-body py-3">
+                  <i class="bi bi-arrow-clockwise text-warning fs-2 mb-2"></i>
+                  <div class="small text-muted">Diferimientos usados</div>
+                  <div class="fw-bold fs-5">{{ deferral_status.deferrals_used }} / {{ deferral_status.max_deferrals }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="card text-center h-100">
+                <div class="card-body py-3">
+                  <i class="bi bi-calendar2-event fs-2 text-primary mb-2"></i>
+                  <div class="small text-muted">Periodo destino</div>
+                  <div class="fw-bold small">{{ d.deferred_to_period_name or 'Por asignar' }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="card text-center h-100 {% if deferral_status.can_defer %}border-secondary{% else %}border-danger{% endif %}">
+                <div class="card-body py-3">
+                  <i class="bi bi-hourglass-split fs-2 {% if deferral_status.can_defer %}text-secondary{% else %}text-danger{% endif %} mb-2"></i>
+                  <div class="small text-muted">Diferimientos restantes</div>
+                  <div class="fw-bold">{{ deferral_status.max_deferrals - deferral_status.deferrals_used }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        {% else %}
+          <div class="alert alert-secondary">
+            <i class="bi bi-info-circle me-2"></i>
+            Tu inscripción está diferida. El coordinador te notificará cuando el nuevo periodo esté disponible.
+          </div>
+        {% endif %}
+
+        <hr>
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-file-earmark-text-fill text-success"></i>
+          <span class="fw-semibold">Tu carta de aceptación sigue vigente.</span>
+        </div>
+        <p class="text-muted small mt-1 mb-3">
+          Cuando el coordinador active el nuevo periodo, deberás completar los documentos de inscripción
+          (nueva tira de materias y boleta de servicios escolares).
+        </p>
+
+        {% if program %}
+        <div id="deferralAcceptanceLetterSection">
+          <div class="text-center py-2 text-muted">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            Cargando carta de aceptación...
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Seccion de Aceptacion e Inscripcion (solo visible para aspirantes aceptados) -->
+{% if admission_status == 'accepted' %}
+<div class="row mt-4" id="acceptance-section">
+  <div class="col-12">
+    <div class="card border-0 shadow card-accent-success">
+      <div class="card-header bg-white border-0 pt-4 pb-3">
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-patch-check-fill text-success fs-4 me-2"></i>
+            <h5 class="mb-0 fw-bold">Aceptacion e Inscripcion</h5>
+          </div>
+          <span class="badge bg-success px-3 py-2">Aceptado</span>
+        </div>
+        <p class="text-muted small mt-1 mb-0">
+          Completa los siguientes pasos para finalizar tu inscripcion al programa.
+        </p>
+      </div>
+      <div class="card-body">
+        <div id="acceptanceDocsContent">
+          <div class="text-center py-3 text-muted">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            Cargando documentos...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
 {% endif %}

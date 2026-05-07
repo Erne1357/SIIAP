@@ -19,17 +19,31 @@ def check_default_password(password: str) -> bool:
     return check_password_hash(password, "tecno#2K")
 
 
+@pages_auth.route("/reset-password/<token>", methods=["GET"])
+def reset_password_page(token):
+    """
+    Página pública para configurar contraseña vía token (alta de estudiantes
+    por bulk import o flujo "olvidé mi contraseña" futuro). El token IS the
+    auth — no se requiere login.
+    """
+    if current_user.is_authenticated:
+        # Logout the user before they can use the token, otherwise UX is confusing.
+        from flask_login import logout_user
+        logout_user()
+    return render_template("auth/reset_password.html", token=token)
+
+
 @pages_auth.route("/login", methods=["GET"])
 def login_page():
     if current_user.is_authenticated:
         # si ya está logueado, llévalo a su dashboard
         return redirect(url_for("pages_user.dashboard"))
-    
+
     # IMPORTANTE: Generar un nuevo token CSRF fresco para evitar problemas
     # después de logout o sesiones expiradas
     from app.utils.csrf import generate_csrf_token
     generate_csrf_token(force_new=True)
-    
+
     return render_template("auth/login.html")
 
 @pages_auth.route("/register", methods=["GET", "POST"])

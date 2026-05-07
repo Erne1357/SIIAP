@@ -70,7 +70,7 @@
   // Función helper para hacer peticiones con manejo de errores mejorado
   async function apiRequest(url, options = {}) {
     const defaultHeaders = {
-      'X-CSRF-Token': getCsrfToken()
+      'X-CSRFToken': getCsrfToken()
     };
 
     // Solo agregar Content-Type para JSON, no para FormData
@@ -153,16 +153,16 @@
         <td class="text-end">
           <div class="btn-group btn-group-sm">
             <button class="btn btn-outline-secondary btn-edit" title="Editar">
-              <i class="fas fa-edit"></i>
+              <i class="bi bi-pencil-square"></i>
             </button>
             <button class="btn btn-outline-primary btn-upload-template" title="Subir plantilla">
-              <i class="fas fa-upload"></i>
+              <i class="bi bi-upload"></i>
             </button>
             <button class="btn btn-success btn-save" title="Guardar cambios">
-              <i class="fas fa-save"></i>
+              <i class="bi bi-save"></i>
             </button>
             <button class="btn btn-outline-danger btn-delete" title="Eliminar">
-              <i class="fas fa-trash"></i>
+              <i class="bi bi-trash"></i>
             </button>
           </div>
         </td>
@@ -261,7 +261,7 @@
           body: JSON.stringify(body)
         });
         
-        flash("Configuración guardada correctamente", "success");
+        flash("Configuración guardada exitosamente", "success");
         await loadArchives();
       } catch (err) {
         flash(`Error al guardar: ${err.message}`, "danger");
@@ -320,7 +320,7 @@
         body: fd
       });
       
-      flash("Plantilla actualizada correctamente", "success");
+      flash("Plantilla actualizada exitosamente", "success");
       modalTpl.hide();
       await loadArchives();
     } catch (err) {
@@ -344,10 +344,10 @@
     
     if (!validation.valid) {
       feedback.className = 'file-feedback small mt-1 text-danger';
-      feedback.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${validation.error}`;
+      feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${validation.error}`;
     } else {
       feedback.className = 'file-feedback small mt-1 text-success';
-      feedback.innerHTML = `<i class="fas fa-check"></i> Archivo válido (${(file.size / (1024 * 1024)).toFixed(2)}MB)`;
+      feedback.innerHTML = `<i class="bi bi-check-lg"></i> Archivo válido (${(file.size / (1024 * 1024)).toFixed(2)}MB)`;
     }
   });
 
@@ -380,7 +380,7 @@
         body: JSON.stringify(body)
       });
       
-      flash(`Archivo ${isEdit ? 'actualizado' : 'creado'} correctamente`, "success");
+      flash(`Archivo ${isEdit ? 'actualizado' : 'creado'} exitosamente`, "success");
       modalEdit.hide();
       await loadArchives();
     } catch (err) {
@@ -399,7 +399,7 @@
         method: "DELETE",
         credentials: "same-origin",
         headers: {
-          'X-CSRF-Token': getCsrfToken()
+          'X-CSRFToken': getCsrfToken()
         }
       });
 
@@ -420,7 +420,7 @@
         throw new Error(data.error || "No se pudo eliminar");
       }
       
-      flash("Archivo eliminado correctamente", "success");
+      flash("Archivo eliminado exitosamente", "success");
       modalDel.hide();
       await loadArchives();
     } catch (err) {

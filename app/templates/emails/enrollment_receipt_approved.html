@@ -1,0 +1,19 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#28a745' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Tu carta de asignación de número de control ha sido aprobada.</p>
+
+<div class="notification-card">
+    <h2>✅ Carta Aprobada</h2>
+    <p><strong>Programa:</strong> {{ program_name }}</p>
+    <div class="divider"></div>
+    <p>El coordinador te asignará tu número de control próximamente.</p>
+</div>
+
+<p>Mantente atento a tu portal para recibir tu número de control.</p>
+
+<a href="{{ dashboard_url }}" class="btn" style="background: #28a745;">Ver mi portal</a>
+{% endblock %}

@@ -50,6 +50,12 @@ def save_cache(cache: msal.SerializableTokenCache):
         with LOCK, open(cfg['CACHE_PATH'], "w", encoding="utf-8") as f:
             f.write(cache.serialize())
 
+def is_configured() -> bool:
+    """Devuelve True solo si las credenciales de Microsoft Graph están definidas."""
+    cfg = get_config()
+    return bool(cfg['TENANT_ID'] and cfg['CLIENT_ID'] and cfg['CLIENT_SECRET'])
+
+
 def get_msal_app(cache=None) -> msal.ConfidentialClientApplication:
     cfg = get_config()
     cache = cache or load_cache()
@@ -87,6 +93,8 @@ def clear_account_and_cache():
             os.remove(cfg['ACCT_PATH'])
 
 def build_auth_url(state: str = "email_config"):
+    if not is_configured():
+        raise RuntimeError("Las credenciales de Microsoft Graph no están configuradas.")
     cfg = get_config()
     app = get_msal_app()
     return app.get_authorization_request_url(
@@ -134,8 +142,10 @@ def process_auth_code(code: str) -> dict:
 def acquire_token_silent() -> str | None:
     """
     Intenta renovar un access token usando el refresh token del cache.
-    Retorna el token o None si no hay sesión activa.
+    Retorna el token o None si no hay sesión activa o sin credenciales.
     """
+    if not is_configured():
+        return None
     cache = load_cache()
     app = get_msal_app(cache)
     acct = read_account_info()
@@ -180,6 +190,18 @@ def graph_send_mail(access_token: str, subject: str, content_html: str,
     return resp
 
 def is_connected() -> bool:
-    """Verifica si hay una sesión activa de Microsoft"""
-    token = acquire_token_silent()
-    return token is not None
+    """
+    Verifica si hay una sesión activa de Microsoft.
+    Devuelve False si las credenciales no están configuradas o si hay un
+    error de red (p. ej. sin acceso a internet en dev).
+    """
+    if not is_configured():
+        return False
+    cfg = get_config()
+    if not os.path.exists(cfg['ACCT_PATH']):
+        return False
+    try:
+        token = acquire_token_silent()
+        return token is not None
+    except Exception:
+        return False

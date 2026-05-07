@@ -7,7 +7,7 @@ from app.models.user_history import UserHistory
 from app.models.program import Program
 from app.models.user_program import UserProgram
 from app.services.user_history_service import UserHistoryService
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from werkzeug.security import generate_password_hash
 from app.utils.datetime_utils import now_local
 import json
@@ -23,9 +23,9 @@ def _sanitize(s: str | None) -> str | None:
     return s or None
 
 
-@api_admin_users.get("/")
+@api_admin_users.get("")
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('admin_users.api.list')
 def list_users():
     """Lista usuarios con filtros opcionales"""
     # Parámetros de paginación
@@ -43,11 +43,12 @@ def list_users():
     
     # Filtro por rol
     if role_filter:
-        query = query.join(User.role).filter(db.func.lower(User.role.has(name=role_filter)))
+        from app.models.role import Role
+        query = query.join(User.role).filter(Role.name == role_filter)
     
     # Filtro por programa
     if program_filter:
-        query = query.join(UserProgram).filter(UserProgram.program_id == program_filter)
+        query = query.join(UserProgram, User.id == UserProgram.user_id).filter(UserProgram.program_id == program_filter)
     
     # Filtro por estado activo
     if active_filter == 'true':
@@ -97,7 +98,7 @@ def list_users():
 
 @api_admin_users.get("/<int:user_id>")
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('admin_users.api.list')
 def get_user(user_id):
     """Obtiene información detallada de un usuario específico"""
     user = User.query.get(user_id)
@@ -132,7 +133,7 @@ def get_user(user_id):
 
 @api_admin_users.patch("/<int:user_id>")
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('admin_users.api.update')
 def update_user(user_id):
     """Actualiza información básica del usuario"""
     user = User.query.get(user_id)
@@ -183,12 +184,28 @@ def update_user(user_id):
     # Registrar cambios
     if changed_fields:
         UserHistoryService.log_basic_info_update(user_id=user_id, changed_fields=changed_fields)
-    
+
     db.session.commit()
-    
+
+    if changed_fields:
+        try:
+            from app.extensions import socketio
+            payload_ws = {
+                'action': 'updated',
+                'user_id': user.id,
+                'role': user.role.name if user.role else None,
+                'email': user.email,
+                'full_name': f'{user.first_name} {user.last_name}',
+                'changed_fields': list(changed_fields.keys()),
+            }
+            socketio.emit('admin_user:changed', payload_ws, room='role:postgraduate_admin')
+            socketio.emit('admin_user:changed', payload_ws, room='role:coordinator')
+        except Exception:
+            pass
+
     return jsonify({
         "data": {"user": user.to_dict(include_sensitive=True)},
-        "flash": [{"level": "success", "message": "Usuario actualizado correctamente."}],
+        "flash": [{"level": "success", "message": "Usuario actualizado exitosamente."}],
         "error": None,
         "meta": {"changed_fields": list(changed_fields.keys())}
     }), 200
@@ -197,7 +214,7 @@ def update_user(user_id):
 
 @api_admin_users.post("/<int:user_id>/reset-password")
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('admin_users.api.reset_password')
 def reset_password(user_id):
     """Resetea la contraseña del usuario a 'tecno#2K'"""
     user = User.query.get(user_id)
@@ -237,7 +254,7 @@ def reset_password(user_id):
 
 @api_admin_users.patch("/<int:user_id>/toggle-active")
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('admin_users.api.update')
 def toggle_active(user_id):
     """Activa o desactiva un usuario"""
     user = User.query.get(user_id)
@@ -278,7 +295,7 @@ def toggle_active(user_id):
 
 @api_admin_users.post("/<int:user_id>/assign-control-number")
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('admin_users.api.assign_control_number')
 def assign_control_number(user_id):
     """Asigna un número de control al usuario"""
     user = User.query.get(user_id)
@@ -375,7 +392,7 @@ def assign_control_number(user_id):
 
 @api_admin_users.delete("/<int:user_id>")
 @login_required
-@roles_required('postgraduate_admin')
+@permission_required('admin_users.api.delete')
 def delete_user(user_id):
     """Elimina un usuario (solo admin general)"""
     user = User.query.get(user_id)
@@ -412,14 +429,30 @@ def delete_user(user_id):
     
     # Registrar eliminación
     user_name = f"{user.first_name} {user.last_name}"
+    user_email = user.email
+    user_role = user.role.name if user.role else None
     UserHistoryService.log_user_deletion(user_id=user_id, user_name=user_name)
-    
+
     db.session.commit()
-    
+
     # Eliminar usuario
     db.session.delete(user)
     db.session.commit()
-    
+
+    try:
+        from app.extensions import socketio
+        payload_ws = {
+            'action': 'deleted',
+            'user_id': user_id,
+            'role': user_role,
+            'email': user_email,
+            'full_name': user_name,
+        }
+        socketio.emit('admin_user:changed', payload_ws, room='role:postgraduate_admin')
+        socketio.emit('admin_user:changed', payload_ws, room='role:coordinator')
+    except Exception:
+        pass
+
     return jsonify({
         "data": None,
         "flash": [{"level": "success", "message": f"Usuario {user_name} eliminado."}],
@@ -428,9 +461,121 @@ def delete_user(user_id):
     }), 200
 
 
+@api_admin_users.post("/social-service")
+@login_required
+@permission_required('admin_users.api.create_social_service')
+def create_social_service():
+    """
+    Crea un usuario con rol 'social_service' y delega los permisos indicados.
+
+    Body JSON:
+      first_name        : str
+      last_name         : str
+      mother_last_name  : str | null
+      email             : str
+      is_internal       : bool (default True)
+      permissions       : list[str]  — codenames a delegar (obligatorio, >=1)
+      program_ids       : list[int] | null
+      expires_at        : str ISO 8601 | null
+    """
+    from datetime import datetime
+    from app.services.permission_service import (
+        create_social_service_user,
+        PermissionError as PermErr,
+    )
+
+    payload = request.get_json(silent=True) or {}
+
+    required = ['first_name', 'last_name', 'email', 'permissions']
+    missing = [f for f in required if not payload.get(f)]
+    if missing:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": f"Campos requeridos: {', '.join(missing)}."}],
+            "error": {"code": "VALIDATION", "message": "Campos faltantes"},
+            "meta": {"missing": missing}
+        }), 400
+
+    if not isinstance(payload['permissions'], list) or len(payload['permissions']) == 0:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Debes seleccionar al menos un permiso."}],
+            "error": {"code": "VALIDATION", "message": "permissions vacío"},
+            "meta": {}
+        }), 400
+
+    expires_at = None
+    if payload.get('expires_at'):
+        try:
+            expires_at = datetime.fromisoformat(payload['expires_at'])
+        except ValueError:
+            return jsonify({
+                "data": None,
+                "flash": [{"level": "danger", "message": "Fecha de expiración inválida."}],
+                "error": {"code": "VALIDATION", "message": "expires_at inválido"},
+                "meta": {}
+            }), 400
+
+    try:
+        new_user, delegations = create_social_service_user(
+            creator_id=current_user.id,
+            user_data={
+                'first_name':       payload['first_name'],
+                'last_name':        payload['last_name'],
+                'mother_last_name': payload.get('mother_last_name'),
+                'email':            payload['email'],
+                'is_internal':      payload.get('is_internal', True),
+            },
+            permissions_to_delegate=payload['permissions'],
+            program_ids=payload.get('program_ids'),
+            expires_at=expires_at,
+        )
+
+        UserHistoryService.log_action(
+            user_id=new_user.id,
+            admin_id=current_user.id,
+            action='social_service_created',
+            details={
+                'permissions_delegated': payload['permissions'],
+                'program_ids': payload.get('program_ids') or [],
+                'expires_at': payload.get('expires_at'),
+            }
+        )
+        db.session.commit()
+
+        return jsonify({
+            "data": {
+                "user": new_user.to_dict(include_sensitive=True),
+                "delegations_count": len(delegations),
+            },
+            "flash": [{
+                "level": "success",
+                "message": f"Usuario {new_user.first_name} {new_user.last_name} creado con {len(delegations)} delegación(es)."
+            }],
+            "error": None,
+            "meta": {}
+        }), 201
+
+    except PermErr as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "BUSINESS_ERROR", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "Error al crear usuario."}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
+
 @api_admin_users.get("/<int:user_id>/history")
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('admin_users.api.list')
 def user_history(user_id):
     """Obtiene el historial completo de un usuario"""
     user = User.query.get(user_id)

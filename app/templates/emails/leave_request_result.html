@@ -1,0 +1,26 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#28a745' if approved else '#dc3545' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>Tu solicitud de baja temporal ha sido {{ 'aprobada' if approved else 'rechazada' }}.</p>
+
+<div class="notification-card">
+    <h2>{{ '✅' if approved else '❌' }} Solicitud de Baja Temporal {{ 'Aprobada' if approved else 'Rechazada' }}</h2>
+    <p><strong>Programa:</strong> {{ program_name }}</p>
+    {% if not approved and reason %}
+    <div class="divider"></div>
+    <p><strong>Motivo del rechazo:</strong></p>
+    <p style="color: #dc3545;">{{ reason }}</p>
+    {% endif %}
+</div>
+
+{% if approved %}
+<p>Tu estado ha sido actualizado a baja temporal. Para reincorporarte en un periodo futuro, contacta al coordinador de tu programa.</p>
+{% else %}
+<p>Si tienes dudas sobre la decisión, contacta a tu coordinador de programa.</p>
+{% endif %}
+
+<a href="{{ dashboard_url }}" class="btn" style="background: {{ '#28a745' if approved else '#dc3545' }};">Ver mi portal</a>
+{% endblock %}

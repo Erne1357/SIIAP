@@ -47,7 +47,7 @@
       credentials: "same-origin",
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-Token': getCsrfToken(),
+        'X-CSRFToken': getCsrfToken(),
         ...options.headers
       }
     };
@@ -155,10 +155,10 @@
         <td class="text-end">
           <div class="btn-group btn-group-sm">
             <button class="btn btn-outline-primary btn-view-slots" title="Ver horarios">
-              <i class="fas fa-calendar-alt"></i>
+              <i class="bi bi-calendar3"></i>
             </button>
             <button class="btn btn-outline-danger btn-delete-event" title="Eliminar">
-              <i class="fas fa-trash"></i>
+              <i class="bi bi-trash"></i>
             </button>
           </div>
         </td>
@@ -211,14 +211,14 @@
               <button class="btn btn-sm btn-outline-primary btn-assign-slot" 
                       data-slot-id="${slot.id}" 
                       data-slot-info="${dateStr} ${timeStr}">
-                <i class="fas fa-user-plus"></i> Asignar
+                <i class="bi bi-person-plus-fill"></i> Asignar
               </button>
             ` : slot.status === 'booked' ? `
               <button class="btn btn-sm btn-outline-danger btn-cancel-appointment" 
                       data-slot-id="${slot.id}"
                       data-slot-info="${dateStr} ${timeStr}"
                       data-student-name="${slot.student_name || 'Sin asignar'}">
-                <i class="fas fa-times"></i> Cancelar
+                <i class="bi bi-x-lg"></i> Cancelar
               </button>
             ` : ''}
           </td>
@@ -346,7 +346,7 @@
         body: JSON.stringify(payload)
       });
       
-      flash('Evento creado correctamente', 'success');
+      flash('Evento creado exitosamente', 'success');
       createEventModal.hide();
       createEventForm.reset();
       await loadEvents();
@@ -377,7 +377,7 @@
         body: JSON.stringify(payload)
       });
       
-      flash('Ventana de horarios creada correctamente', 'success');
+      flash('Ventana de horarios creada exitosamente', 'success');
       addWindowModal.hide();
       addWindowForm.reset();
       await loadSlots(selectedEventId);
@@ -441,7 +441,7 @@
         body: JSON.stringify(payload)
       });
       
-      flash('Cita asignada correctamente', 'success');
+      flash('Cita asignada exitosamente', 'success');
       assignSlotModal.hide();
       assignSlotForm.reset();
       await loadSlots(selectedEventId);
@@ -461,7 +461,7 @@
     try {
       // TODO Fase 4: Implementar API correcta
       // Por ahora simular
-      flash('Cita cancelada correctamente', 'success');
+      flash('Cita cancelada exitosamente', 'success');
       confirmCancelAppointmentModal.hide();
       cancelAppointmentForm.reset();
       await loadSlots(selectedEventId);
@@ -487,7 +487,7 @@
         slotsCard.style.display = 'none';
       }
       
-      flash('Evento eliminado correctamente', 'success');
+      flash('Evento eliminado exitosamente', 'success');
       confirmDeleteEventModal.hide();
       
     } catch (err) {

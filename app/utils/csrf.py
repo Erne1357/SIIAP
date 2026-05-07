@@ -3,7 +3,7 @@ import secrets, hmac
 from flask import session, request, abort
 
 CSRF_SESSION_KEY = "_csrf_token"
-CSRF_HEADER = "X-CSRF-Token"
+CSRF_HEADER = "X-CSRFToken"
 
 def generate_csrf_token(force_new=False) -> str:
     """Genera o retorna el token CSRF de la sesión.
@@ -39,5 +39,14 @@ def validate_csrf_for_api():
             
             sent = request.headers.get(CSRF_HEADER, "")
             saved = session.get(CSRF_SESSION_KEY, "")
-            if not sent or not saved or not hmac.compare_digest(sent, saved):
-                abort(400, description="CSRF token inválido o ausente")
+            
+            # Si no hay token en sesión, generarlo para la próxima petición
+            if not saved:
+                generate_csrf_token()
+                abort(400, description="Sesión expirada. Por favor, recarga la página.")
+            
+            if not sent:
+                abort(400, description="Token CSRF no enviado en la petición")
+            
+            if not hmac.compare_digest(sent, saved):
+                abort(400, description="Token CSRF inválido. Por favor, recarga la página.")

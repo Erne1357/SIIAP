@@ -10,7 +10,7 @@
   right: 1rem;
   left: auto;
   transform: none;
-  z-index: 9999 !important;
+  z-index: var(--z-toast) !important;
   width: auto;
   max-width: 400px;
   min-width: 300px;
@@ -28,33 +28,32 @@
   opacity: 1 !important;
   visibility: visible !important;
   position: relative;
-  z-index: 10000 !important;
   background-color: #fff !important;
 }
 
-/* === COLORES DE BORDES Y FONDOS POR TIPO === */
+/* === COLORES DE BORDES Y FONDOS POR TIPO (paleta TECNM via tokens) === */
 .flash-container .alert-success {
-  border-left-color: #28a745;
-  background-color: #d4edda !important;
-  color: #155724 !important;
+  border-left-color: var(--color-success);
+  background-color: var(--color-success-100) !important;
+  color: #0e6e3a !important;
 }
 
 .flash-container .alert-danger {
-  border-left-color: #dc3545;
-  background-color: #f8d7da !important;
-  color: #721c24 !important;
+  border-left-color: var(--color-danger);
+  background-color: var(--color-danger-100) !important;
+  color: var(--color-brand-accent-600) !important;
 }
 
 .flash-container .alert-warning {
-  border-left-color: #ffc107;
-  background-color: #fff3cd !important;
-  color: #856404 !important;
+  border-left-color: var(--color-warning);
+  background-color: var(--color-warning-100) !important;
+  color: #6b4f00 !important;
 }
 
 .flash-container .alert-info {
-  border-left-color: #17a2b8;
-  background-color: #d1ecf1 !important;
-  color: #0c5460 !important;
+  border-left-color: var(--color-info);
+  background-color: var(--color-info-100) !important;
+  color: var(--color-brand-secondary) !important;
 }
 
 /* === ASEGURAR VISIBILIDAD DEL CONTENIDO === */
@@ -65,7 +64,6 @@
 
 .flash-container .alert .btn-close {
   position: relative;
-  z-index: 100001 !important;
   opacity: 0.8;
 }
 

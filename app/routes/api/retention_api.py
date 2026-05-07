@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import select
 from app import db
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.models.retention_policy import RetentionPolicy
 from app.models.archive import Archive
 from app.models.submission import Submission
@@ -15,7 +15,7 @@ api_retention = Blueprint('api_retention', __name__, url_prefix='/api/v1/retenti
 
 @api_retention.route('/candidates', methods=['GET'])
 @login_required
-@roles_required('postgraduate_admin','program_admin')
+@permission_required('admin_retention.api.manage')
 def candidates():
     now = datetime.now()
     items = RetentionService.compute_candidates(now)
@@ -24,7 +24,7 @@ def candidates():
 
 @api_retention.route('/purge', methods=['POST'])
 @login_required
-@roles_required('postgraduate_admin','program_admin')
+@permission_required('admin_retention.api.manage')
 def purge():
     data = request.get_json() or {}
     submission_ids = data.get('submission_ids', [])
@@ -70,7 +70,7 @@ def purge():
 
 @api_retention.route("/policies", methods=["GET"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('admin_retention.api.manage')
 def list_policies():
     rows = db.session.execute(select(RetentionPolicy)).scalars().all()
     items = [{
@@ -85,7 +85,7 @@ def list_policies():
 
 @api_retention.route("/policies", methods=["POST"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('admin_retention.api.manage')
 def create_policy():
     data = request.get_json() or {}
     archive_id = data.get("archive_id")
@@ -136,7 +136,7 @@ def create_policy():
 
 @api_retention.route("/policies/<int:policy_id>", methods=["PUT"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('admin_retention.api.manage')
 def update_policy(policy_id: int):
     data = request.get_json() or {}
     keep_forever = bool(data.get("keep_forever", False))
@@ -167,7 +167,7 @@ def update_policy(policy_id: int):
 
 @api_retention.route("/policies/<int:policy_id>", methods=["DELETE"])
 @login_required
-@roles_required("postgraduate_admin", "program_admin")
+@permission_required('admin_retention.api.manage')
 def delete_policy(policy_id: int):
     rp = db.session.get(RetentionPolicy, policy_id)
     if not rp:

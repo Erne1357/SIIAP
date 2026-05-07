@@ -1,0 +1,43 @@
+.profile-avatar {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+}
+
+#studentRecordPage .nav-tabs .nav-link {
+  white-space: nowrap;
+}
+
+#studentRecordPage .info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+#studentRecordPage .info-grid .info-cell {
+  background: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+#studentRecordPage .info-grid .info-cell .label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: var(--space-1);
+  display: block;
+}
+
+#studentRecordPage .info-grid .info-cell .value {
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+#studentRecordPage .timeline-item + .timeline-item {
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+}

@@ -1,0 +1,28 @@
+{% extends 'emails/base_email.html' %}
+{% set color = '#28a745' %}
+
+{% block content %}
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+
+<p>¡Tenemos excelentes noticias para ti!</p>
+
+<div class="notification-card">
+    <h2>🎓 ¡Has sido aceptado!</h2>
+    <p><strong>Programa: {{ program_name }}</strong></p>
+    <p style="margin-top: 10px; color: #28a745;">
+        El comité de admisión ha revisado tu expediente y te ha aceptado oficialmente en el programa.
+    </p>
+</div>
+
+<p>Los próximos pasos son:</p>
+<ul>
+    <li>El coordinador te hará llegar tu carta de aceptación y tira de materias.</li>
+    <li>Deberás subir tu boleta de servicios escolares para completar el proceso de inscripción.</li>
+</ul>
+
+<p>Ingresa a tu portal para ver más detalles y seguir el proceso.</p>
+
+<a href="{{ dashboard_url }}" class="btn">Ver Mi Portal</a>
+
+<p>¡Bienvenido al posgrado! 🎉</p>
+{% endblock %}

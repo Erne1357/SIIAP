@@ -3,7 +3,7 @@ from app import db
 from flask import Blueprint, current_app, request, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import select
-from app.utils.auth import roles_required
+from app.utils.permissions import permission_required
 from app.services.interview_service import InterviewEligibilityService
 from app.services.user_history_service import UserHistoryService
 
@@ -11,7 +11,7 @@ api_interviews = Blueprint('api_interviews', __name__, url_prefix='/api/v1/inter
 
 @api_interviews.route('/eligibility/<int:student_id>/<int:program_id>', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('interviews.api.check_eligibility')
 def check_eligibility(student_id: int, program_id: int):
     """
     Verifica si un estudiante específico es elegible para entrevista.
@@ -32,20 +32,18 @@ def check_eligibility(student_id: int, program_id: int):
 
 @api_interviews.route('/eligible-students/<int:program_id>', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('interviews.api.list_eligible')
 def list_eligible_students(program_id: int):
     """
     Lista todos los estudiantes elegibles para entrevista en un programa.
     """
-    # Verificar permisos del coordinador
-    if current_user.role.name == 'program_admin':
-        from app.models.program import Program
-        program = db.session.get(Program, program_id)
-        if not program or program.coordinator_id != current_user.id:
-            return jsonify({
-                "ok": False,
-                "error": "No tienes permiso para gestionar este programa"
-            }), 403
+    # Verificar que el usuario tiene acceso al programa
+    accessible_pids = current_user.get_accessible_program_ids()
+    if accessible_pids is not None and program_id not in accessible_pids:
+        return jsonify({
+            "ok": False,
+            "error": "No tienes permiso para gestionar este programa"
+        }), 403
 
     try:
         eligible_students = InterviewEligibilityService.get_eligible_students(program_id)
@@ -64,7 +62,7 @@ def list_eligible_students(program_id: int):
 
 @api_interviews.route('/eligible-students', methods=['GET'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('interviews.api.list_eligible')
 def list_all_eligible_students():
     """
     Lista todos los estudiantes elegibles para entrevista en todos los programas.
@@ -73,26 +71,21 @@ def list_all_eligible_students():
     """
     try:
         from app.models.program import Program
-        
-        # Determinar qué programas puede ver el usuario
-        if current_user.role.name == 'program_admin':
-            # Coordinador: solo sus programas
-            managed_programs = db.session.execute(
-                select(Program).where(Program.coordinator_id == current_user.id)
-            ).scalars().all()
-            
-            if not managed_programs:
-                return jsonify({
-                    "ok": True,
-                    "programs": [],
-                    "total_eligible_students": 0,
-                    "message": "No tienes programas asignados"
-                }), 200
-                
+
+        accessible_pids = current_user.get_accessible_program_ids()
+        if accessible_pids is None:
+            # Acceso global (postgraduate_admin u otros con academic_periods.api.create)
+            managed_programs = db.session.execute(select(Program)).scalars().all()
+        elif not accessible_pids:
+            return jsonify({
+                "ok": True,
+                "programs": [],
+                "total_eligible_students": 0,
+                "message": "No tienes programas asignados"
+            }), 200
         else:
-            # Admin de posgrado: todos los programas
             managed_programs = db.session.execute(
-                select(Program)
+                select(Program).where(Program.id.in_(accessible_pids))
             ).scalars().all()
 
         # Obtener estudiantes elegibles por programa
@@ -131,7 +124,7 @@ def list_all_eligible_students():
 
 @api_interviews.route('/mark-profile-complete/<int:user_id>', methods=['POST'])
 @login_required
-@roles_required('program_admin', 'postgraduate_admin')
+@permission_required('interviews.api.manage')
 def mark_profile_complete(user_id: int):
     """
     Marca el perfil de un usuario como completo (uso administrativo).

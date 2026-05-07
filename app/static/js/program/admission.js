@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const submitBtn = e.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Enviando...';
     submitBtn.disabled = true;
 
     try {
@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrf
+          'X-CSRFToken': csrf
         },
         body: JSON.stringify(payload)
       });
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      flash('Solicitud de prórroga enviada correctamente. Recibirás una respuesta pronto', 'success');
+      flash('Solicitud de prórroga enviada exitosamente. Recibirás una respuesta pronto', 'success');
       closeModal(extensionModal);
 
       setTimeout(() => window.location.reload(), 1500);
@@ -241,14 +241,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const submitBtn = form.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Subiendo...';
       submitBtn.disabled = true;
 
       try {
         const res = await fetch('/api/v1/submissions', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'X-CSRF-Token': csrf },
+          headers: { 'X-CSRFToken': csrf },
           body: fd
         });
         const json = await res.json().catch(() => ({}));
@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Documento subido correctamente.' }];
+          : [{ level: 'success', message: 'Documento subido exitosamente.' }];
 
         if (currentStepForHash) {
           // Buscar si este step está en un tab combinado
@@ -300,14 +300,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const stepId = btn.getAttribute('data-step');
       if (!subId) return;
 
-      // TODO Fase 3: Reemplazar con modal de confirmación
-      if (!confirm('¿Eliminar este archivo?')) return;
+      const ok = await siiapConfirm({
+        type: 'danger',
+        title: 'Eliminar archivo',
+        message: '¿Eliminar este archivo?',
+        confirmLabel: 'Sí, eliminar',
+      });
+      if (!ok) return;
 
       try {
         const res = await fetch(`/api/v1/submissions/${subId}`, {
           method: 'DELETE',
           credentials: 'same-origin',
-          headers: { 'X-CSRF-Token': csrf }
+          headers: { 'X-CSRFToken': csrf }
         });
         const json = await res.json().catch(() => ({}));
 
@@ -353,13 +358,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (file.size > 3 * 1024 * 1024) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
-        feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Archivo: ${file.name} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
+        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Archivo: ${file.name} (${sizeMB} MB) - EXCEDE EL LÍMITE`;
       } else if (!file.name.toLowerCase().endsWith('.pdf')) {
         feedbackEl.className = 'file-feedback small mt-1 text-danger';
-        feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Solo se permiten archivos PDF`;
+        feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Solo se permiten archivos PDF`;
       } else {
         feedbackEl.className = 'file-feedback small mt-1 text-success';
-        feedbackEl.innerHTML = `<i class="fas fa-check"></i> Archivo: ${file.name} (${sizeMB} MB)`;
+        feedbackEl.innerHTML = `<i class="bi bi-check-lg"></i> Archivo: ${file.name} (${sizeMB} MB)`;
       }
     });
   });
@@ -389,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (processAlert) {
             processAlert.className = 'alert alert-warning interview-info';
             processAlert.innerHTML = `
-              <i class="fas fa-user-edit me-2"></i>
+              <i class="bi bi-person-fill-gear me-2"></i>
               Completa tu perfil para ser elegible para entrevista.
               <a href="/user/profile" class="alert-link">Ir a mi perfil</a>
             `;
@@ -399,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (processAlert) {
             processAlert.className = 'alert alert-info interview-info';
             processAlert.innerHTML = `
-              <i class="fas fa-info-circle me-2"></i>
+              <i class="bi bi-info-circle-fill me-2"></i>
               Eres elegible para entrevista. Pronto recibirás una notificación con la fecha y hora asignada.
             `;
           }
@@ -429,13 +434,13 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="row align-items-center">
         <div class="col-12 col-md-8">
           <h5 class="mb-2">
-            <i class="fas fa-calendar-check me-2"></i>
+            <i class="bi bi-calendar-check me-2"></i>
             ${appointment.event_title}
           </h5>
           <p class="mb-2">
-            <strong><i class="fas fa-clock me-1"></i> Fecha y hora:</strong> ${dateStr}<br>
-            <strong><i class="fas fa-hourglass-half me-1"></i> Horario:</strong> ${timeStr}<br>
-            <strong><i class="fas fa-map-marker-alt me-1"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
+            <strong><i class="bi bi-clock me-1"></i> Fecha y hora:</strong> ${dateStr}<br>
+            <strong><i class="bi bi-hourglass-split me-1"></i> Horario:</strong> ${timeStr}<br>
+            <strong><i class="bi bi-geo-alt-fill me-1"></i> Lugar:</strong> ${appointment.location || 'Por confirmar'}
           </p>
           ${appointment.notes ? `
             <div class="alert alert-info py-2 mb-0">
@@ -444,10 +449,25 @@ document.addEventListener('DOMContentLoaded', () => {
           ` : ''}
         </div>
         <div class="col-12 col-md-4 text-md-end mt-3 mt-md-0">
-          <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change" data-appointment-id="${appointment.id}">
-            <i class="fas fa-exchange-alt me-1"></i>
-            Solicitar Cambio
-          </button>
+          ${appointment.pending_change_request ? `
+            <div class="alert alert-warning py-2 mb-2 text-start">
+              <small><i class="bi bi-clock me-1"></i><strong>Solicitud en revisión</strong><br>
+              Tu solicitud de cambio está pendiente de respuesta.</small>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm w-100 w-md-auto btn-request-change"
+                    data-appointment-id="${appointment.id}"
+                    data-pending-reason="${(appointment.pending_change_request.reason || '').replace(/"/g, '&quot;')}"
+                    data-pending-suggestions="${(appointment.pending_change_request.suggestions || '').replace(/"/g, '&quot;')}">
+              <i class="bi bi-pencil-square me-1"></i>
+              Editar Solicitud
+            </button>
+          ` : `
+            <button class="btn btn-outline-warning btn-sm w-100 w-md-auto btn-request-change"
+                    data-appointment-id="${appointment.id}">
+              <i class="bi bi-arrow-left-right me-1"></i>
+              Solicitar Cambio
+            </button>
+          `}
         </div>
       </div>
     `;
@@ -463,22 +483,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.closest('.btn-request-change')) {
       const button = e.target.closest('.btn-request-change');
       const appointmentId = button.getAttribute('data-appointment-id');
+      const pendingReason = button.getAttribute('data-pending-reason') || '';
+      const pendingSuggestions = button.getAttribute('data-pending-suggestions') || '';
 
       if (appointmentId) {
-        // TODO Fase 3: Reemplazar con modal
-        openChangeRequestModal(appointmentId);
+        openChangeRequestModal(appointmentId, pendingReason, pendingSuggestions);
       }
     }
   });
 
-  function openChangeRequestModal(appointmentId) {
-    // TODO Fase 3: Modal en lugar de prompt
-    const reason = prompt('Motivo del cambio de horario:');
-    if (!reason || !reason.trim()) return;
+  const changeRequestModalEl = document.getElementById('changeRequestModal');
+  const changeRequestModal = changeRequestModalEl ? new bootstrap.Modal(changeRequestModalEl) : null;
+  const changeRequestForm = document.getElementById('changeRequestForm');
 
-    const suggestions = prompt('Sugerencias de horario (opcional):');
+  changeRequestForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const appointmentId = document.getElementById('changeReqAppointmentId').value;
+    const reason = document.getElementById('changeReqReason').value.trim();
+    const suggestions = document.getElementById('changeReqSuggestions').value.trim();
 
-    requestAppointmentChange(appointmentId, reason.trim(), suggestions?.trim());
+    await requestAppointmentChange(appointmentId, reason, suggestions || null);
+    changeRequestModal?.hide();
+    changeRequestForm.reset();
+  });
+
+  function openChangeRequestModal(appointmentId, pendingReason = '', pendingSuggestions = '') {
+    document.getElementById('changeReqAppointmentId').value = appointmentId;
+    document.getElementById('changeReqReason').value = pendingReason;
+    document.getElementById('changeReqSuggestions').value = pendingSuggestions;
+
+    if (changeRequestModal) {
+      changeRequestModal.show();
+    }
   }
 
   async function requestAppointmentChange(appointmentId, reason, suggestions) {
@@ -491,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrf
+          'X-CSRFToken': csrf
         },
         body: JSON.stringify(payload)
       });
@@ -509,5 +545,126 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Change request error:', err);
       flash('Error al enviar la solicitud de cambio', 'danger');
     }
+  }
+
+  // ==================== TIEMPO REAL: ACTUALIZAR AL RECIBIR REVISIÓN ====================
+  window.addEventListener('siiap:submission:reviewed', (e) => {
+    const data = e.detail;
+    if (!data) return;
+
+    // Buscar la fila del documento revisado y actualizar el badge de estado
+    const archiveId = data.archive_id;
+    const newStatus = data.status; // 'approved' o 'rejected'
+
+    // Buscar el botón de upload que corresponde a este archive_id
+    const uploadBtn = document.querySelector(`[data-archive="${archiveId}"]`);
+    if (!uploadBtn) return;
+
+    // Buscar el contenedor del step
+    const stepCard = uploadBtn.closest('.step-card, .card, .accordion-item, [data-step]');
+    if (!stepCard) return;
+
+    // Actualizar el badge de estado
+    const statusBadge = stepCard.querySelector('.badge, .status-badge');
+    if (statusBadge) {
+      if (newStatus === 'approved') {
+        statusBadge.className = statusBadge.className.replace(/bg-\w+/, 'bg-success');
+        statusBadge.textContent = 'Aprobado';
+      } else if (newStatus === 'rejected') {
+        statusBadge.className = statusBadge.className.replace(/bg-\w+/, 'bg-danger');
+        statusBadge.textContent = 'Rechazado';
+      }
+    }
+
+    // Mostrar toast informativo
+    const action = newStatus === 'approved' ? 'aprobado' : 'rechazado';
+    flash(`Un documento ha sido ${action}. La página se actualizará.`, newStatus === 'approved' ? 'success' : 'warning');
+
+    // Recargar la página después de un breve delay para mostrar los cambios completos
+    setTimeout(() => { window.location.reload(); }, 2000);
+  });
+
+  // ==================== TIEMPO REAL: DECISIÓN DE PRÓRROGA ====================
+  window.addEventListener('siiap:extension:decided', (e) => {
+    const data = e.detail || {};
+    const messages = {
+      granted:   { text: 'Tu solicitud de prórroga fue aprobada.', level: 'success' },
+      rejected:  { text: 'Tu solicitud de prórroga fue rechazada.', level: 'warning' },
+      cancelled: { text: 'Tu solicitud de prórroga fue cancelada.', level: 'info' },
+    };
+    const m = messages[data.status];
+    if (!m) return;
+    flash(`${m.text} La página se actualizará.`, m.level);
+    setTimeout(() => { window.location.reload(); }, 2000);
+  });
+
+  // ==================== TIEMPO REAL: CAMBIO DE ESTADO DE ADMISIÓN ====================
+  window.addEventListener('siiap:admission:status_changed', (e) => {
+    const data = e.detail;
+    if (!data) return;
+
+    const ctx = window.SIIAP_ADMISSION || {};
+    if (ctx.programId && data.program_id && ctx.programId !== data.program_id) return;
+
+    const messages = {
+      interview_completed: { text: 'Tu entrevista fue marcada como completada.', level: 'info' },
+      deliberation:        { text: 'Tu expediente entró en deliberación.',        level: 'warning' },
+      accepted:            { text: '¡Has sido aceptado al programa!',             level: 'success' },
+      rejected:            { text: 'Se actualizó el estado de tu admisión.',      level: 'warning' },
+      in_progress:         { text: 'Tu expediente fue reabierto para correcciones.', level: 'info' },
+    };
+
+    const m = messages[data.new_status];
+    if (!m) return;
+
+    flash(`${m.text} La página se actualizará.`, m.level);
+    setTimeout(() => { window.location.reload(); }, 2500);
+  });
+
+  // ── Subida de carta de asignación de número de control ────────────────────
+  const receiptBtn = document.getElementById('receiptUploadBtn');
+  if (receiptBtn && window.SIIAP_ADMISSION) {
+    receiptBtn.addEventListener('click', () => submitEnrollmentReceipt());
+  }
+
+  function submitEnrollmentReceipt() {
+    const cfg = window.SIIAP_ADMISSION || {};
+    const fileInput = document.getElementById('receiptFileInput');
+    const statusDiv = document.getElementById('receiptUploadStatus');
+    const btn = document.getElementById('receiptUploadBtn');
+    if (!cfg.userId || !cfg.programId) {
+      statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">Configuración inválida — recarga la página.</div>';
+      return;
+    }
+    if (!fileInput.files.length) {
+      statusDiv.innerHTML = '<div class="alert alert-warning py-1 small">Selecciona un archivo primero.</div>';
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Subiendo...';
+
+    fetch(`/api/v1/acceptance/user/${cfg.userId}/program/${cfg.programId}/submit-receipt`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf },
+      body: formData
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.error) {
+          statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">' + (res.error.message || 'Error al subir.') + '</div>';
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
+        } else {
+          statusDiv.innerHTML = '<div class="alert alert-success py-1 small">Documento subido. El coordinador lo revisará pronto.</div>';
+          setTimeout(() => location.reload(), 2000);
+        }
+      })
+      .catch(() => {
+        statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">Error de red. Intenta de nuevo.</div>';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload me-1"></i>Subir carta';
+      });
   }
 });

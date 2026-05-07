@@ -67,6 +67,19 @@ class AppointmentsService:
         if not appt:
             raise ValueError("Appointment no encontrado")
 
+        # Si ya hay una solicitud pendiente, actualizar en lugar de crear una nueva
+        existing = AppointmentChangeRequest.query.filter_by(
+            appointment_id=appointment_id,
+            status='pending'
+        ).first()
+
+        if existing:
+            existing.reason = reason
+            existing.suggestions = suggestions
+            existing.created_at = now_local()
+            db.session.commit()
+            return existing
+
         acr = AppointmentChangeRequest(
             appointment_id=appointment_id,
             requested_by=requested_by,

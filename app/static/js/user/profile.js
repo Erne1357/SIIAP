@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
           credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': csrf
+            'X-CSRFToken': csrf
           },
           body: JSON.stringify(payload)
         });
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Perfil actualizado correctamente.' }];
+          : [{ level: 'success', message: 'Perfil actualizado exitosamente.' }];
 
         persistFlashes(flashes);
         window.location.reload();
@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Mostrar loading
       const submitBtn = completeProfileForm.querySelector('button[type="submit"]');
       const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin"></i> Guardando...';
       submitBtn.disabled = true;
 
       try {
@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
           credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': csrf
+            'X-CSRFToken': csrf
           },
           body: JSON.stringify(payload)
         });
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const flashes = Array.isArray(json.flash) && json.flash.length
           ? json.flash
-          : [{ level: 'success', message: 'Información guardada correctamente.' }];
+          : [{ level: 'success', message: 'Información guardada exitosamente.' }];
 
         // Si acaba de completar el perfil, mostrar mensaje especial
         if (json.data?.newly_completed) {

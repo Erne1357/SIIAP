@@ -42,11 +42,20 @@
                     method: 'GET',
                     credentials: 'same-origin',
                     headers: {
-                        'X-CSRF-Token': getCsrf()
+                        'X-CSRFToken': getCsrf()
                     }
                 });
 
                 const json = await response.json();
+                
+                // Sincronizar token CSRF si el servidor devuelve uno diferente
+                if (json.data && json.data.csrf_token) {
+                    const metaTag = document.querySelector('meta[name="csrf-token"]');
+                    if (metaTag && metaTag.getAttribute('content') !== json.data.csrf_token) {
+                        metaTag.setAttribute('content', json.data.csrf_token);
+                        console.log('Token CSRF actualizado desde /me');
+                    }
+                }
                 
                 if (json.data && json.data.must_change_password === true) {
                     this.showModal();
@@ -190,7 +199,7 @@
                     credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-Token': getCsrf()
+                        'X-CSRFToken': getCsrf()
                     },
                     body: JSON.stringify(data)
                 });
@@ -235,19 +244,12 @@
     } else {
         new ForcePasswordChange();
     }
-
-    // Reinicializar después de Swup si está presente
-    if (typeof swup !== 'undefined') {
-        swup.on('contentReplaced', () => {
-            new ForcePasswordChange();
-        });
-    }
 })();
 
 function togglePasswordVisibility(fieldId) {
     const field = document.getElementById(fieldId);
     const icon = document.getElementById(fieldId + '_icon');
-    
+
     if (field.type === 'password') {
         field.type = 'text';
         icon.classList.remove('bi-eye');
@@ -258,3 +260,9 @@ function togglePasswordVisibility(fieldId) {
         icon.classList.add('bi-eye');
     }
 }
+
+// Delegación para botones con data-target (reemplaza los onclick inline)
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-toggle-password[data-target]');
+    if (btn) togglePasswordVisibility(btn.dataset.target);
+});

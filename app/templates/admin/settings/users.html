@@ -3,8 +3,7 @@
 {% block title %}{{super()}} - Administración de Usuarios{% endblock %}
 
 {% block styles %}
-{{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/settings/users.css') }}?v={{ static_version }}">
+<link href="{{ url_for('static', filename='css/admin/settings/users.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -15,7 +14,12 @@
             <h2><i class="bi bi-people-fill me-2"></i>Administración de Usuarios</h2>
             <p class="text-muted mb-0">Gestiona todos los usuarios del sistema</p>
         </div>
-        <div>
+        <div class="d-flex align-items-center gap-2">
+            {% if has_perm('admin_users.api.create_social_service') %}
+            <button id="btnCreateSocialService" class="btn btn-success">
+                <i class="bi bi-person-plus-fill me-1"></i>Nuevo Servicio Social
+            </button>
+            {% endif %}
             <span id="totalUsersCount" class="badge bg-primary fs-6">Cargando...</span>
         </div>
     </div>
@@ -191,6 +195,72 @@
     </div>
 </div>
 
+{% if has_perm('admin_users.api.create_social_service') %}
+<!-- Modal Crear Servicio Social -->
+<div class="modal fade" id="createSocialServiceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-person-plus-fill me-2"></i>Nuevo Usuario de Servicio Social</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createSocialServiceForm">
+                <div class="modal-body">
+                    <div class="alert alert-info small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Se creará con contraseña inicial <code>tecno#2K</code>. El usuario deberá cambiarla en su primer acceso.
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Nombre *</label>
+                            <input type="text" class="form-control" id="ss_first_name" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Apellido Paterno *</label>
+                            <input type="text" class="form-control" id="ss_last_name" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Apellido Materno</label>
+                            <input type="text" class="form-control" id="ss_mother_last_name">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="ss_email" required>
+                            <div class="form-text">Se usará también como nombre de usuario.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Vence el</label>
+                            <input type="date" class="form-control" id="ss_expires_at">
+                            <div class="form-text">Opcional — sin vencimiento si vacío.</div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-2">
+                        <h6 class="mb-1"><i class="bi bi-shield-check me-1"></i>Permisos a delegar</h6>
+                        <small class="text-muted">Selecciona los permisos que este usuario podrá ejercer en tu nombre.</small>
+                    </div>
+                    <div id="ss_scope_info" class="alert alert-secondary small py-2 mb-2" style="display:none;"></div>
+                    <div id="ss_permissions_loading" class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm"></div>
+                        <span class="ms-2">Cargando permisos delegables...</span>
+                    </div>
+                    <div id="ss_permissions_list" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-lg me-1"></i>Crear y Delegar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Modal Historial -->
 <div class="modal fade" id="userHistoryModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -207,5 +277,15 @@
 
 {% block scripts %}
 {{ super() }}
+<script>
+  window.SIIAP_USERS_CTX = {
+    canCreateSocialService: {{ has_perm('admin_users.api.create_social_service')|tojson }},
+    canDelegateGlobal:      {{ has_perm('academic_periods.api.create')|tojson }},
+    canViewDelegations:     {{ has_perm('permissions.api.list_user_permissions')|tojson }},
+    canRevokeDelegations:   {{ has_perm('permissions.api.revoke_delegation')|tojson }},
+    coordinatedPrograms:    {{ (current_user.coordinated_programs | map(attribute='id') | list)|tojson }},
+    coordinatedProgramNames: {{ ((current_user.coordinated_programs | map(attribute='name') | list) if current_user.coordinated_programs else [])|tojson }}
+  };
+</script>
 <script src="{{ url_for('static', filename='js/admin/settings/users.js') }}?v={{ static_version }}"></script>
 {% endblock %}

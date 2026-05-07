@@ -7,8 +7,18 @@ from app import db
 from app.models import Step, ProgramStep, Phase, Submission, ExtensionRequest
 from app.models.event import Event, EventSlot, EventAttendance, EventWindow
 from datetime import datetime, timezone
+import calendar
 import logging,json
 from app.utils.datetime_utils import now_local, to_local_timezone
+
+
+def _add_months(dt, months):
+    """Suma `months` meses a un datetime, ajustando el día al último del mes si es necesario."""
+    month = dt.month - 1 + months
+    year = dt.year + month // 12
+    month = month % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
 
 def get_admission_state(user_id: int, program_id: int, up) -> dict:
     """
@@ -56,6 +66,17 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                           .filter(Submission.archive_id.in_(archive_ids))
                           .all()
     }
+
+    # 2.5) Calcular documentos con validez vencida (basado en archive.validity_months)
+    # Solo aplica a submissions aprobadas cuya vigencia configurada ya expiró.
+    expired_archive_ids = set()
+    for aid, sub in subs.items():
+        arch = sub.archive
+        if arch and arch.validity_months and sub.upload_date:
+            expiry_dt = _add_months(sub.upload_date, arch.validity_months)
+            expiry_dt = to_local_timezone(expiry_dt)
+            if expiry_dt < now_local():
+                expired_archive_ids.add(aid)
 
     # 3) Map extensiones activas del usuario (solo para archivos que cuentan para progreso)
     # Usar hora local de Ciudad Juárez
@@ -123,25 +144,25 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
 
     lock_info = { step.id: _is_locked(step) for step in steps }
 
-    # 4.5) Verificar si el usuario tiene entrevista asignada (solo EventSlot para entrevistas 1 a 1)
+    # 4.5) Verificar si el usuario tiene entrevista asignada o realizada
     def _has_interview_assigned():
-        # Buscar en EventSlot (para entrevistas individuales 1 a 1)
-        slot_assigned = db.session.execute(
-            select(EventSlot).join(
-                EventWindow, EventSlot.event_window_id == EventWindow.id
-            ).join(
-                Event, EventWindow.event_id == Event.id
-            ).where(
+        from app.models.appointment import Appointment
+        # Cualquier cita no cancelada cuenta: scheduled (pendiente), done (realizada), no_show
+        appt = db.session.execute(
+            select(Appointment)
+            .join(EventSlot, Appointment.slot_id == EventSlot.id)
+            .join(EventWindow, EventSlot.event_window_id == EventWindow.id)
+            .join(Event, EventWindow.event_id == Event.id)
+            .where(
                 and_(
-                    EventSlot.held_by == user_id,
-                    EventSlot.status == 'booked',
-                    Event.program_id == program_id,
+                    Appointment.applicant_id == user_id,
+                    Appointment.status.in_(['scheduled', 'done', 'no_show']),
+                    or_(Event.program_id == program_id, Event.program_id.is_(None)),
                     Event.type == 'interview'
                 )
             )
         ).scalar_one_or_none()
-        current_app.logger.warning(f"Entrevista asignada para usuario {user_id} en programa {program_id}: {bool(slot_assigned)}")
-        return bool(slot_assigned)
+        return bool(appt)
     
     has_interview = _has_interview_assigned()
 
@@ -278,12 +299,18 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     else:
         interview_state = 'pending'
 
-    # Estado de "Decisión final"
-    decision_status = getattr(up, 'decision_status', None)
-    if decision_status == 'accepted':
+    # Estado de "Decisión final" - usar admission_status del UserProgram
+    admission_status = getattr(up, 'admission_status', 'in_progress')
+    if admission_status == 'accepted':
         decision_state = 'done'
-    elif decision_status == 'rejected':
+    elif admission_status == 'enrolled':
+        decision_state = 'done'
+    elif admission_status == 'rejected':
         decision_state = 'rejected'
+    elif admission_status == 'deliberation':
+        decision_state = 'inprogress'
+    elif admission_status == 'interview_completed':
+        decision_state = 'inprogress'
     elif has_interview:
         decision_state = 'inprogress'
     else:
@@ -381,6 +408,20 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     
     # ========== FIN NUEVO ==========
 
+    # Documentos de aceptación (solo si está aceptado)
+    acceptance_docs = {}
+    if up.admission_status == 'accepted':
+        try:
+            from app.models.acceptance_document import AcceptanceDocument
+            for doc_type in ['acceptance_letter', 'course_schedule', 'enrollment_receipt', 'acceptance_opinion']:
+                doc = AcceptanceDocument.query.filter_by(
+                    user_program_id=up.id,
+                    document_type=doc_type
+                ).first()
+                acceptance_docs[doc_type] = doc.to_dict() if doc else None
+        except Exception:
+            pass
+
     return {
         'steps': steps,  # mantener original para compatibilidad
         'processed_steps': processed_steps,  # NUEVO: lista procesada
@@ -395,5 +436,16 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         'pending_items': pending_items,
         'timeline': timeline,
         'extended_docs': status_count.get('extended', 0),  # NUEVO: conteo de archivos con extensión
-        'total_docs': total  # Total de documentos para el progreso
+        'total_docs': total,  # Total de documentos para el progreso
+        'expired_archive_ids': expired_archive_ids,  # IDs de archivos con validez vencida
+        # Campos de deliberación para mostrar estado al aspirante
+        'admission_status': up.admission_status,
+        'decision_notes': up.decision_notes,
+        'correction_required': up.correction_required,
+        'rejection_type': up.rejection_type,
+        'deliberation_started_at': up.deliberation_started_at,
+        'decision_at': up.decision_at,
+        # Documentos de aceptación (solo cuando admission_status == 'accepted')
+        'acceptance_docs': acceptance_docs,
+        'user_program_id': up.id,
     }

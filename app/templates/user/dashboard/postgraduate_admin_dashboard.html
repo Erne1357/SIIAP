@@ -40,7 +40,7 @@
                             <div class="card h-100 border-0 shadow-sm quick-action-card">
                                 <div class="card-body text-center py-4">
                                     <div class="mb-3">
-                                        <i class="bi bi-people-fill text-primary" style="font-size: 2.5rem;"></i>
+                                        <i class="bi bi-people-fill text-primary icon-2xl"></i>
                                     </div>
                                     <h6 class="mb-1 fw-bold">Gestionar Usuarios</h6>
                                     <small class="text-muted">Administrar usuarios</small>
@@ -56,7 +56,7 @@
                             <div class="card h-100 border-0 shadow-sm quick-action-card">
                                 <div class="card-body text-center py-4">
                                     <div class="mb-3">
-                                        <i class="bi bi-envelope-fill text-success" style="font-size: 2.5rem;"></i>
+                                        <i class="bi bi-envelope-fill text-success icon-2xl"></i>
                                     </div>
                                     <h6 class="mb-1 fw-bold">Configurar Correos</h6>
                                     <small class="text-muted">Microsoft Graph</small>
@@ -72,7 +72,7 @@
                             <div class="card h-100 border-0 shadow-sm quick-action-card">
                                 <div class="card-body text-center py-4">
                                     <div class="mb-3">
-                                        <i class="bi bi-mortarboard text-info" style="font-size: 2.5rem;"></i>
+                                        <i class="bi bi-mortarboard text-info icon-2xl"></i>
                                     </div>
                                     <h6 class="mb-1 fw-bold">Ver Programas</h6>
                                     <small class="text-muted">Todos los programas</small>
@@ -88,7 +88,7 @@
                             <div class="card h-100 border-0 shadow-sm quick-action-card">
                                 <div class="card-body text-center py-4">
                                     <div class="mb-3">
-                                        <i class="bi bi-gear-fill text-warning" style="font-size: 2.5rem;"></i>
+                                        <i class="bi bi-gear-fill text-warning icon-2xl"></i>
                                     </div>
                                     <h6 class="mb-1 fw-bold">Configuración</h6>
                                     <small class="text-muted">Ajustes del sistema</small>
@@ -106,7 +106,7 @@
                 <div class="card border-0 shadow-sm h-100 kpi-card">
                     <div class="card-body text-center">
                         <div class="mb-2">
-                            <i class="bi bi-grid-3x3-gap-fill text-primary" style="font-size: 2.5rem;"></i>
+                            <i class="bi bi-grid-3x3-gap-fill text-primary icon-2xl"></i>
                         </div>
                         <h2 class="mb-0 fw-bold text-primary">{{ metrics.total_programs }}</h2>
                         <p class="text-muted mb-0 small">Programas Activos</p>
@@ -118,7 +118,7 @@
                 <div class="card border-0 shadow-sm h-100 kpi-card">
                     <div class="card-body text-center">
                         <div class="mb-2">
-                            <i class="bi bi-person-lines-fill text-info" style="font-size: 2.5rem;"></i>
+                            <i class="bi bi-person-lines-fill text-info icon-2xl"></i>
                         </div>
                         <h2 class="mb-0 fw-bold text-info">{{ metrics.total_applicants }}</h2>
                         <p class="text-muted mb-0 small">Solicitantes Totales</p>
@@ -130,7 +130,7 @@
                 <div class="card border-0 shadow-sm h-100 kpi-card">
                     <div class="card-body text-center">
                         <div class="mb-2">
-                            <i class="bi bi-mortarboard-fill text-success" style="font-size: 2.5rem;"></i>
+                            <i class="bi bi-mortarboard-fill text-success icon-2xl"></i>
                         </div>
                         <h2 class="mb-0 fw-bold text-success">{{ metrics.total_students }}</h2>
                         <p class="text-muted mb-0 small">Estudiantes Activos</p>
@@ -142,7 +142,7 @@
                 <div class="card border-0 shadow-sm h-100 kpi-card">
                     <div class="card-body text-center">
                         <div class="mb-2">
-                            <i class="bi bi-hourglass-split text-warning" style="font-size: 2.5rem;"></i>
+                            <i class="bi bi-hourglass-split text-warning icon-2xl"></i>
                         </div>
                         <h2 class="mb-0 fw-bold text-warning">{{ metrics.pending_reviews }}</h2>
                         <p class="text-muted mb-0 small">Documentos Pendientes</p>
@@ -244,7 +244,7 @@
                         </div>
                         {% else %}
                         <div class="text-center py-4">
-                            <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                            <i class="bi bi-inbox text-muted icon-3xl"></i>
                             <p class="text-muted mt-3 mb-0">No hay programas registrados</p>
                         </div>
                         {% endif %}
@@ -274,7 +274,7 @@
                         </div>
 
                         <!-- Contenedor de recordatorios -->
-                        <div id="reminders-list" style="display: none;">
+                        <div id="reminders-list" class="d-none">
                             <!-- Los recordatorios se cargarán aquí con JavaScript -->
                         </div>
                     </div>
@@ -284,146 +284,3 @@
     </div>
 </div>
 
-<!-- Estilos adicionales -->
-<style>
-.quick-action-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.quick-action-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
-
-.kpi-card {
-    transition: all 0.3s ease;
-}
-
-.kpi-card:hover {
-    transform: scale(1.02);
-}
-
-.nav-tabs .nav-link {
-    color: #6c757d;
-    font-weight: 500;
-}
-
-.nav-tabs .nav-link.active {
-    color: #0d6efd;
-    font-weight: 600;
-}
-</style>
-
-<!-- JavaScript para verificar configuración de correo -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Verificar configuración de correo cuando se abre la pestaña de recordatorios
-    const remindersTab = document.getElementById('reminders-tab');
-    const remindersList = document.getElementById('reminders-list');
-    const loadingReminders = document.getElementById('loading-reminders');
-
-    remindersTab.addEventListener('click', function() {
-        checkEmailConfiguration();
-    });
-
-    async function checkEmailConfiguration() {
-        try {
-            const response = await fetch('/api/v1/emails/status');
-            const data = await response.json();
-
-            const reminders = [];
-
-            // Verificar si hay correo configurado
-            if (!data.data.connected || !data.data.account) {
-                reminders.push({
-                    type: 'warning',
-                    icon: 'bi-envelope-x',
-                    title: 'Correo no configurado',
-                    message: 'No hay una cuenta de correo configurada. Los correos no se enviarán hasta que configures Microsoft Graph.',
-                    action: {
-                        text: 'Configurar ahora',
-                        url: '{{ url_for("pages_admin.pages_settings.mails") }}'
-                    }
-                });
-            } else {
-                reminders.push({
-                    type: 'success',
-                    icon: 'bi-envelope-check',
-                    title: 'Correo configurado correctamente',
-                    message: `Cuenta activa: ${data.data.account.username || 'No disponible'}`,
-                    action: null
-                });
-            }
-
-            // Verificar documentos pendientes
-            if ({{ metrics.pending_reviews }} > 0) {
-                reminders.push({
-                    type: 'info',
-                    icon: 'bi-hourglass-split',
-                    title: 'Documentos pendientes de revisión',
-                    message: 'Hay {{ metrics.pending_reviews }} documentos esperando revisión en todos los programas.',
-                    action: null
-                });
-            }
-
-            // Renderizar recordatorios
-            renderReminders(reminders);
-
-        } catch (error) {
-            console.error('Error al verificar configuración:', error);
-            remindersList.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    Error al cargar recordatorios. Por favor, recarga la página.
-                </div>
-            `;
-        } finally {
-            loadingReminders.style.display = 'none';
-            remindersList.style.display = 'block';
-        }
-    }
-
-    function renderReminders(reminders) {
-        if (reminders.length === 0) {
-            remindersList.innerHTML = `
-                <div class="text-center py-4">
-                    <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
-                    <h5 class="mt-3 text-success">¡Todo en orden!</h5>
-                    <p class="text-muted mb-0">No hay recordatorios pendientes</p>
-                </div>
-            `;
-            return;
-        }
-
-        let html = '';
-        reminders.forEach(reminder => {
-            const alertClass = {
-                'success': 'alert-success',
-                'warning': 'alert-warning',
-                'info': 'alert-info',
-                'danger': 'alert-danger'
-            }[reminder.type] || 'alert-secondary';
-
-            html += `
-                <div class="alert ${alertClass} d-flex align-items-start mb-3">
-                    <div class="flex-shrink-0 me-3">
-                        <i class="bi ${reminder.icon}" style="font-size: 2rem;"></i>
-                    </div>
-                    <div class="flex-grow-1">
-                        <h6 class="alert-heading mb-1">${reminder.title}</h6>
-                        <p class="mb-0">${reminder.message}</p>
-                        ${reminder.action ? `
-                            <a href="${reminder.action.url}" class="btn btn-sm btn-${reminder.type === 'warning' ? 'warning' : reminder.type} mt-2">
-                                ${reminder.action.text} <i class="bi bi-arrow-right ms-1"></i>
-                            </a>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        });
-
-        remindersList.innerHTML = html;
-    }
-});
-</script>

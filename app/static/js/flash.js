@@ -89,16 +89,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 5000);
     });
   }
+
+  // Verificar si hay mensajes flash en cola (por ejemplo, tras una redirección)
+  try {
+    const queue = sessionStorage.getItem('flashQueue');
+    if (queue) {
+      const flashes = JSON.parse(queue);
+      if (Array.isArray(flashes)) {
+        flashes.forEach(f => showFlash(f.level || 'info', f.message));
+      }
+      sessionStorage.removeItem('flashQueue');
+    }
+  } catch (e) {
+    console.error('Error processing flash queue:', e);
+  }
 });
 
-/**
- * Limpiar mensajes flash al cambiar de página con Swup
- */
-if (typeof swup !== 'undefined') {
-  swup.on('willReplaceContent', () => {
-    const container = document.getElementById('flash-container');
-    if (container) {
-      container.innerHTML = '';
-    }
-  });
-}
