@@ -307,9 +307,20 @@ def assign_control_number(user_id):
             "meta": {}
         }), 404
     
+    # Solo aspirantes pueden recibir un número de control desde este endpoint.
+    # (Para correcciones de estudiantes ya transicionados, usar el flujo del coordinador.)
+    current_role = getattr(getattr(user, 'role', None), 'name', None)
+    if current_role != 'applicant':
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": f"Solo se puede asignar número de control a aspirantes. Rol actual: {current_role or 'desconocido'}."}],
+            "error": {"code": "INVALID_ROLE", "message": "Rol no elegible para asignación de número de control"},
+            "meta": {}
+        }), 400
+
     payload = request.get_json(silent=True) or {}
     control_number = _sanitize(payload.get('control_number'))
-    
+
     if not control_number:
         return jsonify({
             "data": None,
@@ -346,11 +357,11 @@ def assign_control_number(user_id):
             "error": {"code": "VALIDATION", "message": "Sin programa asignado"},
             "meta": {}
         }), 400
-    
+
     # Validar tipo de programa
     program_type = control_number[0]
     program_name = user_program.program.name.lower()
-    
+
     if program_type == 'M' and 'maestr' not in program_name:
         return jsonify({
             "data": None,
@@ -365,26 +376,44 @@ def assign_control_number(user_id):
             "error": {"code": "VALIDATION", "message": "Tipo no coincide"},
             "meta": {}
         }), 400
-    
-    # Asignar
-    old_username = user.username
-    user.username = control_number
-    user.control_number = control_number
-    user.control_number_assigned_at = now_local()
-    
-    # Registrar
-    UserHistoryService.log_control_number_assignment(
-        user_id=user_id,
-        control_number=control_number,
-        old_username=old_username,
-        program_name=user_program.program.name
-    )
-    
-    db.session.commit()
-    
+
+    # Ejecutar transición completa a estudiante (sin chequeos rigurosos del flujo
+    # de aceptación — variante administrativa para casos legacy).
+    from app.services import acceptance_service as svc
+
+    try:
+        up = svc.assign_control_number_admin(
+            user_id=user_id,
+            program_id=user_program.program_id,
+            control_number=control_number,
+            admin_id=current_user.id,
+        )
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": str(e)}],
+            "error": {"code": "VALIDATION", "message": str(e)},
+            "meta": {}
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": f"Error al asignar número de control: {e}"}],
+            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "meta": {}
+        }), 500
+
     return jsonify({
-        "data": {"control_number": control_number, "username": user.username},
-        "flash": [{"level": "success", "message": f"Número de control {control_number} asignado."}],
+        "data": {
+            "control_number": user.control_number,
+            "username": user.username,
+            "role": getattr(user.role, 'name', None),
+            "admission_status": up.admission_status,
+            "current_semester": up.current_semester,
+        },
+        "flash": [{"level": "success", "message": f"Número de control {control_number} asignado y transición a estudiante completada."}],
         "error": None,
         "meta": {}
     }), 200
