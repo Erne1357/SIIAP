@@ -535,6 +535,11 @@ class AcceptanceManager {
         const status = document.querySelector('input[name="reviewReceiptStatus"]:checked')?.value;
         const notes = document.getElementById('reviewReceiptNotes').value.trim();
 
+        if (!docId || docId === 'undefined' || docId === 'null' || !/^\d+$/.test(docId)) {
+            showFlash('danger', 'Documento inválido — recarga la página e intenta de nuevo.');
+            return;
+        }
+
         if (!status) {
             showFlash('warning', 'Selecciona una decision (Aprobar o Rechazar)');
             return;

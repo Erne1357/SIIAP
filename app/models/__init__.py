@@ -27,3 +27,4 @@ from .role_permission import RolePermission, RolePermissionOverride
 from .role_permission_audit import RolePermissionAudit
 from .user_permission import UserPermission
 from .purge_run import PurgeRun
+from .password_reset_token import PasswordResetToken

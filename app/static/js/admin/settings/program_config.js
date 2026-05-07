@@ -149,6 +149,16 @@
     let html = '<div class="accordion accordion-curriculum" id="curriculumAccordion">';
 
     curriculumData.semesters.forEach((semester, semIdx) => {
+      // Defensa: si semester es null/undefined (sparse array, JSON malformado),
+      // se sustituye por un placeholder mínimo para que el render no rompa.
+      if (!semester || typeof semester !== 'object') {
+        semester = { semester: semIdx + 1, courses: [] };
+        curriculumData.semesters[semIdx] = semester;
+      }
+      if (!Array.isArray(semester.courses)) semester.courses = [];
+      if (!Number.isInteger(semester.semester) || semester.semester <= 0) {
+        semester.semester = semIdx + 1;
+      }
       const collapseId = `collapse-sem-${semIdx}`;
       const isFirst = semIdx === 0;
 
@@ -338,14 +348,21 @@
           : programData.curriculum_structure;
         
         // Validar estructura
+        if (!curriculumData || typeof curriculumData !== 'object') {
+          curriculumData = { type: 'semestral', semesters: [] };
+        }
         if (!curriculumData.type) curriculumData.type = 'semestral';
         if (!Array.isArray(curriculumData.semesters)) curriculumData.semesters = [];
-        // Normalizar cada semestre: garantizar que tenga courses array
-        curriculumData.semesters = curriculumData.semesters.map((sem, idx) => ({
-          ...sem,
-          semester: sem.semester ?? (idx + 1),
-          courses: Array.isArray(sem.courses) ? sem.courses : [],
-        }));
+        // Normalizar cada semestre: filtrar null/undefined; garantizar que tenga
+        // courses array y un número de semestre válido (>0). Datos legacy podían
+        // tener 0/null/undefined o arrays sparse.
+        curriculumData.semesters = curriculumData.semesters
+          .filter(sem => sem && typeof sem === 'object')
+          .map((sem, idx) => ({
+            ...sem,
+            semester: (Number.isInteger(sem.semester) && sem.semester > 0) ? sem.semester : (idx + 1),
+            courses: Array.isArray(sem.courses) ? sem.courses.filter(c => c && typeof c === 'object') : [],
+          }));
       } catch (e) {
         console.error('Error parsing curriculum:', e);
         curriculumData = { type: 'semestral', semesters: [] };
@@ -359,8 +376,17 @@
         researchLinesData = typeof programData.research_lines === 'string'
           ? JSON.parse(programData.research_lines)
           : programData.research_lines;
-        
+
         if (!Array.isArray(researchLinesData)) researchLinesData = [];
+        // Normalizar cada entrada: data legacy puede ser string ("Inteligencia Artificial")
+        // en lugar de objeto {name, description}.
+        researchLinesData = researchLinesData
+          .filter(line => line !== null && line !== undefined)
+          .map(line => {
+            if (typeof line === 'string') return { name: line, description: '' };
+            if (typeof line === 'object') return { name: line.name || '', description: line.description || '' };
+            return { name: String(line), description: '' };
+          });
       } catch (e) {
         console.error('Error parsing research lines:', e);
         researchLinesData = [];

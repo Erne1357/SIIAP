@@ -762,6 +762,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar lista de estudiantes
     loadStudentsList();
 
+    // Auto-clear estado inválido del textarea cuando el coordinador empieza a escribir
+    // o adjunta archivo
+    const notesEl = document.getElementById('coordinatorNotes');
+    const fileEl = document.getElementById('coordinatorFile');
+    notesEl?.addEventListener('input', () => notesEl.classList.remove('is-invalid'));
+    fileEl?.addEventListener('change', () => notesEl?.classList.remove('is-invalid'));
+
     // Cambio de estudiante -> cargar archivos
     studentSelect.addEventListener('change', (e) => {
       const studentId = e.target.value;
@@ -783,22 +790,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData(form);
       const studentId = formData.get('student_id');
       const archiveId = formData.get('archive_id');
-      const file = formData.get('file');
+      const fileRaw = formData.get('file');
+      const file = (fileRaw && fileRaw.name) ? fileRaw : null;
+      const notes = (formData.get('notes') || '').trim();
+      const notesEl = document.getElementById('coordinatorNotes');
 
-      if (!studentId || !archiveId || !file) {
-        emitFlash('warning', 'Completa todos los campos obligatorios');
+      // Reset visual error
+      notesEl?.classList.remove('is-invalid');
+
+      if (!studentId || !archiveId) {
+        emitFlash('warning', 'Selecciona estudiante y archivo destino');
         return;
       }
 
-      // Validar archivo
-      if (file.size > 3 * 1024 * 1024) {
-        emitFlash('danger', 'El archivo no puede superar los 3MB');
+      // Comentario obligatorio si no hay archivo
+      if (!file && !notes) {
+        notesEl?.classList.add('is-invalid');
+        notesEl?.focus();
+        emitFlash('warning', 'Si no adjuntas archivo, el comentario es obligatorio');
         return;
       }
 
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
-        emitFlash('danger', 'Solo se permiten archivos PDF');
-        return;
+      // Validar archivo solo si fue provisto
+      if (file) {
+        if (file.size > 3 * 1024 * 1024) {
+          emitFlash('danger', 'El archivo no puede superar los 3MB');
+          return;
+        }
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+          emitFlash('danger', 'Solo se permiten archivos PDF');
+          return;
+        }
+      } else {
+        // No mandar campo file vacío al backend
+        formData.delete('file');
       }
 
       const submitBtn = form.querySelector('button[type="submit"]');
@@ -821,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        emitFlash('success', 'Documento subido exitosamente por coordinador');
+        emitFlash('success', json.message || 'Documento registrado exitosamente por coordinador');
 
         // Cerrar modal y recargar datos
         const modal = bootstrap.Modal.getInstance(document.getElementById('uploadForStudentModal'));

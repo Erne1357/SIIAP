@@ -23,7 +23,7 @@ def _sanitize(s: str | None) -> str | None:
     return s or None
 
 
-@api_admin_users.get("/")
+@api_admin_users.get("")
 @login_required
 @permission_required('admin_users.api.list')
 def list_users():

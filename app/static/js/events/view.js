@@ -786,6 +786,11 @@
         const reason      = document.getElementById('changeReason').value.trim();
         const suggestions = document.getElementById('changeSuggestions').value.trim();
 
+        if (!myAppt?.id) {
+            flash('danger', 'No tienes una cita activa. Recarga la página.');
+            return;
+        }
+
         if (!reason) {
             flash('warning', 'Por favor indica el motivo del cambio.');
             return;
@@ -806,6 +811,11 @@
     }
 
     async function cancelAppointment() {
+        if (!myAppt?.id) {
+            flash('danger', 'No tienes una cita activa. Recarga la página.');
+            return;
+        }
+
         const ok = await siiapConfirm({
             type: 'danger',
             title: 'Cancelar cita',

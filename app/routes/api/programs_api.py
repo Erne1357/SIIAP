@@ -7,7 +7,7 @@ from app.services.user_history_service import UserHistoryService
 
 api_programs = Blueprint('api_programs', __name__, url_prefix='/api/v1/programs')
 
-@api_programs.get('/')
+@api_programs.get('')
 @login_required
 def api_list_programs():
     items = svc.list_programs()

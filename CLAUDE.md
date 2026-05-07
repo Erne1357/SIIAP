@@ -15,6 +15,62 @@
 
 This matches the existing codebase. Never write UI text in English.
 
+---
+
+## Style Standard (CSS Design System)
+
+**Source of truth:** `app/static/css/_tokens.css` (60+ design tokens) — load order in `base.html` puts tokens after Bootstrap to override its defaults.
+
+### Token files
+| File | Purpose |
+|------|---------|
+| `app/static/css/_tokens.css` | Custom properties: colors, type, spacing, radii, shadows, z-index, motion, layout, breakpoints. Bootstrap overrides too. |
+| `app/static/css/base.css` | Layout foundation: `.nav-link`, `.sidebar-section-label`, utilities `w-px-N`, `avatar-md`, `cursor-pointer`, `modal-body-scroll`. |
+| `app/static/css/components/` | Reusable BEM components (one file each). |
+
+### Reusable BEM components (from `components/`)
+- `.status-badge` + `--{accepted,rejected,deferred,enrolled,deliberation,interview-completed,in-progress,pending,approved}` + `--sm/--lg`
+- `.empty-state` + `__icon`, `__title`, `__description`, `__actions` (+ `--compact`)
+- `.siiap-table-wrapper` (sticky cols + scroll hint)
+- `.stepper` + `__step`, `__number`, `__label` + `--active`, `--completed`
+- `.role-banner` + `__avatar`, `__content`, `__greeting`, `__role`, `__next-action`, `__progress`, `__progress-bar`, `__progress-label`
+- `.skeleton`, `.skeleton-text`, `.skeleton-avatar`, `.skeleton-card`, `.skeleton-button`, `.skeleton-table`, `.skeleton-row`, `.skeleton-cell` + `--{xs,sm,md,lg,full}`
+
+### Token categories (always reference, never hardcode)
+- **Colors:** `--color-brand-{primary,primary-50,primary-100,primary-600,primary-700,accent,accent-600,secondary}`, `--color-{success,warning,danger,info}` + `*-100`, `--color-neutral-{0..900}`. Roles: `--bg-{page,surface,surface-raised,surface-sunken}`, `--border-{default,strong}`, `--text-{primary,secondary,muted,inverse}`. Status: `--status-{in-progress,interview-completed,deliberation,accepted,rejected,deferred,enrolled}`.
+- **Type:** `--font-{sans,display,mono}`, `--fs-{xs,sm,base,md,lg,xl,2xl,3xl,display}`, `--fw-{regular,medium,semibold,bold}`, `--lh-{tight,normal,relaxed}`, `--tracking-{tight,normal,wide,display}`.
+- **Spacing (8px scale):** `--space-{0,1,2,3,4,5,6,8,10,12,16,20}`.
+- **Radii:** `--radius-{xs,sm,md,lg,xl,pill}`.
+- **Shadows:** `--shadow-{0,1,2,3,4,5}`, `--shadow-focus`.
+- **Z-index:** `--z-{base,dropdown,sticky,fixed,fab,backdrop,offcanvas,modal,popover,tooltip,toast,max}`.
+- **Motion:** `--duration-{instant,fast,normal,slow,pulse}`, `--ease-{out,in-out,spring}`.
+- **Layout:** `--header-h{,-md,-sm}`, `--sidebar-w`, `--footer-h`, `--content-max-w`, `--content-padding`.
+- **Bootstrap utility extensions:** `.bg-{success,warning,danger,info,primary}-soft`, `.text-{warning,success,danger,info,brand-primary,brand-accent}-strong`.
+
+### Hard rules (never break)
+1. **No hardcoded colors** in HTML/CSS — use `var(--color-*)`, `var(--text-*)`, `var(--bg-*)`, `var(--border-*)`.
+2. **No hardcoded dimensions** in HTML — use `.w-px-N` utility or token-based CSS.
+3. **Spacing only via** `var(--space-N)` — no random `padding: 14px`.
+4. **Radii only via** `var(--radius-*)`.
+5. **Type only via** `--fs-*` / `--fw-*` / `--font-*`.
+6. **No `<style>` blocks in templates** — write `app/static/css/<feature>/<page>.css` and link.
+7. **No CSS inline** — only `window.*` `<script>` for Jinja2 → JS variables.
+8. **BEM for new components:** `.block`, `.block__element`, `.block--modifier` (dashes, not underscores in block name).
+9. **Icons:** Bootstrap Icons `<i class="bi bi-*"></i>` — no inline SVG.
+10. **Status/badges:** use `.status-badge--*` modifiers — never recolor with ad-hoc utility classes.
+11. **Empty states:** `.empty-state` with full subcomponents — no improvising.
+12. **Tables:** wrap in `.siiap-table-wrapper`.
+13. **Mobile-first:** max-width media queries in component files (576/768/992/1200 px).
+14. **WCAG 2.1 AA:** never rely on color alone, min touch target 44px, `:focus-visible` outlines.
+
+### Anti-pattern reminders
+- ❌ `<div style="background:#f0f0f0; padding:12px">`  → ✅ `<div class="bg-surface-sunken p-3">` or token-based class.
+- ❌ `<span class="badge bg-warning">Pendiente</span>` → ✅ `<span class="status-badge status-badge--pending">Pendiente</span>`.
+- ❌ `<style>.my-card { background: #fff; }</style>` in template → ✅ external CSS file using `var(--bg-surface)`.
+- ❌ `width: 120px` → ✅ `class="w-px-120"`.
+
+---
+
 ## Running Commands
 Always run Flask/DB commands inside the Docker container:
 ```bash

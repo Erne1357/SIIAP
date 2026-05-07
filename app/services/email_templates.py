@@ -301,25 +301,30 @@ class EmailTemplates:
         user_name: str,
         control_number: str,
         program_name: str,
-        login_url: str,
+        token_link: str,
+        expires_at,
     ) -> tuple[str, str]:
         """
         Plantilla de bienvenida para estudiantes dados de alta por importación masiva.
 
-        El estudiante inicia sesión con su número de control como nombre de usuario.
-        Al acceder por primera vez, el sistema le obliga a cambiar su contraseña
-        (must_change_password=True).
+        El estudiante recibe un enlace seguro (token con TTL 7 días) para
+        configurar su propia contraseña sin necesitar contraseña temporal.
 
         Args:
             user_name: Nombre completo del estudiante.
             control_number: Número de control asignado (usado como username).
             program_name: Nombre del programa de posgrado.
-            login_url: URL absoluta de la página de inicio de sesión.
+            token_link: URL absoluta a /reset-password/<token>.
+            expires_at: datetime de expiración del enlace.
 
         Returns:
             (subject, html)
         """
         subject = 'Bienvenido a SIIAP — Configura tu contraseña'
+        try:
+            expires_str = expires_at.strftime('%d de %B de %Y a las %H:%M')
+        except Exception:
+            expires_str = ''
         html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -338,7 +343,9 @@ class EmailTemplates:
     .steps li {{ margin-bottom: 8px; }}
     .btn {{ display: inline-block; background: #1a3a5c; color: #fff !important; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 24px 0; }}
     .note {{ color: #555; background: #e8f4fd; border: 1px solid #bee3f8; padding: 12px 16px; border-radius: 4px; font-size: 13px; margin-top: 16px; }}
+    .warn {{ color: #7c4a00; background: #fff7e6; border: 1px solid #ffd591; padding: 12px 16px; border-radius: 4px; font-size: 13px; margin-top: 16px; }}
     .footer {{ background: #f4f6f8; padding: 20px 40px; font-size: 12px; color: #888; text-align: center; }}
+    .link-fallback {{ word-break: break-all; font-size: 12px; color: #1a3a5c; }}
   </style>
 </head>
 <body>
@@ -356,19 +363,25 @@ class EmailTemplates:
         <p><strong>Número de control (usuario):</strong> {control_number}</p>
       </div>
 
-      <p>Para configurar tu contraseña sigue estos pasos:</p>
+      <p>Para empezar a usar el sistema necesitas configurar tu contraseña:</p>
       <ol class="steps">
-        <li>Haz clic en el botón de abajo para ir a la página de inicio de sesión.</li>
-        <li>Ingresa tu <strong>número de control</strong> como nombre de usuario.</li>
-        <li>Solicita la contraseña temporal a tu coordinador de programa.</li>
-        <li>El sistema te pedirá que establezcas una nueva contraseña de inmediato.</li>
+        <li>Haz clic en el botón <strong>“Configurar contraseña”</strong>.</li>
+        <li>Define una contraseña segura (mínimo 8 caracteres, con mayúscula, minúscula, número y caracter especial).</li>
+        <li>Una vez configurada, podrás iniciar sesión con tu número de control.</li>
       </ol>
 
-      <a href="{login_url}" class="btn">Ir al sistema</a>
+      <p style="text-align:center;">
+        <a href="{token_link}" class="btn">Configurar contraseña</a>
+      </p>
+
+      <div class="warn">
+        <strong>Este enlace expira el {expires_str}.</strong>
+        Por seguridad sólo puede usarse una vez. Si expira, contacta a tu coordinador para que te genere uno nuevo.
+      </div>
 
       <div class="note">
-        Tu coordinador te proporcionará la contraseña temporal para el primer acceso.
-        Una vez que inicies sesión, deberás crear tu propia contraseña segura.
+        Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+        <span class="link-fallback">{token_link}</span>
       </div>
     </div>
     <div class="footer">

@@ -632,6 +632,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('receiptFileInput');
     const statusDiv = document.getElementById('receiptUploadStatus');
     const btn = document.getElementById('receiptUploadBtn');
+    if (!cfg.userId || !cfg.programId) {
+      statusDiv.innerHTML = '<div class="alert alert-danger py-1 small">Configuración inválida — recarga la página.</div>';
+      return;
+    }
     if (!fileInput.files.length) {
       statusDiv.innerHTML = '<div class="alert alert-warning py-1 small">Selecciona un archivo primero.</div>';
       return;

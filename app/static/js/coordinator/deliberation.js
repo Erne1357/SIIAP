@@ -623,6 +623,11 @@ class DeliberationManager {
         const action = document.getElementById('decisionAction').value;
         const notes = document.getElementById('decisionNotes').value;
 
+        if (!userId || !programId || !/^\d+$/.test(userId) || !/^\d+$/.test(programId)) {
+            showFlash('danger', 'Aspirante o programa inválido — recarga la página e intenta de nuevo.');
+            return;
+        }
+
         let endpoint, body;
 
         if (action === 'accept') {

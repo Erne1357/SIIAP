@@ -131,6 +131,7 @@
 
   {# ── Visor del documento ───────────────────────────────────────── #}
   <div class="viewer-container mb-4">
+    {% if sub.file_path %}
     {% set filename = sub.file_path.split('/')[-1] %}
     {% if filename.endswith('.pdf') %}
     <iframe src="{{ url_for('api_files.user_doc',
@@ -145,6 +146,13 @@
                      user_id=sub.user_id,
                      phase=phase,
                      filename=filename) }}" class="btn btn-primary">Descargar documento</a>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state empty-state--compact">
+      <div class="empty-state__icon"><i class="bi bi-file-earmark-x"></i></div>
+      <div class="empty-state__title">Sin archivo</div>
+      <div class="empty-state__description">Esta entrada no tiene archivo adjunto (registro únicamente con nota de resolución).</div>
     </div>
     {% endif %}
   </div>

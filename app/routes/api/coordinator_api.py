@@ -45,7 +45,8 @@ def list_students():
     ).join(
         Program, UserProgram.program_id == Program.id
     ).filter(
-        User.role.has(name='applicant') | User.role.has(name='student')
+        User.role.has(name='applicant') | User.role.has(name='student'),
+        User.is_active == True,
     )
     
     # Programas que puede gestionar el coordinador (propios + delegados)
@@ -158,7 +159,8 @@ def manageable_students():
     ).join(
         Program, UserProgram.program_id == Program.id
     ).filter(
-        (User.role.has(name='applicant') | User.role.has(name='student')),
+        User.role.has(name='applicant'),
+        User.is_active == True,
         program_filter
     ).order_by(User.first_name, User.last_name)
     
@@ -627,7 +629,7 @@ def _format_archive_status(archive, subs, all_extensions):
         "uploaded_by_role": sub.uploaded_by_role if sub else None,
         "reviewer_comment": sub.reviewer_comment if sub else None,
         "review_date": sub.review_date.isoformat() if sub and sub.review_date else None,
-        "file_url": f"/files/doc/{sub.user_id}/admission/{sub.file_path.split('/')[-1]}" if sub else None,
+        "file_url": f"/files/doc/{sub.user_id}/admission/{sub.file_path.split('/')[-1]}" if sub and sub.file_path else None,
         "has_extension": bool(ext),
         "extension_status": ext.status if ext else None,
         "extension_until": ext.granted_until.isoformat() if ext and ext.granted_until else None,
