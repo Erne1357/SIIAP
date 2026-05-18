@@ -34,7 +34,7 @@
         <!-- Plantilla -->
         <td class="d-none d-md-table-cell">
           {% if arch.is_downloadable and arch.file_path %}
-          <a class="btn btn-link btn-sm" href="{{ url_for('api_files.template', filename=arch.file_path) }}"
+          <a class="btn btn-link btn-sm" href="{{ url_for('api_archives.download_template', archive_id=arch.id) }}"
             target="_blank">
             <i class="bi bi-download me-1"></i>Descargar
           </a>
@@ -240,7 +240,7 @@
               {% if arch.is_downloadable and arch.file_path %}
               <div class="mb-2">
                 <strong>Plantilla:</strong> 
-                <a href="{{ url_for('api_files.template', filename=arch.file_path) }}" 
+                <a href="{{ url_for('api_archives.download_template', archive_id=arch.id) }}" 
                    target="_blank" class="btn btn-sm btn-outline-primary">
                   <i class="bi bi-download me-1"></i>Descargar
                 </a>
