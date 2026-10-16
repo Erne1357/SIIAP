@@ -108,27 +108,45 @@ function onTaskEvent(data, status) {
   }
 }
 
+// Estados de tarea Celery -> componente compartido .status-badge--task-*.
+const TASK_STATUS_META = {
+  success: { icon: 'check-circle-fill',  label: 'Exitosa' },
+  failure: { icon: 'x-circle-fill',      label: 'Fallida' },
+  started: { icon: 'hourglass-split',    label: 'En ejecución' },
+  retry:   { icon: 'arrow-repeat',       label: 'Reintentando' },
+  pending: { icon: 'clock',              label: 'Pendiente' },
+  revoked: { icon: 'slash-circle',       label: 'Revocada' },
+};
+
+function taskStatusBadge(status) {
+  const key  = String(status || 'pending').toLowerCase();
+  const meta = TASK_STATUS_META[key] || { icon: 'circle', label: key };
+  return `<span class="status-badge status-badge--task-${key}">` +
+         `<i class="bi bi-${meta.icon}" aria-hidden="true"></i>` +
+         `<span>${SIIAP.escapeHtml(meta.label)}</span></span>`;
+}
+
 function appendLiveFeed(data, status) {
   const section = document.getElementById('liveFeedSection');
   const feed    = document.getElementById('liveFeed');
 
-  section.style.removeProperty('display');
+  section.classList.remove('d-none');
 
   const time = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const icon = {
-    started: '<i class="bi bi-hourglass-split text-primary me-1"></i>',
-    success: '<i class="bi bi-check-circle-fill text-success me-1"></i>',
-    failure: '<i class="bi bi-x-circle-fill text-danger me-1"></i>',
-    retry:   '<i class="bi bi-arrow-repeat text-warning me-1"></i>',
+    started: '<i class="bi bi-hourglass-split text-brand-primary me-1" aria-hidden="true"></i>',
+    success: '<i class="bi bi-check-circle-fill text-success-strong me-1" aria-hidden="true"></i>',
+    failure: '<i class="bi bi-x-circle-fill text-danger-strong me-1" aria-hidden="true"></i>',
+    retry:   '<i class="bi bi-arrow-repeat text-warning-strong me-1" aria-hidden="true"></i>',
   }[status] || '';
 
   const taskDisplayName = getDisplayName(data.task_name || '');
 
   const el = document.createElement('div');
   el.className = `live-event live-event--${status} small py-1 px-2 mb-1 rounded`;
-  el.innerHTML = `${icon}<strong>${time}</strong> — ${taskDisplayName}
-    <span class="badge status-badge--${status} ms-1">${status}</span>
-    ${data.error_message ? `<span class="text-danger ms-1">(${data.error_message})</span>` : ''}`;
+  el.innerHTML = `${icon}<strong>${time}</strong> — ${SIIAP.escapeHtml(taskDisplayName)}
+    <span class="ms-1">${taskStatusBadge(status)}</span>
+    ${data.error_message ? `<span class="text-danger-strong ms-1">(${SIIAP.escapeHtml(data.error_message)})</span>` : ''}`;
 
   feed.insertBefore(el, feed.firstChild);
 
@@ -152,14 +170,14 @@ async function loadWorkerStatus() {
 
     if (data.online) {
       badge.className = 'badge rounded-pill bg-success fs-6 px-3 py-2';
-      badge.innerHTML = `<i class="bi bi-circle-fill me-1"></i>Online (${data.workers.length} worker${data.workers.length !== 1 ? 's' : ''})`;
+      badge.innerHTML = `<i class="bi bi-circle-fill me-1" aria-hidden="true"></i>En línea (${data.workers.length} worker${data.workers.length !== 1 ? 's' : ''})`;
     } else {
       badge.className = 'badge rounded-pill bg-danger fs-6 px-3 py-2';
-      badge.innerHTML = '<i class="bi bi-circle-fill me-1"></i>Worker offline';
+      badge.innerHTML = '<i class="bi bi-circle-fill me-1" aria-hidden="true"></i>Worker sin conexión';
     }
   } catch (e) {
     badge.className = 'badge rounded-pill bg-danger fs-6 px-3 py-2';
-    badge.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Sin respuesta';
+    badge.innerHTML = '<i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>Sin respuesta';
   }
 }
 
@@ -200,8 +218,12 @@ async function loadHistorial(showSpinner = true) {
     tbody.innerHTML = '';
 
     if (items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">
-        <i class="bi bi-inbox fs-4 d-block mb-2"></i>No hay registros con estos filtros
+      tbody.innerHTML = `<tr><td colspan="6">
+        <div class="empty-state empty-state--inline">
+          <div class="empty-state__icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
+          <p class="empty-state__title">Sin ejecuciones registradas</p>
+          <p class="empty-state__description">Ninguna tarea coincide con los filtros aplicados.</p>
+        </div>
       </td></tr>`;
     } else {
       items.forEach(t => tbody.insertAdjacentHTML('beforeend', renderTaskRow(t)));
@@ -212,8 +234,13 @@ async function loadHistorial(showSpinner = true) {
       `${meta.total || 0} registros · página ${meta.page || 1} de ${meta.pages || 1}`;
 
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">
-      <i class="bi bi-exclamation-triangle me-1"></i>Error al cargar historial
+    tbody.innerHTML = `<tr><td colspan="6">
+      <div class="empty-state empty-state--inline empty-state--error">
+        <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+        <p class="empty-state__title">No se pudo cargar el historial</p>
+        <p class="empty-state__description">Vuelve a intentarlo en unos segundos.</p>
+        <p class="empty-state__error-detail">${SIIAP.escapeHtml(e.message || '')}</p>
+      </div>
     </td></tr>`;
   }
 }
@@ -235,14 +262,16 @@ function buildHistorialParams() {
 }
 
 function renderTaskRow(t) {
-  const statusBadge = `<span class="badge status-badge--${t.status}">${t.status}</span>`;
+  const statusBadge = taskStatusBadge(t.status);
 
   const triggeredBadge = t.triggered_by === 'manual'
-    ? `<span class="badge bg-primary-subtle text-primary"><i class="bi bi-hand-index me-1"></i>Manual</span>`
-    : `<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-clock me-1"></i>Programada</span>`;
+    ? `<span class="badge bg-primary-soft"><i class="bi bi-hand-index me-1" aria-hidden="true"></i>Manual</span>`
+    : `<span class="badge bg-info-soft"><i class="bi bi-clock me-1" aria-hidden="true"></i>Programada</span>`;
 
   const startedAt = t.started_at
-    ? new Date(t.started_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' })
+    ? (window.SIIAP && window.SIIAP.formatDateTime
+        ? window.SIIAP.formatDateTime(t.started_at, 'short')
+        : new Date(t.started_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' }))
     : '<span class="text-muted">—</span>';
 
   const duration = t.duration_seconds != null
@@ -251,18 +280,18 @@ function renderTaskRow(t) {
 
   let resultCell = '<span class="text-muted">—</span>';
   if (t.status === 'failure' && t.error_message) {
-    resultCell = `<span class="text-danger small" title="${escapeHtml(t.error_message)}">
-      <i class="bi bi-x-circle me-1"></i>${escapeHtml(t.error_message.slice(0, 60))}${t.error_message.length > 60 ? '…' : ''}
+    resultCell = `<span class="text-danger small" title="${SIIAP.escapeAttr(t.error_message)}">
+      <i class="bi bi-x-circle me-1"></i>${SIIAP.escapeHtml(t.error_message.slice(0, 60))}${t.error_message.length > 60 ? '…' : ''}
     </span>`;
   } else if (t.result) {
     const resultStr = JSON.stringify(t.result);
-    resultCell = `<span class="text-success small" title="${escapeHtml(resultStr)}">
-      <i class="bi bi-check-circle me-1"></i>${escapeHtml(resultStr.slice(0, 60))}${resultStr.length > 60 ? '…' : ''}
+    resultCell = `<span class="text-success small" title="${SIIAP.escapeAttr(resultStr)}">
+      <i class="bi bi-check-circle me-1"></i>${SIIAP.escapeHtml(resultStr.slice(0, 60))}${resultStr.length > 60 ? '…' : ''}
     </span>`;
   }
 
   return `<tr>
-    <td><span class="fw-medium small">${escapeHtml(t.display_name)}</span></td>
+    <th scope="row" class="fw-normal"><span class="fw-medium small">${SIIAP.escapeHtml(t.display_name)}</span></th>
     <td>${statusBadge}</td>
     <td>${triggeredBadge}</td>
     <td class="small text-muted">${startedAt}</td>
@@ -360,11 +389,15 @@ async function loadSchedules() {
 
 function renderScheduleRow(s) {
   const enabledBadge = s.enabled
-    ? '<span class="badge bg-success-subtle text-success">Activa</span>'
-    : '<span class="badge bg-secondary-subtle text-secondary">Pausada</span>';
+    ? '<span class="status-badge status-badge--accepted status-badge--sm">' +
+      '<i class="bi bi-play-circle-fill" aria-hidden="true"></i><span>Activa</span></span>'
+    : '<span class="status-badge status-badge--deferred status-badge--sm">' +
+      '<i class="bi bi-pause-circle-fill" aria-hidden="true"></i><span>Pausada</span></span>';
 
   const lastRun = s.last_run_at
-    ? new Date(s.last_run_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })
+    ? (window.SIIAP && window.SIIAP.formatDateTime
+        ? window.SIIAP.formatDateTime(s.last_run_at, 'short')
+        : new Date(s.last_run_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }))
     : '<span class="text-muted">—</span>';
 
   const cronExpr = formatCronExpression(s.cron_fields);
@@ -372,16 +405,18 @@ function renderScheduleRow(s) {
   const displayName = getDisplayName(s.task);
 
   return `<tr>
-    <td class="fw-medium">${escapeHtml(s.name)}</td>
-    <td class="small text-muted">${escapeHtml(displayName)}</td>
-    <td><code class="small">${cronExpr}</code></td>
+    <th scope="row" class="fw-medium">${SIIAP.escapeHtml(s.name)}</th>
+    <td class="small text-muted">${SIIAP.escapeHtml(displayName)}</td>
+    <td><code class="small">${SIIAP.escapeHtml(cronExpr)}</code></td>
     <td class="small text-muted">${lastRun}</td>
     <td class="text-center">${s.total_run_count ?? 0}</td>
     <td>${enabledBadge}</td>
-    <td>
-      <button class="btn btn-sm btn-outline-primary btn-edit-schedule"
-              data-name="${escapeHtml(s.name)}" title="Editar">
-        <i class="bi bi-pencil"></i>
+    <td class="text-end">
+      <button type="button" class="btn btn-sm btn-outline-primary btn-edit-schedule tap-target"
+              data-name="${SIIAP.escapeAttr(s.name)}"
+              aria-label="Editar la programación de ${SIIAP.escapeAttr(s.name)}"
+              title="Editar la programación de ${SIIAP.escapeAttr(s.name)}">
+        <i class="bi bi-pencil" aria-hidden="true"></i>
       </button>
     </td>
   </tr>`;
@@ -596,15 +631,6 @@ async function apiFetch(url, options = {}) {
   return json;
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function showToast(message, type = 'info') {
   // Si ya existe un contenedor de toasts, usarlo; si no, crearlo
   let container = document.getElementById('toastContainer');
@@ -612,7 +638,6 @@ function showToast(message, type = 'info') {
     container = document.createElement('div');
     container.id = 'toastContainer';
     container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-    container.style.zIndex = '1100';
     document.body.appendChild(container);
   }
 
@@ -627,7 +652,7 @@ function showToast(message, type = 'info') {
   container.insertAdjacentHTML('beforeend', `
     <div id="${id}" class="toast align-items-center ${bgClass} border-0" role="alert" aria-live="assertive">
       <div class="d-flex">
-        <div class="toast-body">${escapeHtml(message)}</div>
+        <div class="toast-body">${SIIAP.escapeHtml(message)}</div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto"
                 data-bs-dismiss="toast"></button>
       </div>

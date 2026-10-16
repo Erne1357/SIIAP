@@ -12,6 +12,7 @@ Flujo:
 """
 
 from app import db
+from app.services import public_id_service
 from app.models import UserProgram, User, Program, ExtensionRequest, Submission, ProgramStep
 from app.models.acceptance_document import AcceptanceDocument
 from app.services.notification_service import NotificationService
@@ -32,6 +33,44 @@ DOC_TYPE_LABELS = {
     'acceptance_opinion': 'Dictamen de Aceptacion',
 }
 
+#: The single wording every control-number rejection uses when the number cannot
+#: be assigned because it already exists somewhere in the institution.
+#:
+#: The uniqueness check itself is global and STAYS global — a control number is
+#: institution-wide unique, and scoping the query to the caller's programs would
+#: let two coordinators mint the same number. What must not be global is the
+#: *answer*: the old message ("ya está asignado a otro usuario") confirmed the
+#: existence of a control number the caller may have no right to know about,
+#: which is the same secret `CROSS_PROGRAM_SEARCHABLE_FIELDS` keeps out of the
+#: student search. Anyone holding an applicant of their own could probe the
+#: institution's control numbers one guess per request and read the hits off the
+#: message.
+#:
+#: The wording below states only that this request cannot proceed. It carries no
+#: claim about whether the number exists, no owner, and — deliberately — not even
+#: the number itself, so that a screenshot or a shared error log leaks nothing.
+#: Every site that rejects on collision must use this exact string; a second,
+#: subtly different wording anywhere re-opens the oracle. There are four:
+#:   1. `assign_control_number` (below)
+#:   2. `assign_control_number_admin` (below)
+#:   3. `app/routes/api/admin/users_api.assign_control_number`
+#:   4. `app/services/student_bulk_service.validate_individual` — the batchable
+#:      one: it feeds `/student-bulk/validate` and `/student-bulk/csv/preview`,
+#:      both dry runs that echo row errors verbatim, so one CSV probes N values.
+#:      That site also runs the program-scope check BEFORE this lookup, so a row
+#:      aimed at somebody else's program never reaches the global query at all.
+#:
+#: This does not make the two branches indistinguishable — a free number is
+#: assigned and a taken one is not, and that difference is inherent to a real
+#: write against a unique column. What it removes is the explicit confirmation
+#: and the ability to harvest it passively. The remaining probing is a loud,
+#: authenticated, attributable act; see the note at the call site in
+#: `app/routes/api/admin/users_api.py`.
+CONTROL_NUMBER_REJECTED_MESSAGE = (
+    'No se pudo asignar el número de control. '
+    'Verifica el dato con la jefatura de posgrado e inténtalo de nuevo.'
+)
+
 
 class AcceptanceError(Exception):
     """Error base para operaciones de aceptacion."""
@@ -40,6 +79,16 @@ class AcceptanceError(Exception):
 
 class ApplicantNotFound(AcceptanceError):
     pass
+
+
+#: Denial text for "that applicant/document is not here". Deliberately carries
+#: NO id: the routes now speak UUIDs, so echoing the internal integer would
+#: hand it straight back out, and a message that varies with the cause
+#: ("no such user" vs "user exists but not in this program") is exactly the
+#: enumeration oracle the 404 policy exists to close. One string, every cause.
+APPLICANT_NOT_FOUND_MESSAGE = 'No se encontró al aspirante.'
+DOCUMENT_NOT_FOUND_MESSAGE = 'Documento no encontrado'
+USER_PROGRAM_NOT_FOUND_MESSAGE = 'No se encontró el proceso de admisión.' 
 
 
 class InvalidDocumentType(AcceptanceError):
@@ -63,14 +112,14 @@ class DocumentDebtError(AcceptanceError):
 def _get_user_program(user_id: int, program_id: int) -> UserProgram:
     up = UserProgram.query.filter_by(user_id=user_id, program_id=program_id).first()
     if not up:
-        raise ApplicantNotFound(f"No se encontro al aspirante {user_id} en el programa {program_id}")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
     return up
 
 
 def _get_user_program_by_id(user_program_id: int) -> UserProgram:
     up = UserProgram.query.get(user_program_id)
     if not up:
-        raise ApplicantNotFound(f"No se encontro UserProgram {user_program_id}")
+        raise ApplicantNotFound(USER_PROGRAM_NOT_FOUND_MESSAGE)
     return up
 
 
@@ -157,7 +206,9 @@ def get_accepted_applicants(program_id: int):
         result.append({
             'user_program': up.to_dict(include_deliberation=True),
             'user': {
-                'id': user.id,
+                # Public handle: la consola de aceptación construye
+                # `/api/v1/acceptance/user/<uuid>/program/<id>/…` con este valor.
+                'id': str(user.uuid) if user.uuid else None,
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'email': user.email,
                 'curp': user.curp,
@@ -260,11 +311,15 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
     doc.status = 'uploaded'
 
     program = Program.query.get(program_id)
-    from flask import url_for
+    # Pinned to APP_BASE_URL: this URL is embedded in an e-mail body, so it must
+    # not be rebuilt from the live request host (the requester controls `Host`).
+    from app.utils.urls import external_url, get_base_url
     try:
-        dashboard_url = url_for('pages_user.dashboard', _external=True)
+        dashboard_url = external_url('pages_user.dashboard')
     except Exception:
-        dashboard_url = '/user/dashboard'
+        # Only reachable without an application context, which neither a route
+        # nor a Celery ContextTask can be. Stay absolute anyway.
+        dashboard_url = f"{get_base_url()}/user/dashboard"
 
     # Notificación individual por documento (solo en upload nuevo, no en re-subida)
     if was_pending:
@@ -306,14 +361,14 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': f'{document_type}_uploaded',
             'document_type': document_type,
         }, room=f'user:{user_id}')
         # También notificar a coordinadores del programa para que refresquen sus tablas
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': f'{document_type}_uploaded',
             'document_type': document_type,
@@ -400,12 +455,14 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
 
     # WebSocket: actualizar pestaña de aceptación del coordinador
     try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+        # Igual que los otros emits de aceptación de este servicio: la sala
+        # program-scoped, no `role:coordinator` (que es toda la institución).
+        from app.sockets.emitters import emit_to_coordinators
+        emit_to_coordinators('acceptance:updated', {
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': 'receipt_submitted',
-        }, room=f'role:coordinator')
+        }, program_id)
     except Exception:
         pass
 
@@ -433,7 +490,7 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
 
     doc = AcceptanceDocument.query.get(doc_id)
     if not doc:
-        raise ApplicantNotFound(f"Documento {doc_id} no encontrado")
+        raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
 
     if doc.document_type != 'enrollment_receipt':
         raise InvalidDocumentType("Solo se puede revisar documentos de tipo enrollment_receipt")
@@ -490,10 +547,11 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     try:
         from app.services.email_service import EmailService
         from app.services.email_templates import EmailTemplates
-        from flask import url_for
+        from app.utils.urls import external_url
         user = User.query.get(user_id)
         if user:
-            dashboard_url = url_for('pages_user.dashboard', _external=True)
+            # Pinned to APP_BASE_URL, never to the request host.
+            dashboard_url = external_url('pages_user.dashboard')
             if status == 'approved':
                 subject, html = EmailTemplates.enrollment_receipt_approved(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -516,7 +574,7 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': up.program_id,
             'action': f'receipt_{status}',
         }, room=f'user:{user_id}')
@@ -535,7 +593,7 @@ def delete_coordinator_doc(doc_id: int, coordinator_id: int) -> None:
     """
     doc = AcceptanceDocument.query.get(doc_id)
     if not doc:
-        raise ApplicantNotFound(f"Documento {doc_id} no encontrado")
+        raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
 
     if doc.document_type not in COORDINATOR_DOC_TYPES:
         raise InvalidDocumentType("Solo se pueden eliminar carta de aceptacion o tira de materias")
@@ -626,10 +684,13 @@ def assign_control_number(user_id: int, program_id: int,
 
     ctrl = control_number.strip()
 
-    # Verificar que el número de control no esté ya asignado a otro usuario
+    # Unicidad institucional: la consulta es global a propósito (un número de
+    # control es único en toda la institución). El mensaje NO revela el motivo
+    # —ver CONTROL_NUMBER_REJECTED_MESSAGE—, porque el número colisionado puede
+    # pertenecer a un programa fuera del alcance de quien llama.
     existing = UserModel.query.filter_by(control_number=ctrl).first()
     if existing and existing.id != user_id:
-        raise ValueError(f"El número de control '{ctrl}' ya está asignado a otro usuario")
+        raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
     up = _get_user_program(user_id, program_id)
 
@@ -656,7 +717,7 @@ def assign_control_number(user_id: int, program_id: int,
 
     user = UserModel.query.get(user_id)
     if not user:
-        raise ApplicantNotFound(f"Usuario {user_id} no encontrado")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     program = Program.query.get(program_id)
 
@@ -711,7 +772,7 @@ def assign_control_number(user_id: int, program_id: int,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': 'control_number_assigned',
         }, room=f'user:{user_id}')
@@ -759,10 +820,12 @@ def assign_control_number_admin(user_id: int, program_id: int,
 
     ctrl = control_number.strip()
 
-    # Verificar que el número de control no esté ya asignado a otro usuario
+    # Unicidad institucional: consulta global a propósito, mensaje sin motivo.
+    # Mismo texto exacto que en assign_control_number() — dos redacciones
+    # distintas volverían a distinguir la colisión del resto de los rechazos.
     existing = UserModel.query.filter_by(control_number=ctrl).first()
     if existing and existing.id != user_id:
-        raise ValueError(f"El número de control '{ctrl}' ya está asignado a otro usuario")
+        raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
     up = _get_user_program(user_id, program_id)
 
@@ -772,7 +835,7 @@ def assign_control_number_admin(user_id: int, program_id: int,
 
     user = UserModel.query.get(user_id)
     if not user:
-        raise ApplicantNotFound(f"Usuario {user_id} no encontrado")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     program = Program.query.get(program_id)
 
@@ -829,7 +892,7 @@ def assign_control_number_admin(user_id: int, program_id: int,
     try:
         from app.extensions import socketio
         socketio.emit('acceptance:updated', {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'action': 'control_number_assigned_admin',
         }, room=f'user:{user_id}')

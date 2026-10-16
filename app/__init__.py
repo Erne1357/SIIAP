@@ -1,12 +1,12 @@
 from flask import Flask, jsonify, session, flash, redirect, url_for, render_template
-from flask import request
+from flask import request, has_request_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
 from flask_bootstrap import Bootstrap
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import timedelta
-from app.utils.datetime_utils import now_local
+from app.utils.datetime_utils import now_local, format_date_es, format_datetime_es
 from app.config import Config
 from app.utils.csrf import generate_csrf_token, validate_csrf_for_api
 from app.extensions import socketio
@@ -100,7 +100,31 @@ def create_app(test_config=None):
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        """
+        Resolve the session cookie to a user.
+
+        A malformed identifier resolves to "anonymous", never to an exception.
+        int(user_id) on a cookie whose _user_id is not an integer (a stale
+        cookie, or one minted on either side of the pending UUID migration)
+        raised straight out of the login manager on EVERY request — including
+        /login and /logout — so the victim could not clear the bad session from
+        inside the app at all; the only way out was deleting the cookie by hand.
+
+        Returns None for a deactivated account so that the very next request
+        from an existing cookie is anonymous. Without this, deactivating a
+        compromised account changed nothing for whoever already held a session:
+        the before_request handler rewrote last_activity on every request, so
+        the 15-minute idle window never closed and the cookie stayed valid
+        indefinitely.
+        """
+        try:
+            pk = int(user_id)
+        except (TypeError, ValueError):
+            return None
+        user = User.query.get(pk)
+        if user is None or not user.is_active:
+            return None
+        return user
 
     app.permanent_session_lifetime = timedelta(minutes=17)
 
@@ -108,6 +132,29 @@ def create_app(test_config=None):
 
     @app.errorhandler(404)
     def page_not_found(e):
+        """
+        404 — including the one Werkzeug raises BEFORE any view runs when a
+        `<uuid:...>` path segment is malformed.
+
+        API callers get the standard JSON envelope, like 400 and 403 already
+        do; without this an XHR against a mistyped identifier received an HTML
+        page and the frontend's `response.json()` blew up with a parse error
+        instead of showing the message.
+
+        The message is a FIXED generic string, never `e.description`: a
+        malformed identifier, an unknown one and a row the caller may not see
+        must be indistinguishable. Routes that need to say something more
+        specific return their own 404 body from inside the view.
+        """
+        if request.path.startswith('/api/') or request.is_json or \
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            message = "Recurso no encontrado."
+            return jsonify({
+                "data": None,
+                "flash": [{"level": "danger", "message": message}],
+                "error": {"code": "NOT_FOUND", "message": message},
+                "meta": {}
+            }), 404
         return render_template('404.html', error=e), 404
 
     @app.errorhandler(500)
@@ -240,27 +287,63 @@ def create_app(test_config=None):
 
     @app.before_request
     def check_password_change_required():
-        """Fuerza cambio de contraseña si must_change_password=True."""
+        """
+        Fuerza el cambio de contraseña si must_change_password=True.
+
+        An API/XHR call gets the 403 envelope; a browser navigation is pinned to
+        the page that hosts the forced-change modal. Falling through to None on
+        a plain GET (the previous behaviour) made the flag purely advisory: the
+        user typed the dashboard URL and was in, modal or no modal.
+        """
         if not current_user.is_authenticated:
             return None
         if not getattr(current_user, 'must_change_password', False):
             return None
 
-        allowed_paths = [
-            '/api/v1/auth/change-password',
-            '/api/v1/auth/logout',
-            '/api/v1/auth/me',
-            '/api/v1/auth/keepalive',
-            '/auth/logout',
-            '/static/',
-            '/health',
-        ]
+        # Matched by endpoint name, not by path prefix, so a future route that
+        # merely shares a prefix is not exempted by accident.
+        #   static                         → CSS/JS, incl. force_password_change.js
+        #   pages_user.dashboard           → the redirect target below; it renders
+        #                                    base.html, which carries the modal
+        #   pages_auth.login_page          → the view itself bounces an already
+        #                                    authenticated user to the dashboard
+        #   pages_auth.reset_password_page → token-based flow that logs the user
+        #                                    out; another legitimate way to set a
+        #                                    new password, so it must stay open
+        allowed_endpoints = {
+            'static',
+            'pages_user.dashboard',
+            'pages_auth.login_page',
+            'pages_auth.reset_password_page',
+        }
+        if request.endpoint in allowed_endpoints:
+            return None
 
+        # Kept as prefixes: this is the API contract the modal itself speaks.
+        # '/auth/logout' was dropped — no such route exists; logout is
+        # api_auth.api_logout at /api/v1/auth/logout, already listed here.
+        allowed_paths = (
+            '/api/v1/auth/change-password',   # the fix itself
+            '/api/v1/auth/logout',            # escape hatch
+            '/api/v1/auth/me',                # modal reads must_change_password here
+            '/api/v1/auth/keepalive',         # the session must survive the typing
+            # The set-password-by-token flow is the other legitimate way to
+            # leave this state. The PAGE endpoint being exempt is not enough:
+            # its XHRs hit these two, and they only work today because
+            # reset_password_page() happens to call logout_user() on load,
+            # which makes the later calls anonymous. That is an undeclared
+            # order dependency — a bfcache resubmit or any change to that page
+            # would kill the flow silently. Exempt the API explicitly.
+            '/api/v1/auth/reset-password/',
+            '/static/',
+            '/health',                        # docker health check
+        )
         for allowed in allowed_paths:
             if request.path.startswith(allowed):
                 return None
 
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        if request.path.startswith('/api/') or request.is_json or \
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 "data": None,
                 "flash": [{"level": "warning", "message": "Debes cambiar tu contraseña antes de continuar"}],
@@ -272,30 +355,53 @@ def create_app(test_config=None):
                 "meta": {}
             }), 403
 
-        return None
+        # Browser navigation. The target endpoint is in allowed_endpoints above,
+        # so the redirected request returns None here instead of being redirected
+        # again — one hop, never a loop.
+        flash("Debes cambiar tu contraseña antes de continuar.", "warning")
+        return redirect(url_for('pages_user.dashboard'))
+
+    def _viewer_is_authenticated():
+        """
+        True only when there is a real logged-in viewer.
+
+        This context processor runs on EVERY render_template, including the
+        email templates that Celery tasks render with no request context. There
+        current_user resolves to None, so touching .is_authenticated raised
+        AttributeError and killed the render.
+        """
+        if not has_request_context():
+            return False
+        return bool(current_user and current_user.is_authenticated)
 
     @app.context_processor
     def inject_tokens_and_version():
-        def has_perm(codename, program_id=None):
+        def has_perm(codename):
             """
             Helper de Jinja2 para comprobar permisos en templates.
 
             Uso en plantillas:
                 {% if has_perm('coordinator.page.view') %}
-                {% if has_perm('acceptance.api.upload_doc', program_id) %}
+
+            Responde SÓLO "¿qué puede hacer?" — nunca "¿sobre qué programa?".
+            Una plantilla no debe decidir alcance: eso lo resuelve la ruta con
+            `program_scope_required` antes de renderizar.
             """
-            if not current_user.is_authenticated:
+            # Fuera de una petición (p. ej. una plantilla de correo renderizada
+            # desde una tarea de Celery) current_user resuelve a None y
+            # .is_authenticated revienta con AttributeError.
+            if not _viewer_is_authenticated():
                 return False
-            return current_user.has_permission(codename, program_id=program_id)
+            return current_user.has_permission(codename)
 
         def _role_info():
             """
             (label, badge_class) para el rol visible del usuario.
             Centraliza la lógica que antes vivía duplicada en base.html, profile.html, dashboard.html.
             """
-            if not current_user.is_authenticated:
+            if not _viewer_is_authenticated():
                 return (None, None)
-            if current_user.has_permission('academic_periods.api.create'):
+            if current_user.has_global_program_scope():
                 return ('Admin. Posgrado', 'bg-danger')
             if current_user.has_permission('coordinator.page.view'):
                 return ('Admin. Programa', 'bg-success')
@@ -312,6 +418,9 @@ def create_app(test_config=None):
         return {
             "static_version": app.config.get("STATIC_VERSION", "1.0.0"),
             "csrf_token": generate_csrf_token,
+            # Expuesto para que las plantillas no escriban el año a mano
+            # (pie de página de base.html / auth_base.html).
+            "now_local": now_local,
             "has_perm": has_perm,
             "role_label": role_label,
             "role_badge_class": role_badge_class,
@@ -371,6 +480,16 @@ def create_app(test_config=None):
         if not value:
             return '—'
         return _ES_ACCEPTANCE_DOC.get(value, value)
+
+    @app.template_filter('fecha_es')
+    def _fecha_es_filter(value, style='long'):
+        """Render a date in Spanish: 'long' | 'short' | 'numeric'."""
+        return format_date_es(value, style)
+
+    @app.template_filter('fechahora_es')
+    def _fechahora_es_filter(value, style='long', include_time=True):
+        """Render a datetime in Spanish wrapped in a semantic <time> element."""
+        return format_datetime_es(value, style, include_time)
 
     @app.route('/')
     def index():

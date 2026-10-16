@@ -23,6 +23,49 @@ def test_csv_template_has_headers_and_example():
     assert all(h in lines[0] for h in svc.CSV_HEADERS)
 
 
+def test_csv_preview_cannot_batch_probe_control_numbers(app, periods, program,
+                                                        other_program, roles):
+    """
+    F18 — `/csv/preview` es un ensayo en seco que devuelve los errores de fila
+    tal cual, así que un solo archivo sondeaba N números de control de golpe.
+
+    Con el alcance comprobado antes de la consulta global, un CSV entero
+    apuntado al programa ajeno responde lo mismo fila por fila, exista o no el
+    número; y ningún error repite el valor sondeado.
+    """
+    taken = User(
+        first_name='Ya', last_name='Existe', mother_last_name='',
+        username='probe_target', password='pw', email='probe@test.local',
+        is_internal=False, role_id=roles['student'].id,
+        must_change_password=False,
+    )
+    db.session.add(taken)
+    db.session.flush()
+    taken.control_number = 'M22118888'
+    db.session.commit()
+
+    def _row(ctrl, email):
+        return {
+            'first_name': 'Son', 'last_name': 'Deo', 'mother_last_name': '',
+            'email': email, 'control_number': ctrl,
+            'program_slug': other_program.slug, 'current_semester': '2',
+            'admission_period_code': '20223', 'has_conacyt': 'no',
+        }
+
+    result = svc.validate_csv(
+        _csv_text([
+            _row('M22118888', 'a@test.local'),   # existe
+            _row('M22110000', 'b@test.local'),   # no existe
+        ]),
+        creator_program_ids={program.id},        # coordinador del OTRO programa
+    )
+
+    rows = result['rows']
+    assert result['summary']['valid'] == 0
+    assert rows[0]['errors'] == rows[1]['errors']
+    assert not any('M22118888' in e for e in rows[0]['errors'])
+
+
 def test_validate_csv_empty_returns_error(app, periods, program):
     result = svc.validate_csv('')
     assert result['summary']['total'] == 0
@@ -135,13 +178,13 @@ def test_execute_csv_isolated_failures(app, periods, program, postgrad_admin, ro
     # email duplicado creado entre preview y execute.
     rows_data = [
         {
-            'first_name': 'F1', 'last_name': 'L1', 'mother_last_name': '',
+            'first_name': 'Fernanda', 'last_name': 'Lara', 'mother_last_name': '',
             'email': 'race@test.local', 'control_number': 'M22110020',
             'program_slug': program.slug, 'current_semester': '2',
             'admission_period_code': '20223', 'has_conacyt': 'no',
         },
         {
-            'first_name': 'F2', 'last_name': 'L2', 'mother_last_name': '',
+            'first_name': 'Joaquin', 'last_name': 'Mendoza', 'mother_last_name': '',
             'email': 'ok@test.local', 'control_number': 'M22110021',
             'program_slug': program.slug, 'current_semester': '2',
             'admission_period_code': '20223', 'has_conacyt': 'no',
@@ -152,7 +195,7 @@ def test_execute_csv_isolated_failures(app, periods, program, postgrad_admin, ro
 
     # Race condition: alguien crea usuario con email 'race@test.local' antes de execute
     racing = User(
-        first_name='X', last_name='Y', mother_last_name='',
+        first_name='Fernanda', last_name='Lara', mother_last_name='',
         username='racing', password='pw',
         email='race@test.local', is_internal=False,
         role_id=roles['student'].id, must_change_password=False,

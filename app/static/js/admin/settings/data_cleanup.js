@@ -33,12 +33,6 @@
     else console.log(`[${level}]`, message);
   }
 
-  function escHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = String(str == null ? '' : str);
-    return div.innerHTML;
-  }
-
   function formatBytes(bytes) {
     if (!bytes) return '—';
     const u = ['B', 'KB', 'MB', 'GB'];
@@ -53,10 +47,55 @@
 
   function fmtDate(iso) {
     if (!iso) return '—';
+    if (window.SIIAP && window.SIIAP.formatDateTime) {
+      return window.SIIAP.formatDateTime(iso, 'short');
+    }
     return new Date(iso).toLocaleString('es-MX', {
       year: 'numeric', month: 'short', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     });
+  }
+
+  // ── Etiquetas en español ───────────────────────────────────────────────
+  const PURGE_TYPE_LABEL = {
+    admission_expired_with_files: 'Aspirantes expirados con archivos',
+    admission_delta3_plus: 'Aspirantes de periodos antiguos',
+    retention_policy: 'Política de retención',
+    transition_snapshot: 'Respaldo de transición de periodo',
+  };
+
+  // Estado de un respaldo -> modificador del componente .status-badge.
+  const RUN_STATUS_META = {
+    pending_download: { key: 'pending',     label: 'Pendiente de descarga' },
+    downloaded:       { key: 'in-progress', label: 'Descargado' },
+    purged:           { key: 'accepted',    label: 'Purgado' },
+    cancelled:        { key: 'deferred',    label: 'Cancelado' },
+    expired:          { key: 'rejected',    label: 'Expirado' },
+  };
+
+  // Estados de admisión que el componente compartido ya conoce.
+  const ADMISSION_KNOWN = new Set([
+    'in_progress', 'interview_completed', 'deliberation',
+    'accepted', 'rejected', 'deferred', 'enrolled', 'pending',
+  ]);
+  const ADMISSION_EXTRA_LABEL = { expired: 'Expirado' };
+
+  function statusChip(key, label) {
+    if (window.SIIAP && window.SIIAP.statusBadge) {
+      return window.SIIAP.statusBadge(key, label);
+    }
+    return `<span class="status-badge status-badge--${SIIAP.escapeAttr(key)}"><span>${SIIAP.escapeHtml(label)}</span></span>`;
+  }
+
+  function admissionChip(status) {
+    if (!status) return '<span class="text-muted">—</span>';
+    if (ADMISSION_KNOWN.has(status)) return statusChip(status);
+    return statusChip('deferred', ADMISSION_EXTRA_LABEL[status] || status);
+  }
+
+  function runStatusChip(status) {
+    const meta = RUN_STATUS_META[status] || { key: 'pending', label: status };
+    return statusChip(meta.key, meta.label);
   }
 
   // ── Render tabla candidatos ────────────────────────────────────────────
@@ -70,9 +109,12 @@
 
     if (!items.length) {
       container.innerHTML = `
-        <div class="cleanup-empty">
-          <i class="bi bi-check-circle me-1"></i>
-          No hay candidatos en esta categoría.
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-check-circle" aria-hidden="true"></i></div>
+          <p class="empty-state__title">Sin candidatos</p>
+          <p class="empty-state__description">
+            Ningún expediente de esta categoría tiene archivos por respaldar ahora mismo.
+          </p>
         </div>`;
       updateStartButton(category);
       return;
@@ -80,42 +122,57 @@
 
     selectionByCategory[category] = new Set();
 
-    const rows = items.map(it => `
+    const rows = items.map(it => {
+      // `who` lands inside a double-quoted attribute -> escapeAttr, never escapeHtml.
+      const who = it.name || it.email || 'este expediente';
+      return `
       <tr>
         <td>
           <input type="checkbox" class="form-check-input cleanup-row-check"
-                 data-up-id="${it.user_program_id}">
+                 data-up-id="${SIIAP.escapeAttr(it.user_program_id)}"
+                 aria-label="Seleccionar a ${SIIAP.escapeAttr(who)}">
         </td>
-        <td>${escHtml(it.name || '')}</td>
-        <td>${escHtml(it.email || '')}</td>
-        <td>${escHtml(it.program_name || '')}</td>
-        <td>${escHtml(it.admission_status || '')}</td>
-        <td>${escHtml(it.admission_period || '—')}</td>
-        <td class="files-badge">${it.files_count || 0}</td>
+        <th scope="row" class="fw-normal">${SIIAP.escapeHtml(it.name || '')}</th>
+        <td>${SIIAP.escapeHtml(it.email || '')}</td>
+        <td>${SIIAP.escapeHtml(it.program_name || '')}</td>
+        <td>${admissionChip(it.admission_status)}</td>
+        <td>${SIIAP.escapeHtml(it.admission_period || '—')}</td>
+        <td class="files-badge">${SIIAP.escapeHtml(it.files_count || 0)}</td>
         <td class="files-badge">${formatBytes(it.total_size_bytes)}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     container.innerHTML = `
-      <div class="table-responsive">
-        <table class="table table-sm cleanup-table align-middle">
+      <div class="siiap-table-wrapper">
+        <table class="table siiap-table mb-0 table-sm cleanup-table align-middle">
+          <caption class="visually-hidden">
+            Expedientes candidatos a respaldo y purga en esta categoría
+          </caption>
           <thead>
             <tr>
-              <th style="width:40px;">
-                <input type="checkbox" class="form-check-input cleanup-select-all">
+              <th scope="col" class="w-px-50">
+                <input type="checkbox" class="form-check-input cleanup-select-all"
+                       aria-label="Seleccionar todos los expedientes de la categoría">
               </th>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Programa</th>
-              <th>Estado</th>
-              <th>Periodo admisión</th>
-              <th>Archivos</th>
-              <th>Tamaño</th>
+              <th scope="col">Nombre</th>
+              <th scope="col">Correo</th>
+              <th scope="col">Programa</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Periodo de admisión</th>
+              <th scope="col">Archivos</th>
+              <th scope="col">Tamaño</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
+
+    // La tabla se inyecta después de DOMContentLoaded: hay que activar la
+    // pista de scroll del wrapper a mano.
+    if (window.SIIAP && window.SIIAP.initDataTable) {
+      container.querySelectorAll('.siiap-table-wrapper').forEach(window.SIIAP.initDataTable);
+    }
 
     container.querySelector('.cleanup-select-all')?.addEventListener('change', (e) => {
       const checked = e.target.checked;
@@ -154,14 +211,18 @@
     if (!btn) return;
     const count = (selectionByCategory[category] || new Set()).size;
     btn.disabled = count === 0;
-    btn.innerHTML = `<i class="bi bi-file-earmark-zip me-1"></i>` +
-      (count ? `Generar respaldo de ${count} seleccionado(s)` : `Generar respaldo de seleccionados`);
+    const label = count === 0
+      ? 'Generar respaldo de los seleccionados'
+      : (count === 1
+        ? 'Generar respaldo de 1 expediente'
+        : `Generar respaldo de ${count} expedientes`);
+    btn.innerHTML = `<i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>${label}`;
   }
 
   // ── Cargar candidatos ──────────────────────────────────────────────────
   async function loadCandidates(category) {
     try {
-      const res = await fetch(`${window.PURGE_API.candidates}?category=${category}`, {
+      const res = await fetch(`${window.PURGE_API.candidates}?category=${encodeURIComponent(category)}`, {
         headers: { 'Accept': 'application/json' },
       });
       const json = await res.json();
@@ -188,7 +249,7 @@
     );
     if (btn) {
       btn.disabled = true;
-      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Generando ZIP...`;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Generando ZIP…`;
     }
 
     try {
@@ -254,9 +315,9 @@
     if (!currentRunId) return;
     const btn = document.getElementById('btnDoConfirmPurge');
     btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Borrando...`;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Borrando…`;
     try {
-      const res = await fetch(window.PURGE_API.confirm(currentRunId), {
+      const res = await fetch(window.PURGE_API.confirm(encodeURIComponent(currentRunId)), {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf() },
       });
@@ -276,17 +337,22 @@
       flash('danger', `Error de red: ${e.message}`);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = `<i class="bi bi-trash me-1"></i>Borrar archivos del servidor`;
+      btn.innerHTML = `<i class="bi bi-trash me-1" aria-hidden="true"></i>Borrar archivos del servidor`;
     }
   }
 
   // ── Cancelar run ───────────────────────────────────────────────────────
   async function cancelRun(run_id) {
-    if (!confirm(`¿Cancelar el respaldo ${run_id}? Se borrará el ZIP del servidor sin purgar datos.`)) {
-      return;
-    }
+    const ok = await siiapConfirm({
+      type: 'warning',
+      title: 'Cancelar respaldo',
+      message: `Se borrará el ZIP del respaldo ${String(run_id).slice(0, 8)} del servidor. ` +
+        'No se elimina ningún archivo de los expedientes.',
+      confirmLabel: 'Sí, cancelar el respaldo',
+    });
+    if (!ok) return;
     try {
-      const res = await fetch(window.PURGE_API.cancel(run_id), {
+      const res = await fetch(window.PURGE_API.cancel(encodeURIComponent(run_id)), {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf() },
       });
@@ -308,59 +374,86 @@
 
       const runs = json.data || [];
       if (!runs.length) {
-        container.innerHTML = `<div class="cleanup-empty">No hay respaldos generados.</div>`;
+        container.innerHTML = `
+          <div class="empty-state empty-state--compact">
+            <div class="empty-state__icon"><i class="bi bi-file-earmark-zip" aria-hidden="true"></i></div>
+            <p class="empty-state__title">Sin respaldos generados</p>
+            <p class="empty-state__description">
+              Aquí aparecerán los ZIP que generes desde las otras pestañas.
+            </p>
+          </div>`;
         return;
       }
 
       const rows = runs.map(r => {
+        // Same value, two contexts: text content vs. double-quoted attribute.
+        const shortId = String(r.run_id == null ? '' : r.run_id).slice(0, 8);
+        const shortIdText = SIIAP.escapeHtml(shortId);
+        const shortIdAttr = SIIAP.escapeAttr(shortId);
+        const runIdAttr = SIIAP.escapeAttr(r.run_id);
+        // URL first (encodeURIComponent), then attribute encoding.
+        const archiveHref = SIIAP.escapeAttr(
+          window.PURGE_API.archive(encodeURIComponent(r.run_id))
+        );
         const actions = [];
         if (r.status === 'pending_download' || r.status === 'downloaded') {
-          actions.push(`<a class="btn btn-sm btn-outline-primary"
-                           href="${window.PURGE_API.archive(r.run_id)}"
-                           download="purge_${r.run_id}.zip">
-                          <i class="bi bi-download"></i></a>`);
+          actions.push(`<a class="btn btn-sm btn-outline-primary tap-target"
+                           href="${archiveHref}"
+                           download="purge_${runIdAttr}.zip"
+                           aria-label="Descargar el ZIP del respaldo ${shortIdAttr}"
+                           title="Descargar el ZIP del respaldo ${shortIdAttr}">
+                          <i class="bi bi-download" aria-hidden="true"></i></a>`);
         }
         if (r.status === 'downloaded' && r.purge_type !== 'transition_snapshot') {
-          actions.push(`<button class="btn btn-sm btn-danger"
-                                data-action="open-confirm" data-run-id="${r.run_id}">
-                          <i class="bi bi-trash"></i></button>`);
+          actions.push(`<button type="button" class="btn btn-sm btn-danger tap-target"
+                                data-action="open-confirm" data-run-id="${runIdAttr}"
+                                aria-label="Borrar del servidor los archivos del respaldo ${shortIdAttr}"
+                                title="Borrar del servidor los archivos del respaldo ${shortIdAttr}">
+                          <i class="bi bi-trash" aria-hidden="true"></i></button>`);
         }
         if (r.status === 'pending_download' || r.status === 'downloaded') {
-          actions.push(`<button class="btn btn-sm btn-outline-secondary"
-                                data-action="cancel-run" data-run-id="${r.run_id}">
-                          <i class="bi bi-x-lg"></i></button>`);
+          actions.push(`<button type="button" class="btn btn-sm btn-outline-secondary tap-target"
+                                data-action="cancel-run" data-run-id="${runIdAttr}"
+                                aria-label="Cancelar el respaldo ${shortIdAttr}"
+                                title="Cancelar el respaldo ${shortIdAttr}">
+                          <i class="bi bi-x-lg" aria-hidden="true"></i></button>`);
         }
         return `
           <tr>
-            <td><code>${escHtml(r.run_id.slice(0, 8))}</code></td>
-            <td>${escHtml(r.purge_type)}</td>
-            <td>${r.item_count}</td>
+            <th scope="row" class="fw-normal"><code>${shortIdText}</code></th>
+            <td>${SIIAP.escapeHtml(PURGE_TYPE_LABEL[r.purge_type] || r.purge_type)}</td>
+            <td>${SIIAP.escapeHtml(r.item_count)}</td>
             <td>${formatBytes(r.archive_size_bytes)}</td>
             <td>${fmtDate(r.initiated_at)}</td>
             <td>${fmtDate(r.expires_at)}</td>
-            <td><span class="status-pill ${r.status}">${escHtml(r.status)}</span></td>
+            <td>${runStatusChip(r.status)}</td>
             <td class="actions-col">${actions.join(' ')}</td>
           </tr>`;
       }).join('');
 
       container.innerHTML = `
-        <div class="table-responsive">
-          <table class="table table-sm runs-table align-middle">
+        <div class="siiap-table-wrapper">
+          <table class="table siiap-table mb-0 table-sm runs-table align-middle">
+            <caption class="visually-hidden">Respaldos generados y su estado</caption>
             <thead>
               <tr>
-                <th>Run</th>
-                <th>Tipo</th>
-                <th>Items</th>
-                <th>Tamaño</th>
-                <th>Generado</th>
-                <th>Expira</th>
-                <th>Estado</th>
-                <th>Acciones</th>
+                <th scope="col">Identificador</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Expedientes</th>
+                <th scope="col">Tamaño</th>
+                <th scope="col">Generado</th>
+                <th scope="col">Expira</th>
+                <th scope="col">Estado</th>
+                <th scope="col" class="text-end">Acciones</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
         </div>`;
+
+      if (window.SIIAP && window.SIIAP.initDataTable) {
+        container.querySelectorAll('.siiap-table-wrapper').forEach(window.SIIAP.initDataTable);
+      }
     } catch (e) {
       flash('danger', `Error al cargar respaldos: ${e.message}`);
     }

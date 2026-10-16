@@ -3,8 +3,10 @@
 from app import db
 from app.models.user_history import UserHistory
 from app.models.user import User
+from app.models.user_program import UserProgram
 from flask_login import current_user
-from typing import Optional, Dict, Any, List
+from sqlalchemy import or_
+from typing import Iterable, Optional, Dict, Any, List
 from app.services.notification_service import NotificationService
 import json
 
@@ -51,9 +53,19 @@ class UserHistoryService:
             
         Returns:
             UserHistory: La entrada de historial creada
-            
+
         Raises:
             ValueError: Si el action no es válido o el user_id no existe
+
+        ADVERTENCIA — admin_id=None NO significa "sin administrador".
+        Si hay una sesión activa, el bloque de abajo lo rellena con
+        current_user.id. Para una acción que el propio usuario ejecuta sobre sí
+        mismo eso deja admin_id == user_id, es decir "fue su propio
+        administrador", que es justo lo contrario de lo que esa columna
+        comunica. Todo flujo que necesite un NULL real debe registrarse fuera
+        de user_history (ver AuthAuditService) o pasar por aquí sabiendo esto.
+        No se corrige en este cambio porque varias decenas de llamadas ya
+        dependen del comportamiento actual.
         """
         # Validar que el usuario existe
         user = User.query.get(user_id)
@@ -84,8 +96,19 @@ class UserHistoryService:
         return history_entry
 
     @staticmethod
-    def log_password_reset(user_id: int, admin_id: Optional[int] = None) -> UserHistory:
-        """Registra un reset de contraseña - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR"""
+    def log_password_reset(
+        user_id: int,
+        admin_id: Optional[int] = None,
+        token_link: Optional[str] = None,
+        expires_at=None,
+    ) -> UserHistory:
+        """
+        Registra un reset de contraseña - SE GUARDA EN EL HISTORIAL DEL ADMINISTRADOR
+
+        `token_link` / `expires_at` viajan hasta el correo del usuario afectado.
+        Nunca se escriben en el historial ni en la notificación: el enlace vale
+        tanto como una contraseña y esas dos superficies quedan almacenadas.
+        """
         # Obtener información del usuario afectado
         user = User.query.get(user_id)
         user_name = f"{user.first_name} {user.last_name}" if user else f"Usuario {user_id}"
@@ -115,8 +138,10 @@ class UserHistoryService:
         )
         
         # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el usuario)
-        NotificationService.notify_password_reset(user_id)
-        
+        NotificationService.notify_password_reset(
+            user_id, token_link=token_link, expires_at=expires_at
+        )
+
         return history
 
     @staticmethod
@@ -344,18 +369,101 @@ class UserHistoryService:
         
         return query.all()
 
+    # ==================== ACTIVIDAD RECIENTE (CON ALCANCE) ====================
+
+    #: Default page size and hard ceiling for any "recent activity" listing.
+    #: The ceiling is enforced inside the service, not at the route, so a
+    #: caller asking a single-worker deployment for `?limit=1000000` cannot
+    #: turn a listing into a denial of service by finding a route that forgot
+    #: to clamp.
+    DEFAULT_ACTIVITY_LIMIT = 50
+    MAX_ACTIVITY_LIMIT = 200
+
     @staticmethod
-    def get_recent_activity(limit: int = 50) -> List[UserHistory]:
+    def clamp_activity_limit(limit: Optional[int]) -> int:
         """
-        Obtiene la actividad reciente de todos los usuarios.
-        
+        Coerce a caller-supplied limit into [1, MAX_ACTIVITY_LIMIT].
+
+        Anything unparseable, missing or < 1 falls back to
+        DEFAULT_ACTIVITY_LIMIT instead of raising: the limit is a comfort
+        parameter, never a security one.
+        """
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            return UserHistoryService.DEFAULT_ACTIVITY_LIMIT
+        if limit < 1:
+            return UserHistoryService.DEFAULT_ACTIVITY_LIMIT
+        return min(limit, UserHistoryService.MAX_ACTIVITY_LIMIT)
+
+    @staticmethod
+    def get_recent_activity(
+        limit: int,
+        program_ids: Optional[Iterable[int]],
+        viewer_id: Optional[int] = None,
+    ) -> List[UserHistory]:
+        """
+        Recent activity across users, restricted to the caller's programs.
+
+        `program_ids` is REQUIRED and deliberately has no default. This used to
+        be an unrestricted `SELECT ... ORDER BY timestamp DESC LIMIT n` over the
+        whole institution, and every row serialises its raw `details` JSON
+        (control numbers, student names, document and program names) — data
+        that is on the forbidden cross-program list. Forgetting the scope has
+        to be impossible, not merely discouraged.
+
         Args:
-            limit: Número máximo de entradas a retornar
-            
+            limit: max rows to return; always clamped to MAX_ACTIVITY_LIMIT.
+            program_ids:
+                None  → every program. ONLY pass None when
+                        `User.get_accessible_program_ids()` returned None
+                        (global scope, i.e. the jefe de posgrado).
+                set() → no program at all. The result is then limited to
+                        `viewer_id`'s own rows, and is empty without one.
+                        An empty set NEVER means "all programs".
+            viewer_id: the caller. Their own rows are always included — a user
+                is always in scope for themselves.
+
         Returns:
-            Lista de entradas del historial ordenadas por fecha (más reciente primero)
+            History entries, newest first. A row is included when the user it
+            is filed under (`UserHistory.user_id` — the ACTOR, see the class
+            docstring) belongs to at least one program inside `program_ids`,
+            or is the viewer.
+
+            Note the consequence for staff rows: administrative actions are
+            filed under the acting admin, who has no `UserProgram`, so another
+            coordinator's actions never appear in a non-global feed. That is
+            fail-closed and intended — those rows describe students the caller
+            may have no reach over.
         """
-        return UserHistory.query.order_by(UserHistory.timestamp.desc()).limit(limit).all()
+        limit = UserHistoryService.clamp_activity_limit(limit)
+        query = UserHistory.query
+
+        if program_ids is not None:
+            pids = set()
+            for pid in program_ids:
+                try:
+                    pids.add(int(pid))
+                except (TypeError, ValueError):
+                    continue
+
+            conditions = []
+            if pids:
+                scoped_user_ids = (
+                    db.session.query(UserProgram.user_id)
+                    .filter(UserProgram.program_id.in_(pids))
+                )
+                conditions.append(UserHistory.user_id.in_(scoped_user_ids))
+            if viewer_id is not None:
+                conditions.append(UserHistory.user_id == viewer_id)
+
+            if not conditions:
+                # No programs and no viewer: nothing is in scope. Fail closed.
+                return []
+
+            query = query.filter(or_(*conditions))
+
+        return query.order_by(UserHistory.timestamp.desc()).limit(limit).all()
 
     @staticmethod
     def get_admin_activity(admin_id: int, limit: Optional[int] = None) -> List[UserHistory]:
@@ -391,7 +499,16 @@ class UserHistoryService:
         """
         from sqlalchemy import or_, and_
         
-        # Buscar en los detalles JSON donde se mencione al usuario
+        # Buscar en los detalles JSON donde se mencione al usuario.
+        #
+        # NO TOQUES ESTOS PATRONES para "adaptarlos al UUID". `details` es un
+        # REGISTRO PERSISTIDO y sigue guardando el id INTERNO (entero), igual
+        # que los logs y los argumentos de Celery: el UUID es sólo el manejador
+        # público de las URLs y los payloads. Por eso el valor va sin comillas
+        # aquí y coincide con lo que escriben los `log_*` de esta misma clase.
+        # Si algún día un writer empezara a guardar el UUID, las filas viejas
+        # conservarían el entero y las dos grafías convivirían para siempre:
+        # el fallo se vería como HISTORIAL QUE FALTA, nunca como un error.
         query = UserHistory.query.filter(
             or_(
                 UserHistory.details.like(f'%"student_id": {target_user_id}%'),
@@ -1017,6 +1134,18 @@ class UserHistoryService:
         'deferral_requested':             'Solicitó diferimiento',
         'deferral_rejected':              'Rechazó solicitud de diferimiento',
         'deferral_reactivated':           'Reactivó aspirante diferido',
+
+        # CONVOCATORIAS
+        'admission_interest_registered':  'Pidió aviso de convocatoria',
+
+        # AUTENTICACIÓN — NO VAN AQUÍ.
+        # Los eventos de inicio de sesión se registran en la tabla `log` a
+        # través de AuthAuditService (app/services/auth_audit_service.py).
+        # No los vuelvas a agregar a este catálogo: user_history se muestra en
+        # las consolas de coordinación/administración y se serializa completo
+        # en User.to_dict(include_sensitive=True), su admin_id se rellena solo
+        # desde current_user (un login quedaría como "su propio administrador")
+        # y su volumen aquí lo controlaría una petición no autenticada.
     }
 
     @staticmethod

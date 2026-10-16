@@ -1,7 +1,8 @@
 {# ────────────────────────────────────────────────────────────── #}
-{# app/templates/programs/view.html #}
+{# app/templates/programs/view/view.html #}
 {# ────────────────────────────────────────────────────────────── #}
 {% extends "base.html" %}
+{% from '_macros.html' import modal_shell %}
 {% block title %}{{ program.name }}{% endblock %}
 
 {% block styles %}
@@ -9,65 +10,62 @@
 {% endblock %}
 
 {% block content %}
-<div class="program-view-container">
-    {# Hero Section #}
+{# .program-landing envuelve la página entera; .program-view-container sólo el
+   contenido centrado. El hero queda FUERA del contenedor a propósito: sangra
+   a todo el ancho del área principal anulando el relleno de #main-content, que
+   es lo que separa visualmente una landing de una pantalla de gestión. #}
+<div class="program-landing">
+
+    {# Hero Section — a sangre #}
     {% include 'programs/view/_hero.html' %}
 
-    {# Aviso: sin periodo de admisión abierto #}
-    {% if not admission_open %}
-    <section class="py-3 my-3" id="no-period-banner" data-aos="fade-up">
-      <div class="empty-state empty-state--compact">
-        <i class="empty-state__icon bi bi-calendar-x"></i>
-        <h3 class="empty-state__title">No hay periodo de admisión abierto</h3>
-        <p class="empty-state__description">
-          {% if next_period %}
-            El próximo proceso de admisión inicia el
-            <strong>{{ next_period.admission_start_date.strftime('%d de %B de %Y') }}</strong>
-            (periodo <strong>{{ next_period.name }}</strong>).
-          {% else %}
-            Aún no hay una fecha confirmada para el próximo periodo.
-          {% endif %}
-          {% if program.coordinator %}
-            Si te interesa inscribirte en {{ program.name }}, puedes comunicarte con el coordinador del programa.
-          {% endif %}
-        </p>
-        {% if program.coordinator %}
-        <div class="empty-state__actions">
-          <a href="mailto:{{ program.coordinator.email }}" class="btn btn-primary">
-            <i class="bi bi-envelope-fill me-2"></i>Contactar al coordinador
-          </a>
-          {% if program.contact_email %}
-          <a href="mailto:{{ program.contact_email }}" class="btn btn-outline-secondary">
-            <i class="bi bi-envelope me-2"></i>Contacto del programa
-          </a>
-          {% endif %}
-        </div>
-        <p class="text-muted small mt-3 mb-0">
-          <i class="bi bi-person-fill me-1"></i>
-          <strong>{{ program.coordinator.first_name }} {{ program.coordinator.last_name }}</strong>
-          · <span class="text-muted">{{ program.coordinator.email }}</span>
-        </p>
+    <div class="program-view-container">
+
+        {# Estado de la admisión: una sola franja, DESPUÉS del hero. Antes era
+           un bloque a página completa por delante, que enterraba el nombre del
+           programa bajo ~500px de estado vacío. #}
+        {% if not admission_open %}
+        <aside class="program-notice" data-reveal>
+          <i class="bi bi-calendar-x program-notice__icon" aria-hidden="true"></i>
+          <div class="program-notice__body">
+            <p class="program-notice__text">
+              <strong>Las inscripciones están cerradas.</strong>
+              {% if next_period %}
+                El próximo proceso inicia el
+                <strong>{{ next_period.admission_start_date|fecha_es }}</strong>,
+                para el periodo {{ next_period.name }}.
+              {% else %}
+                Aún no hay fecha confirmada para el próximo periodo.
+              {% endif %}
+            </p>
+          </div>
+        </aside>
         {% endif %}
-      </div>
-    </section>
-    {% endif %}
 
-    {# Información del Programa #}
-    {% include 'programs/view/_program_info.html' %}
+        {# Proceso de Admisión. Sube a la segunda posición: es lo que el
+           visitante vino a averiguar. Antes era la sección 4 de 6, tras
+           1 011px de hero, franja y datos repetidos.
 
-    {# Proceso de Admisión #}
-    {% include 'programs/view/_admission_steps.html' %}
+           El orden alterna secciones planas y tintadas — admisión, programa,
+           plan, perfil, contacto — para que la página tenga cadencia y no seis
+           bloques idénticos apilados. #}
+        {% include 'programs/view/_admission_steps.html' %}
 
-    {# Plan de Estudios #}
-    {% include 'programs/view/_curriculum.html' %}
+        {# Información del Programa #}
+        {% include 'programs/view/_program_info.html' %}
 
-    {# Perfil del Egresado #}
-    {% include 'programs/view/_graduate_profile.html' %}
+        {# Plan de Estudios #}
+        {% include 'programs/view/_curriculum.html' %}
 
-    {# Contacto #}
-    {% include 'programs/view/_contact.html' %}
+        {# Perfil del Egresado #}
+        {% include 'programs/view/_graduate_profile.html' %}
 
-    {# Botones flotantes #}
+        {# Contacto #}
+        {% include 'programs/view/_contact.html' %}
+
+    </div>
+
+    {# Barra de acciones fija #}
     {% include 'programs/view/_floating_buttons.html' %}
 
 </div>
@@ -75,73 +73,78 @@
 {% endblock %}
 
 {% block modals %}
-<div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
+{# Los diálogos existen sólo si hay un control capaz de abrirlos: si el
+   visitante no puede postularse (sin permiso, o con un proceso ya abierto) la
+   barra no pinta el CTA y no debe quedar un modal huérfano. #}
+{% if has_perm('programs.api.enroll') and not viewer_program %}
+{% if admission_open %}
+{% call(section) modal_shell('enrollmentModal', '¿Deseas postularte en el programa?', icon='mortarboard-fill') %}
+  {%- if section == 'body' -%}
+  <p class="mb-0">
+    Confirma si deseas proceder con la postulación al programa
+    <strong>{{ program.name }}</strong>.
+  </p>
+  {%- elif section == 'footer' -%}
+  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+  <form method="POST" action="{{ url_for('program.inscription_program', program_id=program.id) }}" class="d-inline">
+    <button type="submit" class="btn btn-primary">Sí, postularme</button>
+  </form>
+  {%- endif -%}
+{% endcall %}
 
-            <form method="POST" action="{{ url_for('program.inscription_program', program_id=program.id) }}">
-
-                <div class="modal-header">
-                    <h5 class="modal-title" id="enrollmentModalLabel">
-                        ¿Deseas postularte en el programa?
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body">
-                    Por favor confirma si deseas proceder con la postulación al programa {{ program.name }}.
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
-
-                    <button type="submit" class="btn btn-primary">
-                        Sí, postularme
-                    </button>
-                </div>
-            </form>
-
-        </div>
-    </div>
-</div>
-
-{# Modal: Inscripciones cerradas — muestra cuándo inicia el próximo proceso #}
-<div class="modal fade" id="enrollmentClosedModal" tabindex="-1"
-    aria-labelledby="enrollmentClosedModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-
-            <div class="modal-header border-0">
-                <h5 class="modal-title" id="enrollmentClosedModalLabel">
-                    <i class="bi bi-calendar-x text-warning me-2"></i>Inscripciones cerradas
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-
-            <div class="modal-body">
-                <p>En este momento el proceso de admisión para <strong>{{ program.name }}</strong>
-                no está abierto.</p>
-                {% if next_period %}
-                <div class="alert alert-info mb-0">
-                    <i class="bi bi-calendar-check me-2"></i>
-                    El próximo proceso de admisión inicia el
-                    <strong>{{ next_period.admission_start_date.strftime('%d de %B de %Y') }}</strong>
-                    (periodo <strong>{{ next_period.name }}</strong>).
-                </div>
-                {% else %}
-                <p class="text-muted mb-0">Aún no hay una fecha confirmada para el próximo periodo.
-                Te invitamos a estar pendiente de los avisos del programa.</p>
-                {% endif %}
-            </div>
-
-            <div class="modal-footer border-0">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
-            </div>
-
-        </div>
-    </div>
-</div>
+{% else %}
+{# Convocatoria cerrada. El CTA no desaparece ni se apaga: al pulsarlo este
+   diálogo dice que no hay periodo activo, cuándo abre el siguiente, a quién
+   escribir mientras tanto y ofrece activar el aviso. Un botón que existe para
+   decir que no es una promesa falsa; uno que existe para decir cuándo, no. #}
+{% call(section) modal_shell('admissionClosedModal', 'No hay periodo de admisión activo', icon='calendar-check') %}
+  {%- if section == 'body' -%}
+  <p>
+    En este momento no hay un periodo de admisión abierto para
+    <strong>{{ program.name }}</strong>.
+    {% if next_period %}
+      El próximo inicia el
+      <strong>{{ next_period.admission_start_date|fecha_es }}</strong>,
+      para el periodo {{ next_period.name }}.
+    {% else %}
+      Todavía no hay una fecha confirmada para el siguiente.
+    {% endif %}
+  </p>
+  {% if program.coordinator %}
+  <p>
+    Si te interesa el programa, escríbele a la coordinación:
+    <strong>{{ program.coordinator.first_name }} {{ program.coordinator.last_name }}</strong>
+    (<a href="mailto:{{ program.coordinator.email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
+        class="text-break">{{ program.coordinator.email }}</a>).
+  </p>
+  {% endif %}
+  {# El aviso se OFRECE, no se da por hecho. Redactado como promesa cumplida,
+     el lector cerraba el diálogo sin pulsar nada y su interés nunca se
+     registraba. #}
+  <p class="mb-0">
+    Y si quieres, te avisamos en cuanto abra: pulsa
+    <strong>Avísame cuando abra</strong> y te llegará un correo y una
+    notificación aquí mismo.
+  </p>
+  {# Sin d-none: una región viva que aparece de golpe no se anuncia de forma
+     fiable. Vive siempre en el árbol, vacía, y CSS la oculta con :empty. #}
+  <p id="admissionInterestFeedback" class="admission-closed__feedback" role="status" aria-live="polite" tabindex="-1"></p>
+  {%- elif section == 'footer' -%}
+  {% if program.coordinator %}
+  <a href="mailto:{{ program.coordinator.email }}?subject=Consulta%20sobre%20{{ program.name|urlencode }}"
+     class="btn btn-outline-primary">
+    <i class="bi bi-envelope-fill me-2" aria-hidden="true"></i>Escribir al coordinador
+  </a>
+  {% endif %}
+  <button type="button" class="btn btn-primary"
+          id="admissionInterestBtn"
+          data-program-id="{{ program.id }}">
+    <i class="bi bi-bell-fill me-2" aria-hidden="true"></i>Avísame cuando abra
+  </button>
+  {%- endif -%}
+{% endcall %}
+{% endif %}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

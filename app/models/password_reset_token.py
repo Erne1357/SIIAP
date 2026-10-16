@@ -1,6 +1,6 @@
 # app/models/password_reset_token.py
 from app import db
-from app.utils.datetime_utils import now_local
+from app.utils.datetime_utils import now_local, to_local_timezone
 
 
 class PasswordResetToken(db.Model):
@@ -71,8 +71,17 @@ class PasswordResetToken(db.Model):
 
     @property
     def is_expired(self) -> bool:
-        """True when the current time is past expires_at."""
-        return now_local() > self.expires_at
+        """
+        True when the current time is past expires_at.
+
+        `expires_at` is a naive `DATETIME` column, so a row read back from
+        Postgres carries no tzinfo while `now_local()` is always aware —
+        comparing them directly raises TypeError. It was written aware and in
+        local time, so re-attaching LOCAL_TZ restores the original instant.
+        Without this, every `get_token()` on a persisted row blew up with a 500
+        and no account could ever set its password.
+        """
+        return now_local() > to_local_timezone(self.expires_at)
 
     @property
     def is_used(self) -> bool:
@@ -89,13 +98,18 @@ class PasswordResetToken(db.Model):
     # ------------------------------------------------------------------
 
     def to_dict(self):
+        # Public payload: ids that name a User, a Submission or an Archive go
+        # out as their UUID handle. Key names are unchanged on purpose.
+        from app.models.user import User
+        from app.services.public_id_service import uuid_for
+
         return {
             'id': self.id,
-            'user_id': self.user_id,
+            'user_id': uuid_for(User, self.user_id),
             'purpose': self.purpose,
             'expires_at': self.expires_at.isoformat() if self.expires_at else None,
             'used_at': self.used_at.isoformat() if self.used_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'created_by': self.created_by,
+            'created_by': uuid_for(User, self.created_by),
             'is_valid': self.is_valid,
         }

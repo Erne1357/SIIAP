@@ -9,15 +9,23 @@ Workflow:
   - On successful upload, the flag resets to False (one-shot enablement).
 
 All photos are compressed to 512px JPEG q=85 by `image_processing.compress_profile_photo`.
+
+Program scope: every write on somebody ELSE's photo (a coordinator uploading
+for a student, or enabling/rejecting a change request) requires the target to
+live inside the requester's program scope. The routes declare it with
+`@program_scope_required`; these functions re-check it so the rule also holds
+for CLI commands, Celery tasks and any future caller.
 """
 
 from pathlib import Path
 from flask import current_app
 
 from app import db
+from app.services import public_id_service
 from app.models.user import User
 from app.models.program import Program
 from app.models.user_program import UserProgram
+from app.services import program_scope_service
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
@@ -62,6 +70,29 @@ def _delete_previous_avatars(user_id: int) -> None:
                 pass
 
 
+def _require_scope_over(requester_id: int, target_user: User) -> None:
+    """
+    Fail closed unless `requester_id` may act on `target_user`.
+
+    Raises:
+        program_scope_service.ProgramScopeDenied — target outside the scope, or
+        the requester no longer exists.
+    """
+    if requester_id is None:
+        raise program_scope_service.ProgramScopeDenied(
+            'No tienes acceso a la foto de perfil de este usuario.'
+        )
+    requester = db.session.get(User, requester_id)
+    if requester is None:
+        raise program_scope_service.ProgramScopeDenied(
+            'No tienes acceso a la foto de perfil de este usuario.'
+        )
+    if not program_scope_service.user_in_scope(requester, target_user):
+        raise program_scope_service.ProgramScopeDenied(
+            'No tienes acceso a la foto de perfil de este usuario.'
+        )
+
+
 def _coordinator_ids_for_user(user: User) -> list[int]:
     """Returns coordinator_ids of all programs the user is enrolled in."""
     coord_ids = set()
@@ -79,10 +110,19 @@ def upload_photo(user_id: int, file_storage, requester_id: int = None,
 
     Rules:
       - If is_self and user already has a photo and not allowed → raises PhotoChangeNotAllowed.
-      - If a coordinator uploads on behalf of a student, allowed regardless.
+      - If a coordinator uploads on behalf of a student, the student must be
+        inside the coordinator's program scope (raises ProgramScopeDenied).
       - Resets photo_change_allowed to False and photo_change_requested_at to None.
     """
     user = _get_user(user_id)
+
+    # Escritura sobre la foto de OTRA persona: exige alcance de programa.
+    # Se comprueba ANTES de comprimir o de borrar el avatar anterior, para que
+    # una denegación no deje al usuario sin foto.
+    acting_for_other = requester_id is not None and requester_id != user_id
+    if acting_for_other or not is_self:
+        _require_scope_over(requester_id, user)
+
     has_photo = user.avatar and user.avatar != 'default.jpg'
 
     if is_self and has_photo and not user.photo_change_allowed:
@@ -166,7 +206,11 @@ def request_photo_change(user_id: int, reason: str = None) -> User:
                 + (f' Motivo: {reason}' if reason else '')
             ),
             priority='normal',
-            action_url=f'/students/{user_id}/record',
+            # La página del expediente se direcciona por el identificador
+            # PÚBLICO (`/students/<uuid>/record`). Con el entero el enlace de
+            # la notificación devolvía 404 — y las notificaciones se guardan,
+            # así que un enlace roto sobrevive al despliegue que lo rompió.
+            action_url=f'/students/{public_id_service.public_id(user)}/record',
         )
 
     db.session.commit()
@@ -177,8 +221,14 @@ def enable_photo_change(target_user_id: int, coordinator_id: int,
                          approve: bool = True, reason: str = None) -> User:
     """
     Coordinator approves or rejects a photo change request.
+
+    Raises:
+        ProgramScopeDenied — the student is outside the coordinator's programs.
     """
     user = _get_user(target_user_id)
+
+    if coordinator_id != target_user_id:
+        _require_scope_over(coordinator_id, user)
 
     if not approve:
         user.photo_change_requested_at = None
@@ -237,14 +287,15 @@ def list_pending_photo_requests(coordinator_id: int) -> list:
       * Users with ``photo_change_requested_at IS NOT NULL`` and
         ``photo_change_allowed = False`` (no longer pending after coordinator
         approves and the flag is set, or after the user uploads).
-      * Restricted to users enrolled in any program the coordinator can
-        access via ``User.get_accessible_program_ids()`` (None == all).
+      * Restricted to users enrolled in any program inside the coordinator's
+        scope, via ``program_scope_service.accessible_program_ids``
+        (None == all programs, empty set == no programs).
     """
-    requester = User.query.get(coordinator_id)
+    requester = db.session.get(User, coordinator_id)
     if not requester:
         return []
 
-    accessible = requester.get_accessible_program_ids()  # None = global
+    accessible = program_scope_service.accessible_program_ids(requester)
 
     base_q = (
         User.query
@@ -276,7 +327,9 @@ def list_pending_photo_requests(coordinator_id: int) -> list:
 
     return [
         {
-            'user_id': u.id,
+            # Public handle — the console puts it straight back in the URL of
+            # `POST /api/v1/users/<uuid>/photo/enable-change`.
+            'user_id': str(u.uuid) if u.uuid else None,
             'full_name': f"{u.first_name} {u.last_name} {u.mother_last_name or ''}".strip(),
             'email': u.email,
             'avatar_url': u.avatar_url,

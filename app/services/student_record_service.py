@@ -20,6 +20,7 @@ plus a notification to the student.
 from typing import Optional
 
 from app import db
+from app.services import public_id_service
 from app.models.user import User
 from app.models.user_program import UserProgram
 from app.models.acceptance_document import AcceptanceDocument
@@ -30,7 +31,9 @@ from app.models.enrollment_deferral import EnrollmentDeferral
 from app.models.user_history import UserHistory
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
+from app.services import file_access_service
 from app.services import profile_activity_service
+from app.services import program_scope_service
 from app.utils.datetime_utils import now_local
 
 
@@ -44,43 +47,79 @@ EDITABLE_PERSONAL_FIELDS = {
 }
 
 
+#: The ONE message every caller must answer with when a record cannot be
+#: served, whatever the reason. `StudentNotFound` and `AccessDenied` stay two
+#: distinct exceptions so the OPERATOR can tell them apart in the log, but they
+#: must never be distinguishable from outside: answering 404 for "no such user"
+#: and 403 for "exists, not yours" turns `/students/<id>/record` into a census
+#: of which user ids exist. Every other module collapses the pair the same way
+#: (acceptance_api, invitations_api, appointments_api, program_changes_api,
+#: files_api) — this one was the odd one out.
+RECORD_NOT_FOUND_MESSAGE = 'Expediente no encontrado.'
+
+
 class StudentRecordError(Exception):
+    """Base of the two outcomes that collapse into a single 404 response."""
     pass
 
 
 class StudentNotFound(StudentRecordError):
+    """No user with that id. For the LOG only — never for the response."""
     pass
 
 
 class AccessDenied(StudentRecordError):
+    """The user exists but is outside the requester's scope. LOG only."""
     pass
 
 
 def _can_view_record(requester: User, target: User) -> bool:
     """
-    True if the requester can view target's record:
-      - postgraduate_admin (academic_periods.api.create) → all
-      - program_admin coordinating one of target's programs → that scope
+    True if the requester can view target's FULL record:
       - target == requester → always
+      - holds 'students.api.view_record' AND the target is inside the
+        requester's program scope (postgraduate_admin = every program).
+
+    The scope half is delegated to `program_scope_service.user_in_scope`, the
+    single shared predicate — do not re-implement the intersection here.
     """
     if requester.id == target.id:
         return True
-    if requester.has_permission('students.api.view_record') is False:
+    if not requester.has_permission('students.api.view_record'):
         return False
-    accessible = requester.get_accessible_program_ids()
-    if accessible is None:
-        return True
-    target_program_ids = {up.program_id for up in (target.user_program or [])}
-    return bool(target_program_ids & set(accessible))
+    return program_scope_service.user_in_scope(requester, target, allow_self=False)
+
+
+def load_record_target(user_id: int, requester: User) -> User:
+    """
+    Resolve the student whose record is being opened, enforcing access.
+
+    Single gate for both the API and the page route, so neither has to reach
+    for `_can_view_record` or query `User` on its own.
+
+    Raises:
+        StudentNotFound — no user with that id.
+        AccessDenied    — the user exists but is outside the requester's scope.
+
+    The two are for the log ONLY: the caller must answer both with the same
+    404 and `RECORD_NOT_FOUND_MESSAGE`.
+    """
+    # `user_id` puede llegar como None cuando la ruta no pudo resolver el UUID
+    # público: es exactamente el mismo caso que "no existe" y sale por la misma
+    # excepción, que el llamador traduce al 404 compartido.
+    user = db.session.get(User, user_id) if user_id is not None else None
+    if not user:
+        raise StudentNotFound("Usuario no encontrado")
+
+    if not _can_view_record(requester, user):
+        raise AccessDenied(
+            f"El usuario {user_id} está fuera del alcance del solicitante."
+        )
+    return user
 
 
 def get_full_record(user_id: int, requester: User) -> dict:
-    user = User.query.get(user_id)
-    if not user:
-        raise StudentNotFound(f"Usuario {user_id} no encontrado")
-
-    if not _can_view_record(requester, user):
-        raise AccessDenied("No tienes permiso para ver el expediente de este estudiante.")
+    user = load_record_target(user_id, requester)
 
     user_programs = list(user.user_program or [])
     primary_up: Optional[UserProgram] = user_programs[0] if user_programs else None
@@ -106,15 +145,11 @@ def update_personal_info(user_id: int, coordinator_id: int, data: dict) -> User:
     Coordinator updates whitelisted personal fields of a student.
     Logs every changed field and notifies the student once.
     """
-    user = User.query.get(user_id)
-    if not user:
-        raise StudentNotFound(f"Usuario {user_id} no encontrado")
-
-    requester = User.query.get(coordinator_id)
+    requester = db.session.get(User, coordinator_id)
     if not requester:
-        raise AccessDenied("Solicitante no encontrado.")
-    if not _can_view_record(requester, user):
-        raise AccessDenied("No tienes permiso para editar el expediente de este estudiante.")
+        raise AccessDenied(f"Solicitante {coordinator_id} no encontrado.")
+
+    user = load_record_target(user_id, requester)
 
     changed = {}
     for field, new_value in (data or {}).items():
@@ -170,7 +205,8 @@ def update_personal_info(user_id: int, coordinator_id: int, data: dict) -> User:
 
 def _user_dict(user: User) -> dict:
     return {
-        'id': user.id,
+        # Public handle, never the integer primary key.
+        'id': str(user.uuid) if user.uuid else None,
         'first_name': user.first_name,
         'last_name': user.last_name,
         'mother_last_name': user.mother_last_name,
@@ -238,9 +274,11 @@ def _acceptance_docs(user_programs: list) -> list:
         .order_by(AcceptanceDocument.uploaded_at.desc())
         .all()
     )
+    # `to_dict()` ya trae `file_url` opaco; se repite la clave aquí sólo para
+    # que este proyector siga siendo explícito sobre lo que publica.
     return [
         {**d.to_dict(),
-         'file_url': f'/files/doc/{d.file_path}' if d.file_path else None}
+         'file_url': file_access_service.acceptance_document_url(d)}
         for d in docs
     ]
 
@@ -268,18 +306,16 @@ def _semester_enrollments(user_programs: list) -> list:
             'status': se.status,
             'enrollment_confirmed': se.enrollment_confirmed,
             'confirmed_at': se.confirmed_at.isoformat() if se.confirmed_at else None,
-            'confirmed_by': se.confirmed_by,
+            'confirmed_by': public_id_service.uuid_for(User, se.confirmed_by),
             'notes': se.notes,
-            'payment_proof_path': getattr(se, 'payment_proof_path', None),
-            'payment_proof_url': (
-                f'/files/doc/{se.payment_proof_path}'
-                if getattr(se, 'payment_proof_path', None) else None
-            ),
-            'schedule_path': getattr(se, 'schedule_path', None),
-            'schedule_url': (
-                f'/files/doc/{se.schedule_path}'
-                if getattr(se, 'schedule_path', None) else None
-            ),
+            # Sólo el basename humano; la ruta almacenada empieza por
+            # `<user_id>/`. Los `_url` nombran la fila + el slot.
+            'payment_proof_path': file_access_service.document_download_name(
+                getattr(se, 'payment_proof_path', None)),
+            'payment_proof_url': file_access_service.enrollment_payment_proof_url(se),
+            'schedule_path': file_access_service.document_download_name(
+                getattr(se, 'schedule_path', None)),
+            'schedule_url': file_access_service.enrollment_schedule_url(se),
         }
         out.append(item)
     return out
@@ -310,7 +346,8 @@ def _interview_info(user_id: int) -> dict | None:
         'created_at': a.created_at.isoformat() if a.created_at else None,
         'interviewer': (
             {
-                'id': interviewer.id,
+                # Public handle, never the integer primary key.
+                'id': str(interviewer.uuid) if interviewer.uuid else None,
                 'name': f"{interviewer.first_name} {interviewer.last_name}",
                 'email': interviewer.email,
             } if interviewer else None

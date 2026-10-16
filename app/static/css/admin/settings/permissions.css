@@ -1,14 +1,22 @@
 /* app/static/css/admin/settings/permissions.css
    Estilos para la página de gestión de permisos por rol. */
 
+/* 20rem fijos eran 320px, el 58% del alto útil de un portátil: la columna
+   izquierda desbordaba 98px y el log quedaba cortado por la mitad. Se mide
+   contra la ventana, igual que las demás alturas de superposición. */
 .audit-log-body {
-  max-height: 320px;
+  max-height: clamp(9rem, 28vh, 20rem);
   overflow-y: auto;
 }
 
+/* El relleno de los paneles de permisos sigue el ritmo de tramo. */
+#permTabsContent {
+  padding: var(--tab-content-pad);
+}
+
 .audit-meta {
-  font-size: 0.75rem;
-  line-height: 1.2;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
 }
 
 .toast-stack-top {
@@ -16,13 +24,13 @@
 }
 
 #roleList .list-group-item.active {
-  background-color: var(--bs-primary);
-  border-color: var(--bs-primary);
-  color: #fff;
+  background-color: var(--color-brand-primary);
+  border-color: var(--color-brand-primary);
+  color: var(--text-inverse);
 }
 
 #selectCodename option {
-  padding: 0.25rem 0.5rem;
-  font-family: var(--bs-font-monospace);
-  font-size: 0.85rem;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
 }

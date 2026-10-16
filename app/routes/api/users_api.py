@@ -7,22 +7,34 @@ from datetime import datetime
 from app.models.user_history import UserHistory
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
-from app.utils.permissions import permission_required
+from app.models.user import User
+from app.routes._public_id import resolved_id
+from app.utils.permissions import guard_user_scope, permission_required
+from app.utils.validators import (
+    InputValidationError,
+    validate_person_name,
+    validate_short_text,
+)
 
 api_users = Blueprint("api_users", __name__, url_prefix="/api/v1/users")
 
 def _sanitize(s: str | None) -> str | None:
-    if s is None: 
+    if s is None:
         return None
     s = s.strip()
     return s or None
+
+def _has_text(value) -> bool:
+    """True when the payload carries a non-blank string for this field."""
+    return isinstance(value, str) and bool(value.strip())
 
 @api_users.get("/me")
 @login_required
 def me():
     u = current_user
     data = {
-        "id": u.id,
+        # Public handle, never the integer primary key.
+        "id": str(u.uuid) if u.uuid else None,
         "first_name": u.first_name,
         "last_name": u.last_name,
         "mother_last_name": u.mother_last_name,
@@ -157,16 +169,33 @@ def update_me():
       - scolarship_type (str, opt)
     """
     payload = request.get_json(silent=True) or {}
-    first = _sanitize(payload.get("first_name"))
-    last  = _sanitize(payload.get("last_name"))
-    mother = _sanitize(payload.get("mother_last_name"))
-    scol  = _sanitize(payload.get("scolarship_type"))
 
-    if not first or not last:
+    first_raw = payload.get("first_name")
+    last_raw = payload.get("last_name")
+    if not _has_text(first_raw) or not _has_text(last_raw):
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": "Nombre y Apellido Paterno son obligatorios."}],
             "error": {"code": "VALIDATION", "message": "Campos requeridos faltantes"},
+            "meta": {}
+        }), 400
+
+    # Same rules as self-registration (app/utils/validators.py): these values
+    # are rendered by the staff consoles, so storage must stay clean.
+    try:
+        first = validate_person_name(first_raw, label="Nombre")
+        last = validate_person_name(last_raw, label="Apellido paterno")
+        mother = validate_person_name(
+            payload.get("mother_last_name"), label="Apellido materno", required=False
+        )
+        scol = validate_short_text(
+            payload.get("scolarship_type"), label="Tipo de beca"
+        )
+    except InputValidationError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "VALIDATION", "message": e.message},
             "meta": {}
         }), 400
 
@@ -233,7 +262,7 @@ def user_history():
         },
         "error": None,
         "meta": {
-            "user_id": current_user.id,
+            "user_id": str(current_user.uuid) if current_user.uuid else None,
             "ordered_by": "timestamp_desc",
             "limit_applied": limit
         }
@@ -421,12 +450,26 @@ def list_photo_requests():
     return jsonify({"data": items, "error": None, "meta": {"count": len(items)}}), 200
 
 
-@api_users.post('/<int:user_id>/photo/enable-change')
+@api_users.post('/<uuid:user_uuid>/photo/enable-change')
 @login_required
 @permission_required('profile.api.enable_photo_change')
-def enable_photo_change(user_id):
-    """Coordinator approves or rejects a photo-change request."""
+def enable_photo_change(user_uuid):
+    """
+    Coordinator approves or rejects a photo-change request.
+
+    El permiso dice QUÉ; el alcance dice SOBRE QUIÉN: sólo estudiantes de los
+    programas del solicitante (el jefe de posgrado, todos). La guarda es
+    imperativa porque el URL trae un UUID; con None falla cerrado, así que un
+    identificador desconocido responde el mismo 403 que uno fuera de alcance.
+    """
     from app.services import profile_photo_service as photo_svc
+    from app.services.program_scope_service import ProgramScopeDenied
+
+    target = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(target))
+    if denied:
+        return denied
+    user_id = target.id
 
     payload = request.get_json(silent=True) or {}
     approve = bool(payload.get('approve', True))
@@ -449,6 +492,14 @@ def enable_photo_change(user_id):
             "error": None,
             "meta": {}
         }), 200
+    except ProgramScopeDenied as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "FORBIDDEN", "message": e.message},
+            "meta": {}
+        }), 403
     except photo_svc.ProfilePhotoError as e:
         return jsonify({
             "data": None,
@@ -466,12 +517,25 @@ def enable_photo_change(user_id):
         }), 500
 
 
-@api_users.post('/<int:user_id>/photo')
+@api_users.post('/<uuid:user_uuid>/photo')
 @login_required
 @permission_required('profile.api.upload_photo_for_student')
-def coordinator_upload_photo(user_id):
-    """Coordinator uploads a photo on behalf of a student."""
+def coordinator_upload_photo(user_uuid):
+    """
+    Coordinator uploads a photo on behalf of a student.
+
+    Sobrescribir la foto de alguien borra la anterior del disco y deja su
+    `photo_change_allowed` en False, así que es una escritura sobre datos
+    personales: exige que el estudiante esté dentro del alcance de programas.
+    """
     from app.services import profile_photo_service as photo_svc
+    from app.services.program_scope_service import ProgramScopeDenied
+
+    target = User.by_uuid(user_uuid)
+    denied = guard_user_scope(resolved_id(target))
+    if denied:
+        return denied
+    user_id = target.id
 
     file_storage = request.files.get('photo')
     if not file_storage:
@@ -490,11 +554,19 @@ def coordinator_upload_photo(user_id):
             is_self=False,
         )
         return jsonify({
-            "data": {"user_id": user_id},
+            "data": {"user_id": str(target.uuid) if target.uuid else None},
             "flash": [{"level": "success", "message": "Foto del estudiante actualizada"}],
             "error": None,
             "meta": {}
         }), 200
+    except ProgramScopeDenied as e:
+        db.session.rollback()
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "FORBIDDEN", "message": e.message},
+            "meta": {}
+        }), 403
     except photo_svc.ProfilePhotoError as e:
         return jsonify({
             "data": None,

@@ -10,6 +10,8 @@ Flujo por semestre:
 """
 
 from app import db
+from app.services import file_access_service
+from app.services import public_id_service
 from app.models import UserProgram, User, Program, AcademicPeriod
 from app.models.semester_enrollment import SemesterEnrollment
 from app.services.notification_service import NotificationService
@@ -30,6 +32,85 @@ class StudentNotFound(PermanenceError):
 
 class InvalidStateTransition(PermanenceError):
     pass
+
+
+# ── Resolución de alcance: ¿a qué programa pertenece este objeto? ─────────────
+#
+# La REGLA de alcance vive en `app/services/program_scope_service.py`
+# (`program_in_scope` / `user_in_scope`); aquí sólo resolvemos el programa
+# DUEÑO de cada objeto de permanencia para que la ruta pueda preguntarla.
+# Un permiso dice QUÉ puede hacer el usuario, nunca SOBRE QUÉ objeto.
+#
+# Todos devuelven None cuando el objeto no existe, para que la ruta pueda
+# responder 404 sin distinguir "no existe" de "existe pero es de otro programa".
+
+def get_user_program_scope(user_program_id: int):
+    """Programa y estudiante dueños de un UserProgram. None si no existe."""
+    up = db.session.get(UserProgram, user_program_id)
+    if not up:
+        return None
+    return {
+        'user_program_id': up.id,
+        'program_id': up.program_id,
+        'user_id': up.user_id,
+    }
+
+
+def get_semester_enrollment_scope(semester_enrollment_id: int):
+    """Programa y estudiante dueños de una inscripción semestral."""
+    se = db.session.get(SemesterEnrollment, semester_enrollment_id)
+    if not se:
+        return None
+    up = se.user_program
+    if not up:
+        return None
+    return {
+        'semester_enrollment_id': se.id,
+        'user_program_id': up.id,
+        'program_id': up.program_id,
+        'user_id': up.user_id,
+    }
+
+
+def get_deadline_scope(deadline_id: int):
+    """Programa dueño de una ventana de entrega."""
+    from app.models.document_deadline import DocumentDeadline
+
+    dl = db.session.get(DocumentDeadline, deadline_id)
+    if not dl:
+        return None
+    return {
+        'deadline_id': dl.id,
+        'program_id': dl.program_id,
+        'user_id': None,
+    }
+
+
+def get_submission_scope(submission_id: int):
+    """
+    Programa dueño de una submission de permanencia.
+
+    El programa se toma del ProgramStep (fuente que usa el propio servicio para
+    localizar el UserProgram) y, si faltara, de la ventana de entrega.
+    """
+    from app.models.submission import Submission
+
+    # `submission_id` puede llegar como None cuando la ruta no pudo resolver el
+    # UUID público: mismo resultado que "no existe", y la guarda que consume
+    # esto responde el mismo 404 en ambos casos.
+    sub = db.session.get(Submission, submission_id) if submission_id is not None else None
+    if not sub:
+        return None
+
+    program_id = sub.program_step.program_id if sub.program_step else None
+    if program_id is None and sub.document_deadline is not None:
+        program_id = sub.document_deadline.program_id
+
+    return {
+        'submission_id': sub.id,
+        'program_id': program_id,
+        'user_id': sub.user_id,
+    }
 
 
 def get_enrolled_students(program_id: int) -> list:
@@ -86,7 +167,7 @@ def get_enrolled_students(program_id: int) -> list:
         result.append({
             'user_program': up.to_dict(),
             'user': {
-                'id': user.id,
+                'id': public_id_service.user_uuid(user.id),
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'email': user.email,
                 'control_number': user.control_number,
@@ -326,7 +407,7 @@ def confirm_semester_enrollment(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': user.id,
+            'user_id': public_id_service.user_uuid(user.id),
             'user_program_id': up.id,
             'program_id': up.program_id,
             'action': 'semester_confirmed',
@@ -413,8 +494,9 @@ def update_enrollment_status(
             try:
                 from app.services.email_service import EmailService
                 from app.services.email_templates import EmailTemplates
-                from flask import url_for
-                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                from app.utils.urls import external_url
+                # Pinned to APP_BASE_URL, never to the request host.
+                dashboard_url = external_url('pages_user.dashboard')
                 subject, html = EmailTemplates.enrollment_status_changed(
                     user_name=f"{user.first_name} {user.last_name}",
                     program_name=program.name,
@@ -529,7 +611,7 @@ def reinstate_from_leave(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': user.id,
+            'user_id': public_id_service.user_uuid(user.id),
             'user_program_id': up.id,
             'program_id': up.program_id,
             'action': 'reinstated',
@@ -589,7 +671,7 @@ def get_enrollment_overview(program_id: int) -> dict:
         return {
             'user_program': up.to_dict(),
             'user': {
-                'id': u.id,
+                'id': public_id_service.user_uuid(u.id),
                 'full_name': f"{u.first_name} {u.last_name} {u.mother_last_name or ''}".strip(),
                 'email': u.email,
                 'control_number': u.control_number,
@@ -1105,14 +1187,18 @@ def submit_permanence_document(
 
     # WebSocket: fire-and-forget DESPUÉS del commit
     try:
-        from app.extensions import socketio
-        socketio.emit('submission:new', {
-            'user_id': student_id,
-            'submission_id': sub.id,
+        # `role:coordinator` es todo titular de coordinator.page.view, o sea
+        # cada program_admin de la institución. Este payload ata un user_id al
+        # nombre de un documento suyo, que es metadato de documento y no cruza
+        # de programa: va sólo a quien tiene alcance sobre el programa.
+        from app.sockets.emitters import emit_to_coordinators
+        emit_to_coordinators('submission:new', {
+            'user_id': public_id_service.user_uuid(student_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'archive_name': dl.archive.name,
             'program_id': up.program_id,
             'context': 'permanence',
-        }, room='role:coordinator')
+        }, up.program_id)
     except Exception:
         pass
 
@@ -1151,7 +1237,7 @@ def get_pending_documents(program_id: int) -> list:
         result.append({
             'submission': sub.to_dict(),
             'user': {
-                'id': user.id,
+                'id': public_id_service.user_uuid(user.id),
                 'full_name': (
                     f"{user.first_name} {user.last_name} "
                     f"{user.mother_last_name or ''}".strip()
@@ -1162,7 +1248,8 @@ def get_pending_documents(program_id: int) -> list:
                 sub.document_deadline.label if sub.document_deadline else sub.archive.name
             ),
             'archive_name': sub.archive.name if sub.archive else None,
-            'file_url': f'/files/doc/{sub.file_path}' if sub.file_path else None,
+            # URL opaco: nombra la fila, no la ruta en disco.
+            'file_url': file_access_service.submission_file_url(sub),
         })
     return result
 
@@ -1222,10 +1309,11 @@ def review_permanence_document(
         try:
             from app.services.email_service import EmailService
             from app.services.email_templates import EmailTemplates
-            from flask import url_for
+            from app.utils.urls import external_url
             user = User.query.get(sub.user_id)
             if user:
-                dashboard_url = url_for('pages_user.dashboard', _external=True)
+                # Pinned to APP_BASE_URL, never to the request host.
+                dashboard_url = external_url('pages_user.dashboard')
                 subject, html = EmailTemplates.permanence_doc_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
                     document_label=dl_label,
@@ -1254,8 +1342,8 @@ def review_permanence_document(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': sub.user_id,
-            'submission_id': sub.id,
+            'user_id': public_id_service.user_uuid(sub.user_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'program_id': program_id,
             'action': 'doc_reviewed',
             'status': status,
@@ -1300,7 +1388,7 @@ def get_student_leave_request(user_program_id: int) -> dict:
     )
     return {
         'archive_available': True,
-        'archive_id': archive.id,
+        'archive_id': public_id_service.archive_uuid(archive.id),
         'submission': sub.to_dict() if sub else None,
     }
 
@@ -1404,14 +1492,16 @@ def submit_leave_request(
 
     # WebSocket: fire-and-forget DESPUÉS del commit
     try:
-        from app.extensions import socketio
-        socketio.emit('submission:new', {
-            'user_id': student_id,
-            'submission_id': sub.id,
+        # Mismo motivo que en submit_permanence_document: el nombre del archivo
+        # atado a un user_id no sale del alcance del programa.
+        from app.sockets.emitters import emit_to_coordinators
+        emit_to_coordinators('submission:new', {
+            'user_id': public_id_service.user_uuid(student_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'archive_name': archive.name,
             'program_id': up.program_id,
             'context': 'leave_request',
-        }, room='role:coordinator')
+        }, up.program_id)
     except Exception:
         pass
 
@@ -1468,9 +1558,10 @@ def get_pending_leave_requests(program_id: int) -> list:
         up = ups_by_user_id.get(user.id)
         result.append({
             'submission': sub.to_dict(),
-            'file_url': f'/files/doc/{sub.file_path}' if sub.file_path else None,
+            # URL opaco: nombra la fila, no la ruta en disco.
+            'file_url': file_access_service.submission_file_url(sub),
             'user': {
-                'id': user.id,
+                'id': public_id_service.user_uuid(user.id),
                 'full_name': f"{user.first_name} {user.last_name} {user.mother_last_name or ''}".strip(),
                 'control_number': user.control_number,
             },
@@ -1561,13 +1652,14 @@ def process_leave_request(
     try:
         from app.services.email_service import EmailService
         from app.services.email_templates import EmailTemplates
-        from flask import url_for
+        from app.utils.urls import external_url
         user = User.query.get(sub.user_id)
         if user:
             # Obtener nombre del programa
             up_for_email = UserProgram.query.filter_by(user_id=sub.user_id).first()
             program_name = up_for_email.program.name if up_for_email and up_for_email.program else 'tu programa'
-            dashboard_url = url_for('pages_user.dashboard', _external=True)
+            # Pinned to APP_BASE_URL, never to the request host.
+            dashboard_url = external_url('pages_user.dashboard')
             subject, html = EmailTemplates.leave_request_result(
                 user_name=f"{user.first_name} {user.last_name}",
                 program_name=program_name,
@@ -1587,8 +1679,8 @@ def process_leave_request(
     emit_user_and_coordinators(
         'permanence:status_changed',
         {
-            'user_id': sub.user_id,
-            'submission_id': sub.id,
+            'user_id': public_id_service.user_uuid(sub.user_id),
+            'submission_id': public_id_service.submission_uuid(sub.id),
             'program_id': program_id,
             'action': 'leave_decided',
             'approved': bool(approve),
@@ -1732,6 +1824,88 @@ def create_monthly_conacyt_deadlines(
         'created': len(created),
         'skipped': skipped,
         'deadlines': [dl.to_dict() for dl in created],
+    }
+
+
+def set_conacyt_scholarship(
+    user_program_id: int,
+    coordinator_id: int,
+    value: bool = None,
+) -> dict:
+    """
+    Activa o desactiva la beca SECIHTI/CONACyT de un estudiante.
+
+    Si `value` es None, alterna el valor actual (comportamiento histórico del
+    endpoint). Registra historial, notifica al estudiante y emite el evento de
+    socket; el historial y la notificación no rompen la operación si fallan.
+
+    Returns:
+        {'has_conacyt_scholarship': bool, 'user_id': int, 'program_id': int}
+    """
+    up = db.session.get(UserProgram, user_program_id)
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+
+    new_value = (not up.has_conacyt_scholarship) if value is None else bool(value)
+    up.has_conacyt_scholarship = new_value
+    label = 'activada' if new_value else 'desactivada'
+
+    # Historial
+    try:
+        UserHistoryService.log_action(
+            user_id=up.user_id,
+            admin_id=coordinator_id,
+            action='conacyt_scholarship_changed',
+            details=(
+                f'Beca CONACyT {label} por coordinador en '
+                f'{up.program.name if up.program else "programa"}'
+            ),
+        )
+    except Exception:
+        pass
+
+    # Notificar al estudiante
+    try:
+        NotificationService.create_notification(
+            user_id=up.user_id,
+            notification_type='conacyt_scholarship_changed',
+            title=f'Beca CONACyT {label}',
+            message=(
+                f'Tu beca CONACyT ha sido {label} por el coordinador. '
+                f'{"Ahora verás las ventanas de entrega CONACyT en tu panel." if new_value else "Ya no verás las ventanas CONACyT."}'
+            ),
+            priority='medium',
+            action_url='/user/dashboard',
+        )
+    except Exception:
+        pass
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    # Socket: coordinadores y estudiante refrescan en tiempo real
+    try:
+        from app.sockets.emitters import emit_user_and_coordinators
+        emit_user_and_coordinators(
+            'permanence:scholarship_changed',
+            {
+                'user_id': public_id_service.user_uuid(up.user_id),
+                'program_id': up.program_id,
+                'has_conacyt_scholarship': new_value,
+            },
+            user_id=up.user_id,
+            program_id=up.program_id,
+        )
+    except Exception:
+        pass
+
+    return {
+        'has_conacyt_scholarship': new_value,
+        'user_id': public_id_service.user_uuid(up.user_id),
+        'program_id': up.program_id,
     }
 
 

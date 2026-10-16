@@ -1,20 +1,53 @@
-.user-row:hover {
-    background-color: #f8f9fa;
-    cursor: pointer;
+/* app/static/css/admin/settings/users.css
+   Administración de usuarios.
+
+   La fila ya NO es clicable: la acción principal vive en un <button> dentro
+   de la primera celda, para que sea operable con teclado (WCAG 2.1.1). */
+
+/* ── Barra de filtros ────────────────────────────────────────────────────── */
+
+/* Sin tarjeta: tres controles no justifican 128px de pliegue. La separación
+   con la tabla sigue el ritmo de tramo. */
+.users-filters {
+  margin-bottom: var(--stack-gap);
 }
 
-.user-avatar-sm {
-    width: 40px;
-    height: 40px;
-    object-fit: cover;
+/* Las etiquetas se aprietan contra su campo: la barra pasa de 104 a ~80px y
+   la tabla gana dos filas sobre el pliegue. */
+.users-filters .form-label {
+  margin-bottom: var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+/* ── Filas de la tabla ───────────────────────────────────────────────────── */
+
+.user-row:hover {
+  background-color: var(--bg-surface-sunken);
+}
+
+/* Nombre del usuario como disparador del detalle. */
+.user-row__trigger {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-weight: var(--fw-semibold);
+  color: var(--color-brand-primary);
+}
+
+.user-row__trigger:hover,
+.user-row__trigger:focus-visible {
+  text-decoration: underline;
 }
 
 .badge-status {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
+  font-size: var(--fs-xs);
+  padding: var(--space-1) var(--space-2);
 }
 
 .control-number-badge {
-    font-family: monospace;
-    font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
 }

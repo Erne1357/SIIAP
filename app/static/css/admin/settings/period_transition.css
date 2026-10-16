@@ -1,45 +1,58 @@
-/* app/static/css/admin/settings/period_transition.css */
+/* app/static/css/admin/settings/period_transition.css
+   Cierre de periodo y avance masivo.
+
+   El ancho del diálogo lo decide la clase modal-* de la plantilla: aquí no se
+   recorta. La antigua animación `pulse-danger` (halo sin desplazamiento sobre
+   la confirmación destructiva) se eliminó: la advertencia es textual y el
+   botón secundario ya cambia de etiqueta e icono. */
 
 /* ── Botón de transición junto al periodo activo ── */
 .btn-period-transition {
   white-space: nowrap;
 }
 
-/* ── Modal de transición ── */
-#modalPeriodTransition .modal-dialog {
-  max-width: 860px;
+/* ── Pestañas del modal ── */
+
+/* Siete etiquetas largas más su contador suman ~1465px contra los 1116px de un
+   modal-xl: partían en dos filas SIEMPRE, también en un monitor de 2560. Una
+   sola fila desplazable devuelve 44px al cuerpo del diálogo. */
+#transitionTabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Tabs: hacer legibles los badges */
+#transitionTabs .nav-link {
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+}
+
 #modalPeriodTransition .nav-link .badge {
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
   vertical-align: middle;
 }
 
-/* Tabla de preview */
+/* ── Tablas de vista previa ── */
 #modalPeriodTransition .table th,
 #modalPeriodTransition .table td {
   vertical-align: middle;
 }
 
-/* Segunda confirmación: botón rojo pulsante para llamar la atención */
-#btnConfirmTransition2 {
-  animation: pulse-danger 0.8s ease-in-out 2;
-}
-
-@keyframes pulse-danger {
-  0%   { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
-  70%  { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
-}
-
-/* Bloqueadores desplegables: icono giratorio en collapse toggle */
+/* Bloqueadores desplegables: el icono cambia al expandir el detalle. */
 #modalPeriodTransition [data-bs-toggle="collapse"][aria-expanded="true"] .bi-exclamation-triangle::before {
   content: "\F633"; /* bi-chevron-up */
 }
 
-/* Scroll interno de tabs con tablas largas */
+/* El diálogo ya es .modal-dialog-scrollable: un tope de 25rem dentro de él era
+   un segundo scroller anidado que dejaba 361px de modal vacío en un monitor de
+   1920 y desperdiciaba 51px en un portátil. Scrollea solo el .modal-body.
+   El relleno lo ponen los .p-3 de cada panel, no el contenedor. */
 #modalPeriodTransition .tab-content {
-  max-height: 400px;
-  overflow-y: auto;
+  max-height: none;
+  overflow-y: visible;
+  padding: 0;
+  border: none;
+  border-radius: 0;
 }

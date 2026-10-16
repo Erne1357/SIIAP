@@ -6,41 +6,96 @@
   // FUNCIONES PARA LISTAS DINÁMICAS (Objetivos y Competencias)
   // ============================================
 
-  window.addObjective = function() {
+  function addObjective() {
     const container = document.getElementById('objectivesList');
     const count = container.children.length + 1;
     const div = document.createElement('div');
     div.className = 'list-item';
     div.innerHTML = `
-      <input type="text" class="form-control" placeholder="Objetivo ${count}">
-      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="bi bi-trash"></i>
+      <input type="text" class="form-control" placeholder="Objetivo ${count}"
+             aria-label="Objetivo ${count}">
+      <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+              data-action="remove-list-item"
+              aria-label="Eliminar el objetivo ${count}" title="Eliminar objetivo">
+        <i class="bi bi-trash" aria-hidden="true"></i>
       </button>
     `;
     container.appendChild(div);
     updateObjectivesPreview();
-  };
+  }
 
-  window.addCompetency = function() {
+  function addCompetency() {
     const container = document.getElementById('competenciesList');
     const count = container.children.length + 1;
     const div = document.createElement('div');
     div.className = 'list-item';
     div.innerHTML = `
-      <input type="text" class="form-control" placeholder="Competencia ${count}">
-      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeListItem(this)">
-        <i class="bi bi-trash"></i>
+      <input type="text" class="form-control" placeholder="Competencia ${count}"
+             aria-label="Competencia ${count}">
+      <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+              data-action="remove-list-item"
+              aria-label="Eliminar la competencia ${count}" title="Eliminar competencia">
+        <i class="bi bi-trash" aria-hidden="true"></i>
       </button>
     `;
     container.appendChild(div);
     updateProfilePreview();
-  };
+  }
 
-  window.removeListItem = function(button) {
+  function removeListItem(button) {
     button.parentElement.remove();
     updateObjectivesPreview();
     updateProfilePreview();
+  }
+
+  // Delegación por data-action: sustituye a los onclick en línea de la
+  // plantilla y no requiere exponer nada en window (compatible con CSP).
+  const ACTIONS = {
+    'add-objective': addObjective,
+    'add-competency': addCompetency,
+    'remove-list-item': removeListItem,
+    'add-semester': () => addSemester(),
+    'remove-semester': (btn) => removeSemester(Number(btn.dataset.semesterIndex)),
+    'add-course': (btn) => addCourse(Number(btn.dataset.semesterIndex)),
+    'remove-course': (btn) => removeCourse(
+      Number(btn.dataset.semesterIndex),
+      Number(btn.dataset.courseIndex)
+    ),
+    'add-research-line': () => addResearchLine(),
+    'remove-research-line': (btn) => removeResearchLine(Number(btn.dataset.lineIndex)),
   };
+
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-action]');
+    if (!trigger) return;
+    const handler = ACTIONS[trigger.dataset.action];
+    if (handler) handler(trigger);
+  });
+
+  // Los editores de plan de estudios y líneas de investigación escriben en el
+  // modelo desde controles generados por JS. El change se delega con su propio
+  // atributo para que no colisione con el mapa de clics de arriba.
+  // dataset devuelve strings: los índices se convierten con Number().
+  const CHANGE_ACTIONS = {
+    'update-course': (el) => updateCourse(
+      Number(el.dataset.semesterIndex),
+      Number(el.dataset.courseIndex),
+      el.dataset.field,
+      el.value
+    ),
+    'update-research-line': (el) => updateResearchLine(
+      Number(el.dataset.lineIndex),
+      el.dataset.field,
+      el.value
+    ),
+  };
+
+  document.addEventListener('change', (e) => {
+    const control = e.target.closest('[data-change-action]');
+    if (!control) return;
+    const handler = CHANGE_ACTIONS[control.dataset.changeAction];
+    if (handler) handler(control);
+  });
 
   function updateObjectivesPreview() {
     const inputs = document.querySelectorAll('#objectivesList input');
@@ -89,16 +144,16 @@
     semesters: []
   };
 
-  window.addSemester = function() {
+  function addSemester() {
     const semesterNumber = curriculumData.semesters.length + 1;
     curriculumData.semesters.push({
       semester: semesterNumber,
       courses: []
     });
     renderCurriculumEditor();
-  };
+  }
 
-  window.removeSemester = async function(index) {
+  async function removeSemester(index) {
     const ok = await siiapConfirm({
       type: 'danger',
       title: 'Eliminar semestre',
@@ -112,9 +167,9 @@
       sem.semester = idx + 1;
     });
     renderCurriculumEditor();
-  };
+  }
 
-  window.addCourse = function(semesterIndex) {
+  function addCourse(semesterIndex) {
     curriculumData.semesters[semesterIndex].courses.push({
       name: '',
       code: '',
@@ -122,12 +177,12 @@
       type: 'obligatoria'
     });
     renderCurriculumEditor();
-  };
+  }
 
-  window.removeCourse = function(semesterIndex, courseIndex) {
+  function removeCourse(semesterIndex, courseIndex) {
     curriculumData.semesters[semesterIndex].courses.splice(courseIndex, 1);
     renderCurriculumEditor();
-  };
+  }
 
   function renderCurriculumEditor() {
     const container = document.getElementById('curriculumEditorContainer');
@@ -135,12 +190,17 @@
 
     if (curriculumData.semesters.length === 0) {
       container.innerHTML = `
-        <div class="empty-state">
-          <i class="bi bi-book-half"></i>
-          <p>No hay semestres configurados</p>
-          <button type="button" class="btn btn-primary" onclick="addSemester()">
-            <i class="bi bi-plus-lg me-2"></i>Agregar Primer Semestre
-          </button>
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-book-half" aria-hidden="true"></i></div>
+          <p class="empty-state__title">Sin semestres configurados</p>
+          <p class="empty-state__description">
+            Agrega el primer semestre para empezar a construir el mapa curricular.
+          </p>
+          <div class="empty-state__actions">
+            <button type="button" class="btn btn-primary" data-action="add-semester">
+              <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar el primer semestre
+            </button>
+          </div>
         </div>
       `;
       return;
@@ -165,23 +225,25 @@
       html += `
         <div class="accordion-item">
           <h2 class="accordion-header" id="heading-${semIdx}">
-            <button class="accordion-button ${isFirst ? '' : 'collapsed'}" type="button" 
+            <button class="accordion-button ${isFirst ? '' : 'collapsed'}" type="button"
                     data-bs-toggle="collapse" data-bs-target="#${collapseId}">
               Semestre ${semester.semester}
-              <span class="badge bg-secondary ms-2">${(semester.courses || []).length} materia(s)</span>
+              <span class="badge bg-secondary ms-2">${(semester.courses || []).length} ${(semester.courses || []).length === 1 ? 'materia' : 'materias'}</span>
             </button>
           </h2>
-          <div id="${collapseId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}" 
+          <div id="${collapseId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}"
                data-bs-parent="#curriculumAccordion">
             <div class="accordion-body">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="mb-0">Materias del Semestre ${semester.semester}</h6>
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h3 class="h6 mb-0">Materias del semestre ${semester.semester}</h3>
                 <div class="btn-group btn-group-sm">
-                  <button type="button" class="btn btn-outline-primary" onclick="addCourse(${semIdx})">
-                    <i class="bi bi-plus-lg me-1"></i>Agregar Materia
+                  <button type="button" class="btn btn-outline-primary"
+                          data-action="add-course" data-semester-index="${semIdx}">
+                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar materia
                   </button>
-                  <button type="button" class="btn btn-outline-danger" onclick="removeSemester(${semIdx})">
-                    <i class="bi bi-trash me-1"></i>Eliminar Semestre
+                  <button type="button" class="btn btn-outline-danger"
+                          data-action="remove-semester" data-semester-index="${semIdx}">
+                    <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar semestre
                   </button>
                 </div>
               </div>
@@ -189,32 +251,51 @@
 
       const courses = semester.courses || [];
       if (courses.length === 0) {
-        html += `<p class="text-muted text-center py-3">No hay materias en este semestre</p>`;
+        html += `
+          <div class="empty-state empty-state--compact">
+            <div class="empty-state__icon"><i class="bi bi-journal-x" aria-hidden="true"></i></div>
+            <p class="empty-state__title">Sin materias en este semestre</p>
+          </div>`;
       } else {
         courses.forEach((course, courseIdx) => {
           html += `
             <div class="course-item">
-              <input type="text" class="form-control form-control-sm" 
-                     placeholder="Nombre de la materia" 
-                     value="${course.name || ''}"
-                     onchange="updateCourse(${semIdx}, ${courseIdx}, 'name', this.value)">
-              <input type="text" class="form-control form-control-sm" 
-                     placeholder="Código" 
-                     value="${course.code || ''}"
-                     onchange="updateCourse(${semIdx}, ${courseIdx}, 'code', this.value)">
-              <input type="number" class="form-control form-control-sm" 
-                     placeholder="Créditos" 
-                     value="${course.credits || ''}"
-                     onchange="updateCourse(${semIdx}, ${courseIdx}, 'credits', this.value)">
-              <select class="form-select form-select-sm" 
-                      onchange="updateCourse(${semIdx}, ${courseIdx}, 'type', this.value)">
+              <input type="text" class="form-control form-control-sm"
+                     placeholder="Nombre de la materia"
+                     aria-label="Nombre de la materia ${courseIdx + 1} del semestre ${semester.semester}"
+                     value="${SIIAP.escapeAttr(course.name || '')}"
+                     data-change-action="update-course"
+                     data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                     data-field="name">
+              <input type="text" class="form-control form-control-sm"
+                     placeholder="Código"
+                     aria-label="Código de la materia ${courseIdx + 1} del semestre ${semester.semester}"
+                     value="${SIIAP.escapeAttr(course.code || '')}"
+                     data-change-action="update-course"
+                     data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                     data-field="code">
+              <input type="number" class="form-control form-control-sm"
+                     placeholder="Créditos"
+                     aria-label="Créditos de la materia ${courseIdx + 1} del semestre ${semester.semester}"
+                     value="${SIIAP.escapeAttr(course.credits || '')}"
+                     data-change-action="update-course"
+                     data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                     data-field="credits">
+              <select class="form-select form-select-sm"
+                      aria-label="Tipo de la materia ${courseIdx + 1} del semestre ${semester.semester}"
+                      data-change-action="update-course"
+                      data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                      data-field="type">
                 <option value="obligatoria" ${course.type === 'obligatoria' ? 'selected' : ''}>Obligatoria</option>
                 <option value="optativa" ${course.type === 'optativa' ? 'selected' : ''}>Optativa</option>
                 <option value="electiva" ${course.type === 'electiva' ? 'selected' : ''}>Electiva</option>
               </select>
-              <button type="button" class="btn btn-sm btn-outline-danger" 
-                      onclick="removeCourse(${semIdx}, ${courseIdx})">
-                <i class="bi bi-trash"></i>
+              <button type="button" class="btn btn-sm btn-outline-danger tap-target"
+                      data-action="remove-course"
+                      data-semester-index="${semIdx}" data-course-index="${courseIdx}"
+                      aria-label="Eliminar la materia ${courseIdx + 1} del semestre ${semester.semester}"
+                      title="Eliminar materia">
+                <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </div>
           `;
@@ -233,8 +314,8 @@
     // Botón para agregar más semestres
     html += `
       <div class="text-center mt-3">
-        <button type="button" class="btn btn-outline-primary" onclick="addSemester()">
-          <i class="bi bi-plus-lg me-2"></i>Agregar Semestre ${curriculumData.semesters.length + 1}
+        <button type="button" class="btn btn-outline-primary" data-action="add-semester">
+          <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar semestre ${curriculumData.semesters.length + 1}
         </button>
       </div>
     `;
@@ -242,9 +323,9 @@
     container.innerHTML = html;
   }
 
-  window.updateCourse = function(semesterIndex, courseIndex, field, value) {
+  function updateCourse(semesterIndex, courseIndex, field, value) {
     curriculumData.semesters[semesterIndex].courses[courseIndex][field] = value;
-  };
+  }
 
   // ============================================
   // EDITOR DE LÍNEAS DE INVESTIGACIÓN
@@ -252,15 +333,15 @@
 
   let researchLinesData = [];
 
-  window.addResearchLine = function() {
+  function addResearchLine() {
     researchLinesData.push({
       name: '',
       description: ''
     });
     renderResearchEditor();
-  };
+  }
 
-  window.removeResearchLine = async function(index) {
+  async function removeResearchLine(index) {
     const ok = await siiapConfirm({
       type: 'danger',
       title: 'Eliminar línea de investigación',
@@ -270,11 +351,11 @@
     if (!ok) return;
     researchLinesData.splice(index, 1);
     renderResearchEditor();
-  };
+  }
 
-  window.updateResearchLine = function(index, field, value) {
+  function updateResearchLine(index, field, value) {
     researchLinesData[index][field] = value;
-  };
+  }
 
   function renderResearchEditor() {
     const container = document.getElementById('researchEditorContainer');
@@ -282,12 +363,17 @@
 
     if (researchLinesData.length === 0) {
       container.innerHTML = `
-        <div class="empty-state">
-          <i class="bi bi-eyedropper"></i>
-          <p>No hay líneas de investigación configuradas</p>
-          <button type="button" class="btn btn-primary" onclick="addResearchLine()">
-            <i class="bi bi-plus-lg me-2"></i>Agregar Primera Línea
-          </button>
+        <div class="empty-state empty-state--compact">
+          <div class="empty-state__icon"><i class="bi bi-eyedropper" aria-hidden="true"></i></div>
+          <p class="empty-state__title">Sin líneas de investigación</p>
+          <p class="empty-state__description">
+            Agrega la primera línea para que aparezca en la página pública del programa.
+          </p>
+          <div class="empty-state__actions">
+            <button type="button" class="btn btn-primary" data-action="add-research-line">
+              <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar la primera línea
+            </button>
+          </div>
         </div>
       `;
       return;
@@ -300,23 +386,27 @@
           <div class="research-line-header">
             <div class="research-line-content">
               <div class="mb-2">
-                <label class="form-label form-label-sm fw-semibold">Nombre de la Línea</label>
-                <input type="text" class="form-control" 
-                       placeholder="Ej: Inteligencia Artificial y Machine Learning"
-                       value="${line.name || ''}"
-                       onchange="updateResearchLine(${idx}, 'name', this.value)">
+                <label class="form-label fw-semibold" for="researchLineName-${idx}">Nombre de la línea</label>
+                <input type="text" class="form-control" id="researchLineName-${idx}"
+                       placeholder="Ej: Inteligencia artificial y aprendizaje automático"
+                       value="${SIIAP.escapeAttr(line.name || '')}"
+                       data-change-action="update-research-line"
+                       data-line-index="${idx}" data-field="name">
               </div>
               <div>
-                <label class="form-label form-label-sm fw-semibold">Descripción</label>
-                <textarea class="form-control" rows="3" 
-                          placeholder="Descripción de la línea de investigación..."
-                          onchange="updateResearchLine(${idx}, 'description', this.value)">${line.description || ''}</textarea>
+                <label class="form-label fw-semibold" for="researchLineDesc-${idx}">Descripción</label>
+                <textarea class="form-control" id="researchLineDesc-${idx}" rows="3"
+                          placeholder="Descripción de la línea de investigación…"
+                          data-change-action="update-research-line"
+                          data-line-index="${idx}" data-field="description">${SIIAP.escapeHtml(line.description || '')}</textarea>
               </div>
             </div>
             <div class="research-line-actions">
-              <button type="button" class="btn btn-outline-danger btn-sm" 
-                      onclick="removeResearchLine(${idx})">
-                <i class="bi bi-trash"></i>
+              <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                      data-action="remove-research-line" data-line-index="${idx}"
+                      aria-label="Eliminar la línea de investigación ${idx + 1}"
+                      title="Eliminar línea de investigación">
+                <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -326,8 +416,8 @@
 
     html += `
       <div class="text-center mt-3">
-        <button type="button" class="btn btn-outline-primary" onclick="addResearchLine()">
-          <i class="bi bi-plus-lg me-2"></i>Agregar Línea de Investigación
+        <button type="button" class="btn btn-outline-primary" data-action="add-research-line">
+          <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Agregar línea de investigación
         </button>
       </div>
     `;
@@ -343,10 +433,10 @@
     // Inicializar curriculum
     if (programData.curriculum_structure) {
       try {
-        curriculumData = typeof programData.curriculum_structure === 'string' 
-          ? JSON.parse(programData.curriculum_structure) 
+        curriculumData = typeof programData.curriculum_structure === 'string'
+          ? JSON.parse(programData.curriculum_structure)
           : programData.curriculum_structure;
-        
+
         // Validar estructura
         if (!curriculumData || typeof curriculumData !== 'object') {
           curriculumData = { type: 'semestral', semesters: [] };
@@ -356,13 +446,43 @@
         // Normalizar cada semestre: filtrar null/undefined; garantizar que tenga
         // courses array y un número de semestre válido (>0). Datos legacy podían
         // tener 0/null/undefined o arrays sparse.
+        //
+        // El formato antiguo guardaba {number, name, subjects:["Materia", …]}.
+        // Antes esta normalización dejaba courses:[] y descartaba subjects, así
+        // que abrir esta pantalla y guardar borraba el plan de estudios entero
+        // sin avisar. Ahora las materias antiguas se migran a courses.
         curriculumData.semesters = curriculumData.semesters
           .filter(sem => sem && typeof sem === 'object')
-          .map((sem, idx) => ({
-            ...sem,
-            semester: (Number.isInteger(sem.semester) && sem.semester > 0) ? sem.semester : (idx + 1),
-            courses: Array.isArray(sem.courses) ? sem.courses.filter(c => c && typeof c === 'object') : [],
-          }));
+          .map((sem, idx) => {
+            let courses = Array.isArray(sem.courses)
+              ? sem.courses.filter(c => c && typeof c === 'object')
+              : [];
+
+            // El formato antiguo sólo guarda el nombre. NO se inventa código,
+            // créditos ni tipo: rellenarlos con 'obligatoria' habría escrito
+            // una clasificación que nadie capturó, y guardar la pantalla por
+            // cualquier otro motivo la habría vuelto permanente.
+            if (courses.length === 0 && Array.isArray(sem.subjects)) {
+              courses = sem.subjects
+                .filter(s => s)
+                .map(s => (typeof s === 'string'
+                  ? { code: '', name: s.trim(), credits: '', type: '' }
+                  : {
+                      code: s.code || '',
+                      name: s.name || '',
+                      credits: s.credits || '',
+                      type: s.type || '',
+                    }))
+                .filter(c => c.name);
+            }
+
+            const number = (Number.isInteger(sem.semester) && sem.semester > 0)
+              ? sem.semester
+              : ((Number.isInteger(sem.number) && sem.number > 0) ? sem.number : (idx + 1));
+
+            const { subjects, number: _legacyNumber, ...rest } = sem;
+            return { ...rest, semester: number, courses };
+          });
       } catch (e) {
         console.error('Error parsing curriculum:', e);
         curriculumData = { type: 'semestral', semesters: [] };

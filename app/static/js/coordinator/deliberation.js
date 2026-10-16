@@ -16,6 +16,7 @@ class DeliberationManager {
 
     init() {
         this.bindEvents();
+        this.bindTableActions();
         this.loadStats();
         this.loadPendingInterview();
         this.joinDeliberationRoom();
@@ -57,11 +58,98 @@ class DeliberationManager {
         if (want && !existing) {
             const th = document.createElement('th');
             th.className = 'program-col';
+            th.scope = 'col';
             th.textContent = 'Programa';
             thead.insertBefore(th, thead.firstChild);
         } else if (!want && existing) {
             existing.remove();
         }
+    }
+
+    /** Fila de carga accesible dentro de un <tbody>. */
+    _loadingRow(colspan, message) {
+        return `
+            <tr>
+                <td colspan="${colspan}" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">${message}</span>
+                    </div>
+                    <span class="ms-2 text-secondary">${message}</span>
+                </td>
+            </tr>`;
+    }
+
+    /** Estado vacío en tabla, con el componente compartido completo. */
+    _emptyRow(colspan, icon, title, description) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline">
+                        <div class="empty-state__icon"><i class="bi bi-${icon}" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">${title}</h3>
+                        <p class="empty-state__description">${description}</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
+    /** Estado de error en tabla, con acción de recuperación. */
+    _errorRow(colspan, detail) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline empty-state--error">
+                        <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">No se pudieron cargar los aspirantes</h3>
+                        <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+                        <p class="empty-state__error-detail">${SIIAP.escapeHtml(detail)}</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
+    /**
+     * Fecha corta en español; delega en el helper compartido y devuelve el
+     * texto ya escapado, listo para insertarse en una plantilla literal.
+     */
+    _formatDate(value) {
+        const text = SIIAP.formatDate
+            ? SIIAP.formatDate(value, 'numeric', '-')
+            : (value || '-');
+        return SIIAP.escapeHtml(text);
+    }
+
+    /** Número real de columnas del <thead> (incluye la de Programa inyectada). */
+    _colspanFor(tableId, fallback) {
+        const count = document.querySelectorAll(`#${tableId} thead tr th`).length;
+        return count || (this._isAllMode() ? fallback + 1 : fallback);
+    }
+
+    _announce(message) {
+        if (window.SIIAP && SIIAP.announce) SIIAP.announce(message);
+    }
+
+    /**
+     * Celda «Programa» del modo «Todos los programas». La columna se acota por
+     * CSS (.program-col): en el portátil los anchos preferidos de la tabla
+     * pasaban de ~1139 a ~1369px contra 1138px reales y las filas crecían de
+     * 61 a 85px. El nombre completo queda en el title.
+     */
+    _programCell(name) {
+        const value = name || '';
+        return this._isAllMode()
+            ? `<td class="program-col text-muted small" title="${SIIAP.escapeAttr(value)}">${SIIAP.escapeHtml(value)}</td>`
+            : '';
+    }
+
+    /**
+     * Celda de notas: dos líneas legibles + texto completo en el title.
+     * `html` llega ya escapado por quien la llama (puede traer su propio
+     * <strong>/<br>); `plain` es el mismo contenido en texto plano para el
+     * atributo title.
+     */
+    _notesCell(html, plain) {
+        return `<td class="notes-cell" title="${SIIAP.escapeAttr(plain)}">${html}</td>`;
     }
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
@@ -88,11 +176,14 @@ class DeliberationManager {
                 data.program_id &&
                 String(data.program_id) !== String(this.currentProgramId)) return;
 
-            // Recargar stats y la pestaña activa para reflejar el nuevo estado
+            // Recargar stats y la pestaña activa para reflejar el nuevo estado.
+            // El payload del socket nunca se pinta directamente: la tabla se
+            // vuelve a construir desde la API con los mismos renderers escapados.
             this.loadStats();
             this.loadCurrentTab();
 
-            // Notificar visualmente
+            // Notificar visualmente. showFlash() escapa el mensaje como texto,
+            // así que aquí no se pre-escapa (se vería doblemente escapado).
             window.dispatchEvent(new CustomEvent('flash', {
                 detail: {
                     level: 'info',
@@ -129,7 +220,7 @@ class DeliberationManager {
         document.getElementById('rejectionType')?.addEventListener('change', (e) => {
             const correctionSection = document.getElementById('correctionSection');
             const isPartial = e.target.value === 'partial';
-            correctionSection.style.display = isPartial ? 'block' : 'none';
+            correctionSection.classList.toggle('d-none', !isPartial);
             if (isPartial) {
                 this.loadProgramArchivesForRejection();
             }
@@ -143,6 +234,47 @@ class DeliberationManager {
         // Confirm start deliberation
         document.getElementById('confirmStartDelibBtn')?.addEventListener('click', () => {
             this.startDeliberation();
+        });
+    }
+
+    /**
+     * Un único listener delegado para los botones de acción de las cinco
+     * tablas. Las filas se pintan con innerHTML, así que los datos del
+     * aspirante viajan en atributos data-* escapados y nunca dentro de un
+     * onclick: un nombre con comillas rompería el literal de JavaScript.
+     */
+    bindTableActions() {
+        const container = document.getElementById('statusTabsContent');
+        if (!container) return;
+
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            // `userId` es el identificador PÚBLICO del aspirante (UUID) y va
+            // literal en el URL: con Number() salía NaN y la petición pedía
+            // /api/v1/deliberation/user/NaN/…  `programId` sigue siendo entero.
+            const userId = btn.dataset.userId;
+            const programId = Number(btn.dataset.programId);
+            const applicantName = btn.dataset.applicantName || '';
+
+            switch (btn.dataset.action) {
+                case 'mark-interview':
+                    this.markInterviewCompleted(userId, programId, applicantName);
+                    break;
+                case 'start-deliberation':
+                    this.showStartDeliberation(userId, programId, applicantName);
+                    break;
+                case 'decide':
+                    this.showDecisionModal(userId, programId, applicantName, btn.dataset.decision);
+                    break;
+                case 'force-reset':
+                    this.forceResetApplicant(userId, programId, applicantName);
+                    break;
+                case 'reset':
+                    this.resetApplicant(userId, programId);
+                    break;
+            }
         });
     }
 
@@ -163,8 +295,8 @@ class DeliberationManager {
         if (!tbody) return;
         this._toggleProgramHeader('pendingInterviewTable');
 
-        const colspan = this._isAllMode() ? 6 : 5;
-        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4"><span class="loading-spinner"></span> Cargando...</td></tr>`;
+        const colspan = this._colspanFor('pendingInterviewTable', 5);
+        tbody.innerHTML = this._loadingRow(colspan, 'Cargando aspirantes…');
 
         try {
             const results = await this._fanFetch(pid => `/api/v1/deliberation/program/${pid}/pending-interview`);
@@ -178,46 +310,43 @@ class DeliberationManager {
             document.getElementById('pendingInterviewCount').textContent = items.length;
 
             if (!items.length) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="${colspan}" class="empty-state">
-                            <i class="bi bi-inbox"></i>
-                            <p>No hay aspirantes con entrevista agendada pendiente de marcar</p>
-                        </td>
-                    </tr>
-                `;
+                tbody.innerHTML = this._emptyRow(
+                    colspan, 'calendar-check', 'Sin entrevistas por marcar',
+                    'Ningún aspirante tiene una entrevista agendada pendiente de marcar como completada.'
+                );
+                this._announce('Sin aspirantes con entrevista agendada.');
                 return;
             }
 
             tbody.innerHTML = items.map(item => this.renderPendingInterviewRow(item)).join('');
+            this._announce(`${items.length} aspirante(s) con entrevista agendada.`);
 
         } catch (error) {
             console.error('Error loading pending interviews:', error);
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4 text-danger">Error al cargar datos</td></tr>`;
+            tbody.innerHTML = this._errorRow(colspan, error.message);
+            this._announce('No se pudieron cargar los aspirantes.');
         }
     }
 
     renderPendingInterviewRow(item) {
         const user = item.user;
         const up = item.user_program;
-        const formatDate = (dateStr) => {
-            if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        };
-        const programCell = this._isAllMode()
-            ? `<td class="text-muted small">${item.__program_name || ''}</td>` : '';
+        const formatDate = (dateStr) => this._formatDate(dateStr);
+        const programCell = this._programCell(item.__program_name);
 
         return `
             <tr>
                 ${programCell}
-                <td class="applicant-name">${user.full_name}</td>
-                <td class="applicant-email">${user.email}</td>
-                <td>${user.curp || '-'}</td>
+                <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
+                <td>${SIIAP.escapeHtml(user.curp || '-')}</td>
                 <td class="text-center">${formatDate(up.enrollment_date)}</td>
                 <td class="text-center">
-                    <button class="btn btn-sm btn-success btn-action"
-                            onclick="deliberationManager.markInterviewCompleted(${user.id}, ${up.program_id}, '${user.full_name}')">
+                    <button type="button" class="btn btn-sm btn-success btn-action"
+                            data-action="mark-interview"
+                            data-user-id="${SIIAP.escapeAttr(user.id)}"
+                            data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                            data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                         <i class="bi bi-check2-circle"></i> Marcar Completada
                     </button>
                     ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -228,7 +357,7 @@ class DeliberationManager {
 
     markInterviewCompleted(userId, programId, applicantName) {
         this.showConfirm(
-            'Confirmar Entrevista Completada',
+            'Confirmar entrevista completada',
             `¿Confirmas que ${applicantName} completó su entrevista?`,
             () => this._doMarkInterviewCompleted(userId, programId),
             'btn-success'
@@ -257,7 +386,7 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error marking interview completed:', error);
-            showFlash('danger', 'Error al marcar entrevista');
+            showFlash('danger', 'Error al marcar la entrevista');
         }
     }
 
@@ -279,26 +408,23 @@ class DeliberationManager {
             document.getElementById('acceptedCount').textContent = stats.accepted;
             document.getElementById('rejectedCount').textContent = stats.rejected;
 
-            // Update stats cards if container exists
+            // Tarjetas de indicadores (componente compartido .stat-card).
+            // El tono nunca es el único portador de significado: cada tarjeta
+            // lleva icono + etiqueta de texto.
             if (this.statsContainer) {
-                this.statsContainer.innerHTML = `
-                    <div class="stat-card stat-interview">
-                        <div class="stat-value">${stats.interview_completed || 0}</div>
-                        <div class="stat-label">Entrevista Completada</div>
+                const cards = [
+                    { tone: 'warning', icon: 'mic-fill',          value: stats.interview_completed || 0, label: 'Entrevista completada' },
+                    { tone: 'info',    icon: 'hourglass-split',   value: stats.deliberation || 0,        label: 'En deliberación' },
+                    { tone: 'success', icon: 'check-circle-fill', value: stats.accepted || 0,            label: 'Aceptados' },
+                    { tone: 'danger',  icon: 'x-circle-fill',     value: stats.rejected || 0,            label: 'Rechazados' },
+                ];
+                this.statsContainer.innerHTML = cards.map(c => `
+                    <div class="stat-card stat-card--${c.tone}">
+                        <i class="bi bi-${c.icon} stat-card__icon" aria-hidden="true"></i>
+                        <p class="stat-card__value">${c.value}</p>
+                        <p class="stat-card__label">${c.label}</p>
                     </div>
-                    <div class="stat-card stat-deliberation">
-                        <div class="stat-value">${stats.deliberation || 0}</div>
-                        <div class="stat-label">En Deliberacion</div>
-                    </div>
-                    <div class="stat-card stat-accepted">
-                        <div class="stat-value">${stats.accepted || 0}</div>
-                        <div class="stat-label">Aceptados</div>
-                    </div>
-                    <div class="stat-card stat-rejected">
-                        <div class="stat-value">${stats.rejected || 0}</div>
-                        <div class="stat-label">Rechazados</div>
-                    </div>
-                `;
+                `).join('');
             }
 
             // Also load pending interview count separately
@@ -325,8 +451,8 @@ class DeliberationManager {
         if (!tbody) return;
         this._toggleProgramHeader(tableId);
 
-        const colspan = this._isAllMode() ? 7 : 6;
-        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4"><span class="loading-spinner"></span> Cargando...</td></tr>`;
+        const colspan = this._colspanFor(tableId, 6);
+        tbody.innerHTML = this._loadingRow(colspan, 'Cargando aspirantes…');
 
         try {
             const results = await this._fanFetch(pid => `/api/v1/deliberation/program/${pid}/by-status/${status}`);
@@ -338,22 +464,21 @@ class DeliberationManager {
             });
 
             if (!items.length) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="${colspan}" class="empty-state">
-                            <i class="bi bi-inbox"></i>
-                            <p>No hay aspirantes en este estado</p>
-                        </td>
-                    </tr>
-                `;
+                tbody.innerHTML = this._emptyRow(
+                    colspan, 'inbox', 'Sin aspirantes en este estado',
+                    'Cuando un aspirante llegue a esta etapa aparecerá aquí.'
+                );
+                this._announce('Sin aspirantes en este estado.');
                 return;
             }
 
             tbody.innerHTML = items.map(item => this.renderApplicantRow(item, status)).join('');
+            this._announce(`${items.length} aspirante(s) cargado(s).`);
 
         } catch (error) {
             console.error('Error loading applicants:', error);
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4 text-danger">Error al cargar datos</td></tr>`;
+            tbody.innerHTML = this._errorRow(colspan, error.message);
+            this._announce('No se pudieron cargar los aspirantes.');
         }
     }
 
@@ -370,27 +495,25 @@ class DeliberationManager {
     renderApplicantRow(item, status) {
         const user = item.user;
         const up = item.user_program;
-        const formatDate = (dateStr) => {
-            if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        };
-        const programCell = this._isAllMode()
-            ? `<td class="text-muted small">${item.__program_name || ''}</td>` : '';
+        const formatDate = (dateStr) => this._formatDate(dateStr);
+        const programCell = this._programCell(item.__program_name);
 
         switch (status) {
             case 'interview_completed':
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
-                        <td>${user.curp || '-'}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
+                        <td>${SIIAP.escapeHtml(user.curp || '-')}</td>
                         <td class="text-center">${formatDate(up.enrollment_date)}</td>
                         <td class="text-center">
                             <div class="btn-group-actions">
-                                <button class="btn btn-sm btn-primary btn-action"
-                                        onclick="deliberationManager.showStartDeliberation(${user.id}, ${up.program_id}, '${user.full_name}')">
+                                <button type="button" class="btn btn-sm btn-primary btn-action"
+                                        data-action="start-deliberation"
+                                        data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                        data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                        data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                                     <i class="bi bi-play-fill"></i> Iniciar
                                 </button>
                                 ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -403,17 +526,23 @@ class DeliberationManager {
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                         <td class="text-center">${formatDate(up.deliberation_started_at)}</td>
                         <td class="text-center">
                             <div class="btn-group-actions">
-                                <button class="btn btn-sm btn-success btn-action"
-                                        onclick="deliberationManager.showDecisionModal(${user.id}, ${up.program_id}, '${user.full_name}', 'accept')">
+                                <button type="button" class="btn btn-sm btn-success btn-action"
+                                        data-action="decide" data-decision="accept"
+                                        data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                        data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                        data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                                     <i class="bi bi-check-lg"></i> Aceptar
                                 </button>
-                                <button class="btn btn-sm btn-danger btn-action"
-                                        onclick="deliberationManager.showDecisionModal(${user.id}, ${up.program_id}, '${user.full_name}', 'reject')">
+                                <button type="button" class="btn btn-sm btn-danger btn-action"
+                                        data-action="decide" data-decision="reject"
+                                        data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                        data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                        data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                                     <i class="bi bi-x-lg"></i> Rechazar
                                 </button>
                                 ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -424,19 +553,23 @@ class DeliberationManager {
 
             case 'accepted': {
                 const forceResetBtn = window.canForceReset
-                    ? `<button class="btn btn-sm btn-outline-secondary btn-action"
+                    ? `<button type="button" class="btn btn-sm btn-outline-secondary btn-action"
                                title="Reiniciar estado a En Proceso (solo admin)"
-                               onclick="deliberationManager.forceResetApplicant(${user.id}, ${up.program_id}, '${user.full_name}')">
+                               data-action="force-reset"
+                               data-user-id="${SIIAP.escapeAttr(user.id)}"
+                               data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                               data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                            <i class="bi bi-arrow-counterclockwise"></i>
                        </button>`
                     : '';
+                const notes = up.decision_notes || '-';
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
-                        <td class="notes-cell">${up.decision_notes || '-'}</td>
+                        ${this._notesCell(SIIAP.escapeHtml(notes), notes)}
                         <td class="text-center">${forceResetBtn}${window.siiapStudentRecordBtn ? ' ' + window.siiapStudentRecordBtn(user.id) : ''}</td>
                     </tr>
                 `;
@@ -444,24 +577,38 @@ class DeliberationManager {
 
             case 'rejected': {
                 const rejectionBadge = up.rejection_type === 'partial'
-                    ? '<span class="badge badge-partial">Correcciones</span>'
-                    : '<span class="badge badge-full">Definitivo</span>';
+                    ? SIIAP.statusBadge('deliberation', 'Correcciones', 'sm')
+                    : SIIAP.statusBadge('rejected', 'Definitivo', 'sm');
                 const resetBtn = up.rejection_type === 'partial'
-                    ? `<button class="btn btn-sm btn-outline-primary btn-action"
-                               onclick="deliberationManager.resetApplicant(${user.id}, ${up.program_id})">
+                    ? `<button type="button" class="btn btn-sm btn-outline-primary btn-action"
+                               data-action="reset"
+                               data-user-id="${SIIAP.escapeAttr(user.id)}"
+                               data-program-id="${SIIAP.escapeAttr(up.program_id)}">
                            <i class="bi bi-arrow-counterclockwise"></i> Reiniciar
                        </button>`
                     : '';
 
-                // Parsear correction_required: puede ser JSON {archive_id, archive_name, notes} o texto plano
-                let correctionDisplay = up.correction_required || up.decision_notes || '-';
+                // Parsear correction_required: puede ser JSON {archive_id, archive_name, notes} o texto plano.
+                // Se construyen dos versiones: el HTML de la celda (con el marcado
+                // propio y los datos escapados) y el texto plano para el title.
+                const correctionPlain = up.correction_required || up.decision_notes || '-';
+                let correctionHtml = SIIAP.escapeHtml(correctionPlain);
+                let correctionTitle = correctionPlain;
                 if (up.correction_required) {
                     try {
                         const corr = JSON.parse(up.correction_required);
-                        const parts = [];
-                        if (corr.archive_name) parts.push(`<strong>Documento:</strong> ${corr.archive_name}`);
-                        if (corr.notes) parts.push(corr.notes);
-                        correctionDisplay = parts.join('<br>') || '-';
+                        const htmlParts = [];
+                        const textParts = [];
+                        if (corr.archive_name) {
+                            htmlParts.push(`<strong>Documento:</strong> ${SIIAP.escapeHtml(corr.archive_name)}`);
+                            textParts.push(`Documento: ${corr.archive_name}`);
+                        }
+                        if (corr.notes) {
+                            htmlParts.push(SIIAP.escapeHtml(corr.notes));
+                            textParts.push(corr.notes);
+                        }
+                        correctionHtml = htmlParts.join('<br>') || '-';
+                        correctionTitle = textParts.join(' ') || '-';
                     } catch (e) {
                         // No es JSON, usar el texto tal cual
                     }
@@ -470,11 +617,11 @@ class DeliberationManager {
                 return `
                     <tr>
                         ${programCell}
-                        <td class="applicant-name">${user.full_name}</td>
-                        <td class="applicant-email">${user.email}</td>
+                        <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                        <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                         <td class="text-center">${rejectionBadge}</td>
                         <td class="text-center">${formatDate(up.decision_at)}</td>
-                        <td class="notes-cell">${correctionDisplay}</td>
+                        ${this._notesCell(correctionHtml, correctionTitle)}
                         <td class="text-center">${resetBtn}${window.siiapStudentRecordBtn ? ' ' + window.siiapStudentRecordBtn(user.id) : ''}</td>
                     </tr>
                 `;
@@ -556,7 +703,7 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error starting deliberation:', error);
-            showFlash('danger', 'Error al iniciar deliberacion');
+            showFlash('danger', 'Error al iniciar la deliberación');
         }
     }
 
@@ -579,9 +726,9 @@ class DeliberationManager {
         const dictamenFileInput = document.getElementById('dictamenFile');
 
         if (action === 'reject') {
-            rejectionSection.style.display = 'block';
-            if (acceptSection) acceptSection.style.display = 'none';
-            correctionSection.style.display = 'none';
+            rejectionSection.classList.remove('d-none');
+            if (acceptSection) acceptSection.classList.add('d-none');
+            correctionSection.classList.add('d-none');
             document.getElementById('rejectionType').value = 'full';
             // Reset archive select
             const archiveSelect = document.getElementById('rejectionArchiveSelect');
@@ -590,25 +737,25 @@ class DeliberationManager {
                 archiveSelect.disabled = true;
             }
             document.getElementById('correctionRequired').value = '';
-            modalTitle.textContent = 'Rechazar Aspirante';
+            modalTitle.textContent = 'Rechazar aspirante';
             confirmBtn.className = 'btn btn-danger';
-            confirmBtn.textContent = 'Confirmar Rechazo';
+            confirmBtn.textContent = 'Confirmar rechazo';
         } else {
-            rejectionSection.style.display = 'none';
-            if (acceptSection) acceptSection.style.display = 'block';
+            rejectionSection.classList.add('d-none');
+            if (acceptSection) acceptSection.classList.remove('d-none');
             if (isConditionalCheck) isConditionalCheck.checked = false;
-            if (dictamenSection) dictamenSection.style.display = 'none';
+            if (dictamenSection) dictamenSection.classList.add('d-none');
             if (dictamenFileInput) dictamenFileInput.value = '';
-            modalTitle.textContent = 'Aceptar Aspirante';
+            modalTitle.textContent = 'Aceptar aspirante';
             confirmBtn.className = 'btn btn-success';
-            confirmBtn.textContent = 'Confirmar Aceptacion';
+            confirmBtn.textContent = 'Confirmar aceptación';
         }
 
         // Toggle dictamen section when checkbox changes
         if (isConditionalCheck && !isConditionalCheck.dataset.bound) {
             isConditionalCheck.addEventListener('change', (e) => {
                 if (dictamenSection) {
-                    dictamenSection.style.display = e.target.checked ? 'block' : 'none';
+                    dictamenSection.classList.toggle('d-none', !e.target.checked);
                 }
             });
             isConditionalCheck.dataset.bound = '1';
@@ -660,7 +807,7 @@ class DeliberationManager {
                     }
                 } catch (error) {
                     console.error('Error submitting decision:', error);
-                    showFlash('danger', 'Error al procesar decision');
+                    showFlash('danger', 'Error al procesar la decisión');
                 }
                 return;
             }
@@ -678,7 +825,10 @@ class DeliberationManager {
                 const archiveName = archiveSelect?.options[archiveSelect.selectedIndex]?.dataset?.name;
                 if (archiveId && archiveName) {
                     correctionRequired = JSON.stringify({
-                        archive_id: parseInt(archiveId),
+                        // Identificador público del archivo (UUID). El backend
+                        // lo traduce al id interno antes de persistirlo
+                        // (`correction_required_to_internal`).
+                        archive_id: archiveId,
                         archive_name: archiveName,
                         notes: correctionText
                     });
@@ -712,13 +862,13 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error submitting decision:', error);
-            showFlash('danger', 'Error al procesar decision');
+            showFlash('danger', 'Error al procesar la decisión');
         }
     }
 
     resetApplicant(userId, programId) {
         this.showConfirm(
-            'Reiniciar Estado',
+            'Reiniciar estado',
             '¿Deseas reiniciar el estado de este aspirante? Podrá volver a enviar documentos.',
             () => this._doResetApplicant(userId, programId),
             'btn-primary'
@@ -748,13 +898,13 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error resetting applicant:', error);
-            showFlash('danger', 'Error al reiniciar estado');
+            showFlash('danger', 'Error al reiniciar el estado');
         }
     }
 
     forceResetApplicant(userId, programId, applicantName) {
         this.showConfirm(
-            'Reinicio Administrativo',
+            'Reinicio administrativo',
             `¿Reiniciar el estado de "${applicantName}" a "En Proceso"? Se registrará en el historial.`,
             () => this._doForceResetApplicant(userId, programId, applicantName),
             'btn-warning'
@@ -779,7 +929,7 @@ class DeliberationManager {
             }
         } catch (error) {
             console.error('Error force resetting applicant:', error);
-            showFlash('danger', 'Error al reiniciar estado');
+            showFlash('danger', 'Error al reiniciar el estado');
         }
     }
 

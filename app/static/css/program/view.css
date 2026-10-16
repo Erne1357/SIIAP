@@ -1,627 +1,1552 @@
-/* ────────────────────────────────────────────────────────────── */
-/* app/static/css/program/view.css */
-/* ────────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────
+   app/static/css/program/view.css
+   Página de un programa: la única superficie persuasiva de SIIAP.
 
-/* Variables locales — alineadas a los tokens TECNM globales */
-:root {
-    --primary: var(--color-brand-primary);
-    --primary-light: var(--color-brand-primary-100);
-    --primary-dark: var(--color-brand-primary-700);
-    --secondary: var(--color-neutral-500);
-    --light: var(--bg-surface-sunken);
-    --dark: var(--color-neutral-800);
-    --success: var(--color-success);
-    --info: var(--color-info);
-    --warning: var(--color-warning);
-    --danger: var(--color-danger);
-    --white: var(--color-neutral-0);
-    --black: var(--color-neutral-900);
-    --border-radius: var(--radius-sm);
-    --box-shadow: var(--shadow-3);
-    --transition: all 0.3s ease;
-  }
-  
-  /* Contenedor principal */
-  .program-view-container {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
+   Esta hoja tiene una regla que no comparte con el resto de la app:
+   NO consume los tramos de densidad de _tokens.css (--block-pad-y,
+   --stack-gap, --hero-pad-y, --fs-page-title). Esos tramos existen para
+   meter tablas de administración sobre el pliegue, y aplicados aquí
+   comprimían la página a 12px de aire por frontera en un portátil.
+   Una landing necesita respiración: define su propia escala de tramo,
+   derivada de los mismos tokens de espacio.
 
-  /* Fix para AOS personalizado en el contenedor de scroll */
-  .program-view-container [data-aos] {
-    transition-property: transform, opacity;
-    transition-duration: 800ms;
-    transition-timing-function: ease-in-out;
-    will-change: transform, opacity;
-  }
+   Todo el color, radio, sombra y tipografía sigue saliendo de _tokens.css.
+   ────────────────────────────────────────────────────────────── */
 
-  .program-view-container [data-aos].aos-animate {
-    transform: translateY(0) translateX(0) !important;
-    opacity: 1 !important;
-  }
+/* ──────────────────────────────────────────────────────────────
+   0. ESCALA PROPIA DE LA PÁGINA
+   ────────────────────────────────────────────────────────────── */
 
-  .program-view-container [data-aos="fade-up"] {
-    transform: translateY(30px);
-    opacity: 0;
-  }
-
-  .program-view-container [data-aos="fade-in"] {
-    opacity: 0;
-  }
-
-  .program-view-container [data-aos="fade-left"] {
-    transform: translateX(30px);
-    opacity: 0;
-  }
-
-  .program-view-container [data-aos="fade-right"] {
-    transform: translateX(-30px);
-    opacity: 0;
-  }
-
-  /* Mejorar performance de animaciones */
-  .program-view-container [data-aos] {
-    backface-visibility: hidden;
-    perspective: 1000;
-  }
-  
-  /* Secciones */
-  section {
-    scroll-margin-top: 2rem;
-  }
-  
-  /* Hero Section */
-  .program-hero-section {
-    background: linear-gradient(to right, var(--primary-light), #f8f9fa);
-    border-radius: 0.5rem;
-    padding: 2rem;
-    margin-bottom: 2rem;
-  }
-  
-  .program-image-container {
-    position: relative;
-    overflow: hidden;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  
-  /* Divider */
-  .divider-center {
-    width: 60px;
-    height: 3px;
-    background-color: var(--primary);
-    margin: 0 auto;
-  }
-  
-  /* Cards */
-  .hover-card {
-    transition: var(--transition);
-    border: none;
-  }
-  
-  .hover-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--box-shadow);
-  }
-  
-  /* Icon Circles */
-  .icon-circle {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .bg-primary-light {
-    background-color: var(--primary-light);
-  }
-  
-  /* Accordion */
-  .accordion-button:not(.collapsed) {
-    background-color: var(--primary-light);
-    color: var(--primary);
-    box-shadow: none;
-  }
-  
-  .accordion-button:focus {
-    box-shadow: none;
-    border-color: var(--primary-light);
-  }
-  
-  .accordion-button {
-    padding: 0.75rem 1.25rem;
-  }
-  
-  .accordion-body {
-    padding: 1rem 1.25rem;
-  }
-  
-  /* Document Links */
-  .document-link {
-    color: var(--primary);
-    transition: var(--transition);
-  }
-  
-  .document-link:hover {
-    color: var(--primary-dark);
-    text-decoration: underline !important;
-  }
-  
-  /* Curriculum Table */
-  .curriculum-table {
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  .curriculum-table th {
-    background-color: var(--primary);
-    color: var(--white);
-    padding: 0.75rem;
-  }
-  
-  .curriculum-table td {
-    background-color: var(--white);
-    transition: var(--transition);
-    padding: 0.75rem;
-  }
-  
-  .curriculum-table tr:hover td {
-    background-color: var(--primary-light);
-  }
-  
-  /* Buttons */
-  .btn-primary {
-    background-color: var(--primary);
-    border-color: var(--primary);
-    transition: var(--transition);
-  }
-  
-  .btn-primary:hover {
-    background-color: var(--primary-dark);
-    border-color: var(--primary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  .btn-outline-primary {
-    color: var(--primary);
-    border-color: var(--primary);
-    transition: var(--transition);
-  }
-  
-  .btn-outline-primary:hover {
-    background-color: var(--primary);
-    color: var(--white);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  /* Form Controls */
-  .form-control:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-  }
-  
-  /* Responsive Adjustments */
-  @media (max-width: 768px) {
-    .program-hero-section {
-      padding: 1.5rem;
-    }
-    
-    .icon-circle {
-      width: 40px;
-      height: 40px;
-    }
-  }
-  
-  @media (max-width: 576px) {
-    h1.display-5 {
-      font-size: 2rem;
-    }
-    
-    .program-hero-section {
-      padding: 1rem;
-    }
-  }
-
-
-  /* Botones flotantes */
-/* Botones flotantes */
-.floating-back-button {
-  position: fixed;
-  top: 130px; /* Ajusta según la altura de tu header */
-  left: 260px; /* Ajusta según el ancho de tu sidebar */
-  z-index: var(--z-dropdown);
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: all 0.5s ease;
+/* Espacio que hay que dejar libre al pie de la página para que las píldoras
+   flotantes no se posen encima del contenido. Sólo existe en esta página, así
+   que se declara aquí y no en _tokens.css. Va en `html` y no en
+   .program-landing porque quien la necesita primero es el `scroll-padding` del
+   contenedor de scroll, y ese contenedor cambia: normalmente es #main-content,
+   pero por debajo de 30rem de alto base.css libera el shell y pasa a serlo el
+   documento. Declarada en la raíz le llega a los dos. */
+html {
+  --fab-reserve: calc(var(--tap-min) + var(--space-6));
 }
 
-.floating-inscription-button {
-  position: fixed;
-  top: 130px;
-  right: 2rem;
-  z-index: var(--z-fab);
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: all 0.5s ease;
+.program-landing {
+  /* Ritmo vertical de la landing. Independiente de --block-pad-y. */
+  --section-pad-y: var(--space-16);   /* 64px */
+  --section-gap:   var(--space-12);   /* 48px */
+  --hero-pad:      var(--space-20);   /* 80px */
+
+  /* Sangrado del hero: tiene que valer exactamente el padding de
+     #main-content. base.css lo fija en --content-padding y sólo lo cambia a
+     --space-4 dentro de `max-width: 575.98px` (base.css:553), así que el
+     respaldo de esta variable cambia en ESE punto y no en 767.98px: entre 576
+     y 768px el relleno real sigue siendo 24px y un sangrado de 16px dejaba una
+     franja de 8px de fondo a cada lado del hero. */
+  --bleed: var(--content-padding);
 }
 
-.floating-back-button.visible,
-.floating-inscription-button.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Animación de pulso para el botón de postulación */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4), 0 0 0 0 rgba(13, 110, 253, 0.7);
-  }
-  50% {
-    box-shadow: 0 6px 20px rgba(13, 110, 253, 0.6), 0 0 0 8px rgba(13, 110, 253, 0);
+@media (max-width: 991.98px) {
+  .program-landing {
+    --section-pad-y: var(--space-12);
+    --section-gap:   var(--space-8);
+    --hero-pad:      var(--space-12);
   }
 }
 
-.btn-inscription, .btn-back {
-  padding: 0.75rem 1.5rem;
-  border-radius: 50px;
-  font-weight: 600;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
+@media (max-width: 767.98px) {
+  .program-landing {
+    --section-pad-y: var(--space-10);
+    --section-gap:   var(--space-6);
+    --hero-pad:      var(--space-8);
+  }
 }
 
-.btn-inscription {
-  background: linear-gradient(135deg, var(--color-brand-primary) 0%, var(--color-brand-accent) 100%);
-  border: none;
-  color: white;
-  font-size: 1.1rem;
-  padding: 1rem 2rem;
-  animation: pulse-glow 2s infinite;
+/* Mismo punto de corte que base.css:553, donde #main-content baja su relleno */
+@media (max-width: 575.98px) {
+  .program-landing {
+    --section-pad-y: var(--space-8);
+    --hero-pad:      var(--space-6);
+    --bleed:         var(--space-4);
+  }
+}
+
+/* Las píldoras flotantes son opacas y fijas: al tabular, el navegador desplaza
+   cada control lo MÍNIMO, así que un elemento enfocado en una esquina inferior
+   aterrizaba justo detrás de ellas y quedaba invisible (WCAG 2.2 SC 2.4.11).
+   Esta hoja sólo carga en la página del programa, así que el ajuste no sale de
+   aquí. */
+#main-content {
+  scroll-padding-bottom: calc(var(--fab-reserve) + var(--space-4));
+}
+
+/* ──────────────────────────────────────────────────────────────
+   1. ESTRUCTURA
+   ────────────────────────────────────────────────────────────── */
+
+.program-landing {
+  /* Las píldoras flotantes no pueden tapar el final del contenido */
+  padding-bottom: calc(var(--fab-reserve) + var(--space-8));
+}
+
+/* Contenido centrado. El hero vive FUERA de este contenedor porque sangra
+   a todo el ancho del área principal. */
+.program-view-container {
+  max-width: var(--content-max-w);
+  margin-inline: auto;
+}
+
+/* Anclas internas: el destino no debe quedar bajo la cabecera fija */
+.program-landing section {
+  scroll-margin-top: var(--space-4);
+}
+
+/* Ritmo vertical de las secciones */
+.program-view-container > section {
+  padding-block: var(--section-pad-y);
+}
+
+/* El hero ya aporta la separación de la primera sección: sumarle 64px más
+   dejaba 112px de vacío antes del primer título. */
+.program-view-container > section:first-of-type {
+  padding-top: 0;
+}
+
+/* Filete separador entre dos secciones planas seguidas. Es una línea de ritmo,
+   no un borde de tarjeta: el ojo necesita saber dónde termina un tema y empieza
+   otro cuando no hay cambio de superficie. Tras una sección tintada sobra —el
+   borde de la superficie ya marcó la frontera— y por eso la condición va en el
+   PRIMER hermano: escrita como una anulación aparte nunca ganaba, porque
+   `:not()` aporta la especificidad de su argumento y la regla base quedaba
+   siempre por encima. */
+.program-view-container > section:not(.program-section--tinted) + section:not(.program-section--tinted) {
+  border-top: 1px solid var(--border-default);
+}
+
+/* Secciones con superficie propia: rompen la monotonía de seis bloques
+   idénticos apilados. Alternan con las secciones planas, así que el relleno
+   de las vecinas es toda la separación que necesitan. */
+.program-section--tinted {
   position: relative;
-  overflow: hidden;
+  padding-inline: var(--space-8);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg,
+      var(--color-brand-primary-50) 0%,
+      var(--bg-surface-sunken) 100%);
+  box-shadow: var(--shadow-1);
 }
 
-.btn-inscription::before {
+@media (max-width: 767.98px) {
+  .program-section--tinted {
+    padding-inline: var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* ── Escala de encabezados de la página ──────────────────────────────────
+   Las plantillas usaban las utilidades .h3/.h4/.h5 de Bootstrap, que son
+   tamaños absolutos y en el tramo compacto salían MÁS GRANDES que el h2 que
+   las contiene. Aquí la escala es una sola, sale de los tokens de tipo y el
+   h1 siempre queda por encima del h2. */
+.program-landing h3 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.program-landing h4 {
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
+}
+
+.program-landing h5,
+.program-landing h6 {
+  font-size: var(--fs-base);
+  line-height: var(--lh-tight);
+}
+
+/* Cabecera compartida de cada sección (título + filete + entradilla).
+   Alineada a la izquierda: centrar seis entradillas de hasta diez líneas
+   deja al ojo sin borde de retorno en cada barrido. */
+.program-section-head {
+  margin-bottom: var(--space-8);
+}
+
+/* No consume --fs-page-title: ese token cae a 20px en portátil y dejaba
+   los seis títulos de sección del tamaño de una etiqueta de formulario. */
+.program-section-head > h2 {
+  font-family: var(--font-display);
+  font-size: clamp(var(--fs-xl), 3.2vw, var(--fs-2xl));
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  margin-bottom: var(--space-3);
+}
+
+.program-section-head .program-lead {
+  margin-bottom: 0;
+}
+
+/* Filete de marca bajo el título. Puntúa el arranque de cada sección sin
+   añadir una línea de texto más. */
+.divider-center {
+  width: var(--space-16);
+  height: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-accent) 100%);
+}
+
+/* Ancho de medida del párrafo introductorio de cada sección */
+.program-lead {
+  max-width: var(--measure-prose);
+  font-size: var(--fs-md);
+  line-height: var(--lh-relaxed);
+  color: var(--text-secondary);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   2. HERO
+   ────────────────────────────────────────────────────────────── */
+
+/* Sangra a todo el ancho del área principal anulando el padding de
+   #main-content. Es lo que separa una landing de una pantalla de gestión:
+   la primera pieza no vive dentro de la misma caja que el resto. */
+.program-hero-section {
+  position: relative;
+  margin-top: calc(-1 * var(--bleed));
+  margin-inline: calc(-1 * var(--bleed));
+  margin-bottom: var(--section-gap);
+  padding-block: var(--hero-pad);
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-default);
+  background:
+    radial-gradient(90% 120% at 88% -10%,
+      var(--color-brand-primary-100) 0%,
+      transparent 62%),
+    linear-gradient(158deg,
+      var(--bg-surface) 0%,
+      var(--color-brand-primary-50) 52%,
+      var(--bg-surface-sunken) 100%);
+}
+
+/* Franja de marca en el borde superior: firma institucional del programa,
+   dos colores de la paleta TECNM y nada más. */
+.program-hero-section::before {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: var(--space-1);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary) 55%,
+    var(--color-brand-accent) 100%);
 }
 
-.btn-inscription:hover::before {
-  width: 300px;
-  height: 300px;
+/* El contenido del hero sí respeta la medida del resto de la página.
+
+   El max-width lleva `+ 2 * --bleed` a propósito: con box-sizing:border-box el
+   relleno cuenta dentro del ancho, así que un tope de --content-max-w a secas
+   dejaba el texto del hero 24px por dentro del de las secciones — el título
+   del programa no arrancaba en la misma vertical que "Cómo ingresar". Sumando
+   el relleno, los dos bordes de texto coinciden en cualquier ancho. */
+.program-hero__inner {
+  max-width: calc(var(--content-max-w) + 2 * var(--bleed));
+  margin-inline: auto;
+  padding-inline: var(--bleed);
 }
 
-.btn-inscription:hover {
-  background: linear-gradient(135deg, #0a58ca 0%, #084298 100%);
-  transform: translateY(-5px) scale(1.05);
-  box-shadow: 0 8px 25px rgba(13, 110, 253, 0.5);
-  animation: none;
-}
-
-.btn-back {
-  background-color: white;
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.btn-back:hover {
-  background-color: var(--primary-light);
-  transform: translateY(-3px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
-}
-
-@media (max-width: 768px) {
-  .floating-back-button {
-    top: 80px;
-    left: 20px;
-  }
-
-  /* En móvil mantener el botón arriba a la derecha, solo ajustar posición */
-  .floating-inscription-button {
-    top: 80px;
-    right: 1rem;
-    transform: translateY(-20px);
-  }
-
-  .floating-inscription-button.visible {
-    transform: translateY(0);
-  }
-
-  .btn-inscription {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.95rem;
-    box-shadow: 0 6px 20px rgba(13, 110, 253, 0.4);
-  }
-
-  .btn-back {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
-  }
-}
-
-/* Para pantallas muy pequeñas */
-@media (max-width: 576px) {
-  .btn-inscription {
-    padding: 0.65rem 1.1rem;
-    font-size: 0.9rem;
-  }
-
-  .btn-inscription i {
-    font-size: 0.85rem;
-  }
-}
-/* Estilos para la sección de admisión */
-.admission-phases-nav {
-  background-color: var(--light);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.admission-phases-nav .nav-link {
-  border-radius: 0.5rem;
-  padding: 1rem 0.5rem;
-  color: var(--dark);
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
+.program-hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-12);
 }
 
-.admission-phases-nav .nav-link.active {
-  background-color: var(--primary);
-  color: white;
+@media (max-width: 991.98px) {
+  .program-hero__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+  }
 }
 
-.phase-icon-container {
-  margin-bottom: 0.5rem;
+/* El 4vw se saturaba en 40px desde 1000px de ancho, y anclarlo a
+   --fs-page-title lo dejaba EMPATADO con los h2 de sección: el nombre del
+   programa y "Contacto" salían los dos a 28px. Ahora escala en su propio
+   eje y arranca por encima del título de sección en cualquier pantalla. */
+.program-hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(var(--fs-2xl), 4.6vw, calc(var(--fs-3xl) * 1.2));
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+  text-wrap: balance;
 }
 
-.phase-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background-color: var(--white);
+/* --text-secondary daba 4.30:1 sobre el extremo tintado del degradado del
+   hero: fallaba 1.4.3 AA justo donde vive este párrafo. La rampa neutral-700
+   da 7.28:1 en el mismo punto. */
+.program-hero__lead {
+  font-size: var(--fs-md);
+  line-height: var(--lh-relaxed);
+  color: var(--color-neutral-700);
+  max-width: var(--measure-prose);
+  margin-bottom: var(--space-8);
+}
+
+.program-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Navegación interna del hero. Vuelven a ser botones: como enlaces de texto
+   subrayados quedaban por debajo del peso de la página que encabezan, y el
+   primero de ellos es la acción que el visitante busca al llegar.
+   No compiten con el CTA: éstos son azul de marca y navegan dentro de la
+   página; "Postularme" es rojo de acento y vive en la barra inferior. */
+.program-hero__action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-base);
+  border: 1px solid var(--color-brand-primary);
+  background-color: transparent;
+  color: var(--color-brand-primary);     /* 13.40:1 sobre el hero */
+  text-decoration: none;
+  transition: transform var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+
+.program-hero__action:hover,
+.program-hero__action:focus-visible {
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-3);
+}
+
+/* El primero es el que el visitante vino a pulsar: sólido, no contorneado. */
+.program-hero__action--primary {
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);            /* 13.40:1 */
+  box-shadow: var(--shadow-2);
+}
+
+.program-hero__action--primary:hover,
+.program-hero__action--primary:focus-visible {
+  background-color: var(--color-brand-primary-700);
+  border-color: var(--color-brand-primary-700);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-4);
+}
+
+/* Acceso a configuración: sólo lo ve quien puede editar, y no compite con
+   la navegación del visitante. */
+.program-hero__config {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-4);
+  margin-inline-start: auto;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+
+.program-hero__config:hover,
+.program-hero__config:focus-visible {
+  background-color: var(--bg-surface);
+  color: var(--color-brand-primary);
+}
+
+@media (max-width: 575.98px) {
+  .program-hero__config {
+    margin-inline-start: 0;
+  }
+}
+
+/* Imagen del hero. Volvió a tener presencia: el clamp de 24vh la dejaba en
+   una miniatura de 160px en un portátil, para la única imagen de la única
+   página persuasiva de la app. */
+.program-image-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-4);
+}
+
+/* Velo de marca en el borde inferior: cose la foto al degradado del hero en
+   lugar de dejarla flotando como un recorte pegado. */
+.program-image-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border-brand-subtle);
+}
+
+.program-hero__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  max-height: clamp(14rem, 36vh, 26rem);
+  object-fit: cover;
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+
+.program-image-container:hover .program-hero__image {
+  transform: scale(1.03);
+}
+
+/* Datos concretos del programa bajo el hero. Es el ÚNICO sitio donde se
+   enuncian: las tarjetas de "Acerca del Programa" ya no los repiten. */
+.program-hero__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  margin: var(--space-10) 0 0;
+  padding: 0;
+}
+
+.program-hero__fact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.program-hero__fact:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-3);
+}
+
+.program-hero__fact i {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-brand-primary-100);
+  font-size: var(--fs-lg);
+  color: var(--color-brand-primary);
+  line-height: 1;
 }
 
-.nav-link.active .phase-icon {
-  background-color: var(--white);
-  color: var(--primary);
+.program-hero__fact-label {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
-.phase-name {
-  font-weight: 600;
-  font-size: 0.9rem;
+.program-hero__fact-value {
+  display: block;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
 }
+
+/* Apunte bajo un hecho del hero: "Información de horarios" bajo Modalidad.
+   Es un textarea, así que puede traer varias líneas y se deja fluir. */
+.program-hero__fact-note {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-normal);
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
+
+@media (max-width: 767.98px) {
+  .program-hero__facts {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    margin-top: var(--space-8);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   3. PIEZAS COMPARTIDAS
+   ────────────────────────────────────────────────────────────── */
+
+/* Tarjeta que responde al puntero. La elevación en reposo existe: una
+   tarjeta sin sombra que sólo aparece al hacer hover no se lee como
+   tarjeta hasta que el ratón la toca. */
+.hover-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
+}
+
+.hover-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-4);
+}
+
+.icon-circle {
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+@media (max-width: 767.98px) {
+  .icon-circle {
+    width: var(--avatar-sm);
+    height: var(--avatar-sm);
+  }
+}
+
+/* Panel informativo. Las secciones ya aportan superficie y relleno; meter
+   una .card dentro daba dos bordes y 48px verticales duplicados. Este panel
+   ES la tarjeta. */
+.program-panel {
+  padding: var(--space-8);
+}
+
+.program-panel--plain {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-8);
+}
+
+@media (max-width: 767.98px) {
+  .program-panel,
+  .program-panel--plain {
+    padding: var(--space-5);
+  }
+}
+
+/* Listas de puntos con marca de verificación (objetivos, competencias) */
+.program-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.program-checklist li {
+  position: relative;
+  padding-left: var(--space-8);
+  line-height: var(--lh-relaxed);
+}
+
+.program-checklist li + li {
+  margin-top: var(--space-3);
+}
+
+.program-checklist li i {
+  position: absolute;
+  left: 0;
+  top: 0.35em;
+  color: var(--color-brand-primary);
+}
+
+/* Enlaces a plantillas de documento. Como texto subrayado en una lista de
+   once elementos la sección se leía como un índice de sitio web de 2004;
+   como fichas se leen como lo que son: descargas. */
+.document-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-brand-subtle);
+  background-color: var(--color-brand-primary-50);
+  color: var(--color-brand-primary);     /* 12.9:1 sobre primary-50 */
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: transform var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out);
+}
+
+.document-link:hover,
+.document-link:focus-visible {
+  background-color: var(--color-brand-primary-100);
+  color: var(--color-brand-primary-700);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+
+/* Documento sin plantilla descargable: es un requisito, no un enlace roto.
+   Sin borde de marca ni afordancia de pulsación. */
+.document-link--static {
+  border-color: var(--border-default);
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-secondary);
+}
+
+.document-link--static:hover {
+  transform: none;
+  box-shadow: none;
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-secondary);
+}
+
+/* Fila de fichas de documento */
+.document-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Correos largos dentro de un enlace o botón a ancho completo */
+.text-break {
+  overflow-wrap: anywhere;
+}
+
+/* Foco de campos: el anillo de marca, nunca el azul de Bootstrap */
+.program-landing .form-control:focus {
+  border-color: var(--color-brand-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+/* El foco global de _tokens.css (`*:focus-visible`) reescribe el border-radius
+   a --radius-xs, así que cada control de píldora de esta página se cuadraba al
+   tabular. El contorno ya sigue la forma del elemento: basta con conservarla. */
+.program-hero__action:focus-visible,
+.program-hero__config:focus-visible,
+.document-link:focus-visible,
+.btn-inscription:focus-visible,
+.btn-back:focus-visible {
+  border-radius: var(--radius-pill);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   4. BOTONES FLOTANTES
+   ────────────────────────────────────────────────────────────── */
+
+/* Dos píldoras flotantes, una en cada esquina, como en el diseño original.
+   Lo que sí se conserva de la barra que las sustituyó un tiempo: son opacas y
+   con sombra propia (para que el texto no asome por debajo), el contenedor
+   reserva su altura al final del documento, y el FAB de notificaciones se
+   aparta en móvil en vez de pelear la misma esquina. */
+.program-fab {
+  position: fixed;
+  bottom: calc(var(--footer-h) + var(--space-4));
+  z-index: var(--z-fab);
+  /* Entran deslizándose una vez, no en bucle. */
+  animation: siiap-program-fab-in var(--duration-slow) var(--ease-out) both;
+}
+
+@keyframes siiap-program-fab-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.program-fab--back {
+  left: calc(var(--sidebar-w) + var(--space-5));
+}
+
+.program-fab--apply {
+  right: var(--space-5);
+}
+
+.btn-inscription,
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: var(--space-3) var(--space-8);
+  border-radius: var(--radius-pill);
+  font-weight: var(--fw-semibold);
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+}
+
+/* Pulso del CTA. Documentado en CLAUDE.md como excepción deliberada: es la
+   única acción de conversión de la única superficie persuasiva de la app.
+   El original usaba rgba(13,110,253) — el azul de Bootstrap, no el de la
+   marca — y un halo de desplazamiento cero, que es decoración. Aquí respira
+   entre dos escalones de la escala de sombra: mismo efecto de llamada, cero
+   literales de color y profundidad con desplazamiento real. */
+@keyframes siiap-program-cta-pulse {
+  0%,
+  100% {
+    box-shadow: var(--shadow-2);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: var(--shadow-5);
+    transform: scale(1.04);
+  }
+}
+
+/* Bootstrap declara `:not(.btn-check) + .btn:active, .btn:first-child:active`
+   leyendo --bs-btn-active-*, que la clase base .btn nunca define: los var()
+   salen inválidos y el color cae a `inherit` (#212529) con el borde a
+   currentColor. Al mantener pulsado, "Postularme" quedaba en gris oscuro sobre
+   el rojo —2.2:1— y "Regresar" perdía su borde azul. Se resuelve dando valor a
+   esas propiedades, no añadiendo más selectores :active. */
+.btn-inscription {
+  --bs-btn-active-color: var(--text-inverse);
+  --bs-btn-active-bg: var(--color-brand-accent-600);
+  --bs-btn-active-border-color: var(--color-brand-accent-600);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-brand-accent);
+  background: linear-gradient(135deg,
+    var(--color-brand-accent) 0%,
+    var(--color-brand-accent-600) 100%);
+  color: var(--text-inverse);            /* 6.72:1 */
+  font-size: var(--fs-md);
+  box-shadow: var(--shadow-3);
+  animation: siiap-program-cta-pulse var(--duration-pulse) var(--ease-in-out) infinite;
+}
+
+/* Barrido de luz al pasar el puntero. Es la microinteracción que tenía el
+   botón antes de la auditoría y la que lo distinguía de un botón de tabla. */
+.btn-inscription::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -60%;
+  width: 40%;
+  transform: skewX(-20deg);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--color-neutral-0) 50%,
+    transparent 100%);
+  opacity: 0;
+  transition: inset-inline-start var(--duration-slow) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.btn-inscription:hover::after,
+.btn-inscription:focus-visible::after {
+  inset-inline-start: 120%;
+  opacity: 0.28;
+}
+
+.btn-inscription:hover,
+.btn-inscription:focus-visible {
+  background: linear-gradient(135deg,
+    var(--color-brand-accent-600) 0%,
+    var(--color-brand-accent-600) 100%);
+  border-color: var(--color-brand-accent-600);
+  color: var(--text-inverse);
+  transform: translateY(-3px);
+  /* El pulso se detiene al interactuar: ya tiene la atención. */
+  animation-play-state: paused;
+  box-shadow: var(--shadow-5);
+}
+
+/* Ya tiene un proceso abierto: el botón lleva al panel, no a postularse otra
+   vez. Sin pulso — no es una acción de conversión, es un atajo. */
+.btn-inscription--waiting {
+  --bs-btn-active-bg: var(--color-brand-primary-700);
+  --bs-btn-active-border-color: var(--color-brand-primary-700);
+  animation: none;
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-700) 100%);
+  border-color: var(--color-brand-primary);
+}
+
+.btn-inscription--waiting:hover,
+.btn-inscription--waiting:focus-visible {
+  background: linear-gradient(135deg,
+    var(--color-brand-primary-700) 0%,
+    var(--color-brand-primary-700) 100%);
+  border-color: var(--color-brand-primary-700);
+}
+
+.btn-back {
+  --bs-btn-active-color: var(--color-brand-primary-700);
+  --bs-btn-active-bg: var(--color-brand-primary-100);
+  --bs-btn-active-border-color: var(--color-brand-primary);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--color-brand-primary);
+  color: var(--color-brand-primary);     /* 13.40:1 sobre --bg-surface */
+  box-shadow: var(--shadow-3);
+}
+
+.btn-back:hover,
+.btn-back:focus-visible {
+  background-color: var(--color-brand-primary-100);
+  color: var(--color-brand-primary-700);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-4);
+}
+
+@media (max-width: 991.98px) {
+  /* El sidebar pasa a offcanvas: la píldora recupera el borde de la ventana. */
+  .program-fab--back {
+    left: var(--space-4);
+  }
+
+  .program-fab--apply {
+    right: var(--space-4);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .btn-inscription,
+  .btn-back {
+    padding: var(--space-2) var(--space-5);
+    font-size: var(--fs-sm);
+  }
+
+  /* El FAB de notificaciones y el CTA declaran ambos --z-fab y comparten la
+     esquina inferior derecha: ganaba el orden del DOM y el FAB recortaba la
+     etiqueta a "Postularm". Esta hoja sólo carga en la página del programa,
+     así que el desplazamiento vive donde nace el conflicto: el FAB sube por
+     encima del CTA en lugar de solaparlo.
+
+     Los valores van en tokens y no en --fab-reserve porque el FAB no desciende
+     de .program-landing; --fab-reserve sí le llega porque se declara en `html`,
+     pero aquí la cuenta es otra: alto del CTA + su separación del pie. */
+  .notification-fab {
+    bottom: calc(var(--footer-h) + var(--space-4) + var(--tap-min) + var(--space-3));
+  }
+}
+
+/* Alto útil muy bajo (móvil apaisado, zoom alto): base.css libera el shell y el
+   scroll pasa al documento. Las píldoras siguen siendo `fixed`, así que se
+   anclan al borde de la ventana — si no, flotarían sobre el contenido a la
+   altura donde estaba el pie. */
+@media (max-height: 30rem) {
+  html {
+    scroll-padding-bottom: calc(var(--fab-reserve) + var(--space-4));
+  }
+
+  .program-fab {
+    bottom: var(--space-3);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   5. FRANJA DE ESTADO DE ADMISIÓN (bajo el hero)
+   ────────────────────────────────────────────────────────────── */
+
+.program-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--section-gap);
+  padding: var(--space-5) var(--space-6);
+  background: var(--color-warning-100);
+  border: 1px solid var(--border-warning-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--color-warning-700);       /* 6.87:1 sobre warning-100 */
+}
+
+.program-notice__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-surface);
+  font-size: var(--fs-lg);
+}
+
+.program-notice__body {
+  min-width: 0;
+}
+
+.program-notice__text {
+  margin: 0;
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   6. CÓMO INGRESAR (línea de tiempo + fases posteriores)
+   ────────────────────────────────────────────────────────────── */
 
 .phase-content {
-  background-color: var(--white);
-  border-radius: 0.5rem;
-  padding: 2rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-8);
 }
 
-/* Timeline de pasos */
+.phase-header {
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.phase-header h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.phase-header h3 i {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-brand-primary-100);
+  font-size: var(--fs-md);
+  color: var(--color-brand-primary);
+}
+
 .steps-timeline {
   position: relative;
-  padding: 1rem 0;
+  padding: var(--space-2) 0;
 }
 
-.steps-timeline:before {
+/* La línea se dibuja al entrar la sección en pantalla. No es un bucle: es
+   la misma revelación de scroll que el resto, expresada en la pieza que
+   representa una secuencia. */
+.steps-timeline::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 20px;
+  left: calc(var(--avatar-sm) / 2 - 1px);
   height: 100%;
   width: 2px;
-  background-color: var(--primary-light);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-100) 100%);
+  transform: scaleY(0);
+  transform-origin: top center;
+  transition: transform var(--duration-slow) var(--ease-out) 120ms;
+}
+
+.steps-timeline.revealed::before {
+  transform: scaleY(1);
 }
 
 .timeline-item {
   position: relative;
-  padding-left: 50px;
-  margin-bottom: 2rem;
+  padding-left: calc(var(--avatar-sm) + var(--space-6));
 }
 
-.timeline-item:last-child {
-  margin-bottom: 0;
+.timeline-item + .timeline-item {
+  margin-top: var(--space-6);
 }
 
 .timeline-dot {
   position: absolute;
   left: 0;
   top: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: var(--primary);
+  width: var(--avatar-sm);
+  height: var(--avatar-sm);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-700) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: var(--z-raised);
+  box-shadow: 0 0 0 4px var(--bg-surface), var(--shadow-3);
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.timeline-item:hover .timeline-dot {
+  transform: scale(1.08);
 }
 
 .step-number {
-  color: white;
-  font-weight: 700;
-  font-size: 1.1rem;
+  color: var(--text-inverse);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
 }
 
+/* Sin .card anidada: la fase ya es una superficie. */
 .timeline-content {
-  border-radius: 0.5rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
 }
 
-@media (max-width: 768px) {
-  .admission-phases-nav .nav-link {
-    padding: 0.75rem 0.25rem;
-  }
-  
-  .phase-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 0.9rem;
-  }
-  
-  .phase-name {
-    font-size: 0.8rem;
-  }
-  
+.timeline-item:hover .timeline-content {
+  transform: translateY(-3px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-3);
+}
+
+.timeline-content__head {
+  padding: var(--space-4) var(--space-5);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary-50) 0%,
+    var(--bg-surface-sunken) 100%);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.timeline-content__body {
+  padding: var(--space-5);
+}
+
+/* Etiqueta, no encabezado: se repetía once veces como <h5> y dejaba el árbol
+   de encabezados inservible para navegar en una página de 4 000px. */
+.timeline-docs__label {
+  display: block;
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Fases posteriores a la admisión, plegadas */
+.admission-later {
+  margin-top: var(--space-8);
+}
+
+/* El selector lleva `.accordion-flush` a propósito: Bootstrap declara
+   `.accordion-flush > .accordion-item:first-child { border-top: 0 }` y su
+   gemela `:last-child` con especificidad (0,3,0). Como aquí sólo hay UN item,
+   es a la vez el primero y el último, así que sin igualar esa especificidad la
+   caja se quedaba sin borde superior ni inferior: dos hairlines sueltos a los
+   lados. */
+.admission-later.accordion-flush > .accordion-item {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.admission-later .accordion-button {
+  font-size: var(--fs-base);
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.admission-later .accordion-button:hover {
+  background-color: var(--color-brand-primary-50);
+}
+
+.admission-later .accordion-button:not(.collapsed) {
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+/* Bootstrap pone outline:0 en .accordion-button y esta hoja anula además su
+   box-shadow de foco, así que sin esto un usuario de teclado no vería NADA al
+   tabular. El contorno va hacia dentro (offset negativo) porque el
+   .accordion-item recorta con overflow:hidden. */
+.admission-later .accordion-button:focus {
+  border-color: var(--color-brand-primary);
+  box-shadow: none;
+}
+
+.admission-later .accordion-button:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: -3px;
+}
+
+.admission-later__phase + .admission-later__phase {
+  margin-top: var(--space-6);
+}
+
+.admission-later__phase h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--color-brand-primary);
+}
+
+.admission-later__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admission-later__list li {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface-sunken);
+}
+
+.admission-later__list li + li {
+  margin-top: var(--space-2);
+}
+
+.admission-later__step-name {
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+.admission-later__step-desc {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 767.98px) {
   .phase-content {
-    padding: 1.5rem;
+    padding: var(--space-5);
+  }
+
+  .timeline-item {
+    padding-left: calc(var(--avatar-sm) + var(--space-4));
   }
 }
 
-/* Animación para botones flotantes */
-.floating-action-buttons {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.5s ease;
+/* ──────────────────────────────────────────────────────────────
+   7. ACERCA DEL PROGRAMA
+   ────────────────────────────────────────────────────────────── */
+
+/* Dos hechos como mucho, y sólo si están capturados. No es la estructura de
+   la página: es un apunte al margen de la introducción. */
+.program-fact-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  height: 100%;
+  padding: var(--space-6);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
 }
 
-.floating-action-buttons.visible {
-  opacity: 1;
-  transform: translateY(0);
+.program-fact-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-3);
 }
 
-.floating-action-buttons.hidden {
-  opacity: 0;
-  transform: translateY(20px);
-  pointer-events: none;
+.program-fact-card h3 {
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-2);
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/* Estilos para Plan de Estudios (Curriculum) */
-/* ────────────────────────────────────────────────────────────── */
+.program-fact-card p {
+  color: var(--text-secondary);
+  line-height: var(--lh-relaxed);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   8. PLAN DE ESTUDIOS
+   ────────────────────────────────────────────────────────────── */
 
 #plan-estudios .accordion-item {
-  border: 1px solid #dee2e6;
-  transition: all 0.3s ease;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+  transition: box-shadow var(--duration-normal) var(--ease-out);
 }
 
 #plan-estudios .accordion-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-3);
 }
 
 #plan-estudios .accordion-button {
-  font-size: 1.1rem;
-  padding: 1rem 1.25rem;
-  transition: all 0.3s ease;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  padding: var(--space-4) var(--space-6);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
 }
 
+#plan-estudios .accordion-button:hover {
+  background-color: var(--color-brand-primary-50);
+}
+
+/* Semestre abierto: fondo de marca + chevron blanco.
+   Sin esto, abierto y cerrado se veían idénticos. */
 #plan-estudios .accordion-button:not(.collapsed) {
-  background-color: var(--primary);
-  color: white;
-  box-shadow: 0 2px 8px rgba(13, 110, 253, 0.25);
+  background: linear-gradient(90deg,
+    var(--color-brand-primary) 0%,
+    var(--color-brand-primary-700) 100%);
+  color: var(--text-inverse);
+  box-shadow: none;
+}
+
+#plan-estudios .accordion-button:not(.collapsed)::after {
+  filter: brightness(0) invert(1);
 }
 
 #plan-estudios .accordion-button:focus {
+  border-color: var(--color-brand-primary);
   box-shadow: none;
-  border-color: var(--primary);
 }
 
-#plan-estudios .accordion-button .badge {
-  font-size: 0.85rem;
-  font-weight: 500;
+/* Semestre cerrado: fondo claro, contorno de marca. Semestre abierto: fondo
+   de marca, así que el contorno tiene que ser claro para verse encima. */
+#plan-estudios .accordion-button:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: -3px;
 }
 
-#plan-estudios .table {
+#plan-estudios .accordion-button:not(.collapsed):focus-visible {
+  outline-color: var(--color-neutral-0);
+}
+
+/* Contador de materias. Es `badge` sin utilidad `bg-*`: las utilidades de
+   Bootstrap llevan !important y obligarían a esta hoja a escalar la guerra de
+   especificidad para recolorearlo sobre la cabecera de marca. */
+.semester-count {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  background-color: var(--color-brand-primary-100);
+  color: var(--color-brand-primary);     /* 11.7:1 sobre primary-100 */
+}
+
+#plan-estudios .accordion-button:not(.collapsed) .semester-count {
+  background-color: var(--color-neutral-0);
+  color: var(--color-brand-primary);     /* 13.40:1 sobre blanco */
+}
+
+/* Tabla de materias: losa con cabecera de marca. Como tabla desnuda de
+   Bootstrap era indistinguible de una pantalla de gestión.
+
+   NO se toca aquí ni el overflow ni el radio del wrapper: .siiap-table-wrapper
+   ya recorta con --radius-md y su overflow-x:auto es lo que permite desplazar
+   la tabla en móvil. Un `overflow:hidden` de esta hoja lo anularía.
+
+   Tampoco lleva sombra: el wrapper llena el .accordion-body de borde a borde y
+   el .accordion-item recorta con overflow:hidden, así que cualquier sombra se
+   pintaría fuera de la caja y quedaría cortada entera. La elevación la aporta
+   el propio .accordion-item. */
+
+#plan-estudios .curriculum-table {
+  min-width: 35rem;   /* no se comprime en móvil: se desplaza en el wrapper */
   margin-bottom: 0;
 }
 
-#plan-estudios .table thead th {
-  font-weight: 600;
-  font-size: 0.9rem;
+#plan-estudios .curriculum-table thead th {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0.75rem;
-  border-bottom: 2px solid #dee2e6;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-brand-primary);
+  color: var(--text-inverse);            /* 13.40:1 */
+  border-bottom: 0;
+  /* Bootstrap 5.3 pinta `box-shadow: inset 0 0 0 9999px var(--bs-table-*)`
+     sobre cada celda: sin esto la cabecera de marca queda tapada en cuanto
+     una variante de tabla defina esa variable. */
+  box-shadow: none;
 }
 
-#plan-estudios .table tbody td {
-  padding: 0.875rem 0.75rem;
+#plan-estudios .curriculum-table tbody td {
+  padding: var(--space-3) var(--space-4);
   vertical-align: middle;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
 }
 
-#plan-estudios .table-hover tbody tr:hover {
-  background-color: rgba(13, 110, 253, 0.05);
-  transition: background-color 0.2s ease;
+/* La columna de código llevaba la utilidad .text-secondary de Bootstrap, que
+   NO es el token del proyecto: resuelve a rgba(--bs-secondary-rgb) = #6c757d,
+   un gris que _tokens.css nunca redefine. Se colorea desde aquí. */
+#plan-estudios .curriculum-table tbody td.curriculum-table__code {
+  color: var(--text-secondary);          /* 5.21:1 sobre --bg-surface */
+}
+
+/* El texto sube a --text-primary al iluminar la fila: sobre el tinte de marca
+   el gris secundario caía a 4.30:1 y fallaba 1.4.3 AA. Los estados de hover no
+   están exentos. */
+#plan-estudios .curriculum-table tbody tr:hover td {
+  background-color: var(--color-brand-primary-100);
+  color: var(--text-primary);            /* 12.2:1 sobre primary-100 */
 }
 
 #plan-estudios .font-monospace {
-  font-size: 0.875rem;
-  letter-spacing: 0.5px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-wide);
 }
 
-#plan-estudios .badge {
-  font-size: 0.8rem;
-  padding: 0.35em 0.65em;
-  font-weight: 500;
+/* Plan antiguo sin código, créditos ni tipo: lista, no una tabla de cuatro
+   columnas con tres llenas de guiones. */
+.curriculum-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-4) var(--space-6);
+}
+
+.curriculum-list li {
+  padding-block: var(--space-3);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+}
+
+.curriculum-list li + li {
+  border-top: 1px solid var(--border-default);
+}
+
+/* Tipo de materia. No es `badge bg-*`: eso queda reservado a contadores
+   numéricos. Y no es .status-badge--*, que no tiene miembro para esto. */
+.course-type {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  background-color: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.course-type--obligatoria {
+  background-color: var(--color-brand-primary-100);
+  border-color: var(--border-brand-subtle);
+  color: var(--color-brand-primary);     /* 11.7:1 sobre primary-100 */
+}
+
+.course-type--optativa {
+  background-color: var(--color-warning-100);
+  border-color: var(--border-warning-subtle);
+  color: var(--color-warning-700);       /* 6.87:1 sobre warning-100 */
 }
 
 /* Resumen de créditos */
-#plan-estudios .alert-success {
-  border-left: 4px solid var(--success);
-  background-color: #d1e7dd;
-  color: #0f5132;
-  font-size: 1.1rem;
+.curriculum-total {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--border-success-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-success-100);
+  color: var(--color-success-700);
+  font-size: var(--fs-md);
 }
 
-/* Líneas de investigación */
-#plan-estudios .hover-card {
-  transition: all 0.3s ease;
-  cursor: pointer;
+.curriculum-total i {
+  font-size: var(--fs-xl);
 }
 
-#plan-estudios .hover-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+/* Líneas de investigación: tarjetas informativas, NO clicables */
+#plan-estudios .research-card {
+  height: 100%;
+  padding: var(--space-6);
 }
 
-#plan-estudios .hover-card .card-body {
-  padding: 1.5rem;
+#plan-estudios .research-card h4 {
+  font-size: var(--fs-md);
+  margin-bottom: var(--space-3);
+  color: var(--color-brand-primary);
 }
 
-#plan-estudios .hover-card h4 {
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
-  color: var(--primary);
+#plan-estudios .research-card p {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
+  color: var(--text-secondary);
+  margin-bottom: 0;
 }
 
-#plan-estudios .hover-card .card-text {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: var(--text-muted);
+/* ──────────────────────────────────────────────────────────────
+   9. CONTACTO
+   ────────────────────────────────────────────────────────────── */
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-/* Estado vacío */
-#plan-estudios .empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--text-muted);
+.contact-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
 }
 
-#plan-estudios .empty-state i {
-  font-size: 3rem;
-  opacity: 0.5;
-  margin-bottom: 1rem;
+.contact-item:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-brand-subtle);
+  box-shadow: var(--shadow-3);
+}
+
+.contact-item__body {
+  min-width: 0;
+}
+
+.contact-item h3 {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.contact-item p {
+  margin-bottom: 0;
+  line-height: var(--lh-relaxed);
+  color: var(--text-primary);
+}
+
+/* El dato ES la acción. Sin subrayado permanente — el color de marca y el
+   peso ya lo separan del texto — pero con subrayado al pasar y al enfocar,
+   que es donde WCAG lo exige dentro de un bloque de texto. */
+.contact-item a {
+  color: var(--color-brand-primary);     /* 13.40:1 sobre --bg-surface */
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.contact-item a:hover,
+.contact-item a:focus-visible {
+  color: var(--color-brand-primary-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   10. DIÁLOGO DE CONVOCATORIA CERRADA
+   ────────────────────────────────────────────────────────────── */
+
+/* Vive siempre en el árbol para que la región viva anuncie de forma fiable;
+   se oculta sola mientras no tenga texto. */
+.admission-closed__feedback {
+  margin-top: var(--space-4);
+  margin-bottom: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+}
+
+.admission-closed__feedback:empty {
+  display: none;
+}
+
+.admission-closed__feedback:focus-visible {
+  outline: 2px solid var(--color-brand-primary);
+  outline-offset: 2px;
+}
+
+.admission-closed__feedback--ok {
+  background-color: var(--color-success-100);
+  border: 1px solid var(--border-success-subtle);
+  color: var(--color-success-700);
+}
+
+.admission-closed__feedback--error {
+  background-color: var(--color-danger-100);
+  border: 1px solid var(--border-danger-subtle);
+  color: var(--color-danger);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   11. MOVIMIENTO REDUCIDO
+   ────────────────────────────────────────────────────────────── */
+
+/* El pulso, el barrido y los desplazamientos son decorativos: sin ellos la
+   página comunica exactamente lo mismo. Los cambios de color y sombra se
+   conservan, porque son la señal de hover y de foco. */
+@media (prefers-reduced-motion: reduce) {
+  .btn-inscription {
+    animation: none;
+  }
+
+  .btn-inscription::after {
+    display: none;
+  }
+
+  /* Sin desplazamiento de entrada, pero sin dejarlas invisibles: `both`
+     mantendría el estado inicial del keyframe si sólo se quitara la animación. */
+  .program-fab {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .btn-inscription:hover,
+  .btn-back:hover,
+  .program-hero__action:hover,
+  .hover-card:hover,
+  .program-hero__fact:hover,
+  .program-fact-card:hover,
+  .contact-item:hover,
+  .timeline-item:hover .timeline-content,
+  .timeline-item:hover .timeline-dot,
+  .program-image-container:hover .program-hero__image {
+    transform: none;
+  }
+
+  .steps-timeline::before {
+    transform: scaleY(1);
+    transition: none;
+  }
 }

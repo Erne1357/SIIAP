@@ -16,15 +16,62 @@ Flujo principal:
 
 Para CSV: validar cada fila individualmente + detectar duplicados intra-CSV,
 luego ejecutar filas válidas atómicamente por fila (errores aislados).
+
+ALCANCE DE PROGRAMA — `creator_program_ids`
+-------------------------------------------
+Todas las entradas públicas de este módulo reciben `creator_program_ids`: el
+conjunto de programas sobre los que el usuario que ejecuta el alta puede
+operar. Sigue el contrato de `program_scope_service.accessible_program_ids`:
+
+    None      → TODOS los programas (jefe de posgrado)
+    set()     → NINGUNO (p. ej. servicio social sin delegación)
+    {1, 4}    → sólo esos
+
+Nunca confundas `None` con `set()`. Sin este hilo, un coordinador podía
+fabricar estudiantes con número de control, estatus `enrolled` y semestres
+confirmados hacia atrás DENTRO DEL PROGRAMA DE OTRO coordinador, masivamente
+por CSV: quedaba auditado pero no impedido.
+
+La comprobación vive en `validate_individual`, que es por donde pasan las tres
+rutas (individual, preview CSV y ejecución CSV), de modo que unas filas
+manipuladas con `valid: true` en el cuerpo de `/csv/execute` tampoco la evitan.
+
+UNICIDAD DEL NÚMERO DE CONTROL — ORDEN Y MENSAJE
+------------------------------------------------
+El número de control es único en TODA la institución, así que comprobarlo es
+forzosamente una consulta global. Eso lo convertía en un oráculo de existencia,
+y aquí era el peor de todos: `/validate` y `/csv/preview` son ensayos en seco
+que devuelven los errores tal cual, y un solo CSV sondea N números de golpe.
+Además la consulta corría ANTES del alcance de programa, así que contestaba
+incluso en la fila que se iba a rechazar por apuntar al programa de otro.
+
+Dos reglas lo cierran, y ninguna toca la restricción de unicidad (que es
+correcta y debe quedarse):
+
+  1. ORDEN — el alcance de programa se resuelve primero. Una fila fuera de
+     alcance se rechaza sin que la consulta global llegue a ejecutarse.
+  2. MENSAJE — una colisión responde con
+     `acceptance_service.CONTROL_NUMBER_REJECTED_MESSAGE`, literalmente el mismo
+     texto que emiten `acceptance_service.assign_control_number`,
+     `acceptance_service.assign_control_number_admin` y
+     `admin/users_api.assign_control_number`. No nombra el número ni afirma que
+     exista. Cuatro sitios, una sola redacción: dos textos distintos volverían a
+     distinguir la colisión del resto de los rechazos.
+
+Queda un residuo inevitable —una fila con número libre valida y una con número
+tomado no—, idéntico al de los otros tres sitios y propio de cualquier columna
+única escrita con un valor que elige quien llama. Lo que se elimina es la
+confirmación explícita y la cosecha pasiva; el sondeo que resta queda escrito en
+el log de la aplicación con el id de quien lo hace (`actor_id`), que es la
+señal de volumen sobre la que se puede actuar.
 """
 
 import csv
 import io
-import secrets
-import string
 import logging
 
 from app import db
+from app.services import public_id_service
 from app.models import (
     User, UserProgram, Program, AcademicPeriod, Role
 )
@@ -32,6 +79,12 @@ from app.models.semester_enrollment import SemesterEnrollment
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
+from app.utils.validators import (
+    EMAIL_MAX_LENGTH,
+    InputValidationError,
+    validate_person_name,
+    validate_short_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +103,15 @@ class ValidationError(StudentBulkError):
 
 class StudentCreationError(StudentBulkError):
     """Error al crear el estudiante en la base de datos."""
+
+
+class ProgramScopeError(StudentBulkError):
+    """
+    El programa destino del alta está fuera del alcance de quien la ejecuta.
+
+    Se separa de `ValidationError` porque no es un payload mal formado sino una
+    denegación: la ruta la traduce a 403, no a 400.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +142,26 @@ CSV_EXAMPLE_ROW = [
     '20221', 'no',
 ]
 
+# Spanish labels used in the per-row validation messages of the optional
+# profile columns, plus the length each one is bounded to. Every limit mirrors
+# its `user` column except `address`, a TEXT column bounded here for sanity.
+CSV_OPTIONAL_FIELD_RULES = {
+    'phone':                          ('Teléfono', 20),
+    'mobile_phone':                   ('Teléfono móvil', 20),
+    'address':                        ('Dirección', 500),
+    'curp':                           ('CURP', 18),
+    'rfc':                            ('RFC', 13),
+    'nss':                            ('NSS', 15),
+    'cedula_profesional':             ('Cédula profesional', 20),
+    'birth_place':                    ('Lugar de nacimiento', 200),
+    'emergency_contact_name':         ('Nombre del contacto de emergencia', 200),
+    'emergency_contact_phone':        ('Teléfono del contacto de emergencia', 20),
+    'emergency_contact_relationship': ('Parentesco del contacto de emergencia', 50),
+}
+
+# Mirrors user.control_number -> String(20).
+CONTROL_NUMBER_MAX_LENGTH = 20
+
 
 # ---------------------------------------------------------------------------
 # Helpers internos
@@ -87,8 +169,8 @@ CSV_EXAMPLE_ROW = [
 
 def _random_password(length: int = 24) -> str:
     """Genera una contraseña aleatoria segura no usable directamente."""
-    alphabet = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    from app.services.password_reset_service import random_password
+    return random_password(length)
 
 
 def _get_all_periods_ordered() -> list:
@@ -101,47 +183,102 @@ def _get_active_period() -> AcademicPeriod | None:
     return AcademicPeriod.query.filter_by(is_active=True).first()
 
 
-def _build_login_url() -> str:
+# `_build_login_url()` used to live here. It built the URL from the live request
+# (`url_for(_external=True)`, falling back to `request.host_url`), i.e. from a
+# host the requester chooses, and it had no callers at all. Removed rather than
+# left as a ready-made hole for the next caller to step in. Anything needing an
+# absolute login URL must use `app.utils.urls.external_url('pages_auth.login_page')`.
+
+
+def _apply_validator(validator, value, errors: list, **kwargs):
     """
-    Construye la URL absoluta de la página de login.
+    Run one validator from app/utils/validators.py folding its rejection into
+    the per-row `errors` list instead of letting it raise.
+
+    Bulk import reports every problem of a row at once and keeps processing the
+    remaining rows, so a rejected value must never abort the pass.
+
+    Returns the normalized value, or None when the value was rejected.
     """
     try:
-        from flask import url_for
-        return url_for('pages_auth.login_page', _external=True)
-    except Exception:
-        try:
-            from flask import request
-            return f"{request.host_url.rstrip('/')}/login"
-        except Exception:
-            return '/login'
+        return validator(value, **kwargs)
+    except InputValidationError as exc:
+        errors.append(exc.message)
+        return None
+
+
+def _program_in_creator_scope(program, creator_program_ids) -> bool:
+    """
+    True si el usuario que ejecuta el alta puede operar sobre ese programa.
+
+    `creator_program_ids is None` significa alcance global (jefe de posgrado);
+    un conjunto vacío significa SIN alcance y niega todo. Ver la nota de
+    alcance en el encabezado del módulo.
+    """
+    if creator_program_ids is None:
+        return True
+    if program is None:
+        return False
+    return program.id in creator_program_ids
+
+
+def _resolve_program_for_scope(program_slug: str):
+    """Programa por slug (sin validar nada más), o None si no existe."""
+    if not program_slug:
+        return None
+    return Program.query.filter_by(slug=program_slug).first()
+
+
+def _require_program_scope(payload: dict, creator_program_ids) -> None:
+    """
+    Denegación temprana y explícita para las altas individuales.
+
+    `validate_individual` también registra el problema como error de fila (lo
+    necesita el preview del CSV), pero la ruta individual debe responder 403 y
+    no 400, así que aquí se lanza `ProgramScopeError` antes de validar nada más.
+
+    Un slug inexistente NO se denega aquí: eso es un error de datos y lo
+    reporta la validación normal con su mensaje ("No existe un programa…").
+    """
+    program = _resolve_program_for_scope((payload.get('program_slug') or '').strip())
+    if program is not None and not _program_in_creator_scope(program, creator_program_ids):
+        raise ProgramScopeError(
+            f'No tienes acceso al programa {program.slug!r}. Sólo puedes dar de '
+            f'alta estudiantes en los programas que administras.'
+        )
 
 
 def _build_reset_password_url(token: str) -> str:
     """
     Construye la URL absoluta de la página de configuración de contraseña
     con el token incrustado.
+
+    Única implementación en `password_reset_service.build_reset_password_url`,
+    compartida con el alta de servicio social y el reset administrativo: la
+    regla de anclar la URL a APP_BASE_URL y nunca a la petición debe valer
+    igual para todos los correos que llevan un token.
     """
-    try:
-        from flask import url_for
-        return url_for('pages_auth.reset_password_page', token=token, _external=True)
-    except Exception:
-        try:
-            from flask import request
-            return f"{request.host_url.rstrip('/')}/reset-password/{token}"
-        except Exception:
-            return f'/reset-password/{token}'
+    from app.services.password_reset_service import build_reset_password_url
+    return build_reset_password_url(token)
 
 
 # ---------------------------------------------------------------------------
 # Validación individual
 # ---------------------------------------------------------------------------
 
-def validate_individual(payload: dict) -> dict:
+def validate_individual(payload: dict, creator_program_ids=None,
+                        actor_id=None) -> dict:
     """
     Valida un payload de alta individual sin crear registros en DB.
 
     Args:
         payload: dict con campos mínimos del estudiante.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS** (jefe de posgrado); `set()` significa
+            NINGUNO. Ver la nota de alcance del encabezado del módulo.
+        actor_id: id de quien ejecuta la validación. Sólo se usa para atribuir
+            en el log una colisión de número de control; el servicio sigue sin
+            leer `current_user` (la ruta lo pasa explícitamente).
 
     Returns:
         {'valid': bool, 'errors': list[str], 'normalized': dict}
@@ -149,50 +286,91 @@ def validate_individual(payload: dict) -> dict:
     errors = []
     normalized = {}
 
+    # Person names and bounded free text go through the shared validators
+    # (app/utils/validators.py) — the same rules as self-registration, because
+    # these columns end up in the staff consoles either way. A rejection is
+    # recorded as a row error and the row is simply skipped at execution time.
+
     # --- first_name ---
-    first_name = (payload.get('first_name') or '').strip()
-    if not first_name:
-        errors.append('El nombre es requerido.')
-    normalized['first_name'] = first_name
+    normalized['first_name'] = _apply_validator(
+        validate_person_name, payload.get('first_name'), errors, label='Nombre'
+    )
 
     # --- last_name ---
-    last_name = (payload.get('last_name') or '').strip()
-    if not last_name:
-        errors.append('El apellido paterno es requerido.')
-    normalized['last_name'] = last_name
+    normalized['last_name'] = _apply_validator(
+        validate_person_name, payload.get('last_name'), errors,
+        label='Apellido paterno',
+    )
 
     # --- mother_last_name ---
-    mother_last_name = (payload.get('mother_last_name') or '').strip() or None
-    normalized['mother_last_name'] = mother_last_name
+    normalized['mother_last_name'] = _apply_validator(
+        validate_person_name, payload.get('mother_last_name'), errors,
+        label='Apellido materno', required=False,
+    )
 
     # --- email ---
-    email = (payload.get('email') or '').strip().lower()
-    if not email:
-        errors.append('El correo electrónico es requerido.')
-    elif User.query.filter_by(email=email).first():
+    email = _apply_validator(
+        validate_short_text, payload.get('email'), errors,
+        label='Correo electrónico', required=True, max_length=EMAIL_MAX_LENGTH,
+    )
+    email = email.lower() if email else ''
+    if email and User.query.filter_by(email=email).first():
         errors.append(f'El correo {email!r} ya está registrado en el sistema.')
     normalized['email'] = email
 
-    # --- control_number ---
-    control_number = (payload.get('control_number') or '').strip()
-    if not control_number:
-        errors.append('El número de control es requerido.')
-    elif User.query.filter_by(control_number=control_number).first():
-        errors.append(f'El número de control {control_number!r} ya está registrado.')
-    normalized['control_number'] = control_number
-
     # --- program_slug ---
+    # Se resuelve ANTES del número de control a propósito. La unicidad del
+    # número de control es institucional y por tanto se consulta contra toda la
+    # base; esa consulta no debe llegar a ejecutarse para una fila que apunta al
+    # programa de otro. Ver "UNICIDAD DEL NÚMERO DE CONTROL" en el encabezado.
     program_slug = (payload.get('program_slug') or '').strip()
     program = None
+    program_in_scope = False
     if not program_slug:
         errors.append('El slug del programa es requerido.')
     else:
         program = Program.query.filter_by(slug=program_slug).first()
         if not program:
             errors.append(f'No existe un programa con slug {program_slug!r}.')
-        elif not program.is_active:
-            errors.append(f'El programa {program_slug!r} no está activo.')
+        elif not _program_in_creator_scope(program, creator_program_ids):
+            # El alta masiva escribe número de control, estatus 'enrolled' y
+            # semestres confirmados: sólo en los programas propios.
+            errors.append(
+                f'No tienes acceso al programa {program_slug!r}. Sólo puedes '
+                f'dar de alta estudiantes en los programas que administras.'
+            )
+            program = None   # no sigas derivando límites de un programa ajeno
+        else:
+            program_in_scope = True
+            if not program.is_active:
+                errors.append(f'El programa {program_slug!r} no está activo.')
     normalized['program_slug'] = program_slug
+
+    # --- control_number ---
+    # La consulta de unicidad se ejecuta SÓLO si la fila ya pasó el alcance.
+    # Antes corría siempre y respondía con el motivo exacto, así que un
+    # coordinador podía pedir `/validate` —o un CSV entero contra
+    # `/csv/preview`— con números de control de programas ajenos y leer en la
+    # respuesta cuáles existen, sin escribir nada y sin dejar rastro.
+    #
+    # El texto del rechazo no vive aquí: es el mismo objeto que usan los otros
+    # tres puntos que rechazan por colisión. Si esta cadena se reescribiera
+    # "para que diga algo más útil", el oráculo se reabre.
+    control_number = _apply_validator(
+        validate_short_text, payload.get('control_number'), errors,
+        label='Número de control', required=True,
+        max_length=CONTROL_NUMBER_MAX_LENGTH,
+    ) or ''
+    if control_number and program_in_scope:
+        if User.query.filter_by(control_number=control_number).first():
+            from app.services.acceptance_service import CONTROL_NUMBER_REJECTED_MESSAGE
+            logger.warning(
+                '[control_number] Colisión en alta masiva de estudiantes '
+                f'(actor_id={actor_id}, program_slug={program_slug!r}, '
+                f'control_number={control_number})'
+            )
+            errors.append(CONTROL_NUMBER_REJECTED_MESSAGE)
+    normalized['control_number'] = control_number
 
     # --- current_semester ---
     raw_semester = payload.get('current_semester')
@@ -235,18 +413,23 @@ def validate_individual(payload: dict) -> dict:
     normalized['has_conacyt'] = has_conacyt
 
     # --- Campos opcionales del perfil ---
-    # Se ignora silenciosamente cualquier campo opcional vacío. Sólo birth_date
-    # se valida estrictamente porque debe parsearse a date.
-    for field in ('phone', 'mobile_phone', 'address', 'curp', 'rfc', 'nss',
-                  'cedula_profesional', 'birth_place',
-                  'emergency_contact_name', 'emergency_contact_phone',
-                  'emergency_contact_relationship'):
+    # Un campo opcional vacío se ignora silenciosamente; uno con contenido pasa
+    # por el validador correspondiente (charset y longitud). Sólo birth_date se
+    # valida aparte porque debe parsearse a date.
+    for field, (label, max_length) in CSV_OPTIONAL_FIELD_RULES.items():
         raw = payload.get(field)
         if raw is None:
             normalized[field] = None
-        else:
-            value = str(raw).strip()
-            normalized[field] = value or None
+            continue
+        # Every optional column, including emergency_contact_name, goes through
+        # the permissive validator. That field is filled in freely by whoever
+        # prepares the CSV — "Juan Perez (madre)", "Maria, mama" — so the strict
+        # person-name charset would reject ordinary rows. It is bounded and
+        # markup-free, which is what the render sites need.
+        normalized[field] = _apply_validator(
+            validate_short_text, str(raw), errors,
+            label=label, required=False, max_length=max_length,
+        )
 
     raw_birth = payload.get('birth_date')
     if raw_birth is None or (isinstance(raw_birth, str) and not raw_birth.strip()):
@@ -369,7 +552,8 @@ def _backfill_history(
 # Creación individual
 # ---------------------------------------------------------------------------
 
-def create_student_individual(payload: dict, created_by_id: int) -> dict:
+def create_student_individual(payload: dict, created_by_id: int,
+                              creator_program_ids=None) -> dict:
     """
     Crea un estudiante completo (User + UserProgram + SemesterEnrollments)
     en una única transacción de base de datos.
@@ -386,16 +570,29 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
     Args:
         payload: dict con campos del estudiante (ver validate_individual).
         created_by_id: ID del usuario que realiza la operación.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS** (jefe de posgrado); `set()` significa
+            NINGUNO. Ver la nota de alcance del encabezado del módulo.
 
     Returns:
         dict: {user_id, user_program_id, sems_created, email}
 
     Raises:
+        ProgramScopeError: Si el programa destino está fuera del alcance.
         ValidationError: Si el payload no es válido.
         StudentCreationError: Si hay un error de base de datos.
     """
+    # 0. Alcance de programa. Se comprueba aquí, en el servicio, para que valga
+    #    también cuando las filas llegan desde /csv/execute con 'valid' puesto
+    #    a mano en el cuerpo de la petición.
+    _require_program_scope(payload, creator_program_ids)
+
     # 1. Validar
-    result = validate_individual(payload)
+    result = validate_individual(
+        payload,
+        creator_program_ids=creator_program_ids,
+        actor_id=created_by_id,
+    )
     if not result['valid']:
         raise ValidationError('; '.join(result['errors']))
 
@@ -523,7 +720,8 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
         db.session.commit()
 
         return {
-            'user_id': user.id,
+            # Public handle: the bulk console echoes this back in its report.
+            'user_id': public_id_service.user_uuid(user.id),
             'user_program_id': up.id,
             'sems_created': sems_created,
             'email': user.email,
@@ -543,7 +741,7 @@ def create_student_individual(payload: dict, created_by_id: int) -> dict:
 # Validación CSV
 # ---------------------------------------------------------------------------
 
-def validate_csv(csv_text: str) -> dict:
+def validate_csv(csv_text: str, creator_program_ids=None, actor_id=None) -> dict:
     """
     Parsea y valida un CSV de alta masiva de estudiantes.
 
@@ -554,8 +752,18 @@ def validate_csv(csv_text: str) -> dict:
     Valida cada fila con validate_individual y además detecta duplicados
     intra-CSV (emails y control_numbers repetidos dentro del propio archivo).
 
+    Una fila cuyo `program_slug` cae fuera del alcance del usuario se marca
+    inválida con su motivo, igual que cualquier otro error de fila: el resto
+    del archivo se sigue validando.
+
     Args:
         csv_text: Contenido del archivo CSV como string UTF-8.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS**; `set()` significa NINGUNO.
+        actor_id: id de quien ejecuta la validación, sólo para atribuir en el
+            log una colisión de número de control (ver `validate_individual`).
+            Un CSV sondea N números por petición: sin este dato el log no
+            distingue quién lo mandó.
 
     Returns:
         {
@@ -605,7 +813,11 @@ def validate_csv(csv_text: str) -> dict:
         payload = {k: (row.get(k) or '').strip() for k in CSV_HEADERS}
         for k in available_optional:
             payload[k] = (row.get(k) or '').strip()
-        result = validate_individual(payload)
+        result = validate_individual(
+            payload,
+            creator_program_ids=creator_program_ids,
+            actor_id=actor_id,
+        )
 
         extra_errors = []
         email = payload.get('email', '').lower()
@@ -647,17 +859,24 @@ def validate_csv(csv_text: str) -> dict:
 # Ejecución CSV
 # ---------------------------------------------------------------------------
 
-def execute_csv(rows: list, created_by_id: int) -> dict:
+def execute_csv(rows: list, created_by_id: int, creator_program_ids=None) -> dict:
     """
     Aplica las filas válidas de un preview CSV.
 
     Cada estudiante se crea en su propia transacción atómica. Si una fila
     falla, las demás continúan procesándose (fallas aisladas).
 
+    `rows` llega del cliente, así que su bandera `valid` NO es de fiar: quien
+    llama puede ponerla a True sobre una fila que apunta al programa de otro
+    coordinador. Por eso el alcance se revalida dentro de
+    `create_student_individual`, y la fila rechazada aparece en `failed`.
+
     Args:
         rows: Lista de dicts con estructura {index, data, valid, errors}.
               Solo se procesan las filas con valid=True.
         created_by_id: ID del usuario que ejecuta la operación.
+        creator_program_ids: alcance de programas de quien ejecuta el alta.
+            **None significa TODOS**; `set()` significa NINGUNO.
 
     Returns:
         {
@@ -678,14 +897,16 @@ def execute_csv(rows: list, created_by_id: int) -> dict:
         email = data.get('email', '')
 
         try:
-            result = create_student_individual(data, created_by_id)
+            result = create_student_individual(
+                data, created_by_id, creator_program_ids=creator_program_ids
+            )
             created += 1
             created_users.append({
                 'user_id': result['user_id'],
                 'email': result['email'],
                 'control_number': data.get('control_number', ''),
             })
-        except (ValidationError, StudentCreationError) as exc:
+        except (ProgramScopeError, ValidationError, StudentCreationError) as exc:
             failed.append({
                 'index': index,
                 'email': email,

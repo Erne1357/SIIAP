@@ -15,7 +15,8 @@
   // Modal editar/crear
   const modalEdit = new bootstrap.Modal(document.getElementById("modalEdit"));
   const formEdit = document.getElementById("formEdit");
-  const editTitle = document.getElementById("editTitle");
+  // El título lo emite el macro modal_shell con el id "<modalId>Title".
+  const editTitle = document.getElementById("modalEditTitle");
   const editId = document.getElementById("editId");
   const editName = document.getElementById("editName");
   const editDesc = document.getElementById("editDesc");
@@ -33,6 +34,37 @@
 
   let cached = [];
   let steps = [];
+
+  // ==========================================================================
+  // Alcance de escritura sobre el catálogo
+  // ==========================================================================
+  //
+  // Un Step es COMPARTIDO por diseño: `program_step` engancha la misma etapa a
+  // varios posgrados, y los Archive cuelgan del Step, no del Program. Por eso
+  // el backend (archives_api.py) devuelve DOS niveles distintos en cada fila y
+  // en cada step:
+  //
+  //   - se listan todos los que tocan alguno de tus programas — para que veas
+  //     el trámite completo;
+  //   - `can_manage` marca los que además puedes MODIFICAR, que son solo los
+  //     de las etapas exclusivamente tuyas.
+  //
+  // Esta consola ignoraba `can_manage` y pintaba Editar / Subir plantilla /
+  // Guardar / Eliminar en las 43 filas: cada botón acababa en 403 y la página
+  // parecía rota 43 veces seguidas. Aquí se lee el campo y se dice el motivo.
+  //
+  // Se compara con `!== false` a propósito: si el campo faltara, la fila se
+  // comporta como antes en lugar de quedarse muda.
+
+  const canManageRow = (row) => !!row && row.can_manage !== false;
+  const canManageStep = (step) => !!step && step.can_manage !== false;
+
+  /** Pasos cuyo catálogo puede editar quien mira: los únicos que caben en los selects. */
+  const manageableSteps = () => steps.filter(canManageStep);
+
+  const SHARED_STEP_REASON =
+    'Esta etapa la comparten varios programas, así que su catálogo de ' +
+    'documentos solo lo puede modificar la Jefatura de Posgrado.';
 
   // Función para disparar flash usando el sistema existente
   function flash(msg, type = "success") {
@@ -65,6 +97,37 @@
     }
     
     return { valid: true };
+  }
+
+  /**
+   * Mensaje legible a partir de cualquier cuerpo que devuelva la API.
+   *
+   * `_deny` (archives_api.py) manda `error` como objeto `{code, message}` —ahí
+   * viaja la explicación de por qué una etapa compartida no se puede tocar—
+   * mientras que el resto de este blueprint sigue mandando `error` como cadena.
+   * Leer `data.error` a secas convertía el objeto en «[object Object]» y
+   * borraba justo el motivo que hay que enseñar.
+   */
+  function errorMessage(data, fallback = 'Ocurrió un error inesperado') {
+    const text = (value) => (typeof value === 'string' && value.trim()) ? value.trim() : null;
+
+    if (text(data)) return text(data);
+    if (!data || typeof data !== 'object') return fallback;
+
+    const err = data.error;
+    if (text(err)) return text(err);
+    if (err && typeof err === 'object' && text(err.message)) return text(err.message);
+
+    if (text(data.message)) return text(data.message);
+
+    const flash = Array.isArray(data.flash) ? data.flash : [];
+    for (const entry of flash) {
+      if (text(entry)) return text(entry);
+      if (Array.isArray(entry) && text(entry[0])) return text(entry[0]);
+      if (entry && typeof entry === 'object' && text(entry.message)) return text(entry.message);
+    }
+
+    return fallback;
   }
 
   // Función helper para hacer peticiones con manejo de errores mejorado
@@ -105,11 +168,11 @@
       }
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || `Error HTTP ${response.status}`);
+        throw new Error(errorMessage(data, `Error HTTP ${response.status}`));
       }
 
       if (data.ok === false) {
-        throw new Error(data.error || 'Operación fallida');
+        throw new Error(errorMessage(data, 'Operación fallida'));
       }
 
       return { response, data };
@@ -125,47 +188,76 @@
   }
 
   function rowTemplate(a) {
-    const tplUrl = a.template_url ? 
-      `<a class="template-link" href="${a.template_url}" target="_blank" rel="noopener" title="${a.template_name || 'Descargar'}">${a.template_name || 'Ver plantilla'}</a>` : 
+    // template_url is server-built (`/api/v1/archives/<id>/template`), template_name
+    // is the basename of an uploaded file and therefore user controlled.
+    const tplUrl = a.template_url ?
+      `<a class="template-link" href="${SIIAP.escapeAttr(a.template_url)}" target="_blank" rel="noopener" title="${SIIAP.escapeAttr(a.template_name || 'Descargar')}">${SIIAP.escapeHtml(a.template_name || 'Ver plantilla')}</a>` :
       `<span class="text-muted">—</span>`;
     const stepLabel = a.step_name || stepName(a.step_id) || "";
-    
+
+    // `label` goes into attributes only; `label` in text content is escaped apart.
+    const label = SIIAP.escapeAttr(a.name || 'este archivo');
+
+    const manageable = canManageRow(a);
+    // Sin alcance de escritura los toggles tampoco se pueden guardar: se
+    // muestran como lectura del estado real, no como un control que engaña.
+    const lock = manageable ? '' : ' disabled';
+
+    const sharedNote = manageable ? '' : `
+          <span class="text-muted small d-block">
+            <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Etapa compartida entre programas
+          </span>`;
+
+    const actionsCell = manageable
+      ? `<div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${label}">
+            <button type="button" class="btn btn-outline-secondary btn-edit tap-target"
+                    aria-label="Editar ${label}" title="Editar ${label}">
+              <i class="bi bi-pencil-square" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-upload-template tap-target"
+                    aria-label="Subir plantilla de ${label}" title="Subir plantilla de ${label}">
+              <i class="bi bi-upload" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-success btn-save tap-target"
+                    aria-label="Guardar cambios de ${label}" title="Guardar cambios de ${label}">
+              <i class="bi bi-save" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-delete tap-target"
+                    aria-label="Eliminar ${label}" title="Eliminar ${label}">
+              <i class="bi bi-trash" aria-hidden="true"></i>
+            </button>
+          </div>`
+      : `<span class="status-badge status-badge--sm" title="${SIIAP.escapeAttr(SHARED_STEP_REASON)}">
+            <i class="bi bi-lock-fill" aria-hidden="true"></i>
+            <span>Solo Jefatura</span>
+          </span>
+          <span class="visually-hidden">${SIIAP.escapeHtml(SHARED_STEP_REASON)}</span>`;
+
     return `
-      <tr data-id="${a.id}" data-name="${(a.name||'').toLowerCase()}" data-step="${(stepLabel||'').toLowerCase()}">
-        <td>
-          <div class="fw-semibold">${a.name}</div>
-          <div class="text-muted small">${a.description||''}</div>
-        </td>
-        <td>${stepLabel}</td>
+      <tr data-id="${SIIAP.escapeAttr(a.id)}" data-name="${SIIAP.escapeAttr((a.name||'').toLowerCase())}" data-step="${SIIAP.escapeAttr((stepLabel||'').toLowerCase())}">
+        <th scope="row" class="fw-normal">
+          <span class="fw-semibold d-block">${SIIAP.escapeHtml(a.name)}</span>
+          <span class="text-muted small">${SIIAP.escapeHtml(a.description||'')}</span>
+        </th>
+        <td>${SIIAP.escapeHtml(stepLabel)}${sharedNote}</td>
         <td class="toggle-cell">
-          <input class="form-check-input chk-uploadable" type="checkbox" ${a.is_uploadable ? 'checked':''}>
-        </td>
-        <td class="toggle-cell">
-          <input class="form-check-input chk-downloadable" type="checkbox" ${a.is_downloadable ? 'checked':''}>
+          <input class="form-check-input chk-uploadable" type="checkbox"
+                 aria-label="El alumno sube ${label}" ${a.is_uploadable ? 'checked':''}${lock}>
         </td>
         <td class="toggle-cell">
-          <input class="form-check-input chk-allow-coord" type="checkbox" ${a.allow_coordinator_upload ? 'checked':''}>
+          <input class="form-check-input chk-downloadable" type="checkbox"
+                 aria-label="${label} es descargable" ${a.is_downloadable ? 'checked':''}${lock}>
         </td>
         <td class="toggle-cell">
-          <input class="form-check-input chk-allow-ext" type="checkbox" ${a.allow_extension_request ? 'checked':''}>
+          <input class="form-check-input chk-allow-coord" type="checkbox"
+                 aria-label="El coordinador puede subir ${label}" ${a.allow_coordinator_upload ? 'checked':''}${lock}>
+        </td>
+        <td class="toggle-cell">
+          <input class="form-check-input chk-allow-ext" type="checkbox"
+                 aria-label="${label} permite solicitar prórroga" ${a.allow_extension_request ? 'checked':''}${lock}>
         </td>
         <td>${tplUrl}</td>
-        <td class="text-end">
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-secondary btn-edit" title="Editar">
-              <i class="bi bi-pencil-square"></i>
-            </button>
-            <button class="btn btn-outline-primary btn-upload-template" title="Subir plantilla">
-              <i class="bi bi-upload"></i>
-            </button>
-            <button class="btn btn-success btn-save" title="Guardar cambios">
-              <i class="bi bi-save"></i>
-            </button>
-            <button class="btn btn-outline-danger btn-delete" title="Eliminar">
-              <i class="bi bi-trash"></i>
-            </button>
-          </div>
-        </td>
+        <td class="text-end">${actionsCell}</td>
       </tr>
     `;
   }
@@ -174,15 +266,71 @@
     try {
       const { data } = await apiRequest(`${API}/archives/steps?scope=permitted`);
       steps = data.items || [];
-      
-      // Llenar select de steps para crear/editar
-      editStep.innerHTML = steps.map(s => 
-        `<option value="${s.id}">${s.name} (${s.phase_name})</option>`
+
+      // Solo los pasos administrables entran en el select, tal y como promete
+      // el texto de ayuda del formulario. Antes entraban los 12 y crear un
+      // archivo en cualquiera de ellos terminaba en 403.
+      const editable = manageableSteps();
+      editStep.innerHTML = editable.map(s =>
+        `<option value="${SIIAP.escapeAttr(s.id)}">${SIIAP.escapeHtml(`${s.name} (${s.phase_name})`)}</option>`
       ).join('');
+
+      // Sin un solo paso propio no hay nada que dar de alta: el botón se
+      // desactiva y dice por qué, en vez de abrir un formulario condenado.
+      if (btnNew) {
+        const blocked = editable.length === 0;
+        btnNew.disabled = blocked;
+        if (blocked) {
+          btnNew.title = 'Todas las etapas a tu alcance las comparten varios programas: '
+            + 'solo la Jefatura de Posgrado puede crear archivos en ellas.';
+          btnNew.setAttribute('aria-disabled', 'true');
+        } else {
+          btnNew.removeAttribute('title');
+          btnNew.removeAttribute('aria-disabled');
+        }
+      }
     } catch (err) {
       console.error('Error loading steps:', err);
       flash(`Error cargando steps: ${err.message}`, 'danger');
     }
+  }
+
+  /**
+   * Aviso único de alcance encima de la tabla.
+   *
+   * Cuando NINGUNA fila es editable, la página lo dice una vez y con claridad
+   * en lugar de repetir el candado en las 43 filas y parecer rota otras tantas.
+   */
+  function renderScopeNotice(unmanageable, total) {
+    const wrapper = document.getElementById('tblArchives')?.closest('.siiap-table-wrapper');
+    if (!wrapper) return;
+
+    let notice = document.getElementById('archivesScopeNotice');
+    if (!unmanageable) {
+      notice?.remove();
+      return;
+    }
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'archivesScopeNotice';
+      notice.className = 'alert alert-info d-flex align-items-start gap-2';
+      notice.setAttribute('role', 'status');
+      wrapper.parentNode.insertBefore(notice, wrapper);
+    }
+
+    const all = unmanageable === total;
+    notice.innerHTML = `
+      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <div>
+        <strong>${all ? 'Catálogo de solo lectura.' : 'Algunos archivos son de solo lectura.'}</strong>
+        ${all
+          ? `Los ${total} archivos que ves cuelgan de etapas que comparten varios
+             programas, así que su catálogo solo lo modifica la Jefatura de Posgrado.
+             Aquí puedes consultar su configuración y descargar las plantillas.`
+          : `${unmanageable} de ${total} archivos cuelgan de etapas compartidas entre
+             programas: se muestran para que veas el trámite completo, pero solo la
+             Jefatura de Posgrado modifica su configuración.`}
+      </div>`;
   }
 
   async function loadArchives() {
@@ -193,7 +341,18 @@
       render();
     } catch (err) {
       console.error('Error loading archives:', err);
-      tblBody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-4">${err.message}</td></tr>`;
+      renderScopeNotice(0, 0);
+      tblBody.innerHTML = `
+        <tr>
+          <td colspan="8">
+            <div class="empty-state empty-state--inline empty-state--error">
+              <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+              <p class="empty-state__title">No se pudieron cargar los archivos</p>
+              <p class="empty-state__description">Vuelve a intentarlo; si el problema persiste, avisa a soporte.</p>
+              <p class="empty-state__error-detail">${SIIAP.escapeHtml(err.message)}</p>
+            </div>
+          </td>
+        </tr>`;
       flash(`Error cargando archivos: ${err.message}`, 'danger');
     }
   }
@@ -206,11 +365,32 @@
     );
     
     if (!items.length) {
-      tblBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Sin resultados</td></tr>`;
+      renderScopeNotice(0, 0);
+      tblBody.innerHTML = `
+        <tr>
+          <td colspan="8">
+            <div class="empty-state empty-state--inline">
+              <div class="empty-state__icon"><i class="bi bi-search" aria-hidden="true"></i></div>
+              <p class="empty-state__title">Sin archivos que coincidan</p>
+              <p class="empty-state__description">Ningún archivo cumple la búsqueda actual.</p>
+            </div>
+          </td>
+        </tr>`;
       return;
     }
-    
+
+    // El aviso se calcula sobre lo que realmente se ve, no sobre el catálogo
+    // entero: si la búsqueda deja solo filas editables, no sobra un candado.
+    const unmanageable = items.filter(a => !canManageRow(a)).length;
+    renderScopeNotice(unmanageable, items.length);
+
     tblBody.innerHTML = items.map(rowTemplate).join("");
+    if (window.SIIAP && typeof window.SIIAP.announce === 'function') {
+      const listed = items.length === 1 ? '1 archivo listado.' : `${items.length} archivos listados.`;
+      window.SIIAP.announce(
+        unmanageable ? `${listed} ${unmanageable} de solo lectura.` : listed
+      );
+    }
   }
 
   // ========= Eventos globales =========
@@ -222,6 +402,12 @@
   search?.addEventListener("input", render);
 
   btnNew?.addEventListener("click", () => {
+    const editable = manageableSteps();
+    if (!editable.length) {
+      flash('No administras ninguna etapa en exclusiva: solo la Jefatura de '
+        + 'Posgrado puede crear archivos en las etapas compartidas.', 'warning');
+      return;
+    }
     editTitle.textContent = "Nuevo archivo";
     editId.value = "";
     editName.value = "";
@@ -230,7 +416,7 @@
     editIsDownloadable.checked = false;
     editAllowCoord.checked = false;
     editAllowExt.checked = false;
-    if (steps.length) editStep.value = steps[0].id;
+    editStep.value = editable[0].id;
     modalEdit.show();
   });
 
@@ -239,6 +425,21 @@
     if (!tr) return;
     const id = tr.getAttribute("data-id");
     if (!id) return;
+
+    // Cinturón además de tirantes: las filas sin alcance ya no pintan botones,
+    // pero si un repintado se cruzara con una recarga, ninguna acción de
+    // ESCRITURA debe salir de aquí hacia un 403. La descarga de la plantilla no
+    // entra en la guarda: leer sí se puede.
+    const writeAction = ev.target.closest(
+      ".btn-upload-template, .btn-save, .btn-edit, .btn-delete"
+    );
+    if (writeAction) {
+      const row = cached.find(x => String(x.id) === String(id));
+      if (row && !canManageRow(row)) {
+        flash(SHARED_STEP_REASON, 'warning');
+        return;
+      }
+    }
 
     if (ev.target.closest(".btn-upload-template")) {
       tplArchiveId.value = id;
@@ -344,7 +545,7 @@
     
     if (!validation.valid) {
       feedback.className = 'file-feedback small mt-1 text-danger';
-      feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${validation.error}`;
+      feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${SIIAP.escapeHtml(validation.error)}`;
     } else {
       feedback.className = 'file-feedback small mt-1 text-success';
       feedback.innerHTML = `<i class="bi bi-check-lg"></i> Archivo válido (${(file.size / (1024 * 1024)).toFixed(2)}MB)`;
@@ -369,7 +570,14 @@
       flash("El nombre es requerido", "warning");
       return;
     }
-    
+
+    // El select solo ofrece pasos administrables; esto cubre el caso de que el
+    // alcance haya cambiado entre la carga de la página y el envío.
+    if (!manageableSteps().some(s => Number(s.id) === body.step_id)) {
+      flash(SHARED_STEP_REASON, "warning");
+      return;
+    }
+
     try {
       const isEdit = !!editId.value;
       const url = isEdit ? `${API}/archives/${editId.value}` : `${API}/archives`;
@@ -417,7 +625,7 @@
       }
       
       if (!response.ok || data.ok === false) {
-        throw new Error(data.error || "No se pudo eliminar");
+        throw new Error(errorMessage(data, "No se pudo eliminar"));
       }
       
       flash("Archivo eliminado exitosamente", "success");

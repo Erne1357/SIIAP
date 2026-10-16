@@ -9,11 +9,19 @@ El flujo de deliberacion es:
    - Aceptar -> admission_status = 'accepted'
    - Rechazar -> admission_status = 'rejected'
    - Solicitar correccion -> admission_status = 'rejected', rejection_type = 'partial'
+
+ALCANCE: ninguna funcion de este modulo valida el alcance de programa del
+llamador — recibe `program_id` y opera sobre el. Es responsabilidad de la ruta
+declarar `@program_scope_required(program_id_kwarg='program_id')` (o
+`guard_program_scope`) antes de llamar aqui. Todas las consultas estan
+acotadas al `program_id` recibido, de modo que una ruta correctamente
+protegida no puede tocar el expediente de otro programa.
 """
 
 import json
 
 from app import db
+from app.services import public_id_service
 from app.models import UserProgram, User, Program, Submission, ProgramStep
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
@@ -24,6 +32,13 @@ from sqlalchemy import and_, or_
 class DeliberationError(Exception):
     """Error base para operaciones de deliberacion."""
     pass
+
+
+#: Denial text for "that applicant is not in this program". Carries no id: the
+#: routes speak UUIDs now, so echoing the internal integer would hand it back
+#: out, and a message that varies with the cause ("no such user" vs "user
+#: exists but is not in this program") is an enumeration oracle.
+APPLICANT_NOT_FOUND_MESSAGE = 'No se encontró al aspirante en este programa.'
 
 
 class ApplicantNotFound(DeliberationError):
@@ -100,7 +115,7 @@ def get_user_program(user_id: int, program_id: int):
     ).first()
 
     if not up:
-        raise ApplicantNotFound(f"No se encontro al aspirante {user_id} en el programa {program_id}")
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     return up
 
@@ -132,8 +147,11 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
 
     up.admission_status = 'interview_completed'
 
-    # Buscar y marcar la cita de entrevista como 'done'
-    # Se incluyen eventos globales (program_id=NULL) además de los del programa
+    # Buscar y marcar la cita de entrevista como 'done'.
+    # Se incluyen eventos globales (program_id=NULL) además de los del programa,
+    # pero un evento DEL PROGRAMA gana siempre: sin ese orden, un aspirante
+    # inscrito en dos programas podía ver cerrada la cita del otro programa
+    # sólo porque el `.first()` no era determinista.
     appointment = Appointment.query.join(
         Event, Appointment.event_id == Event.id
     ).filter(
@@ -141,6 +159,9 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
         or_(Event.program_id == program_id, Event.program_id.is_(None)),
         Event.type == 'interview',
         Appointment.status == 'scheduled'
+    ).order_by(
+        (Event.program_id == program_id).desc(),
+        Appointment.id,
     ).first()
 
     if appointment:
@@ -164,7 +185,7 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'interview_completed',
         },
@@ -224,7 +245,7 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'deliberation',
         },
@@ -306,11 +327,15 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     )
 
     # Notificar al aspirante con email (en la misma transaccion)
-    from flask import url_for
+    # Pinned to APP_BASE_URL: this URL is embedded in an e-mail body, so it must
+    # not be rebuilt from the live request host (the requester controls `Host`).
+    from app.utils.urls import external_url, get_base_url
     try:
-        dashboard_url = url_for('pages_user.dashboard', _external=True)
+        dashboard_url = external_url('pages_user.dashboard')
     except Exception:
-        dashboard_url = '/user/dashboard'
+        # Only reachable without an application context, which neither a route
+        # nor a Celery ContextTask can be. Stay absolute anyway.
+        dashboard_url = f"{get_base_url()}/user/dashboard"
 
     NotificationService.notify_deliberation_accepted(
         user_id=user_id,
@@ -327,7 +352,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         socketio.emit(
             'deliberation:updated',
             {
-                'user_id': user_id,
+                'user_id': public_id_service.user_uuid(user_id),
                 'user_name': f'{user.first_name} {user.last_name}',
                 'program_id': program_id,
                 'status': 'accepted',
@@ -341,7 +366,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     emit_to_coordinators(
         'deliberation:updated',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'user_name': f'{user.first_name} {user.last_name}',
             'program_id': program_id,
             'status': 'accepted',
@@ -352,7 +377,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'accepted',
             'decision_notes': notes,
@@ -434,11 +459,15 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     )
 
     # Notificar al aspirante con email (en la misma transaccion)
-    from flask import url_for
+    # Pinned to APP_BASE_URL: this URL is embedded in an e-mail body, so it must
+    # not be rebuilt from the live request host (the requester controls `Host`).
+    from app.utils.urls import external_url, get_base_url
     try:
-        dashboard_url = url_for('pages_user.dashboard', _external=True)
+        dashboard_url = external_url('pages_user.dashboard')
     except Exception:
-        dashboard_url = '/user/dashboard'
+        # Only reachable without an application context, which neither a route
+        # nor a Celery ContextTask can be. Stay absolute anyway.
+        dashboard_url = f"{get_base_url()}/user/dashboard"
 
     NotificationService.notify_deliberation_rejected(
         user_id=user_id,
@@ -458,7 +487,7 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
         socketio.emit(
             'deliberation:updated',
             {
-                'user_id': user_id,
+                'user_id': public_id_service.user_uuid(user_id),
                 'user_name': f'{user.first_name} {user.last_name}',
                 'program_id': program_id,
                 'status': deliberation_status,
@@ -472,7 +501,7 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     emit_to_coordinators(
         'deliberation:updated',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'user_name': f'{user.first_name} {user.last_name}',
             'program_id': program_id,
             'status': deliberation_status,
@@ -483,7 +512,7 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'rejected',
             'rejection_type': rejection_type,
@@ -560,7 +589,7 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'in_progress',
         },
@@ -623,7 +652,7 @@ def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: 
     emit_user_and_coordinators(
         'admission:status_changed',
         {
-            'user_id': user_id,
+            'user_id': public_id_service.user_uuid(user_id),
             'program_id': program_id,
             'new_status': 'in_progress',
             'forced_reset': True,

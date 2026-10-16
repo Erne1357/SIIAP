@@ -5,7 +5,14 @@ from sqlalchemy import select, and_, or_, func
 from datetime import datetime, timezone
 
 from app import db
-from app.utils.permissions import permission_required, any_permission_required
+from app.utils.permissions import (
+    permission_required,
+    any_permission_required,
+    guard_user_scope,
+)
+from app.routes._public_id import resolved_id
+from app.services import file_access_service
+from app.services import program_scope_service as scope_service
 from app.utils.files import save_user_doc  # Importar tu función de archivos
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
@@ -25,6 +32,194 @@ from app.services.admission_service import get_admission_state
 
 api_coordinator = Blueprint('api_coordinator', __name__, url_prefix='/api/v1/coordinator')
 
+
+def _scoped_user_program(student_id: int):
+    """
+    UserProgram del estudiante que cae DENTRO del alcance del llamador.
+
+    Un estudiante puede tener más de un UserProgram (cambio de programa). Tomar
+    `.first()` a ciegas permitía que un coordinador escribiera sobre la
+    inscripción de un programa ajeno aunque compartiera otro con el estudiante.
+
+    Returns:
+        UserProgram | None — None si no tiene ninguno accesible.
+    """
+    rows = UserProgram.query.filter_by(user_id=student_id).all()
+    if not rows:
+        return None
+    scope = scope_service.accessible_program_ids(current_user)
+    if scope is None:
+        return rows[0]
+    for up in rows:
+        if up.program_id in scope:
+            return up
+    return None
+
+
+#: Denial text used by every "no such student here" branch of this blueprint.
+#: One string for all causes (unknown UUID, malformed UUID, not an
+#: applicant/student account) so none of them is distinguishable.
+STUDENT_NOT_FOUND_MESSAGE = 'Estudiante no encontrado'
+
+
+def _resolve_student(student_uuid):
+    """
+    Public UUID → the User row, or None.
+
+    None covers a malformed identifier, an unknown one and an account that is
+    not an applicant/student — every caller turns all three into the same 404.
+    """
+    student = User.by_uuid(student_uuid)
+    if student is None or not _is_student_account(student):
+        return None
+    return student
+
+
+def _is_student_account(user) -> bool:
+    """Sólo aspirantes y estudiantes son objetivo de los paneles de coordinación."""
+    return getattr(getattr(user, 'role', None), 'name', None) in ('applicant', 'student')
+
+
+def _summary_of(student, program, user_program=None, admission_state=None) -> dict:
+    """
+    Nivel reducido entre programas: nombre, correo y progreso/estado.
+
+    Se arma plano y se pasa por `to_cross_program_summary`, que descarta todo lo
+    que no esté en la lista blanca — incluido cualquier campo que se agregue
+    después. Nunca construyas el payload restringido a mano.
+    """
+    flat = {
+        # Public handle. The key stays `id` because
+        # `CROSS_PROGRAM_SUMMARY_FIELDS` allow-lists by key name.
+        "id": str(student.uuid) if student.uuid else None,
+        "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
+        "email": student.email,
+        "program_id": program.id if program else None,
+        "program_name": program.name if program else None,
+        "program_slug": program.slug if program else None,
+        "can_manage": False,
+    }
+    if user_program is not None:
+        flat.update({
+            "admission_status": user_program.admission_status,
+            "current_semester": user_program.current_semester or 1,
+        })
+    if admission_state is not None:
+        counts = admission_state.get('status_count', {})
+        flat.update({
+            "progress_percentage": admission_state.get('progress_pct', 0),
+            "approved_docs": counts.get('approved', 0),
+            "pending_docs": counts.get('pending', 0),
+            "rejected_docs": counts.get('rejected', 0),
+            "extended_docs": admission_state.get('extended_docs', 0),
+        })
+    return scope_service.to_cross_program_summary(flat)
+
+
+def _restricted_permanence_payload(student, user_program, program) -> dict:
+    """
+    Respuesta de `/permanence-details` para un estudiante de otro programa.
+
+    Conserva la forma del payload (el modal la consume tal cual) pero cada
+    campo prohibido sale en `None` / vacío: foto, número de control, beca
+    SECIHTI, periodo, inscripción semestral e historial de semestres.
+    """
+    s = _summary_of(student, program, user_program=user_program)
+    return {
+        "ok": True,
+        "restricted": True,
+        "student": {
+            "id": s.get('id'),
+            "full_name": s.get('full_name'),
+            "email": s.get('email'),
+            "avatar_url": None,
+            "control_number": None,
+        },
+        "user_program": {
+            "id": None,
+            "current_semester": s.get('current_semester'),
+            "has_conacyt_scholarship": None,
+            "admission_status": s.get('admission_status'),
+        },
+        "program": {
+            "id": s.get('program_id'),
+            "name": s.get('program_name'),
+        },
+        "active_period": None,
+        "current_enrollment": None,
+        "pending_admission_count": None,
+        "semester_history": [],
+        "can_manage": False,
+    }
+
+
+def _restricted_details_payload(student, program, admission_state) -> dict:
+    """
+    Respuesta de `/details` para un estudiante de otro programa.
+
+    Mismas claves de siempre, pero cada dato prohibido sale en `None`: los
+    personales (CURP, RFC, NSS, domicilio, fecha y lugar de nacimiento, contacto
+    de emergencia), la foto, los documentos con sus URLs y la elegibilidad de
+    entrevista.
+
+    `profile_data` conserva su FORMA con los valores en `None` en lugar de venir
+    como `None` entero. El modal del coordinador la recorre campo por campo, y
+    un `null` en la raíz reventaba el render con un TypeError que se pintaba
+    como «Error al cargar información», dejando inalcanzable el nivel reducido
+    que esta función existe para servir. Vaciar los valores comunica lo mismo
+    —no hay dato disponible— sin romper al consumidor.
+    """
+    s = _summary_of(student, program, admission_state=admission_state)
+    return {
+        "ok": True,
+        "restricted": True,
+        "student": {
+            "id": s.get('id'),
+            "full_name": s.get('full_name'),
+            "email": s.get('email'),
+            "avatar_url": None,
+            "profile_completed": None,
+            "registration_date": None,
+            "program": {
+                "id": s.get('program_id'),
+                "name": s.get('program_name'),
+                "slug": s.get('program_slug'),
+            },
+            "profile_data": {
+                "phone": None,
+                "mobile_phone": None,
+                "address": None,
+                "curp": None,
+                "rfc": None,
+                "birth_date": None,
+                "birth_place": None,
+                "nss": None,
+                "emergency_contact": {
+                    "name": None,
+                    "phone": None,
+                    "relationship": None,
+                },
+            },
+        },
+        "documents": [],
+        "interview": {
+            "has_interview": False,
+            "appointment": None,
+            "eligibility": {"eligible": None, "missing_items": []},
+        },
+        "metrics": {
+            "total_documents": None,
+            "approved": s.get('approved_docs'),
+            "pending": s.get('pending_docs'),
+            "rejected": s.get('rejected_docs'),
+            "extended": s.get('extended_docs'),
+            "in_review": None,
+            "progress_percentage": s.get('progress_percentage'),
+        },
+        "missing_documents": [],
+        "can_manage": False,
+    }
+
 @api_coordinator.route('/students', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
@@ -32,13 +227,22 @@ def list_students():
     """
     Lista estudiantes que el coordinador puede ver/gestionar.
     Filtros: program_id, phase, status, search, show_other
+
+    Alcance: las filas de programas ajenos existen por decisión del dueño, pero
+    se proyectan al nivel reducido (nombre / correo / progreso) con
+    `to_cross_program_summary`. Ningún dato personal, foto ni documento sale de
+    aquí para un programa fuera del alcance del llamador.
     """
     program_id = request.args.get('program_id', type=int)
     phase = request.args.get('phase')  # admission, permanence, conclusion
     status = request.args.get('status')  # pending, review, approved, rejected
     search = request.args.get('search', '').strip()
     show_other = request.args.get('show_other') == 'true'
-    
+
+    # El toggle "ver otros programas" es exactamente el nivel reducido.
+    if show_other and not scope_service.may_view_cross_program_summary(current_user):
+        show_other = False
+
     # Base query: usuarios con programas (aspirantes y estudiantes ya inscritos)
     query = db.session.query(User, UserProgram, Program).join(
         UserProgram, User.id == UserProgram.user_id
@@ -46,38 +250,61 @@ def list_students():
         Program, UserProgram.program_id == Program.id
     ).filter(
         User.role.has(name='applicant') | User.role.has(name='student'),
+        # `is_active` no está en la lista blanca del nivel reducido, así que
+        # esto filtra filas ajenas por un campo que el llamador no puede ver.
+        # Se mantiene a propósito: NO es un filtro del llamador sino la
+        # definición de la población del panel (cuentas activas), idéntica en
+        # todas las peticiones y para todos los llamadores, así que no se puede
+        # usar como oráculo comparativo — sólo confirmaría, para alguien de
+        # quien ya se sabe nombre y programa, que su cuenta fue desactivada.
+        # Moverlo a la rama con alcance metería cuentas desactivadas de otros
+        # programas en un panel operativo; la decisión es del dueño.
         User.is_active == True,
     )
-    
-    # Programas que puede gestionar el coordinador (propios + delegados)
-    accessible_pids = current_user.get_accessible_program_ids()
-    managed_programs = list(accessible_pids) if accessible_pids is not None else None
 
-    if managed_programs is not None:
-        if not show_other:
-            if not managed_programs:
-                return jsonify({"students": []}), 200
-            query = query.filter(Program.id.in_(managed_programs))
-    
+    # Programas que puede gestionar el coordinador (propios + delegados).
+    # None = alcance global (jefe de posgrado); set() vacío = sin alcance.
+    scope = scope_service.accessible_program_ids(current_user)
+
+    if scope is not None and not show_other:
+        if not scope:
+            return jsonify({"students": []}), 200
+        query = query.filter(Program.id.in_(scope))
+
     # Filtros adicionales
     if program_id:
         query = query.filter(Program.id == program_id)
     
     if search:
+        # La búsqueda corre ANTES de la proyección y sobre filas de programas
+        # ajenos (`show_other`), así que sólo puede tocar campos que el nivel
+        # reducido permitiría VER en esa fila: si el número de control entrara
+        # aquí, la sola presencia de la fila respondería «¿es éste su número?».
+        # Las columnas se derivan del catálogo del servicio para que no puedan
+        # divergir de la lista blanca de la proyección.
+        #
+        # Si algún día se quiere buscar por número de control en los programas
+        # propios, NO se añade a este OR: se parte el predicado en dos ramas
+        # (dentro de alcance ∧ conjunto completo) ∨ (fuera ∧ conjunto
+        # reducido), como en `list_users` de admin/users_api.py.
         search_term = f"%{search}%"
         query = query.filter(
-            or_(
-                User.first_name.ilike(search_term),
-                User.last_name.ilike(search_term),
-                User.email.ilike(search_term)
-            )
+            or_(*[
+                getattr(User, field).ilike(search_term)
+                for field in sorted(scope_service.CROSS_PROGRAM_SEARCHABLE_FIELDS)
+            ])
         )
-    
+
     results = query.all()
     students = []
 
     active_period = AcademicPeriod.get_active_period()
     active_period_id = active_period.id if active_period else None
+
+    # Una sola resolución de alcance para toda la página.
+    manageable_pids = scope_service.programs_in_scope(
+        current_user, {program.id for _, _, program in results}
+    )
 
     for user, user_program, program in results:
         # Calcular estado actual del estudiante
@@ -91,16 +318,13 @@ def list_students():
         if phase and current_phase != phase:
             continue
         
-        # Puede gestionar este estudiante?
-        # managed_programs None = acceso global (jefe de posgrado)
-        if managed_programs is None:
-            can_manage = True
-        else:
-            can_manage = program.id in managed_programs
-        
+        # ¿Puede gestionar este estudiante? (el programa de la fila está dentro
+        # del alcance del llamador — el jefe de posgrado siempre pasa)
+        can_manage = program.id in manageable_pids
+
         # Calcular métricas
         student_data = {
-            "id": user.id,
+            "id": str(user.uuid) if user.uuid else None,
             "full_name": f"{user.first_name} {user.last_name}",
             "email": user.email,
             "avatar_url": user.avatar_url,
@@ -130,11 +354,16 @@ def list_students():
             "conclusion_progress": 0,
             "conclusion_status": "pending"
         }
-        
+
+        # Fuera de alcance: sólo nombre, correo y progreso/estado. La proyección
+        # elimina la foto de perfil y cualquier campo que se añada después.
+        if not can_manage:
+            student_data = scope_service.to_cross_program_summary(student_data)
+
         # Filtro por status
-        if status and student_data["overall_status"] != status:
+        if status and student_data.get("overall_status") != status:
             continue
-            
+
         students.append(student_data)
     
     return jsonify({"students": students}), 200
@@ -146,13 +375,13 @@ def manageable_students():
     """
     Lista solo estudiantes que el coordinador puede gestionar (para selects)
     """
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is None:
+    scope = scope_service.accessible_program_ids(current_user)
+    if scope is None:
         program_filter = True  # acceso global
     else:
-        if not accessible_pids:
+        if not scope:
             return jsonify({"students": []}), 200
-        program_filter = Program.id.in_(accessible_pids)
+        program_filter = Program.id.in_(scope)
     
     query = db.session.query(User, Program).join(
         UserProgram, User.id == UserProgram.user_id
@@ -169,7 +398,7 @@ def manageable_students():
     
     for user, program in results:
         students.append({
-            "id": user.id,
+            "id": str(user.uuid) if user.uuid else None,
             "full_name": f"{user.first_name} {user.last_name}",
             "email": user.email,
             "program_name": program.name
@@ -177,26 +406,27 @@ def manageable_students():
     
     return jsonify({"students": students}), 200
 
-@api_coordinator.route('/student/<int:student_id>/uploadable-archives', methods=['GET'])
+@api_coordinator.route('/student/<uuid:student_uuid>/uploadable-archives', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.upload_for_student')
-def student_uploadable_archives(student_id: int):
+def student_uploadable_archives(student_uuid):
     """
-    Lista archivos que el coordinador puede subir para un estudiante específico
+    Lista archivos que el coordinador puede subir para un estudiante específico.
+
+    El alcance es la MISMA regla que aplicaba `@program_scope_required`, ahora
+    imperativa porque el URL trae un UUID y no un id. `guard_user_scope(None)`
+    falla cerrado, así que un identificador desconocido y uno de otro programa
+    devuelven exactamente el mismo 403.
     """
-    # Verificar que puede gestionar este estudiante
-    student = db.session.get(User, student_id)
-    if not student:
-        return jsonify({"error": "Estudiante no encontrado"}), 404
-    
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+    student = _resolve_student(student_uuid)
+    denied = guard_user_scope(resolved_id(student), allow_self=False)
+    if denied:
+        return denied
+    student_id = student.id
+
+    user_program = _scoped_user_program(student_id)
     if not user_program:
         return jsonify({"error": "Estudiante no inscrito en programa"}), 404
-    
-    # Verificar permisos
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and user_program.program_id not in accessible_pids:
-        return jsonify({"error": "No tienes permiso para gestionar este estudiante"}), 403
 
     # Obtener archivos que permiten subida por coordinador
     query = db.session.query(Archive, Step, Phase).join(
@@ -222,7 +452,8 @@ def student_uploadable_archives(student_id: int):
         ).first()
         
         archives.append({
-            "id": archive.id,
+            # Public handle — the browser posts it back as `archive_id`.
+            "id": str(archive.uuid) if archive.uuid else None,
             "name": archive.name,
             "description": archive.description,
             "step_name": step.name,
@@ -240,15 +471,39 @@ def upload_for_student():
     """
     Permite al coordinador subir un archivo por un estudiante usando el sistema de archivos
     """
-    student_id = request.form.get('student_id', type=int)
-    archive_id = request.form.get('archive_id', type=int)
+    # `student_id` y `archive_id` viajan en el FORM, no en el URL, pero son la
+    # misma clase de identificador: UUID público. `type=int` los habría leído
+    # como None en silencio y el 400 siguiente lo habría tapado como "campo
+    # faltante", así que se leen como texto y se resuelven aquí.
+    student = User.by_uuid(request.form.get('student_id'))
+    archive = Archive.by_uuid(request.form.get('archive_id'))
     notes = request.form.get('notes', '').strip()
     decision = (request.form.get('decision') or 'approve').strip().lower()
     if decision not in ('approve', 'reject'):
         decision = 'approve'
 
-    if not student_id or not archive_id:
+    # Un identificador que no resuelve NO se distingue aquí de uno fuera de
+    # alcance: los dos caen al mismo 403 de la guarda de abajo, que con None
+    # falla cerrado. Contestar 400 "campos requeridos" cuando el UUID
+    # simplemente no existe convertía el par en un oráculo — quien tuviera un
+    # UUID ajeno sabría si señala a alguien real antes de que el alcance
+    # llegara a opinar. El 400 se reserva para lo que de verdad es un campo
+    # ausente.
+    if not request.form.get('student_id') or not request.form.get('archive_id'):
         return jsonify({"error": "student_id y archive_id son requeridos"}), 400
+
+    if student is not None and not _is_student_account(student):
+        student = None
+
+    # Alcance ANTES de tocar nada: subir un documento es una escritura y una
+    # escritura nunca cruza programas. El id viene en el form, no en el URL,
+    # así que se usa la guarda imperativa; con None falla cerrado.
+    denied = guard_user_scope(resolved_id(student), allow_self=False)
+    if denied:
+        return denied
+
+    student_id = student.id
+    archive_id = archive.id
 
     # Archivo opcional: si no se proporciona, el coordinador valida sin documento
     # (caso típico: examen presencial). Aspirantes/estudiantes siempre suben file.
@@ -260,14 +515,10 @@ def upload_for_student():
             "error": "Si no subes un archivo debes proporcionar al menos un comentario justificativo"
         }), 400
     
-    # Verificar permisos sobre el estudiante
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+    # Inscripción sobre la que se escribe: siempre una que el llamador gestiona.
+    user_program = _scoped_user_program(student_id)
     if not user_program:
         return jsonify({"error": "Estudiante no inscrito"}), 404
-    
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is not None and user_program.program_id not in accessible_pids:
-        return jsonify({"error": "No tienes permiso para este estudiante"}), 403
 
     # Verificar que el archivo permite subida por coordinador
     archive = db.session.get(Archive, archive_id)
@@ -345,8 +596,9 @@ def upload_for_student():
             + ('' if file else ' (sin archivo adjunto)')
         )
         return jsonify({
+            # Handle público de la entrega recién creada.
             "ok": True,
-            "submission_id": submission.id,
+            "submission_id": str(submission.uuid) if submission.uuid else None,
             "message": msg,
         }), 201
 
@@ -360,13 +612,13 @@ def upload_for_student():
 @permission_required('coordinator.api.list_students')
 def list_coordinator_programs():
     """Lista programas que el coordinador puede gestionar"""
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is None:
+    scope = scope_service.accessible_program_ids(current_user)
+    if scope is None:
         programs = Program.query.all()
-    elif not accessible_pids:
+    elif not scope:
         programs = []
     else:
-        programs = Program.query.filter(Program.id.in_(accessible_pids)).all()
+        programs = Program.query.filter(Program.id.in_(scope)).all()
     
     items = [{
         "id": p.id,
@@ -377,10 +629,10 @@ def list_coordinator_programs():
     
     return jsonify({"ok": True, "programs": items}), 200
 
-@api_coordinator.route('/student/<int:student_id>/permanence-details', methods=['GET'])
+@api_coordinator.route('/student/<uuid:student_uuid>/permanence-details', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
-def get_student_permanence_details(student_id: int):
+def get_student_permanence_details(student_uuid):
     """
     Detalles de permanencia de un estudiante inscrito:
     semestre actual, periodo activo, confirmación semestral,
@@ -389,18 +641,31 @@ def get_student_permanence_details(student_id: int):
     from app.models.semester_enrollment import SemesterEnrollment
     from app.models.academic_period import AcademicPeriod
 
-    student = db.session.get(User, student_id)
-    if not student:
-        return jsonify({"ok": False, "error": "Estudiante no encontrado"}), 404
+    student = _resolve_student(student_uuid)
+    if student is None:
+        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+    student_id = student.id
 
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+    # La inscripción que se muestra es la del programa que el llamador gestiona;
+    # sólo si no gestiona ninguna se cae al nivel reducido.
+    user_program = _scoped_user_program(student_id)
+    can_manage = user_program is not None
+    if user_program is None:
+        user_program = UserProgram.query.filter_by(user_id=student_id).first()
     if not user_program:
         return jsonify({"ok": False, "error": "Sin programa"}), 404
 
     program = db.session.get(Program, user_program.program_id)
 
-    accessible_pids = current_user.get_accessible_program_ids()
-    can_manage = accessible_pids is None or program.id in accessible_pids
+    # Fuera de alcance: nivel reducido (nombre / correo / progreso). Ni número
+    # de control, ni foto, ni beca, ni historial semestral cruzan de programa.
+    if not can_manage:
+        if not scope_service.may_view_cross_program_summary(current_user):
+            return jsonify({
+                "ok": False,
+                "error": "No tienes acceso a la información de este estudiante"
+            }), 403
+        return jsonify(_restricted_permanence_payload(student, user_program, program)), 200
 
     # Periodo activo y enrollment del periodo actual
     active_period = AcademicPeriod.get_active_period()
@@ -426,7 +691,7 @@ def get_student_permanence_details(student_id: int):
     return jsonify({
         "ok": True,
         "student": {
-            "id": student.id,
+            "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
             "email": student.email,
             "avatar_url": student.avatar_url,
@@ -473,10 +738,10 @@ def get_student_permanence_details(student_id: int):
     }), 200
 
 
-@api_coordinator.route('/student/<int:student_id>/details', methods=['GET'])
+@api_coordinator.route('/student/<uuid:student_uuid>/details', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
-def get_student_details(student_id: int):
+def get_student_details(student_uuid):
     """
     Obtiene detalles completos de un estudiante para el modal del coordinador.
     Incluye: perfil, documentos, entrevista, métricas
@@ -485,24 +750,34 @@ def get_student_details(student_id: int):
     from app.services.interview_service import InterviewEligibilityService
     
     # 1. Obtener estudiante
-    student = db.session.get(User, student_id)
-    if not student:
-        return jsonify({"ok": False, "error": "Estudiante no encontrado"}), 404
-    
-    # 2. Verificar permisos
-    user_program = UserProgram.query.filter_by(user_id=student_id).first()
+    student = _resolve_student(student_uuid)
+    if student is None:
+        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+    student_id = student.id
+
+    # 2. Resolver la inscripción dentro del alcance del llamador
+    user_program = _scoped_user_program(student_id)
+    can_manage = user_program is not None
+    if user_program is None:
+        user_program = UserProgram.query.filter_by(user_id=student_id).first()
     if not user_program:
         return jsonify({"ok": False, "error": "Estudiante no inscrito"}), 404
-    
+
     program = db.session.get(Program, user_program.program_id)
-    
-    # Determinar si el coordinador puede gestionar este estudiante
-    accessible_pids = current_user.get_accessible_program_ids()
-    can_manage = accessible_pids is None or program.id in accessible_pids
 
     # 3. Obtener estado de admisión completo
     admission_state = get_admission_state(student_id, program.id, user_program)
-    
+
+    # Fuera de alcance: nivel reducido. Los datos personales, los documentos y
+    # sus URLs nunca cruzan de programa, aunque el llamador tenga el permiso.
+    if not can_manage:
+        if not scope_service.may_view_cross_program_summary(current_user):
+            return jsonify({
+                "ok": False,
+                "error": "No tienes acceso a la información de este estudiante"
+            }), 403
+        return jsonify(_restricted_details_payload(student, program, admission_state)), 200
+
     # 4. Organizar documentos por paso
     documents_by_step = []
     for item in admission_state['processed_steps']:
@@ -569,7 +844,7 @@ def get_student_details(student_id: int):
     return jsonify({
         "ok": True,
         "student": {
-            "id": student.id,
+            "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
             "email": student.email,
             "avatar_url": student.avatar_url,
@@ -620,7 +895,8 @@ def _format_archive_status(archive, subs, all_extensions):
     ext = all_extensions.get(archive.id)
     
     return {
-        "id": archive.id,
+        # Public handle — the browser posts it back as `archive_id`.
+        "id": str(archive.uuid) if archive.uuid else None,
         "name": archive.name,
         "description": archive.description,
         "has_submission": bool(sub),
@@ -629,7 +905,10 @@ def _format_archive_status(archive, subs, all_extensions):
         "uploaded_by_role": sub.uploaded_by_role if sub else None,
         "reviewer_comment": sub.reviewer_comment if sub else None,
         "review_date": sub.review_date.isoformat() if sub and sub.review_date else None,
-        "file_url": f"/files/doc/{sub.user_id}/admission/{sub.file_path.split('/')[-1]}" if sub and sub.file_path else None,
+        # URL opaco: nombra la fila. El anterior reconstruía
+        # `<user_id>/admission/<archivo>`, o sea que publicaba el id entero del
+        # alumno en cada tarjeta del modal.
+        "file_url": file_access_service.submission_file_url(sub),
         "has_extension": bool(ext),
         "extension_status": ext.status if ext else None,
         "extension_until": ext.granted_until.isoformat() if ext and ext.granted_until else None,
@@ -785,33 +1064,39 @@ def _determine_overall_status(admission_state):
     return "pending"
 
 
-@api_coordinator.route('/students/<int:student_id>/history', methods=['GET'])
+@api_coordinator.route('/students/<uuid:student_uuid>/history', methods=['GET'])
 @login_required
 @permission_required('coordinator.api.list_students')
-def get_student_history(student_id):
+def get_student_history(student_uuid):
     """
     Obtiene el historial formateado de un estudiante específico.
     Solo coordinadores y administradores pueden ver el historial de estudiantes.
     """
     try:
         # Verificar que el estudiante existe y el coordinador tiene acceso
-        student = User.query.filter_by(id=student_id).first()
-        if not student or student.role.name not in ('applicant', 'student'):
+        student = _resolve_student(student_uuid)
+        if student is None:
             return jsonify({
                 'success': False,
-                'message': 'Estudiante no encontrado'
+                'message': STUDENT_NOT_FOUND_MESSAGE
             }), 404
+        student_id = student.id
         
-        # Verificar permisos: programas accesibles del coordinador (propios + delegados)
-        accessible_pids = current_user.get_accessible_program_ids()
-        if accessible_pids is not None:
-            user_programs = UserProgram.query.filter_by(user_id=student_id).all()
-            if not any(up.program_id in accessible_pids for up in user_programs):
-                return jsonify({
-                    'success': False,
-                    'message': 'No tienes permisos para ver el historial de este estudiante'
-                }), 403
-        
+        # El historial es información prohibida entre programas: aquí no hay
+        # nivel reducido, o el estudiante está en tu alcance o no lo ves.
+        #
+        # Misma respuesta que el UUID irresoluble de arriba, a propósito. Con
+        # un 404 para "no existe" y un 403 para "existe pero no es tuyo", el
+        # par contesta la pregunta que no le corresponde: quien tiene un UUID
+        # ajeno averigua si señala a alguien real. Aquí no cuesta nada
+        # colapsarlos y es la regla que ya sigue el resto del módulo.
+        if not scope_service.user_in_scope(current_user, student, allow_self=False):
+            return jsonify({
+                'success': False,
+                'message': STUDENT_NOT_FOUND_MESSAGE
+            }), 404
+
+
         # Parámetros de consulta
         format_type = request.args.get('format', 'formatted')
         limit = min(int(request.args.get('limit', 50)), 100)
@@ -845,7 +1130,7 @@ def get_student_history(student_id):
             'success': True,
             'data': {
                 'student': {
-                    'id': student.id,
+                    'id': str(student.uuid) if student.uuid else None,
                     'name': f"{student.first_name} {student.last_name}",
                     'control_number': student.control_number,
                     'email': student.email
@@ -855,7 +1140,7 @@ def get_student_history(student_id):
                 'format_type': format_type
             },
             'meta': {
-                'viewed_by': current_user.id,
+                'viewed_by': str(current_user.uuid) if current_user.uuid else None,
                 'ordered_by': 'timestamp_desc',
                 'limit_applied': limit
             }

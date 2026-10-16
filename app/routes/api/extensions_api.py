@@ -3,12 +3,58 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
 from app.services.extensions_service import ExtensionsService
+from app.services import extensions_scope_service as escope
 from app.services.user_history_service import UserHistoryService
-from app.models import ExtensionRequest,ProgramStep, User, Archive
 from app import db
+from app.models.archive import Archive
+from app.models.user import User
+from app.utils.datetime_utils import now_local, to_local_timezone
 from datetime import datetime
 
 api_extensions = Blueprint('api_extensions', __name__, url_prefix='/api/v1/extensions')
+
+
+#: Id imposible con el que se filtra cuando el UUID recibido no resuelve: la
+#: consulta devuelve vacío en lugar de devolverlo TODO sin filtrar.
+_NO_MATCH_ID = -1
+
+
+def _filter_id(model, raw):
+    """UUID público de un filtro de query string → id interno."""
+    if not raw:
+        return None
+    row = model.by_uuid(raw)
+    return row.id if row is not None else _NO_MATCH_ID
+
+
+def _serialize_request(er, include_contact: bool = False) -> dict:
+    """
+    Serializa una ExtensionRequest para los listados.
+
+    include_contact añade el correo del solicitante (sólo para la vista de
+    revisión administrativa, ya acotada a los programas del revisor).
+    """
+    user = er.user
+    item = {
+        # `id` sigue siendo entero: ExtensionRequest no tiene identificador
+        # público. `user_id` y `archive_id` sí nombran filas que lo tienen.
+        "id": er.id,
+        "user_id": str(user.uuid) if user and user.uuid else None,
+        "user_name": f"{user.first_name} {user.last_name}" if user else None,
+        "archive_id": str(er.archive.uuid) if er.archive and er.archive.uuid else None,
+        "archive_name": er.archive.name if er.archive else None,
+        "status": er.status,
+        "reason": er.reason,
+        "requested_until": er.requested_until.isoformat() if er.requested_until else None,
+        "granted_until": er.granted_until.isoformat() if er.granted_until else None,
+        "condition_text": er.condition_text,
+        "created_at": er.created_at.isoformat() if er.created_at else None,
+        "decided_at": er.decided_at.isoformat() if er.decided_at else None,
+    }
+    if include_contact:
+        item["user_email"] = user.email if user else None
+    return item
+
 
 @api_extensions.route('/requests', methods=['POST'])
 @login_required
@@ -16,20 +62,26 @@ def create_extension_request():
     """
     Crea una solicitud de prórroga para un archivo específico.
     Ya no requiere que exista una submission previa.
-    
+
+    El objetivo es siempre el propio solicitante (user_id=current_user.id),
+    así que no hay alcance de programa que verificar.
+
     JSON body:
-    - archive_id (int): ID del archivo para el que se solicita prórroga
+    - archive_id (uuid str): identificador público del archivo
     - requested_until (str): Fecha hasta cuándo se necesita (ISO format)
     - reason (str): Motivo de la solicitud
     """
     data = request.get_json() or {}
-    archive_id = data.get('archive_id')
+    # `archive_id` viaja en el cuerpo como UUID público; el servicio sigue
+    # recibiendo el entero.
+    archive = Archive.by_uuid(data.get('archive_id'))
+    archive_id = archive.id if archive else None
     requested_until = data.get('requested_until')
     reason = (data.get('reason') or '').strip()
 
     if not archive_id or not requested_until or not reason:
         return jsonify({
-            "ok": False, 
+            "ok": False,
             "error": "archive_id, requested_until y reason son requeridos"
         }), 400
 
@@ -38,14 +90,15 @@ def create_extension_request():
         requested_until_dt = datetime.fromisoformat(requested_until.replace('Z', '+00:00'))
     except ValueError:
         return jsonify({
-            "ok": False, 
+            "ok": False,
             "error": "Formato de fecha inválido. Use ISO format (YYYY-MM-DD)"
         }), 400
 
-    # Validar que la fecha sea futura
-    if requested_until_dt <= datetime.now():
+    # Validar que la fecha sea futura. to_local_timezone normaliza fechas sin
+    # zona horaria; comparar contra datetime.now() reventaba con un ISO en UTC.
+    if to_local_timezone(requested_until_dt) <= now_local():
         return jsonify({
-            "ok": False, 
+            "ok": False,
             "error": "La fecha solicitada debe ser futura"
         }), 400
 
@@ -60,12 +113,11 @@ def create_extension_request():
             requested_until=requested_until_dt,
             role=role
         )
-        
+
         # Registrar en el historial
         try:
-            archive = Archive.query.get(archive_id)
-            archive_name = archive.name if archive else f"ID {archive_id}"
-            
+            archive_name = er.archive.name if er.archive else f"ID {archive_id}"
+
             UserHistoryService.log_extension_request(
                 user_id=current_user.id,
                 archive_name=archive_name,
@@ -77,16 +129,16 @@ def create_extension_request():
         except Exception as e:
             from flask import current_app
             current_app.logger.error(f"Error al registrar solicitud de prórroga en historial: {e}")
-        
+
         return jsonify({
-            "ok": True, 
+            "ok": True,
             "id": er.id,
             "message": "Solicitud de prórroga enviada exitosamente"
         }), 201
-        
+
     except Exception as e:
         return jsonify({
-            "ok": False, 
+            "ok": False,
             "error": str(e)
         }), 400
 
@@ -95,50 +147,48 @@ def create_extension_request():
 def list_extension_requests():
     """
     Lista solicitudes de prórroga.
+
+    El estudiante sólo ve las suyas. El personal ve únicamente las de los
+    programas a su alcance: sin ese recorte, cualquier cuenta con
+    'extensions.api.list_for_review' listaba toda la institución con el nombre
+    del solicitante.
+
     Query params:
-    - user_id (int): Filtrar por usuario (solo admins)
-    - archive_id (int): Filtrar por archivo
+    - user_id (uuid str): Filtrar por usuario (solo revisores)
+    - archive_id (uuid str): Filtrar por archivo
     - status (str): Filtrar por estado
-    - program_id (int): Filtrar por programa (solo admins)
+    - program_id (int): Filtrar por programa (solo revisores)
     """
-    user_id = request.args.get('user_id', type=int)
-    archive_id = request.args.get('archive_id', type=int)
+    # Los dos filtros llegan por query string como UUID público. `type=int`
+    # los habría leído como None en silencio y el listado habría salido SIN
+    # filtrar; un UUID desconocido filtra por un id imposible → lista vacía.
+    user_id = _filter_id(User, request.args.get('user_id'))
+    archive_id = _filter_id(Archive, request.args.get('archive_id'))
     status = request.args.get('status')
     program_id = request.args.get('program_id', type=int)
 
-    # Restricción de permisos
-    if not current_user.has_permission('extensions.api.list_for_review'):
-        user_id = current_user.id  # Los estudiantes solo ven las suyas
-
     try:
-        requests = ExtensionsService.list_requests(
-            user_id=user_id,
-            archive_id=archive_id,
-            status=status,
-            program_id=program_id
-        )
-        
-        items = []
-        for er in requests:
-            user= User.query.filter_by(id=er.user_id).first()
-            userName = f"{user.first_name} {user.last_name}" if user else "Desconocido"
-            items.append({
-                "id": er.id,
-                "user_id": er.user_id,
-                "user_name": userName,
-                "archive_id": er.archive_id,
-                "archive_name": er.archive.name,
-                "status": er.status,
-                "reason": er.reason,
-                "requested_until": er.requested_until.isoformat() if er.requested_until else None,
-                "granted_until": er.granted_until.isoformat() if er.granted_until else None,
-                "condition_text": er.condition_text,
-                "created_at": er.created_at.isoformat(),
-                "decided_at": er.decided_at.isoformat() if er.decided_at else None
-            })
-        
+        if current_user.has_permission('extensions.api.list_for_review'):
+            requests = escope.list_requests_in_scope(
+                current_user,
+                user_id=user_id,
+                archive_id=archive_id,
+                status=status,
+                program_id=program_id,
+            )
+        else:
+            # Los estudiantes solo ven las suyas.
+            requests = ExtensionsService.list_requests(
+                user_id=current_user.id,
+                archive_id=archive_id,
+                status=status,
+                program_id=program_id
+            )
+
+        items = [_serialize_request(er) for er in requests]
+
         return jsonify({"ok": True, "items": items}), 200
-        
+
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -148,12 +198,21 @@ def list_extension_requests():
 def decide_extension_request(req_id: int):
     """
     Decide sobre una solicitud de prórroga.
-    
+
     JSON body:
     - status (str): 'granted', 'rejected', o 'cancelled'
     - granted_until (str, opcional): Fecha hasta cuándo se concede (requerido si status='granted')
     - condition_text (str, opcional): Condiciones específicas
     """
+    # El permiso no dice de qué programa es la solicitud. Solicitud inexistente
+    # y solicitud de otro programa responden igual (404), para no confirmar la
+    # existencia de prórrogas ajenas.
+    if not escope.request_in_scope(current_user, req_id):
+        return jsonify({
+            "ok": False,
+            "error": "Solicitud de prórroga no encontrada"
+        }), 404
+
     data = request.get_json() or {}
     status = data.get('status')
     granted_until = data.get('granted_until')
@@ -161,7 +220,7 @@ def decide_extension_request(req_id: int):
 
     if status not in ('granted', 'rejected', 'cancelled'):
         return jsonify({
-            "ok": False, 
+            "ok": False,
             "error": "status debe ser 'granted', 'rejected' o 'cancelled'"
         }), 400
 
@@ -169,16 +228,26 @@ def decide_extension_request(req_id: int):
     if status == 'granted':
         if not granted_until:
             return jsonify({
-                "ok": False, 
+                "ok": False,
                 "error": "granted_until es requerido cuando status='granted'"
             }), 400
-        
+
         try:
             granted_until_dt = datetime.fromisoformat(granted_until.replace('Z', '+00:00'))
         except ValueError:
             return jsonify({
-                "ok": False, 
+                "ok": False,
                 "error": "Formato de granted_until inválido"
+            }), 400
+
+        # Una prórroga que vence en el pasado nace vencida: fabrica una deuda
+        # documental que bloquea la asignación del número de control
+        # (acceptance_service._check_document_debt) sin dejar más rastro que
+        # decided_by. No se acepta.
+        if to_local_timezone(granted_until_dt) <= now_local():
+            return jsonify({
+                "ok": False,
+                "error": "La fecha de la prórroga debe ser futura"
             }), 400
 
     try:
@@ -189,19 +258,19 @@ def decide_extension_request(req_id: int):
             granted_until=granted_until_dt,
             condition_text=condition_text
         )
-        
+
         # Primero hacer commit de la decisión de prórroga
         db.session.commit()
-        
+
         # Luego registrar en el historial (con sus notificaciones)
         try:
             archive_name = er.archive.name if er.archive else f"ID {er.archive_id}"
-            
+
             # Formatear la fecha para mostrarla al usuario de manera legible
             formatted_date = None
             if status == 'granted' and granted_until_dt:
                 formatted_date = granted_until_dt.strftime('%d/%m/%Y')
-            
+
             UserHistoryService.log_extension_decision(
                 user_id=er.user_id,
                 archive_name=archive_name,
@@ -217,39 +286,46 @@ def decide_extension_request(req_id: int):
             current_app.logger.error(f"Error al registrar decisión de prórroga en historial: {e}")
             # No fallar la operación por un error de log
             pass
-        
+
         return jsonify({
-            "ok": True, 
-            "id": er.id, 
+            "ok": True,
+            "id": er.id,
             "status": er.status,
             "message": f"Solicitud {status} exitosamente"
         }), 200
-        
+
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
-@api_extensions.route('/archive/<int:archive_id>/status', methods=['GET'])
+@api_extensions.route('/archive/<uuid:archive_uuid>/status', methods=['GET'])
 @login_required
-def get_archive_extension_status(archive_id: int):
+def get_archive_extension_status(archive_uuid):
     """
     Obtiene el estado de prórroga para un archivo específico del usuario actual.
-    
+
+    Siempre consulta sobre current_user, así que no hay alcance que verificar.
+
     Retorna:
     - has_pending: bool - Si tiene solicitud pendiente
     - has_active: bool - Si tiene prórroga activa
     - effective_deadline: str - Fecha límite efectiva (si hay prórroga)
     - pending_request: object - Detalles de solicitud pendiente (si existe)
     """
+    archive = Archive.by_uuid(archive_uuid)
+    if archive is None:
+        return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+    archive_id = archive.id
+
     try:
         has_pending = ExtensionsService.has_pending_request(current_user.id, archive_id)
         active_extension = ExtensionsService.get_active_extension(current_user.id, archive_id)
         effective_deadline = ExtensionsService.get_effective_deadline(current_user.id, archive_id)
-        
+
         pending_request = None
         if has_pending:
             pending_requests = ExtensionsService.list_requests(
-                user_id=current_user.id, 
-                archive_id=archive_id, 
+                user_id=current_user.id,
+                archive_id=archive_id,
                 status='pending'
             )
             if pending_requests:
@@ -260,7 +336,7 @@ def get_archive_extension_status(archive_id: int):
                     "requested_until": pr.requested_until.isoformat(),
                     "created_at": pr.created_at.isoformat()
                 }
-        
+
         return jsonify({
             "ok": True,
             "has_pending": has_pending,
@@ -268,52 +344,31 @@ def get_archive_extension_status(archive_id: int):
             "effective_deadline": effective_deadline.isoformat() if effective_deadline else None,
             "pending_request": pending_request
         }), 200
-        
+
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
-    
+
 @api_extensions.route('/requests/for-review', methods=['GET'])
 @login_required
 @permission_required('extensions.api.list_for_review')
 def list_extension_requests_for_review():
     """
-    Lista solicitudes con información adicional del usuario para revisión administrativa.
-    Query params: user_id, status, program_id
+    Lista solicitudes con información adicional del usuario para revisión
+    administrativa, acotada a los programas del revisor.
+
+    Query params: user_id (uuid), status, program_id
     """
-    user_id = request.args.get('user_id', type=int)
+    user_id = _filter_id(User, request.args.get('user_id'))
     status = request.args.get('status')
     program_id = request.args.get('program_id', type=int)
 
-    from app.models.user import User
-    
-    query = db.session.query(ExtensionRequest).join(User, ExtensionRequest.user_id == User.id)
-    
-    if user_id:
-        query = query.filter(ExtensionRequest.user_id == user_id)
-    if status:
-        query = query.filter(ExtensionRequest.status == status)
-    if program_id:
-        query = query.join(ProgramStep).filter(ProgramStep.program_id == program_id)
+    requests = escope.list_requests_in_scope(
+        current_user,
+        user_id=user_id,
+        status=status,
+        program_id=program_id,
+    )
 
-    requests = query.order_by(ExtensionRequest.created_at.desc()).all()
-    
-    items = []
-    for er in requests:
-        user = db.session.get(User, er.user_id)
-        items.append({
-            "id": er.id,
-            "user_id": er.user_id,
-            "user_name": f"{user.first_name} {user.last_name}" if user else None,
-            "user_email": user.email if user else None,
-            "archive_id": er.archive_id,
-            "archive_name": er.archive.name if er.archive else None,
-            "status": er.status,
-            "reason": er.reason,
-            "requested_until": er.requested_until.isoformat() if er.requested_until else None,
-            "granted_until": er.granted_until.isoformat() if er.granted_until else None,
-            "condition_text": er.condition_text,
-            "created_at": er.created_at.isoformat(),
-            "decided_at": er.decided_at.isoformat() if er.decided_at else None
-        })
-    
+    items = [_serialize_request(er, include_contact=True) for er in requests]
+
     return jsonify({"ok": True, "items": items}), 200

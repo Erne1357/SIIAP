@@ -23,7 +23,12 @@ import unittest
 from datetime import timedelta
 
 from app import create_app, db
-from app.models.user import User
+from app.models.archive import Archive
+from app.models.phase import Phase
+from app.models.program_step import ProgramStep
+from app.models.step import Step
+from app.models.submission import Submission
+from app.models.user import User, GLOBAL_SCOPE_PERMISSION
 from app.models.role import Role
 from app.models.permission import Permission
 from app.models.program import Program
@@ -143,6 +148,10 @@ class Phase12Base(unittest.TestCase):
         self.p_ap_create     = _perm('academic_periods.api.create')
         self.p_doc_others    = _perm('files.api.view_doc_others')
         self.p_list_user_p   = _perm('permissions.api.list_user_permissions')
+        # Permiso corriente que program_admin NO tiene por seed: sirve de
+        # cobaya para los tests de override sin arrastrar el marcador de alcance
+        # global, que `add_role_override` rechaza a propósito.
+        self.p_ap_update     = _perm('academic_periods.api.update')
 
         # Mapeos base por rol (mínimo reflejando el seed real del sistema)
         for p in [self.p_delegate, self.p_revoke_deleg, self.p_list_students,
@@ -152,7 +161,8 @@ class Phase12Base(unittest.TestCase):
 
         for p in [self.p_delegate, self.p_revoke_deleg, self.p_list_students,
                   self.p_list_appl, self.p_upload_doc, self.p_review_sub,
-                  self.p_doc_others, self.p_ap_create, self.p_list_user_p]:
+                  self.p_doc_others, self.p_ap_create, self.p_ap_update,
+                  self.p_list_user_p]:
             _grant_role_perm(self.r_postgrad, p)
 
         # Usuarios comunes (cada test puede crear más)
@@ -228,15 +238,16 @@ class EndpointAuthorizationTest(Phase12Base):
 
 
 # ---------------------------------------------------------------------------
-# 2. Program-scope enforcement (permission_required program_id_kwarg)
+# 2. Program-scope enforcement (@program_scope_required)
 # ---------------------------------------------------------------------------
 
 class ScopedEndpointTest(Phase12Base):
     """
-    Endpoint con @permission_required(codename, program_id_kwarg='program_id').
+    Endpoint con @permission_required(codename) + @program_scope_required(...).
 
     Usamos /api/v1/acceptance/program/<program_id>/stats:
-      - program_admin con permiso global (por rol) pasa para cualquier program_id
+      - el permiso de rol es institucional: NO abre programas ajenos, el
+        alcance lo decide `get_accessible_program_ids()`
       - social_service con delegación scoped pasa solo para su program_id
       - social_service sin permiso es rechazado con 403
     """
@@ -251,9 +262,24 @@ class ScopedEndpointTest(Phase12Base):
         self.prog_b = _program('Maestria B', self.coord2, slug='maestria-b')
         db.session.commit()
 
-    def test_global_permission_allows_any_program(self):
-        """program_admin con permiso por rol → pasa para cualquier program_id."""
+    def test_role_permission_does_not_open_other_programs(self):
+        """
+        El permiso de rol da capacidad, no alcance: el coordinador de A entra a
+        A y recibe 403 en B, que coordina otro.
+        """
         self._login_as(self.coord)
+
+        resp_a = self.client.get(self._stats_url(self.prog_a.id))
+        self.assertNotEqual(resp_a.status_code, 403,
+                            msg='El coordinador no pudo entrar a su propio programa')
+
+        resp_b = self.client.get(self._stats_url(self.prog_b.id))
+        self.assertEqual(resp_b.status_code, 403,
+                         msg='El permiso de rol abrió un programa ajeno')
+
+    def test_postgraduate_admin_reaches_every_program(self):
+        """El jefe de posgrado conserva acceso a todos los programas."""
+        self._login_as(self.postgrad)
 
         for pid in (self.prog_a.id, self.prog_b.id):
             resp = self.client.get(self._stats_url(pid))
@@ -288,21 +314,25 @@ class ScopedEndpointTest(Phase12Base):
         self.assertEqual(resp_b.status_code, 403,
                          msg='Delegación para prog_a concedió acceso a prog_b')
 
-    def test_social_service_global_delegation_spans_programs(self):
-        """Delegación sin program_id (global) permite cualquier programa."""
+    def test_global_delegation_grants_no_program_scope(self):
+        """
+        Delegación sin program_id: da capacidad, no alcance. `NULL` no se lee
+        como "todos los programas" — fail-closed —, así que la cuenta sigue sin
+        poder abrir ningún programa concreto.
+        """
         with self.app.test_request_context('/'):
             perm_svc.delegate_permission(
                 granter_id=self.postgrad.id,
                 grantee_id=self.social.id,
                 codename='acceptance.api.list_applicants',
-                # program_id=None → global
+                # program_id=None → sólo el jefe de posgrado puede crearla
             )
 
         self._login_as(self.social)
         for pid in (self.prog_a.id, self.prog_b.id):
             resp = self.client.get(self._stats_url(pid))
-            self.assertNotEqual(resp.status_code, 403,
-                                msg=f'Delegación global falló para pid={pid}')
+            self.assertEqual(resp.status_code, 403,
+                             msg=f'Delegación NULL dio alcance sobre pid={pid}')
 
 
 # ---------------------------------------------------------------------------
@@ -324,44 +354,44 @@ class RoleOverridePropagationTest(Phase12Base):
         with self.app.test_request_context('/'):
             perm_svc.add_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
-                reason='Permitir a coordinadores crear periodos',
+                reason='Permitir a coordinadores editar periodos',
             )
 
         with self.app.test_request_context('/'):
-            self.assertTrue(self.coord.has_permission('academic_periods.api.create'))
-            self.assertTrue(self.coord2.has_permission('academic_periods.api.create'))
+            self.assertTrue(self.coord.has_permission('academic_periods.api.update'))
+            self.assertTrue(self.coord2.has_permission('academic_periods.api.update'))
 
     def test_revert_override_removes_permission_for_role(self):
         """Al revertir el override, el rol vuelve a no tenerlo."""
         with self.app.test_request_context('/'):
             perm_svc.add_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
             )
             perm_svc.revert_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
             )
 
         with self.app.test_request_context('/'):
-            self.assertFalse(self.coord.has_permission('academic_periods.api.create'))
+            self.assertFalse(self.coord.has_permission('academic_periods.api.update'))
 
     def test_audit_entries_for_grant_and_revert(self):
         """Cada cambio de override deja una entrada en RolePermissionAudit."""
         with self.app.test_request_context('/'):
             perm_svc.add_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
                 reason='grant test',
             )
             perm_svc.revert_role_override(
                 role_id=self.r_program.id,
-                codename='academic_periods.api.create',
+                codename='academic_periods.api.update',
                 performed_by=self.postgrad.id,
             )
 
@@ -370,6 +400,38 @@ class RoleOverridePropagationTest(Phase12Base):
                    .order_by(RolePermissionAudit.id)
                    .all()]
         self.assertEqual(actions, ['grant', 'revert'])
+
+    def test_global_scope_permission_cannot_be_granted_as_override(self):
+        """
+        El marcador de alcance global no se reparte por override de rol.
+
+        Un override ES un grant de rol, y `has_global_program_scope()` lee el
+        rol: concederlo a 'program_admin' convertiría a TODOS los coordinadores
+        en administradores globales sin que aparezca ningún cambio de rol. La
+        vía legítima es asignar el rol de jefe de posgrado.
+        """
+        with self.app.test_request_context('/'):
+            with self.assertRaises(perm_svc.PermissionError):
+                perm_svc.add_role_override(
+                    role_id=self.r_program.id,
+                    codename=GLOBAL_SCOPE_PERMISSION,
+                    performed_by=self.postgrad.id,
+                )
+
+        # Nada se escribió: ni override ni entrada de auditoría.
+        self.assertIsNone(
+            RolePermissionOverride.query.filter_by(
+                role_id=self.r_program.id,
+                permission_id=self.p_ap_create.id,
+            ).first()
+        )
+        self.assertEqual(
+            RolePermissionAudit.query.filter_by(role_id=self.r_program.id).count(), 0
+        )
+
+        with self.app.test_request_context('/'):
+            self.assertFalse(self.coord.has_global_program_scope())
+            self.assertIsNotNone(self.coord.get_accessible_program_ids())
 
 
 # ---------------------------------------------------------------------------
@@ -486,8 +548,12 @@ class AccessibleProgramIdsTest(Phase12Base):
 
     def test_global_permission_short_circuits_delegation_scope(self):
         """
-        Si al usuario se le otorga academic_periods.api.create vía rol/override,
-        get_accessible_program_ids() retorna None aunque tenga delegaciones scoped.
+        Si el ROL otorga academic_periods.api.create, get_accessible_program_ids()
+        retorna None aunque el usuario tenga delegaciones scoped.
+
+        El alcance global se concede por asignación de rol —aquí, un
+        RolePermission de seed—, nunca por override: `add_role_override` rechaza
+        ese codename (ver RoleOverridePropagationTest).
         """
         with self.app.test_request_context('/'):
             # Delegación scoped
@@ -497,12 +563,10 @@ class AccessibleProgramIdsTest(Phase12Base):
                 codename='coordinator.api.list_students',
                 program_id=self.prog_b.id,
             )
-            # Override del rol para conceder acceso global
-            perm_svc.add_role_override(
-                role_id=self.r_program.id,
-                codename='academic_periods.api.create',
-                performed_by=self.postgrad.id,
-            )
+
+        # El rol del usuario pasa a conceder el marcador de alcance global.
+        _grant_role_perm(self.r_program, self.p_ap_create)
+        db.session.commit()
 
         with self.app.test_request_context('/'):
             self.assertIsNone(self.coord.get_accessible_program_ids())
@@ -609,25 +673,72 @@ class DashboardDispatchTest(Phase12Base):
 
 class FileAccessPermissionTest(Phase12Base):
     """
-    /files/doc/<user_id>/<phase>/<filename> (blueprint prefix /files, no /api):
-      - user_id == self → pasa el check (la vista rompe al leer config;
-        para aislar el check, usamos rutas que no hacen I/O real: fs missing)
-      - user_id != self y sin permiso → 403 (vía AJAX) ó 302 (redirect page)
-      - user_id != self y con permiso → pasa el check
+    `GET /files/doc/<uuid de la fila>` (blueprint con prefijo /files, no /api):
+      - dueño                              → pasa la puerta de permiso
+      - no dueño y sin permiso             → 403 (vía AJAX) ó 302 (página)
+      - no dueño y con permiso (rol o
+        delegación)                        → pasa la puerta de permiso
 
     Como el blueprint no está bajo /api/, el 403 se maneja por el errorhandler
     de página (flash+redirect 302). Enviamos header X-Requested-With para
     forzar la rama JSON y recibir 403 real.
+
+    POR QUÉ ESTA CLASE MONTA FILAS REALES Y ANTES NO
+    ------------------------------------------------
+    El URL era `/files/doc/<user_id>/<fase>/<archivo>` y el dueño salía del
+    PROPIO URL, así que la puerta de permiso podía comprobarse contra una ruta
+    inventada: bastaba con teclear el id de la víctima. Ahora el URL nombra una
+    FILA y el dueño se resuelve leyéndola, de modo que sin fila no hay a quién
+    comparar y la respuesta es 404 antes de llegar a la puerta.
+
+    Eso NO relaja nada —el orden es resolver fila → 404, puerta de permiso →
+    403, alcance de programa → 404—, pero sí significa que para ejercitar la
+    puerta hay que tener un documento de verdad. De ahí el andamio de abajo.
+    Probar el 403 contra una ruta inexistente ya sólo probaba que el servidor
+    sabía leer un entero del URL.
     """
 
-    URL_TMPL = '/files/doc/{uid}/admission/test.pdf'
     AJAX = {'X-Requested-With': 'XMLHttpRequest'}
 
     def setUp(self):
         super().setUp()
-        # Stubear config para evitar KeyError cuando el check pasa y la vista
-        # intenta resolver la ruta del archivo (no nos interesa servir aquí).
+        # No se sirven bytes en esta clase: el interés es la puerta de permiso.
+        # Con la carpeta vacía, todo lo que pasa los controles termina en 404
+        # («la fila existe, los bytes no»), que es justo lo que se afirma.
         self.app.config['USER_DOCS_FOLDER'] = '/tmp/siiap_test_user_docs'
+
+        # Cadena mínima para poder crear Submissions reales.
+        phase = Phase(name='admission', description='Admisión')
+        db.session.add(phase)
+        db.session.flush()
+        step = Step(name='Documentos', description='Docs', phase_id=phase.id)
+        db.session.add(step)
+        db.session.flush()
+        self.archive = Archive(name='Acta', description='Acta de nacimiento',
+                               file_path=None, step_id=step.id)
+        db.session.add(self.archive)
+        program = _program('Programa Docs', self.coord, slug='prog-docs')
+        self.pstep = ProgramStep(sequence=1, program_id=program.id,
+                                 step_id=step.id)
+        db.session.add(self.pstep)
+        db.session.flush()
+
+        self.applicant_doc = self._make_doc(self.applicant)
+        self.social_doc = self._make_doc(self.social)
+        db.session.commit()
+
+    def _make_doc(self, owner):
+        sub = Submission(
+            file_path=f'{owner.id}/admission/test.pdf', status='pending',
+            user_id=owner.id, archive_id=self.archive.id,
+            program_step_id=self.pstep.id, semester=None,
+        )
+        db.session.add(sub)
+        db.session.flush()
+        return sub
+
+    def _url(self, submission):
+        return f'/files/doc/{submission.uuid}'
 
     def _grant_doc_others(self, user):
         up = UserPermission(
@@ -639,39 +750,35 @@ class FileAccessPermissionTest(Phase12Base):
         db.session.commit()
 
     def test_owner_passes_permission_check(self):
-        """user_id == current_user.id → check pasa; archivo no existe → 404."""
+        """Dueño → la puerta pasa; los bytes no están en disco → 404."""
         self._login_as(self.applicant)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertNotEqual(resp.status_code, 403)
         self.assertEqual(resp.status_code, 404)
 
     def test_non_owner_without_permission_receives_403(self):
-        """applicant intenta ver doc de otro usuario → 403."""
+        """applicant intenta ver el documento de otro usuario → 403."""
         self._login_as(self.applicant)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.social.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.social_doc), headers=self.AJAX)
         self.assertEqual(resp.status_code, 403)
 
     def test_non_owner_with_role_permission_passes(self):
-        """program_admin (rol trae files.api.view_doc_others) pasa el check."""
+        """program_admin (el rol trae files.api.view_doc_others) pasa la puerta."""
         self._login_as(self.coord)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertNotEqual(resp.status_code, 403)
         self.assertEqual(resp.status_code, 404)
 
     def test_social_service_without_delegation_denied(self):
-        """social_service sin UserPermission ni rol que lo grant → 403."""
+        """social_service sin UserPermission ni rol que lo otorgue → 403."""
         self._login_as(self.social)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertEqual(resp.status_code, 403)
 
     def test_social_service_with_delegation_passes(self):
         """
         social_service con UserPermission delegado de files.api.view_doc_others
-        pasa el check (archivo no existe → 404).
+        pasa la puerta (los bytes no existen → 404).
 
         Nota: hacemos la delegación ANTES del primer request para evitar que
         la caché de permisos en flask.g (app-context de setUp) almacene False
@@ -680,9 +787,19 @@ class FileAccessPermissionTest(Phase12Base):
         self._grant_doc_others(self.social)
 
         self._login_as(self.social)
-        resp = self.client.get(self.URL_TMPL.format(uid=self.applicant.id),
-                               headers=self.AJAX)
+        resp = self.client.get(self._url(self.applicant_doc), headers=self.AJAX)
         self.assertNotEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_unknown_row_is_404_before_the_permission_gate(self):
+        """
+        Un identificador que no nombra ninguna fila contesta 404 aunque quien
+        pregunte no tenga el permiso: sin fila no hay dueño contra quien
+        comparar, y un 403 aquí distinguiría «no existe» de «no puedes».
+        """
+        import uuid as _uuid
+        self._login_as(self.applicant)
+        resp = self.client.get(f'/files/doc/{_uuid.uuid4()}', headers=self.AJAX)
         self.assertEqual(resp.status_code, 404)
 
 

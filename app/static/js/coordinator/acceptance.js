@@ -39,6 +39,19 @@ class AcceptanceManager {
         return p ? p.name : '—';
     }
 
+    /**
+     * Celda «Programa» del modo «Todos los programas». La columna se acota por
+     * CSS (.program-col) para que un nombre largo no empuje el resto de la
+     * tabla fuera del ancho real del portátil; el nombre completo va en el
+     * title y sigue siendo accesible.
+     */
+    _programCell(name) {
+        const value = name || '';
+        return this._isAllMode()
+            ? `<td class="program-col text-muted small" title="${SIIAP.escapeAttr(value)}">${SIIAP.escapeHtml(value)}</td>`
+            : '';
+    }
+
     async _fanFetch(urlBuilder) {
         const ids = this._targetProgramIds();
         const tasks = ids.map(async (pid) => {
@@ -54,7 +67,55 @@ class AcceptanceManager {
         return Promise.all(tasks);
     }
 
+    /** Estado vacío en tabla, con el componente compartido completo. */
+    _emptyRow(colspan, icon, title, description) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline">
+                        <div class="empty-state__icon"><i class="bi bi-${icon}" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">${title}</h3>
+                        <p class="empty-state__description">${description}</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
+    /** Estado de error en tabla. */
+    _errorRow(colspan, detail) {
+        return `
+            <tr>
+                <td colspan="${colspan}">
+                    <div class="empty-state empty-state--inline empty-state--error">
+                        <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                        <h3 class="empty-state__title">No se pudieron cargar los datos</h3>
+                        <p class="empty-state__description">Revisa tu conexión e inténtalo de nuevo.</p>
+                        <p class="empty-state__error-detail">${SIIAP.escapeHtml(detail || '')}</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
+
+    /** Fila de carga accesible dentro de un <tbody>. */
+    _loadingRow(colspan, message) {
+        return `
+            <tr>
+                <td colspan="${colspan}" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">${message}</span>
+                    </div>
+                    <span class="ms-2 text-secondary">${message}</span>
+                </td>
+            </tr>`;
+    }
+
+    _announce(message) {
+        if (window.SIIAP && SIIAP.announce) SIIAP.announce(message);
+    }
+
     bindEvents() {
+        this._bindRowActions();
+
         if (this.programSelector) {
             this.programSelector.addEventListener('change', () => {
                 this.currentProgramId = this.programSelector.value;
@@ -93,8 +154,7 @@ class AcceptanceManager {
         // Show/hide notes required indicator when selecting reject
         document.querySelectorAll('input[name="reviewReceiptStatus"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
-                const notesRequired = document.getElementById('notesRequired');
-                notesRequired.style.display = e.target.value === 'rejected' ? 'inline' : 'none';
+                this._setNotesRequired('notesRequired', 'reviewReceiptNotes', e.target.value === 'rejected');
             });
         });
 
@@ -116,10 +176,71 @@ class AcceptanceManager {
         // Show/hide notes required when rejecting deferral
         document.querySelectorAll('input[name="reviewDeferralStatus"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
-                const required = document.getElementById('deferralNotesRequired');
-                required.style.display = e.target.value === 'rejected' ? 'inline' : 'none';
+                this._setNotesRequired('deferralNotesRequired', 'reviewDeferralNotes', e.target.value === 'rejected');
             });
         });
+    }
+
+    /**
+     * Row action buttons are rendered from database text (applicant names,
+     * program and period names, stored file paths), so they must never carry an
+     * inline onclick: a quote inside the value breaks out of the JS string no
+     * matter how the value is escaped. Each button ships its payload in data-*
+     * attributes and one delegated listener per table resolves the action.
+     * The tables live in the template, so the listener survives every re-render
+     * of their <tbody>.
+     */
+    _bindRowActions() {
+        const tableIds = [
+            'pendingDocsTable', 'receiptTable', 'completedTable',
+            'pendingRequestsTable', 'deferredTable',
+        ];
+        tableIds.forEach(id => {
+            document.getElementById(id)?.addEventListener('click', (e) => {
+                this._handleRowAction(e);
+            });
+        });
+    }
+
+    /** Dispatches a delegated click coming from a [data-action] row button. */
+    _handleRowAction(event) {
+        const btn = event.target.closest('[data-action]');
+        if (!btn) return;
+        const data = btn.dataset;
+
+        switch (data.action) {
+            case 'upload-doc':
+                this.showUploadModal(data.userId, data.programId, data.applicantName, data.docType);
+                break;
+            case 'defer':
+                this.showDeferModal(data.userId, data.programId, data.applicantName);
+                break;
+            case 'review-receipt':
+                this.showReviewModal(data.docId, data.applicantName, data.fileUrl);
+                break;
+            case 'assign-control-number':
+                this.showAssignControlNumberModal(data.userId, data.programId, data.applicantName);
+                break;
+            case 'review-deferral':
+                this.showReviewDeferralModal(
+                    data.deferralId, data.applicantName, data.deferralNumber,
+                    data.periodName, data.reason
+                );
+                break;
+            case 'reactivate':
+                this.showReactivateModal(data.userId, data.programId, data.applicantName, data.periodName);
+                break;
+        }
+    }
+
+    /**
+     * Muestra/oculta la marca de campo requerido y sincroniza aria-required en
+     * el control: el asterisco por sí solo no comunica obligatoriedad.
+     */
+    _setNotesRequired(markId, textareaId, isRequired) {
+        document.getElementById(markId)?.classList.toggle('d-none', !isRequired);
+        const textarea = document.getElementById(textareaId);
+        if (textarea) textarea.setAttribute('aria-required', isRequired ? 'true' : 'false');
     }
 
     loadCurrentTab() {
@@ -149,25 +270,23 @@ class AcceptanceManager {
             document.getElementById('receiptCount').textContent = stats.receipt_submitted;
             document.getElementById('completedCount').textContent = stats.completed;
 
+            // Tarjetas de indicadores (componente compartido .stat-card).
+            // La tarjeta sin modificador ES el tono neutro; el tono nunca es el
+            // único portador de significado: cada una lleva icono + etiqueta.
             if (this.statsContainer) {
-                this.statsContainer.innerHTML = `
-                    <div class="stat-card stat-pending">
-                        <div class="stat-value">${stats.total_accepted || 0}</div>
-                        <div class="stat-label">Total Aceptados</div>
+                const cards = [
+                    { tone: '',        icon: 'people-fill',            value: stats.total_accepted || 0,    label: 'Total aceptados' },
+                    { tone: 'warning', icon: 'hourglass-split',        value: stats.pending_docs || 0,      label: 'Pendientes' },
+                    { tone: 'info',    icon: 'file-earmark-arrow-up',  value: stats.receipt_submitted || 0, label: 'Boleta recibida' },
+                    { tone: 'success', icon: 'check-all',              value: stats.completed || 0,         label: 'Completados' },
+                ];
+                this.statsContainer.innerHTML = cards.map(c => `
+                    <div class="stat-card${c.tone ? ' stat-card--' + c.tone : ''}">
+                        <i class="bi bi-${c.icon} stat-card__icon" aria-hidden="true"></i>
+                        <p class="stat-card__value">${c.value}</p>
+                        <p class="stat-card__label">${c.label}</p>
                     </div>
-                    <div class="stat-card stat-warning">
-                        <div class="stat-value">${stats.pending_docs || 0}</div>
-                        <div class="stat-label">Pendientes</div>
-                    </div>
-                    <div class="stat-card stat-info">
-                        <div class="stat-value">${stats.receipt_submitted || 0}</div>
-                        <div class="stat-label">Boleta Recibida</div>
-                    </div>
-                    <div class="stat-card stat-success">
-                        <div class="stat-value">${stats.completed || 0}</div>
-                        <div class="stat-label">Completados</div>
-                    </div>
-                `;
+                `).join('');
             }
         } catch (error) {
             console.error('Error loading stats:', error);
@@ -217,7 +336,11 @@ class AcceptanceManager {
 
         const colspan = this._isAllMode() ? 6 : 5;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes pendientes</p></td></tr>`;
+            tbody.innerHTML = this._emptyRow(
+                colspan, 'check2-circle', 'Sin aspirantes pendientes',
+                'Todos los aspirantes aceptados ya tienen su carta y su tira de materias.'
+            );
+            this._announce('Sin aspirantes pendientes de documentos.');
             return;
         }
 
@@ -227,39 +350,40 @@ class AcceptanceManager {
             const docs = a.acceptance_docs;
             const letterStatus = this.renderDocBadge(docs.acceptance_letter);
             const scheduleStatus = this.renderDocBadge(docs.course_schedule);
-            const safeName = user.full_name.replace(/'/g, "\\'");
-            const programCell = this._isAllMode()
-                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
+            const programCell = this._programCell(a.__program_name);
+
+            // Payload shared by every action button of the row.
+            const rowData = `data-user-id="${SIIAP.escapeAttr(user.id)}"
+                                    data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                                    data-applicant-name="${SIIAP.escapeAttr(user.full_name)}"`;
+
+            // Same two variants as before: primary + upload icon when the file is
+            // missing, secondary + replace icon when it already exists.
+            const uploadBtn = (docType, label) => {
+                const hasFile = !!docs[docType]?.file_path;
+                const variant = hasFile ? 'btn-outline-secondary' : 'btn-outline-primary';
+                const icon = hasFile ? 'arrow-repeat' : 'upload';
+                return `
+                            <button type="button" class="btn btn-sm ${variant} btn-action"
+                                    data-action="upload-doc" data-doc-type="${docType}"
+                                    ${rowData}>
+                                <i class="bi bi-${icon}"></i> ${label}
+                            </button>`;
+            };
 
             return `
                 <tr>
                     ${programCell}
-                    <td class="applicant-name">${user.full_name}</td>
-                    <td class="applicant-email">${user.email}</td>
+                    <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                    <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                     <td class="text-center">${letterStatus}</td>
                     <td class="text-center">${scheduleStatus}</td>
                     <td class="text-center">
                         <div class="btn-group-actions">
-                            ${!docs.acceptance_letter?.file_path ? `
-                            <button class="btn btn-sm btn-outline-primary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'acceptance_letter')">
-                                <i class="bi bi-upload"></i> Carta
-                            </button>` : `
-                            <button class="btn btn-sm btn-outline-secondary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'acceptance_letter')">
-                                <i class="bi bi-arrow-repeat"></i> Carta
-                            </button>`}
-                            ${!docs.course_schedule?.file_path ? `
-                            <button class="btn btn-sm btn-outline-primary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'course_schedule')">
-                                <i class="bi bi-upload"></i> Tira
-                            </button>` : `
-                            <button class="btn btn-sm btn-outline-secondary btn-action"
-                                    onclick="acceptanceManager.showUploadModal(${user.id}, ${up.program_id}, '${safeName}', 'course_schedule')">
-                                <i class="bi bi-arrow-repeat"></i> Tira
-                            </button>`}
-                            <button class="btn btn-sm btn-outline-warning btn-action"
-                                    onclick="acceptanceManager.showDeferModal(${user.id}, ${up.program_id}, '${safeName}')">
+                            ${uploadBtn('acceptance_letter', 'Carta')}
+                            ${uploadBtn('course_schedule', 'Tira')}
+                            <button type="button" class="btn btn-sm btn-outline-warning btn-action"
+                                    data-action="defer" ${rowData}>
                                 <i class="bi bi-arrow-clockwise"></i> Diferir
                             </button>
                             ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(user.id) : ''}
@@ -268,6 +392,7 @@ class AcceptanceManager {
                 </tr>
             `;
         }).join('');
+        this._announce(`${applicants.length} aspirante(s) pendiente(s) de documentos.`);
     }
 
     /**
@@ -282,6 +407,7 @@ class AcceptanceManager {
         if (want && !existing) {
             const th = document.createElement('th');
             th.className = 'program-col';
+            th.scope = 'col';
             th.textContent = 'Programa';
             thead.insertBefore(th, thead.firstChild);
         } else if (!want && existing) {
@@ -296,7 +422,11 @@ class AcceptanceManager {
 
         const colspan = this._isAllMode() ? 7 : 6;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay boletas pendientes de revision</p></td></tr>`;
+            tbody.innerHTML = this._emptyRow(
+                colspan, 'inbox', 'Sin boletas por revisar',
+                'Aqui aparecerán las boletas de servicios escolares en cuanto los aspirantes las suban.'
+            );
+            this._announce('Sin boletas pendientes de revisión.');
             return;
         }
 
@@ -304,28 +434,29 @@ class AcceptanceManager {
             const user = a.user;
             const docs = a.acceptance_docs;
             const receiptDoc = docs.enrollment_receipt;
-            const programCell = this._isAllMode()
-                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
+            const programCell = this._programCell(a.__program_name);
 
             return `
                 <tr>
                     ${programCell}
-                    <td class="applicant-name">${user.full_name}</td>
-                    <td class="applicant-email">${user.email}</td>
+                    <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                    <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
                     <td class="text-center">${this.renderDocBadge(docs.acceptance_letter)}</td>
                     <td class="text-center">${this.renderDocBadge(docs.course_schedule)}</td>
+                    <td class="text-center">${SIIAP.statusBadge('review', 'Subida', 'sm')}</td>
                     <td class="text-center">
-                        <span class="badge bg-info">Subida</span>
-                    </td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-primary btn-action"
-                                onclick="acceptanceManager.showReviewModal(${receiptDoc.id}, '${user.full_name}', '${receiptDoc.file_path}')">
+                        <button type="button" class="btn btn-sm btn-primary btn-action"
+                                data-action="review-receipt"
+                                data-doc-id="${SIIAP.escapeAttr(receiptDoc.id)}"
+                                data-applicant-name="${SIIAP.escapeAttr(user.full_name)}"
+                                data-file-url="${SIIAP.escapeAttr(receiptDoc.file_url || '')}">
                             <i class="bi bi-eye"></i> Revisar
                         </button>
                     </td>
                 </tr>
             `;
         }).join('');
+        this._announce(`${applicants.length} boleta(s) por revisar.`);
     }
 
     renderCompletedTab(applicants) {
@@ -335,23 +466,29 @@ class AcceptanceManager {
 
         const colspan = this._isAllMode() ? 7 : 6;
         if (!applicants.length) {
-            tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay procesos completados aun</p></td></tr>`;
+            tbody.innerHTML = this._emptyRow(
+                colspan, 'inbox', 'Sin procesos completados',
+                'Ningún aspirante ha completado todavía el proceso de inscripción.'
+            );
+            this._announce('Sin procesos de inscripción completados.');
             return;
         }
 
         tbody.innerHTML = applicants.map(a => {
             const user = a.user;
             const up = a.user_program;
-            const programCell = this._isAllMode()
-                ? `<td class="text-muted small">${a.__program_name || ''}</td>` : '';
+            const programCell = this._programCell(a.__program_name);
 
             let controlNumberCell;
             if (user.control_number) {
-                controlNumberCell = `<span class="badge bg-primary fs-6">${user.control_number}</span>`;
+                controlNumberCell = `<span class="badge bg-primary font-monospace">${SIIAP.escapeHtml(user.control_number)}</span>`;
             } else {
                 controlNumberCell = `
-                    <button class="btn btn-sm btn-outline-success btn-action"
-                            onclick="acceptanceManager.showAssignControlNumberModal(${user.id}, ${up.program_id}, '${user.full_name.replace(/'/g, "\\'")}')">
+                    <button type="button" class="btn btn-sm btn-outline-success btn-action"
+                            data-action="assign-control-number"
+                            data-user-id="${SIIAP.escapeAttr(user.id)}"
+                            data-program-id="${SIIAP.escapeAttr(up.program_id)}"
+                            data-applicant-name="${SIIAP.escapeAttr(user.full_name)}">
                         <i class="bi bi-hash"></i> Asignar
                     </button>`;
             }
@@ -359,15 +496,16 @@ class AcceptanceManager {
             return `
                 <tr>
                     ${programCell}
-                    <td class="applicant-name">${user.full_name}</td>
-                    <td class="applicant-email">${user.email}</td>
-                    <td class="text-center"><span class="badge bg-success">Disponible</span></td>
-                    <td class="text-center"><span class="badge bg-success">Disponible</span></td>
-                    <td class="text-center"><span class="badge bg-success">Aprobada</span></td>
+                    <td class="applicant-name">${SIIAP.escapeHtml(user.full_name)}</td>
+                    <td class="applicant-email">${SIIAP.escapeHtml(user.email)}</td>
+                    <td class="text-center">${SIIAP.statusBadge('approved', 'Disponible', 'sm')}</td>
+                    <td class="text-center">${SIIAP.statusBadge('approved', 'Disponible', 'sm')}</td>
+                    <td class="text-center">${SIIAP.statusBadge('approved', 'Aprobada', 'sm')}</td>
                     <td class="text-center">${controlNumberCell}</td>
                 </tr>
             `;
         }).join('');
+        this._announce(`${applicants.length} proceso(s) completado(s).`);
     }
 
     showAssignControlNumberModal(userId, programId, applicantName) {
@@ -425,23 +563,27 @@ class AcceptanceManager {
         }
     }
 
+    /** Chip de estado documental — usa el componente compartido .status-badge. */
     renderDocBadge(doc) {
         if (!doc || doc.status === 'pending' || !doc.file_path) {
-            return '<span class="badge bg-secondary">Pendiente</span>';
+            return SIIAP.statusBadge('pending', 'Pendiente', 'sm');
         }
-        if (doc.status === 'uploaded' || doc.status === 'approved') {
-            return '<span class="badge bg-success">Subida</span>';
+        if (doc.status === 'approved') {
+            return SIIAP.statusBadge('approved', 'Aprobada', 'sm');
+        }
+        if (doc.status === 'uploaded') {
+            return SIIAP.statusBadge('review', 'Subida', 'sm');
         }
         if (doc.status === 'rejected') {
-            return '<span class="badge bg-danger">Rechazada</span>';
+            return SIIAP.statusBadge('rejected', 'Rechazada', 'sm');
         }
-        return '<span class="badge bg-secondary">-</span>';
+        return SIIAP.statusBadge('pending', 'Sin registro', 'sm');
     }
 
     showUploadModal(userId, programId, applicantName, documentType) {
         const typeLabels = {
-            'acceptance_letter': 'Carta de Aceptacion',
-            'course_schedule': 'Tira de Materias',
+            'acceptance_letter': 'Carta de aceptación',
+            'course_schedule': 'Tira de materias',
         };
 
         document.getElementById('uploadDocUserId').value = userId;
@@ -449,7 +591,7 @@ class AcceptanceManager {
         document.getElementById('uploadDocType').value = documentType;
         document.getElementById('uploadDocApplicantName').textContent = applicantName;
         document.getElementById('uploadDocTypeLabel').textContent = typeLabels[documentType] || documentType;
-        document.getElementById('uploadDocModalTitle').textContent = `Subir ${typeLabels[documentType] || documentType}`;
+        document.getElementById('uploadDocModalTitle').textContent = `Subir ${(typeLabels[documentType] || documentType).toLowerCase()}`;
         document.getElementById('uploadDocFile').value = '';
 
         this.uploadDocModal.show();
@@ -507,24 +649,30 @@ class AcceptanceManager {
         }
     }
 
-    showReviewModal(docId, applicantName, filePath) {
+    showReviewModal(docId, applicantName, fileUrl) {
         document.getElementById('reviewReceiptDocId').value = docId;
         document.getElementById('reviewReceiptApplicantName').textContent = applicantName;
         document.getElementById('reviewReceiptNotes').value = '';
-        document.getElementById('notesRequired').style.display = 'none';
+        this._setNotesRequired('notesRequired', 'reviewReceiptNotes', false);
 
         // Reset radios
         document.querySelectorAll('input[name="reviewReceiptStatus"]').forEach(r => r.checked = false);
 
-        // Construir URL de descarga del archivo
-        if (filePath) {
-            // filePath tiene formato: user_id/acceptance/filename.pdf
-            const parts = filePath.split('/');
-            const userId = parts[0];
-            const phase = parts[1];
-            const filename = parts.slice(2).join('/');
-            const downloadUrl = `/files/doc/${userId}/${phase}/${filename}`;
-            document.getElementById('viewReceiptBtn').href = downloadUrl;
+        // El URL de descarga lo publica el servidor (`file_url`) y nombra la
+        // FILA con un identificador opaco. Antes se armaba aquí a partir de
+        // `<user_id>/<fase>/<archivo>`, lo que obligaba a publicar el id
+        // entero del aspirante y la ruta exacta del documento en el payload.
+        if (fileUrl) {
+            const downloadUrl = fileUrl;
+            const viewBtn = document.getElementById('viewReceiptBtn');
+            viewBtn.href = downloadUrl;
+            viewBtn.classList.remove('disabled');
+            viewBtn.setAttribute('aria-disabled', 'false');
+        } else {
+            const viewBtn = document.getElementById('viewReceiptBtn');
+            viewBtn.href = '#';
+            viewBtn.classList.add('disabled');
+            viewBtn.setAttribute('aria-disabled', 'true');
         }
 
         this.reviewReceiptModal.show();
@@ -535,13 +683,18 @@ class AcceptanceManager {
         const status = document.querySelector('input[name="reviewReceiptStatus"]:checked')?.value;
         const notes = document.getElementById('reviewReceiptNotes').value.trim();
 
-        if (!docId || docId === 'undefined' || docId === 'null' || !/^\d+$/.test(docId)) {
+        // El identificador del documento es un UUID público: la validación
+        // deja de ser «sólo dígitos» (que ahora rechazaría TODO identificador
+        // válido) y pasa a comprobar la forma canónica. Un UUID que no exista
+        // lo contesta el backend con el mismo 404 que uno fuera de alcance.
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!docId || !UUID_RE.test(docId)) {
             showFlash('danger', 'Documento inválido — recarga la página e intenta de nuevo.');
             return;
         }
 
         if (!status) {
-            showFlash('warning', 'Selecciona una decision (Aprobar o Rechazar)');
+            showFlash('warning', 'Selecciona una decisión (Aprobar o Rechazar)');
             return;
         }
 
@@ -586,7 +739,7 @@ class AcceptanceManager {
         const requestsTbody = document.querySelector('#pendingRequestsTable tbody');
         const deferredCountBadge = document.getElementById('deferredCount');
 
-        if (deferredTbody) deferredTbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>`;
+        if (deferredTbody) deferredTbody.innerHTML = this._loadingRow(6, 'Cargando aspirantes diferidos…');
 
         try {
             const results = await this._fanFetch(pid => `/api/v1/acceptance/program/${pid}/deferred`);
@@ -604,31 +757,42 @@ class AcceptanceManager {
             // Sección solicitudes pendientes del aspirante
             const pendingSection = document.getElementById('pendingRequestsSection');
             const pendingCount = document.getElementById('pendingRequestsCount');
-            if (pendingSection) pendingSection.style.display = pending_requests.length ? '' : 'none';
+            if (pendingSection) pendingSection.classList.toggle('d-none', !pending_requests.length);
             if (pendingCount) pendingCount.textContent = pending_requests.length;
 
             if (requestsTbody) {
                 this._toggleProgramHeader('pendingRequestsTable');
                 const pCol = this._isAllMode() ? 7 : 6;
                 if (!pending_requests.length) {
-                    requestsTbody.innerHTML = `<tr><td colspan="${pCol}" class="text-center py-3 text-muted">No hay solicitudes pendientes</td></tr>`;
+                    requestsTbody.innerHTML = this._emptyRow(
+                        pCol, 'bell', 'Sin solicitudes pendientes',
+                        'Ningún aspirante ha solicitado diferir su inscripción.'
+                    );
                 } else {
                     requestsTbody.innerHTML = pending_requests.map(p => {
-                        const safeName = p.user.full_name.replace(/'/g, "\\'");
-                        const safeReason = (p.deferral.reason || '').replace(/'/g, "\\'");
-                        const programCell = this._isAllMode()
-                            ? `<td class="text-muted small">${p.__program_name || ''}</td>` : '';
+                        const reason = p.deferral.reason || 'Sin especificar';
+                        const periodName = p.deferral.deferred_to_period_name;
+                        const periodCell = periodName
+                            ? SIIAP.escapeHtml(periodName)
+                            : '<em class="text-muted">Por asignar</em>';
+                        const programCell = this._programCell(p.__program_name);
                         return `
                             <tr>
                                 ${programCell}
-                                <td>${p.user.full_name}</td>
-                                <td>${p.user.email}</td>
-                                <td class="text-center">#${p.deferral.deferral_number}</td>
-                                <td>${p.deferral.deferred_to_period_name || '<em class="text-muted">Por asignar</em>'}</td>
-                                <td class="fst-italic text-muted">${p.deferral.reason || 'Sin especificar'}</td>
+                                <td>${SIIAP.escapeHtml(p.user.full_name)}</td>
+                                <td>${SIIAP.escapeHtml(p.user.email)}</td>
+                                <td class="text-center">#${SIIAP.escapeHtml(p.deferral.deferral_number)}</td>
+                                <td>${periodCell}</td>
+                                <td class="reason-cell fst-italic text-muted"
+                                    title="${SIIAP.escapeAttr(reason)}">${SIIAP.escapeHtml(reason)}</td>
                                 <td class="text-center">
-                                    <button class="btn btn-sm btn-primary"
-                                            onclick="acceptanceManager.showReviewDeferralModal(${p.deferral.id}, '${safeName}', ${p.deferral.deferral_number}, '${p.deferral.deferred_to_period_name || ''}', '${safeReason}')">
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                            data-action="review-deferral"
+                                            data-deferral-id="${SIIAP.escapeAttr(p.deferral.id)}"
+                                            data-applicant-name="${SIIAP.escapeAttr(p.user.full_name)}"
+                                            data-deferral-number="${SIIAP.escapeAttr(p.deferral.deferral_number)}"
+                                            data-period-name="${SIIAP.escapeAttr(periodName || '')}"
+                                            data-reason="${SIIAP.escapeAttr(p.deferral.reason || '')}">
                                         <i class="bi bi-eye me-1"></i>Revisar
                                     </button>
                                 </td>
@@ -641,30 +805,43 @@ class AcceptanceManager {
                 this._toggleProgramHeader('deferredTable');
                 const dCol = this._isAllMode() ? 7 : 6;
                 if (!deferred.length) {
-                    deferredTbody.innerHTML = `<tr><td colspan="${dCol}" class="empty-state"><i class="bi bi-inbox"></i><p>No hay aspirantes con inscripción diferida</p></td></tr>`;
+                    deferredTbody.innerHTML = this._emptyRow(
+                        dCol, 'calendar-check', 'Sin inscripciones diferidas',
+                        'Ningún aspirante tiene la inscripción diferida a otro periodo.'
+                    );
                 } else {
                     deferredTbody.innerHTML = deferred.map(d => {
-                        const safeName = d.user.full_name.replace(/'/g, "\\'");
                         const deferral = d.deferral;
                         const canReactivate = deferral && deferral.deferred_to_period_id;
                         const deferralsLeft = d.can_defer_again
-                            ? `<span class="badge bg-warning text-dark">${d.deferrals_used}/2 usados</span>`
-                            : `<span class="badge bg-danger">Máximo alcanzado</span>`;
+                            ? SIIAP.statusBadge('deliberation', `${d.deferrals_used}/2 usados`, 'sm')
+                            : SIIAP.statusBadge('rejected', 'Máximo alcanzado', 'sm');
                         const reactivateBtn = canReactivate
-                            ? `<button class="btn btn-sm btn-success" onclick="acceptanceManager.showReactivateModal(${d.user_program.user_id}, ${d.user_program.program_id}, '${safeName}', '${deferral.deferred_to_period_name || ''}')">
+                            ? `<button type="button" class="btn btn-sm btn-success"
+                                       data-action="reactivate"
+                                       data-user-id="${SIIAP.escapeAttr(d.user_program.user_id)}"
+                                       data-program-id="${SIIAP.escapeAttr(d.user_program.program_id)}"
+                                       data-applicant-name="${SIIAP.escapeAttr(d.user.full_name)}"
+                                       data-period-name="${SIIAP.escapeAttr(deferral.deferred_to_period_name || '')}">
                                    <i class="bi bi-person-check-fill me-1"></i>Reactivar
                                </button>`
                             : `<span class="text-muted small">Sin periodo destino</span>`;
-                        const programCell = this._isAllMode()
-                            ? `<td class="text-muted small">${d.__program_name || ''}</td>` : '';
+                        const originalPeriod = deferral ? SIIAP.escapeHtml(deferral.original_period_name || '-') : '-';
+                        let targetPeriod = '-';
+                        if (deferral) {
+                            targetPeriod = deferral.deferred_to_period_name
+                                ? SIIAP.escapeHtml(deferral.deferred_to_period_name)
+                                : '<em class="text-muted">Por asignar</em>';
+                        }
+                        const programCell = this._programCell(d.__program_name);
                         return `
                             <tr>
                                 ${programCell}
-                                <td>${d.user.full_name}</td>
-                                <td>${d.user.email}</td>
+                                <td>${SIIAP.escapeHtml(d.user.full_name)}</td>
+                                <td>${SIIAP.escapeHtml(d.user.email)}</td>
                                 <td class="text-center">${deferralsLeft}</td>
-                                <td>${deferral ? (deferral.original_period_name || '-') : '-'}</td>
-                                <td>${deferral ? (deferral.deferred_to_period_name || '<em class="text-muted">Por asignar</em>') : '-'}</td>
+                                <td>${originalPeriod}</td>
+                                <td>${targetPeriod}</td>
                                 <td class="text-center">${reactivateBtn}</td>
                             </tr>`;
                     }).join('');
@@ -672,7 +849,8 @@ class AcceptanceManager {
             }
         } catch (error) {
             console.error('Error loading deferred tab:', error);
-            if (deferredTbody) deferredTbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Error al cargar los datos</td></tr>`;
+            if (deferredTbody) deferredTbody.innerHTML = this._errorRow(6, error.message);
+            this._announce('No se pudieron cargar los aspirantes diferidos.');
         }
     }
 
@@ -726,7 +904,7 @@ class AcceptanceManager {
         document.getElementById('reviewDeferralPeriod').textContent = periodName || 'Por asignar';
         document.getElementById('reviewDeferralReason').textContent = reason || 'Sin especificar';
         document.getElementById('reviewDeferralNotes').value = '';
-        document.getElementById('deferralNotesRequired').style.display = 'none';
+        this._setNotesRequired('deferralNotesRequired', 'reviewDeferralNotes', false);
         document.querySelectorAll('input[name="reviewDeferralStatus"]').forEach(r => r.checked = false);
         this.reviewDeferralModal.show();
     }

@@ -34,6 +34,11 @@
     }
 
     function applyKpiFilter(action) {
+        // Marca visualmente y para lector de pantalla qué KPI está filtrando.
+        document.querySelectorAll('[data-kpi-action]').forEach(btn => {
+            btn.setAttribute('aria-pressed', String(btn.dataset.kpiAction === action));
+        });
+
         // Reset filters
         el('filterAcademicPeriod').value = '';
         el('filterProgram').value = '';
@@ -103,7 +108,18 @@
     // =================================================================
     // EVENTS TABLE
     // =================================================================
+    function eventsTbody() {
+        return document.querySelector('#eventsTable tbody');
+    }
+
+    function setEventsBusy(busy, message) {
+        const tbody = eventsTbody();
+        if (tbody) tbody.setAttribute('aria-busy', busy ? 'true' : 'false');
+        if (message) window.SIIAP?.announce?.(message);
+    }
+
     async function loadEvents() {
+        setEventsBusy(true, 'Cargando eventos…');
         try {
             const qs = buildFilterQuery();
             const url = qs ? `${C.API}/events?${qs}` : `${C.API}/events`;
@@ -112,6 +128,27 @@
             renderEventsTable();
         } catch (err) {
             C.flash(`Error cargando eventos: ${err.message}`, 'danger');
+            const tbody = eventsTbody();
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state empty-state--inline empty-state--error">
+                                <div class="empty-state__icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                                <h3 class="empty-state__title">No se pudieron cargar los eventos</h3>
+                                <p class="empty-state__description">Revisa tu conexión y vuelve a intentarlo.</p>
+                                <div class="empty-state__actions">
+                                    <button type="button" id="retryEventsBtn" class="btn btn-outline-primary">
+                                        <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>
+                                        <span class="btn-label">Reintentar</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+                document.getElementById('retryEventsBtn')?.addEventListener('click', loadEvents);
+            }
+            setEventsBusy(false, 'No se pudieron cargar los eventos.');
         }
     }
 
@@ -139,24 +176,155 @@
         return `<span>${ev.registrations_count || 0}</span> <small class="text-muted">sin límite</small>`;
     }
 
-    function renderEventsTable() {
-        const tbody = document.querySelector('#eventsTable tbody');
-        if (!tbody) return;
-        if (currentEvents.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No hay eventos que coincidan con los filtros.</td></tr>';
+    /**
+     * ¿Este evento lo puede GESTIONAR quien mira la lista?
+     *
+     * `can_manage` lo calcula el backend con `EventsService.user_may_manage_event`
+     * (events_api.py). Un coordinador sigue viendo los eventos institucionales
+     * —los que no cuelgan de ningún programa— para no perder el calendario
+     * general, pero sobre ellos no puede actuar: Abrir, Concluir, Archivar y
+     * Eliminar devolvían 403, y «Abrir» llevaba a un detalle cuya primera
+     * llamada también fallaba, dejando la página en blanco.
+     *
+     * Se lee con `!== false` a propósito: si un endpoint viejo no manda el
+     * campo, la fila se comporta como antes en vez de quedarse sin acciones.
+     */
+    const canManageEvent = (ev) => ev.can_manage !== false;
+
+    /** Motivo, en español, por el que una fila no ofrece acciones. */
+    function unmanageableReason(ev) {
+        return ev.program_name
+            ? 'Este evento pertenece a un programa que no gestionas, así que solo puedes consultarlo.'
+            : 'Evento institucional: no pertenece a ningún programa, así que solo la Jefatura de Posgrado puede gestionarlo.';
+    }
+
+    /**
+     * Aviso único de alcance sobre la tabla. Si TODA la lista es de solo
+     * lectura, la página lo dice una vez en lugar de repetir el candado en
+     * cada fila y parecer rota tantas veces como eventos haya.
+     */
+    function renderScopeNotice(unmanageable, total) {
+        const card = document.querySelector('#eventsTable')?.closest('.card');
+        if (!card) return;
+
+        let notice = document.getElementById('eventsScopeNotice');
+        if (!unmanageable) {
+            notice?.remove();
             return;
         }
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.id = 'eventsScopeNotice';
+            notice.className = 'alert alert-info d-flex align-items-start gap-2';
+            notice.setAttribute('role', 'status');
+            card.parentNode.insertBefore(notice, card);
+        }
+
+        const all = unmanageable === total;
+        notice.innerHTML = `
+            <i class="bi bi-info-circle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+            <div>
+                <strong>${all ? 'Lista de solo lectura.' : 'Algunos eventos son de solo lectura.'}</strong>
+                ${all
+                    ? `Los ${total} eventos que ves son institucionales: no pertenecen a ningún
+                       programa, así que solo la Jefatura de Posgrado puede abrirlos, concluirlos,
+                       archivarlos o eliminarlos. Aquí puedes consultarlos.`
+                    : `${unmanageable} de ${total} eventos no pertenecen a tus programas
+                       —son institucionales— y solo la Jefatura de Posgrado los gestiona.
+                       Aparecen sin acciones para que no intentes una operación que sería rechazada.`}
+            </div>`;
+    }
+
+    function renderEventsTable() {
+        const tbody = eventsTbody();
+        if (!tbody) return;
+        if (currentEvents.length === 0) {
+            renderScopeNotice(0, 0);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-state empty-state--inline">
+                            <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
+                            <h3 class="empty-state__title">Sin eventos que mostrar</h3>
+                            <p class="empty-state__description">Ningún evento coincide con los filtros actuales. Límpialos o crea un evento nuevo.</p>
+                            <div class="empty-state__actions">
+                                <button type="button" class="btn btn-outline-primary" id="emptyClearFiltersBtn">
+                                    <span class="btn-label">Limpiar filtros</span>
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>`;
+            document.getElementById('emptyClearFiltersBtn')?.addEventListener('click', clearFilters);
+            setEventsBusy(false, 'Ningún evento coincide con los filtros aplicados.');
+            return;
+        }
+        const unmanageable = currentEvents.filter(ev => !canManageEvent(ev)).length;
+        renderScopeNotice(unmanageable, currentEvents.length);
+
         tbody.innerHTML = currentEvents.map(ev => {
+            const manageable = canManageEvent(ev);
             const typeBadge = `<span class="badge ${C.TYPE_BADGE_CLASS[ev.type] || 'bg-secondary'}">${C.TYPE_LABEL[ev.type] || ev.type}</span>`;
             const statusBadge = ev.status && ev.status !== 'published'
                 ? `<span class="badge ${C.STATUS_BADGE_CLASS[ev.status] || 'bg-secondary'} ms-1">${C.STATUS_LABEL[ev.status] || ev.status}</span>`
                 : '';
             const visBadge = ev.visibility === 'private'
-                ? '<span class="badge bg-dark ms-1" title="Privado"><i class="bi bi-lock-fill"></i></span>'
+                ? '<span class="badge bg-dark ms-1"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Privado</span>'
                 : '';
             const detailUrl = `${ctx.detailUrlBase}/${ev.id}`;
+
+            // Sin alcance no hay ni una acción: todas devolvían 403 y «Abrir»
+            // cargaba un detalle vacío. En su lugar, el motivo, legible.
+            const reason = manageable ? '' : unmanageableReason(ev);
+            const actionsCell = manageable
+                ? `<a href="${detailUrl}" class="btn btn-sm btn-outline-primary me-1"
+                       aria-label="Abrir el evento ${C.escapeHtml(ev.title)}">
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i> Abrir
+                    </a>
+                    <div class="dropdown d-inline-block">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle tap-target" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false"
+                            aria-label="Más acciones para ${C.escapeHtml(ev.title)}">
+                            <i class="bi bi-three-dots" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            ${ev.status === 'published' || ev.status === 'ongoing' ? `
+                                <li>
+                                    <button class="dropdown-item btn-conclude-event" data-event-id="${ev.id}">
+                                        <i class="bi bi-check2-circle me-2"></i>Concluir
+                                    </button>
+                                </li>
+                            ` : ''}
+                            ${ev.status !== 'archived' ? `
+                                <li>
+                                    <button class="dropdown-item btn-archive-event" data-event-id="${ev.id}">
+                                        <i class="bi bi-archive me-2"></i>Archivar
+                                    </button>
+                                </li>
+                            ` : `
+                                <li>
+                                    <button class="dropdown-item btn-unarchive-event" data-event-id="${ev.id}">
+                                        <i class="bi bi-arrow-counterclockwise me-2"></i>Desarchivar
+                                    </button>
+                                </li>
+                            `}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item text-danger btn-delete-event" data-event-id="${ev.id}">
+                                    <i class="bi bi-trash me-2"></i>Eliminar
+                                </button>
+                            </li>
+                        </ul>
+                    </div>`
+                : `<span class="status-badge status-badge--sm" title="${C.escapeHtml(reason)}">
+                        <i class="bi bi-lock-fill" aria-hidden="true"></i>
+                        <span>Solo Jefatura</span>
+                    </span>
+                    <span class="visually-hidden">${C.escapeHtml(reason)}</span>`;
+
             return `
-                <tr class="event-row" data-event-id="${ev.id}" data-event-status="${ev.status}">
+                <tr class="event-row" data-event-id="${ev.id}" data-event-status="${ev.status}"
+                    data-can-manage="${manageable ? 'true' : 'false'}">
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi ${C.TYPE_ICON[ev.type] || 'bi-calendar-event'} text-muted"></i>
@@ -172,47 +340,22 @@
                     </td>
                     <td>${smartWhen(ev)}</td>
                     <td class="text-center">${occupancy(ev)}</td>
-                    <td class="text-end" data-no-row-click>
-                        <a href="${detailUrl}" class="btn btn-sm btn-outline-primary me-1">
-                            <i class="bi bi-arrow-right"></i> Abrir
-                        </a>
-                        <div class="dropdown d-inline-block">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                                data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-three-dots"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                ${ev.status === 'published' || ev.status === 'ongoing' ? `
-                                    <li>
-                                        <button class="dropdown-item btn-conclude-event" data-event-id="${ev.id}">
-                                            <i class="bi bi-check2-circle me-2"></i>Concluir
-                                        </button>
-                                    </li>
-                                ` : ''}
-                                ${ev.status !== 'archived' ? `
-                                    <li>
-                                        <button class="dropdown-item btn-archive-event" data-event-id="${ev.id}">
-                                            <i class="bi bi-archive me-2"></i>Archivar
-                                        </button>
-                                    </li>
-                                ` : `
-                                    <li>
-                                        <button class="dropdown-item btn-unarchive-event" data-event-id="${ev.id}">
-                                            <i class="bi bi-arrow-counterclockwise me-2"></i>Desarchivar
-                                        </button>
-                                    </li>
-                                `}
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <button class="dropdown-item text-danger btn-delete-event" data-event-id="${ev.id}">
-                                        <i class="bi bi-trash me-2"></i>Eliminar
-                                    </button>
-                                </li>
-                            </ul>
-                        </div>
-                    </td>
+                    <td class="text-end" data-no-row-click>${actionsCell}</td>
                 </tr>`;
         }).join('');
+        setEventsBusy(false, unmanageable
+            ? `${currentEvents.length} eventos cargados, ${unmanageable} de solo lectura.`
+            : `${currentEvents.length} eventos cargados.`);
+    }
+
+    function clearFilters() {
+        ['filterAcademicPeriod', 'filterProgram', 'filterType', 'filterStatus', 'filterSearch'].forEach(id => {
+            if (el(id)) el(id).value = '';
+        });
+        document.querySelectorAll('[data-kpi-action]').forEach(btn => {
+            btn.setAttribute('aria-pressed', 'false');
+        });
+        loadEvents();
     }
 
     // =================================================================
@@ -314,19 +457,40 @@
     function showWizardStage(n) {
         document.getElementById('wizardStage1').classList.toggle('active', n === 1);
         document.getElementById('wizardStage2').classList.toggle('active', n === 2);
-        const indicator = document.getElementById('wizardStepIndicator');
-        if (indicator) indicator.textContent = n === 1
-            ? 'Paso 1 de 2 — Selecciona el propósito'
-            : 'Paso 2 de 2 — Configura el evento';
+
+        // Stepper: refleja el paso actual y el ya completado. El paso completado
+        // sustituye su número por la paloma, igual que hace el macro stepper()
+        // en Jinja: si no, el mismo estado se ve distinto según quién lo pinte.
+        document.querySelectorAll('#wizardStepper .stepper__step').forEach(step => {
+            const index = parseInt(step.dataset.step, 10);
+            const done = index < n;
+            step.classList.toggle('stepper__step--active', index === n);
+            step.classList.toggle('stepper__step--completed', done);
+            if (index === n) step.setAttribute('aria-current', 'step');
+            else step.removeAttribute('aria-current');
+
+            const number = step.querySelector('.stepper__number');
+            if (number) {
+                number.innerHTML = done
+                    ? '<i class="bi bi-check-lg" aria-hidden="true"></i>'
+                    : String(index);
+            }
+        });
+
         document.getElementById('wizardBtnBack').classList.toggle('d-none', n === 1);
         document.getElementById('wizardBtnSubmit').classList.toggle('d-none', n === 1);
         wizardState.stage = n;
+        window.SIIAP?.announce?.(n === 1
+            ? 'Paso 1 de 2: selecciona el propósito del evento.'
+            : 'Paso 2 de 2: configura el evento.');
     }
 
     function selectPurpose(purpose) {
         wizardState.purpose = purpose;
         document.querySelectorAll('.wizard-purpose-card').forEach(c => {
-            c.classList.toggle('selected', c.dataset.purpose === purpose);
+            const isSelected = c.dataset.purpose === purpose;
+            c.classList.toggle('selected', isSelected);
+            c.setAttribute('aria-pressed', String(isSelected));
         });
 
         const capTypeSelect = el('eventCapacityType');
@@ -399,7 +563,10 @@
     function resetWizard() {
         wizardState.purpose = null;
         wizardState.stage = 1;
-        document.querySelectorAll('.wizard-purpose-card').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.wizard-purpose-card').forEach(c => {
+            c.classList.remove('selected');
+            c.setAttribute('aria-pressed', 'false');
+        });
         const typeSelect = el('eventType');
         if (typeSelect) {
             Array.from(typeSelect.options).forEach(opt => { opt.hidden = false; });
@@ -495,12 +662,7 @@
             clearTimeout(searchTimer);
             searchTimer = setTimeout(loadEvents, 350);
         });
-        el('btnClearFilters')?.addEventListener('click', () => {
-            ['filterAcademicPeriod', 'filterProgram', 'filterType', 'filterStatus', 'filterSearch'].forEach(id => {
-                if (el(id)) el(id).value = '';
-            });
-            loadEvents();
-        });
+        el('btnClearFilters')?.addEventListener('click', clearFilters);
 
         // Row interactions
         document.querySelector('#eventsTable')?.addEventListener('click', (e) => {
@@ -514,10 +676,16 @@
             if (unarchiveBtn) { e.stopPropagation(); handleUnarchiveEvent(parseInt(unarchiveBtn.dataset.eventId)); return; }
             if (deleteBtn) { e.stopPropagation(); openDeleteEventModal(parseInt(deleteBtn.dataset.eventId)); return; }
 
-            // Row click navigates to detail
+            // Row click navigates to detail — solo si hay alcance. El detalle
+            // arranca con GET /events/<id>, que responde 403 sin alcance: sin
+            // esta guarda, pinchar la fila abría una página vacía.
             if (e.target.closest('[data-no-row-click]')) return;
             const row = e.target.closest('tr.event-row');
             if (row) {
+                if (row.dataset.canManage === 'false') {
+                    window.SIIAP?.announce?.('Este evento es de solo lectura: no puedes abrir su detalle.');
+                    return;
+                }
                 const id = parseInt(row.dataset.eventId);
                 window.location.href = `${ctx.detailUrlBase}/${id}`;
             }
