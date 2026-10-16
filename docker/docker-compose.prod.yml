@@ -108,6 +108,19 @@ services:
       - .env.prod
     environment:
       - TZ=America/Ciudad_Juarez
+      # docker/entrypoint.sh corre `flask db upgrade` al arrancar salvo que esto
+      # sea true, y lo dice su propio comentario: "Solo el contenedor 'web' debe
+      # correr migraciones. Los workers de Celery deben arrancar con
+      # SKIP_MIGRATIONS=true para evitar el race condition que causa
+      # UniqueViolation en alembic_version."
+      #
+      # No estaba puesto en ningun servicio, asi que web, celery-worker y
+      # celery-beat arrancaban los tres a la vez corriendo la misma migracion.
+      # Con DDL transaccional de Postgres el perdedor revierte limpio, asi que no
+      # corrompe nada, pero llena el log de errores justo durante un despliegue y
+      # enseña a ignorar la salida. Sobre una migracion con relleno fila a fila
+      # —las de uuid— es ademas la peor hora para tener dos escritores.
+      - SKIP_MIGRATIONS=true
     volumes:
       - /home/cuaderno/SIIAP/instance:/app/instance
 
@@ -130,6 +143,8 @@ services:
       - .env.prod
     environment:
       - TZ=America/Ciudad_Juarez
+      # Mismo motivo que en celery-worker: solo `web` migra.
+      - SKIP_MIGRATIONS=true
     volumes:
       - /home/cuaderno/SIIAP/instance:/app/instance
 
