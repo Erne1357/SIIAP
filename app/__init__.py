@@ -45,6 +45,17 @@ def create_app(test_config=None):
     if app.config.get('FLASK_ENV') == 'production':
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
+    # Every DateTime column is `timestamp without time zone` and the app writes
+    # aware local datetimes (now_local()). PostgreSQL converts those using the
+    # SESSION time zone, so a server left on UTC stores every timestamp 6-7 h
+    # off and a just-expired token stays valid. Production only worked because
+    # its cluster was initialised with TZ=America/Ciudad_Juarez; pin it here.
+    if str(app.config.get('SQLALCHEMY_DATABASE_URI', '')).startswith('postgres'):
+        from app.utils.datetime_utils import LOCAL_TZ
+        engine_options = app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {})
+        connect_args = engine_options.setdefault('connect_args', {})
+        connect_args.setdefault('options', f'-c timezone={LOCAL_TZ.key}')
+
     db.init_app(app)
 
     # Blueprints
