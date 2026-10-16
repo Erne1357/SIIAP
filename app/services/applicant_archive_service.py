@@ -94,7 +94,7 @@ def _periods_elapsed_since(period_code: str) -> int:
         AcademicPeriod.query
         .filter(
             AcademicPeriod.code > period_code,
-            AcademicPeriod.admission_end_date < datetime.utcnow(),
+            AcademicPeriod.admission_end_date < now_local().date(),
         )
         .count()
     )
@@ -217,7 +217,7 @@ def list_candidates(category: str) -> list:
     for policy in policies:
         if not policy.keep_years:
             continue
-        cutoff = datetime.utcnow() - timedelta(days=policy.keep_years * 365)
+        cutoff = now_local() - timedelta(days=policy.keep_years * 365)
         ups = UserProgram.query.filter(
             UserProgram.admission_status == policy.apply_after,
             UserProgram.updated_at < cutoff,

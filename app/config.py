@@ -57,12 +57,41 @@ def _require_production_base_url() -> None:
     )
 
 
+DEVELOPMENT_SECRET_KEY = 'dev-key-CHANGE-IN-PRODUCTION'
+
+
+def _require_production_secret_key() -> None:
+    """
+    Refuse to boot a production process signing sessions with a known key.
+
+    SECRET_KEY signs the session cookie, CSRF token included. With the
+    development fallback, anyone who reads this repository can forge a
+    session for any user id.
+    """
+    if _running_under_pytest():
+        return
+    if os.environ.get('FLASK_ENV', 'development').strip().lower() != 'production':
+        return
+    key = (os.environ.get('SECRET_KEY') or '').strip()
+    if key and key != DEVELOPMENT_SECRET_KEY:
+        return
+    raise MissingProductionConfigError(
+        "SECRET_KEY falta o es la clave de desarrollo y FLASK_ENV=production.\n"
+        "Genera una con secrets.token_urlsafe(48) (Python) o `openssl rand -base64 48`\n"
+        "y ponla en docker/.env.prod como SECRET_KEY=<valor>."
+    )
+
+
 _require_production_base_url()
+_require_production_secret_key()
 
 
 class Config:
-    # Versión estática (actualízala cuando cambies CSS/JS)
-    STATIC_VERSION = '1.0.42081201'
+    # Cache-busting query (?v=...) for every static asset. nginx serves /static/
+    # with `immutable, max-age=1y`, so this MUST change on every release that
+    # touches CSS/JS. The blue-green deploy sets it to the image tag (the git
+    # short SHA); the literal is only the fallback for dev.
+    STATIC_VERSION = os.environ.get('STATIC_VERSION') or '1.0.42081201'
     
     # Directorios base
     BASE_DIR = Path(__file__).resolve().parent.parent
@@ -90,7 +119,7 @@ class Config:
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB (antes 3 MB, subido por imágenes de eventos)
 
     # ===== SEGURIDAD =====
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-CHANGE-IN-PRODUCTION')
+    SECRET_KEY = os.environ.get('SECRET_KEY', DEVELOPMENT_SECRET_KEY)
     
     # ===== BASE DE DATOS =====
     SQLALCHEMY_DATABASE_URI = os.environ.get(

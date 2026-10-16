@@ -139,7 +139,7 @@
     <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar" aria-labelledby="mobileSidebarLabel">
       <div class="offcanvas-header">
         <h5 class="offcanvas-title" id="mobileSidebarLabel">Menú</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
       </div>
 
       <div class="mobile-user-section">
@@ -348,16 +348,18 @@
   <script src="{{ url_for('static', filename='js/utils/student_record_button.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/session_timeout.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/flash.js') }}?v={{ static_version }}"></script>
-  <script src="{{ url_for('static', filename='js/force_password_change.js') }}?v={{ static_version }}"></script>
+  {# Session-only scripts: for a signed-out visitor (e.g. the 404 page) they
+     only fired authenticated XHRs that answered 401 and threw in the console. #}
   {% if current_user.is_authenticated %}
+  <script src="{{ url_for('static', filename='js/force_password_change.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/events/promo-toast.js') }}?v={{ static_version }}"></script>
-  {% endif %}
 
   <!-- Socket.IO -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='js/socket-client.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/notifications.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/events/invitations-badge.js') }}?v={{ static_version }}"></script>
+  {% endif %}
 
   <!-- Layout base (menú + logout) -->
   <script src="{{ url_for('static', filename='js/base.js') }}?v={{ static_version }}"></script>

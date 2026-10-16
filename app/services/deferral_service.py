@@ -706,6 +706,17 @@ def check_and_expire_deferrals() -> dict:
         total_used = _count_active_or_used_deferrals(up.id)
         if total_used >= MAX_DEFERRALS:
             up.admission_status = 'expired'
+            # System-driven transition (maintenance task): no acting admin.
+            UserHistoryService.log_action(
+                user_id=up.user_id,
+                admin_id=None,
+                action='admission_expired',
+                details=(
+                    f'Admisión expirada: el periodo de diferimiento '
+                    f'{deferral.deferred_to_period.name if deferral.deferred_to_period else ""} '
+                    f'finalizó y se agotaron los diferimientos permitidos en {up.program.name}.'
+                ),
+            )
 
         NotificationService.create_notification(
             user_id=up.user_id,

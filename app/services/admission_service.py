@@ -217,12 +217,18 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     # 6) Conteos y segmentos de progreso (solo archivos que cuentan, excluyendo secuencia 0)
     total = len(progress_archive_ids)
     status_count = {k:0 for k in ('approved','rejected','review','pending','extended')}
-    
+
+    def _counted_status(sub):
+        # Submissions can also be 'expired' (cleanup_expired_admission_files)
+        # or 'purged' (retention policies); their file is gone, so for the
+        # applicant they count as still pending instead of raising KeyError.
+        return sub.status if sub.status in status_count else 'pending'
+
     for aid in progress_archive_ids:  # Solo contar archivos que no son informativos
         if aid in active_extensions:  # Usar active_extensions
             status_count['extended'] += 1
         elif aid in subs:
-            status_count[subs[aid].status] += 1
+            status_count[_counted_status(subs[aid])] += 1
         else:
             status_count['pending'] += 1
     
@@ -260,11 +266,11 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                     'extension_until': ext.granted_until.strftime('%d/%m/%Y %H:%M'),
                     'extension_reason': ext.reason
                 })
-            elif arch.id not in subs or subs[arch.id].status in ('pending','rejected'):
+            elif arch.id not in subs or _counted_status(subs[arch.id]) in ('pending','rejected'):
                 # Archivo pendiente o rechazado sin extensión activa
                 pending_items.append({
                     'name': arch.name,
-                    'status': (subs[arch.id].status if arch.id in subs else 'pending')
+                    'status': (_counted_status(subs[arch.id]) if arch.id in subs else 'pending')
                 })
 
     # 8) Timeline mejorado con detección correcta de estados

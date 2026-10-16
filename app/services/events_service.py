@@ -6,6 +6,10 @@ from sqlalchemy import and_, or_, func
 func_coalesce = func.coalesce
 from datetime import timezone
 from app.utils.datetime_utils import now_local
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # string annotations only; imported lazily at runtime
+    from app.models.event import EventImage
 
 class EventsService:
 

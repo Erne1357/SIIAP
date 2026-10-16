@@ -1,5 +1,8 @@
 (() => {
     const API = "/api/v1";
+    // Every /api mutation must carry the session's CSRF token; without it the
+    // backend answers 400 and the policy is never saved.
+    const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.content || "";
     // Sumidero propio del panel de retención: en archives.html el id "alerts"
     // pertenece a la pestaña de archivos y los avisos salían en la pestaña
     // equivocada.
@@ -134,14 +137,14 @@
             if (polId.value) {
                 res = await fetch(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, {
                     method: "PUT",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
                     credentials: "same-origin",
                     body: JSON.stringify(body)
                 });
             } else {
                 res = await fetch(`${API}/retention/policies`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
                     credentials: "same-origin",
                     body: JSON.stringify(body)
                 });
@@ -177,6 +180,7 @@
         try {
             const res = await fetch(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, {
                 method: "DELETE",
+                headers: { "X-CSRFToken": csrfToken() },
                 credentials: "same-origin"
             });
             const data = await res.json();

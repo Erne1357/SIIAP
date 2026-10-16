@@ -122,3 +122,16 @@ docker/Dockerfile.db.dev-real
 # comandos con credenciales del entorno). Se queda SIEMPRE en local, como
 # database/ y como los planes de trabajo.
 DESPLIEGUE.md
+
+# Estado del despliegue blue-green en el servidor (color vivo, imágenes,
+# upstream de nginx, estáticos por release) y respaldos previos a migrar.
+# Lo escriben docker/scripts/*.sh; nunca va al repo.
+.deploy/
+backups/
+*.dump
+
+# Artefactos de pruebas
+.ruff_cache/
+test-results/
+playwright-report/
+.test_durations

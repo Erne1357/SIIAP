@@ -1,1 +1,7 @@
-./docker/entrypoint.sh text eol=lf
+docker/entrypoint.sh text eol=lf
+# Shell scripts and nginx config run inside Linux containers, also when the
+# checkout is on Windows (bind mounts in dev, CI and the e2e stack).
+*.sh text eol=lf
+docker/nginx/*.conf text eol=lf
+docker/**/*.dockerignore text eol=lf
+.dockerignore text eol=lf

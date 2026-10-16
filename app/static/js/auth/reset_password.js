@@ -123,7 +123,12 @@
     try {
       const res = await fetch(`/api/v1/auth/reset-password/${encodeURIComponent(TOKEN)}`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        // The CSRF guard covers every /api mutation; without the header this
+        // request always failed with 400 and the password was never set.
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
         body: JSON.stringify({
           new_password: newPw.value,
           confirm_password: confirmPw.value,

@@ -1,75 +1,138 @@
-name: Deploy to Production
+# Deploy to production on every push to main.
+#
+# Two lanes, chosen from the labels of the PR that produced the push:
+#   full    (default) — whole suite (lint, unit, PostgreSQL 18, E2E) → deploy.
+#   hotfix  (label `hotfix`) — lint + static + unit smoke → deploy right away,
+#           then the whole suite runs AFTER the deploy and this run turns red
+#           if it fails, so a broken hotfix is never silent.
+# A run whose commit is no longer the tip of main skips the deploy: the newer
+# push has its own run, and deploy.sh refuses to go backwards anyway.
+name: Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
-jobs:
-  deploy:
-    name: Deploy to Server
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+jobs:
+  plan:
+    name: Carril
+    runs-on: ubuntu-latest
+    outputs:
+      lane: ${{ steps.lane.outputs.lane }}
     steps:
-      - name: Deploy via SSH
+      - id: lane
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          lane=full
+          if [ "$EVENT" = "push" ]; then
+            labels=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].labels[].name' 2>/dev/null || true)
+            if printf '%s\n' "$labels" | grep -qx hotfix; then lane=hotfix; fi
+          fi
+          echo "carril: $lane"
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+
+  tests:
+    name: Tests
+    needs: plan
+    if: needs.plan.outputs.lane == 'full'
+    uses: ./.github/workflows/_tests.yml
+    with:
+      lane: full
+
+  smoke:
+    name: Smoke
+    needs: plan
+    if: needs.plan.outputs.lane == 'hotfix'
+    uses: ./.github/workflows/_tests.yml
+    with:
+      lane: smoke
+
+  gate:
+    name: ¿Sigue siendo la punta de main?
+    needs: [plan, tests, smoke]
+    if: >-
+      always() &&
+      ((needs.plan.outputs.lane == 'full' && needs.tests.result == 'success') ||
+       (needs.plan.outputs.lane == 'hotfix' && needs.smoke.result == 'success'))
+    runs-on: ubuntu-latest
+    outputs:
+      superseded: ${{ steps.check.outputs.superseded }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          # If the API cannot answer, deploy anyway: deploy.sh itself refuses
+          # a commit older than the one already in production.
+          ahead=$(gh api "repos/$REPO/compare/$SHA...main" --jq '.ahead_by' 2>/dev/null || echo 0)
+          if [ "${ahead:-0}" -gt 0 ]; then
+            echo "main avanzó $ahead commit(s) desde $SHA; ese run despliega."
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "superseded=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Desplegar (blue-green)
+    needs: [plan, gate]
+    if: always() && needs.gate.result == 'success' && needs.gate.outputs.superseded == 'false'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    timeout-minutes: 30
+    steps:
+      - name: deploy.sh en el servidor
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_PORT }}
+          command_timeout: 25m
           script: |
             set -e
-
-            COMPOSE="docker compose -f /home/cuaderno/SIIAP/docker/docker-compose.prod.yml"
-            PROJECT_DIR="/home/cuaderno/SIIAP"
-
-            echo "=== [1/6] Actualizando código ==="
-            cd $PROJECT_DIR
-            git fetch origin
-            PREV_COMMIT=$(git rev-parse HEAD)
-            git reset --hard origin/main
-            echo "Commit anterior: $PREV_COMMIT"
-            echo "Commit actual:   $(git rev-parse HEAD)"
-
-            echo "=== [2/6] Construyendo imágenes ==="
-            $COMPOSE build
-
-            echo "=== [3/6] Reiniciando servicios ==="
-            $COMPOSE up -d --remove-orphans
-
-            echo "=== [4/6] Verificando salud de la aplicación ==="
-            MAX_RETRIES=18   # 18 × 10s = 3 minutos máximo
-            RETRY=0
-            until curl -sf http://127.0.0.1:8081/health > /dev/null 2>&1; do
-              RETRY=$((RETRY + 1))
-              if [ $RETRY -ge $MAX_RETRIES ]; then
-                echo "ERROR: La app no respondió tras $((MAX_RETRIES * 10))s. Iniciando rollback..."
-                git reset --hard $PREV_COMMIT
-                $COMPOSE build
-                $COMPOSE up -d --remove-orphans
-                echo "Rollback completado al commit $PREV_COMMIT"
-                exit 1
-              fi
-              echo "Esperando... intento $RETRY/$MAX_RETRIES"
-              sleep 10
-            done
-            echo "Aplicacion lista y saludable."
-
-            echo "=== [5/6] Limpiando imágenes antiguas ==="
-            docker image prune -f
-
-            echo "=== [6/6] Estado final de contenedores ==="
-            $COMPOSE ps
-
-            echo "Deployment completado: commit $(git rev-parse --short HEAD)"
-
-      - name: Notify deployment status
-        if: always()
+            cd /home/cuaderno/SIIAP
+            git fetch --quiet origin
+            mkdir -p .deploy
+            # Run the deploy script of the commit being deployed, not the one
+            # currently checked out: script changes ship with their release.
+            git show "${{ github.sha }}:docker/scripts/deploy.sh" > .deploy/deploy-run.sh
+            bash .deploy/deploy-run.sh "${{ github.sha }}" 2>&1
+      - name: Humo público
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "Deployment exitoso al commit ${{ github.sha }}"
-          else
-            echo "Deployment fallido. Revisa los logs del paso anterior."
-          fi
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://siiap.cdjuarez.tecnm.mx/health || true)
+            [ "$code" = "200" ] && { echo "https://siiap.cdjuarez.tecnm.mx/health → 200"; exit 0; }
+            sleep 3
+          done
+          echo "el sitio público no responde 200 (último: $code)"; exit 1
+
+  verify:
+    name: Suite completa tras hotfix
+    needs: [plan, deploy]
+    if: always() && needs.plan.outputs.lane == 'hotfix' && needs.deploy.result == 'success'
+    uses: ./.github/workflows/_tests.yml
+    with:
+      lane: full
+
+  verify-alert:
+    name: Hotfix en producción con suite roja
+    needs: [plan, verify]
+    if: always() && needs.plan.outputs.lane == 'hotfix' && needs.verify.result != 'success' && needs.verify.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::El hotfix ya está en producción pero la suite completa falló. Corrige o ejecuta docker/scripts/rollback.sh en el servidor."
+          exit 1

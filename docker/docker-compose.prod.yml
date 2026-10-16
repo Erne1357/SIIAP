@@ -1,5 +1,83 @@
 # docker/docker-compose.prod.yml
+#
+# Blue-green production stack. Driven by docker/scripts/deploy.sh — do not run
+# `docker compose up -d` by hand without `--profile <color>`: the two web
+# colors only exist under their profile, so a bare `up` starts infra, celery
+# and nginx and NO web at all.
+#
+#   web-blue / web-green  same image, one live at a time. nginx points at the
+#                         live one through .deploy/nginx/upstream.conf, which
+#                         the deploy rewrites and then `nginx -s reload`s.
+#                         nginx never needs a restart: the reload re-resolves
+#                         the container name, which is what the old single
+#                         `web` service never got (stale IP → 502 until
+#                         someone restarted nginx by hand).
+#   celery-*              recreated with the new image right after the switch.
+#   db / redis            never recreated by a deploy (`--no-recreate`).
+#
+# IMAGE_TAG is the git short SHA of the release. The image is built once
+# (`build` lives only on web-blue/web-green) and every app service reuses it.
 name: SIIAP
+
+x-app: &app
+  image: siiap-app:${IMAGE_TAG:-latest}
+  pull_policy: never
+  restart: always
+  env_file:
+    - .env.prod
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-app-env: &app-env
+  TZ: America/Ciudad_Juarez
+  # Every static URL carries ?v=<release>; nginx caches /static/ for a year.
+  STATIC_VERSION: ${IMAGE_TAG:-latest}
+  # Migrations run once per deploy in a throwaway container of the NEW image
+  # (deploy.sh), before any traffic moves. No long-running service migrates.
+  SKIP_MIGRATIONS: "true"
+
+x-web: &web
+  <<: *app
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+  expose:
+    - "5000"
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  volumes:
+    - ../instance:/app/instance
+    # database/ is copied to the server by hand and never enters the image
+    # (.dockerignore). Mounted read-only for `flask seed-permissions` and
+    # `flask apply-patches`, which read their SQL from here.
+    - ../database:/app/database:ro
+  # eventlet requiere exactamente 1 worker por proceso; el paralelismo viene
+  # de la concurrencia async de eventlet. Socket.IO entre colores y celery va
+  # por Redis (message_queue), así que dos colores vivos a la vez no pierden
+  # emisiones durante el cambio.
+  command: >
+    sh -c "exec gunicorn
+    --bind 0.0.0.0:5000
+    --worker-class eventlet
+    --workers 1
+    --timeout ${GUNICORN_TIMEOUT:-120}
+    --graceful-timeout 25
+    --access-logfile -
+    --error-logfile -
+    app:app"
+  stop_grace_period: 30s
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://localhost:5000/ready || exit 1"]
+    interval: 5s
+    timeout: 5s
+    retries: 6
+    start_period: 30s
 
 services:
   # ─── Base de datos ────────────────────────────────────────────────────────
@@ -26,7 +104,7 @@ services:
       # conserva declarado abajo justamente para poder volver.
       #
       # Esto va COMETIDO y no editado en el servidor a proposito: el deploy hace
-      # `git reset --hard origin/main`, asi que una edicion a mano aqui
+      # `git reset --hard <sha>`, asi que una edicion a mano aqui
       # desapareceria en el siguiente despliegue y la base dejaria de arrancar
       # semanas despues, sin que nadie recuerde por que.
       - pgdata18:/var/lib/postgresql
@@ -51,50 +129,24 @@ services:
       timeout: 3s
       retries: 5
 
-  # ─── Aplicación web ───────────────────────────────────────────────────────
-  web:
-    restart: always
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    expose:
-      - "5000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    env_file:
-      - .env.prod
+  # ─── Aplicación web: dos colores, uno vivo ───────────────────────────────
+  web-blue:
+    <<: *web
+    profiles: ["blue"]
     environment:
-      - TZ=America/Ciudad_Juarez
-    volumes:
-      - /home/cuaderno/SIIAP/instance:/app/instance
-    # eventlet requiere exactamente 1 worker por proceso;
-    # el paralelismo real viene de la concurrencia async de eventlet.
-    # Para múltiples réplicas usa Docker Swarm/Kubernetes con Redis como message_queue.
-    command: >
-      sh -c "gunicorn
-      --bind 0.0.0.0:5000
-      --worker-class eventlet
-      --workers 1
-      --timeout ${GUNICORN_TIMEOUT:-120}
-      --access-logfile -
-      --error-logfile -
-      app:app"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:5000/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 4
-      start_period: 30s
+      <<: *app-env
+      INSTANCE_COLOR: blue
+
+  web-green:
+    <<: *web
+    profiles: ["green"]
+    environment:
+      <<: *app-env
+      INSTANCE_COLOR: green
 
   # ─── Celery worker (tareas asíncronas) ────────────────────────────────────
   celery-worker:
-    restart: always
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    <<: *app
     command: >
       celery -A app.celery_worker.celery worker
       --loglevel=info
@@ -104,32 +156,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file:
-      - .env.prod
     environment:
-      - TZ=America/Ciudad_Juarez
-      # docker/entrypoint.sh corre `flask db upgrade` al arrancar salvo que esto
-      # sea true, y lo dice su propio comentario: "Solo el contenedor 'web' debe
-      # correr migraciones. Los workers de Celery deben arrancar con
-      # SKIP_MIGRATIONS=true para evitar el race condition que causa
-      # UniqueViolation en alembic_version."
-      #
-      # No estaba puesto en ningun servicio, asi que web, celery-worker y
-      # celery-beat arrancaban los tres a la vez corriendo la misma migracion.
-      # Con DDL transaccional de Postgres el perdedor revierte limpio, asi que no
-      # corrompe nada, pero llena el log de errores justo durante un despliegue y
-      # enseña a ignorar la salida. Sobre una migracion con relleno fila a fila
-      # —las de uuid— es ademas la peor hora para tener dos escritores.
-      - SKIP_MIGRATIONS=true
+      <<: *app-env
+    # Warm shutdown: lets a running task (a bulk e-mail batch) finish before
+    # the container is replaced by the next release.
+    stop_grace_period: 60s
     volumes:
-      - /home/cuaderno/SIIAP/instance:/app/instance
+      - ../instance:/app/instance
 
   # ─── Celery Beat (tareas periódicas) ──────────────────────────────────────
   celery-beat:
-    restart: always
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    <<: *app
     command: >
       celery -A app.celery_worker.celery beat
       --loglevel=info
@@ -139,29 +176,36 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file:
-      - .env.prod
     environment:
-      - TZ=America/Ciudad_Juarez
-      # Mismo motivo que en celery-worker: solo `web` migra.
-      - SKIP_MIGRATIONS=true
+      <<: *app-env
     volumes:
-      - /home/cuaderno/SIIAP/instance:/app/instance
+      - ../instance:/app/instance
 
   # ─── Reverse proxy ────────────────────────────────────────────────────────
   nginx:
+    image: nginx:1.28-alpine
     restart: always
-    image: nginx:stable-alpine
-    depends_on:
-      web:
-        condition: service_healthy
     environment:
       - TZ=America/Ciudad_Juarez
+    # Config is read from mounted DIRECTORIES, never from a single-file bind
+    # mount: `git reset --hard` replaces files (new inode), and a single-file
+    # mount keeps showing the old inode, so `nginx -s reload` would silently
+    # re-read the stale config.
+    command: ["nginx", "-c", "/etc/nginx/siiap/nginx.conf", "-g", "daemon off;"]
     volumes:
-      - /home/cuaderno/SIIAP/app/static:/usr/share/nginx/html/static:ro
-      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx:/etc/nginx/siiap:ro
+      # Written by deploy.sh: upstream.conf (live color + static release).
+      - ../.deploy/nginx:/etc/nginx/siiap-runtime:ro
+      # One directory per release, extracted from that release's image, so the
+      # CSS/JS nginx serves always matches the color it routes to.
+      - ../.deploy/static:/srv/static:ro
     ports:
       - "127.0.0.1:8081:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   # El volumen del cluster 16. NO lo borres: es la vuelta atras del salto a 18.

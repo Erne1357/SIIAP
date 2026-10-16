@@ -1,0 +1,13 @@
+# Local test runner that mirrors CI: same Python and system libraries as the
+# production image, plus the dev tooling. The source is bind-mounted, not
+# copied, so edits are picked up without a rebuild.
+FROM python:3.11-slim
+ENV TZ=America/Ciudad_Juarez PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata curl git libpango-1.0-0 libpangoft2-1.0-0 libcairo2 \
+    libgdk-pixbuf-xlib-2.0-0 libffi-dev shared-mime-info \
+    fonts-liberation fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install -r requirements-dev.txt

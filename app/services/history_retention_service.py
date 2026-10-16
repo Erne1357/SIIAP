@@ -22,6 +22,7 @@ class HistoryRetentionService:
     # Acciones críticas que NUNCA se deben eliminar
     CRITICAL_ACTIONS = {
         'control_number_assigned',
+        'control_number_assigned_admin',
         'program_transferred', 
         'document_purged',
         'deleted',
@@ -133,46 +134,64 @@ class HistoryRetentionService:
     def _classify_users() -> Dict[str, List[int]]:
         """
         Clasifica usuarios según su estado actual.
-        
+
+        UserProgram has no graduation date, so "graduated" is derived from
+        data that does exist: a program counts as concluded when the student
+        has a `completed` SemesterEnrollment whose semester_number reaches the
+        program's `duration_semesters`. Programs without a duration can never
+        be classed as concluded.
+
+        Rules, first match wins:
+          1. account deactivated (User.is_active False)  -> inactive
+          2. at least one concluded program              -> graduated
+          3. linked to at least one program (any status) -> active
+          4. no program at all                           -> inactive
+
         Returns:
             Diccionario con listas de user_ids por categoría
         """
-        from sqlalchemy import select, case, func
-        
-        # Query compleja para clasificar usuarios
-        subquery = db.session.query(
+        from sqlalchemy import func
+        from app.models.program import Program
+        from app.models.semester_enrollment import SemesterEnrollment
+
+        program_counts = db.session.query(
             User.id,
             User.is_active,
-            func.max(UserProgram.graduation_date).label('graduation_date'),
             func.count(UserProgram.id).label('program_count')
-        ).outerjoin(UserProgram, User.id == UserProgram.user_id).group_by(User.id, User.is_active).subquery()
-        
-        results = db.session.query(subquery).all()
-        
+        ).outerjoin(UserProgram, User.id == UserProgram.user_id).group_by(User.id, User.is_active).all()
+
+        concluded_user_ids = {
+            row.user_id for row in db.session.query(UserProgram.user_id)
+            .join(Program, Program.id == UserProgram.program_id)
+            .join(SemesterEnrollment, SemesterEnrollment.user_program_id == UserProgram.id)
+            .filter(
+                Program.duration_semesters.isnot(None),
+                SemesterEnrollment.status == 'completed',
+                SemesterEnrollment.semester_number >= Program.duration_semesters,
+            )
+            .distinct()
+            .all()
+        }
+
         classification = {
             'active': [],
             'graduated': [],
             'inactive': []
         }
-        
-        now = now_local()
-        
-        for user_data in results:
+
+        for user_data in program_counts:
             user_id = user_data.id
-            is_active = user_data.is_active
-            graduation_date = user_data.graduation_date
             program_count = user_data.program_count or 0
-            
-            # Lógica de clasificación
-            if not is_active:
+
+            if not user_data.is_active:
                 classification['inactive'].append(user_id)
-            elif graduation_date and graduation_date <= now:
+            elif user_id in concluded_user_ids:
                 classification['graduated'].append(user_id)
             elif program_count > 0:
                 classification['active'].append(user_id)
             else:
                 classification['inactive'].append(user_id)
-        
+
         return classification
 
     @staticmethod

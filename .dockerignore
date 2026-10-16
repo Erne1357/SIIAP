@@ -1,0 +1,34 @@
+# Build context of docker/Dockerfile (the app image). The image carries code,
+# migrations and static files — never data. Before this file existed, `COPY . .`
+# baked into every image whatever sat in the server checkout: .git, the
+# hand-copied database/ (SQL backups with personal data), stray *.sql / *.dump
+# backups in the project root, and instance/ uploads.
+.git
+.github
+.deploy
+backups
+database
+instance
+venv
+.venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+htmlcov
+.coverage*
+*.sql
+*.dump
+*.bundle
+.env*
+docker/.env*
+.claude
+.impeccable
+docs
+tests
+*.md
+.vscode
+.idea
+node_modules
+test-results
+playwright-report

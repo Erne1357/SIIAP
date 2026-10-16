@@ -4,6 +4,7 @@ from app import db
 from app.models.user_history import UserHistory
 from app.models.user import User
 from app.models.user_program import UserProgram
+from flask import has_request_context
 from flask_login import current_user
 from sqlalchemy import or_
 from typing import Iterable, Optional, Dict, Any, List
@@ -80,8 +81,11 @@ class UserHistoryService:
         if isinstance(details, dict):
             details = json.dumps(details, ensure_ascii=False)
         
-        # Usar current_user si no se especifica admin_id
-        if admin_id is None and current_user.is_authenticated:
+        # Usar current_user si no se especifica admin_id. Outside a request
+        # (Celery, CLI, scripts) current_user resolves to None, so the actor
+        # stays NULL instead of raising AttributeError.
+        if (admin_id is None and has_request_context()
+                and getattr(current_user, 'is_authenticated', False)):
             admin_id = current_user.id
         
         # Crear entrada de historial
@@ -962,6 +966,7 @@ class UserHistoryService:
     CRITICAL_ACTIONS = {
         # Gestión académica crítica
         'control_number_assigned',  # Asignación oficial de matrícula
+        'control_number_assigned_admin',  # Asignación administrativa de matrícula (alta legacy)
         'program_transferred',      # Cambios de programa oficiales
         'program_enrolled',         # Inscripciones iniciales
         
@@ -983,6 +988,7 @@ class UserHistoryService:
     # Acciones de alta importancia (conservar por más tiempo)
     HIGH_IMPORTANCE_ACTIONS = {
         'password_reset',         # Importante para seguridad
+        'password_set_via_token', # Alta de contraseña por enlace (seguridad)
         'basic_info_updated',     # Cambios de datos personales
         'document_uploaded',      # Historial de documentación
         'document_deleted',       # Eliminaciones de documentos
@@ -991,7 +997,8 @@ class UserHistoryService:
         'archive_created',        # Creación de archivos del sistema
         'archive_updated',        # Modificaciones de configuración
         'archive_deleted',        # Eliminaciones de archivos del sistema
-        'template_uploaded'       # Subida de plantillas
+        'template_uploaded',      # Subida de plantillas
+        'data_cleanup',           # Borrado automático de archivos de admisión
     }
     
     # Acciones de importancia media (limpieza normal)
@@ -1008,6 +1015,7 @@ class UserHistoryService:
     ACTIONS = {
         # Acciones originales (USER ACTIONS - se guardan en el historial del usuario)
         'password_changed': 'Contraseña cambiada',
+        'password_set_via_token': 'Contraseña establecida mediante enlace',
         'profile_updated': 'Perfil actualizado',
         'created': 'Usuario creado',
         'profile_completed': 'Perfil completado',
@@ -1033,6 +1041,7 @@ class UserHistoryService:
         'deactivated': 'Desactivó usuario',
         'activated': 'Activó usuario',
         'control_number_assigned': 'Asignó número de control',
+        'control_number_assigned_admin': 'Asignó número de control (alta administrativa)',
         'role_changed': 'Cambió rol de usuario',
         'deleted': 'Eliminó usuario',
         'basic_info_updated': 'Actualizó información de usuario',
@@ -1082,6 +1091,7 @@ class UserHistoryService:
         'purge_run_downloaded':'Descargó respaldo ZIP de purga',
         'purge_run_confirmed': 'Confirmó purga física post-respaldo',
         'purge_run_cancelled': 'Canceló respaldo ZIP de purga',
+        'data_cleanup':        'Eliminó archivos de admisión expirada (limpieza automática)',
 
         # ACCIONES DEL SISTEMA DE PERMISOS GRANULARES (Fase 7-8)
         'social_service_created': 'Creó usuario de servicio social con delegación',
@@ -1096,6 +1106,7 @@ class UserHistoryService:
         # ACEPTACIÓN — documentos individuales (Sprint 1)
         'acceptance_acceptance_letter_uploaded': 'Subió carta de aceptación',
         'acceptance_course_schedule_uploaded':   'Subió tira de materias',
+        'acceptance_acceptance_opinion_uploaded': 'Subió dictamen de aceptación',
 
         # DELIBERACIÓN
         'admission_accepted_conditional': 'Aceptación condicionada (con dictamen)',

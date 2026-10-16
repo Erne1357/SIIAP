@@ -1,0 +1,14 @@
+target-version = "py311"
+line-length = 120
+extend-exclude = ["venv", ".venv", "migrations/versions", "database", "node_modules"]
+
+[lint]
+# Blocking set: syntax errors, invalid format/comparison constructs, undefined names, redefinitions.
+# F401 (unused imports, ~170 findings) is intentionally NOT selected yet: cleanup candidate.
+select = ["E9", "F63", "F7", "F82", "F811"]
+
+[lint.per-file-ignores]
+# Pytest fixtures imported then used as arguments look like redefinitions.
+"tests/integration/*.py" = ["F811"]
+# Existing redefinition, tracked as a cleanup candidate.
+"app/models/event.py" = ["F811"]

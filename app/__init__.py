@@ -15,6 +15,20 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 
 
+def _socketio_allowed_origins(app):
+    """
+    Origins allowed to open the Socket.IO connection.
+
+    The session cookie authenticates the socket, so '*' let any website open
+    a live connection as the visitor (SameSite=Lax only stops it for some
+    browsers). Production accepts its own public origin only.
+    """
+    if app.config.get('FLASK_ENV') != 'production':
+        return '*'
+    base = (app.config.get('APP_BASE_URL') or '').rstrip('/')
+    return [base] if base else '*'
+
+
 def create_app(test_config=None):
     app = Flask(__name__, template_folder='templates', static_folder='static')
     # Aceptar rutas con o sin trailing slash sin emitir 308 redirect.
@@ -31,6 +45,17 @@ def create_app(test_config=None):
     if app.config.get('FLASK_ENV') == 'production':
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
+    # Every DateTime column is `timestamp without time zone` and the app writes
+    # aware local datetimes (now_local()). PostgreSQL converts those using the
+    # SESSION time zone, so a server left on UTC stores every timestamp 6-7 h
+    # off and a just-expired token stays valid. Production only worked because
+    # its cluster was initialised with TZ=America/Ciudad_Juarez; pin it here.
+    if str(app.config.get('SQLALCHEMY_DATABASE_URI', '')).startswith('postgres'):
+        from app.utils.datetime_utils import LOCAL_TZ
+        engine_options = app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {})
+        connect_args = engine_options.setdefault('connect_args', {})
+        connect_args.setdefault('options', f'-c timezone={LOCAL_TZ.key}')
+
     db.init_app(app)
 
     # Blueprints
@@ -46,19 +71,21 @@ def create_app(test_config=None):
     # Socket.IO
     # Intentar usar Redis como message broker (requerido con múltiples workers).
     # Si Redis no está disponible, usamos message_queue=None (solo funciona con workers=1).
+    # Under TESTING the queue is forced off below anyway, so the ping is skipped:
+    # with the default host `redis` unresolvable it cost a DNS timeout per app.
     _redis_url = app.config.get('REDIS_URL', 'redis://redis:6379/0')
-    try:
-        import redis as _redis_lib
-        _r = _redis_lib.from_url(_redis_url, socket_connect_timeout=2, socket_timeout=2)
-        _r.ping()
-        _mq = _redis_url
-    except Exception:
-        app.logger.warning('[SocketIO] Redis no disponible — message_queue=None (single-worker mode)')
-        _mq = None
+    _mq = None
+    if not app.config.get('TESTING'):
+        try:
+            import redis as _redis_lib
+            _r = _redis_lib.from_url(_redis_url, socket_connect_timeout=2, socket_timeout=2)
+            _r.ping()
+            _mq = _redis_url
+        except Exception:
+            app.logger.warning('[SocketIO] Redis no disponible — message_queue=None (single-worker mode)')
 
     if app.config.get('TESTING'):
         _async_mode = 'threading'
-        _mq = None
     else:
         try:
             import eventlet  # noqa: F401
@@ -69,7 +96,7 @@ def create_app(test_config=None):
         app,
         async_mode=_async_mode,
         message_queue=_mq,
-        cors_allowed_origins='*',
+        cors_allowed_origins=_socketio_allowed_origins(app),
         logger=False,
         engineio_logger=False,
     )
@@ -157,9 +184,60 @@ def create_app(test_config=None):
             }), 404
         return render_template('404.html', error=e), 404
 
+    def _wants_json():
+        return request.path.startswith('/api/') or request.is_json or \
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    def _error_envelope(status, code, message, level="danger"):
+        return jsonify({
+            "data": None,
+            "flash": [{"level": level, "message": message}],
+            "error": {"code": code, "message": message},
+            "meta": {}
+        }), status
+
+    def _back_or_index():
+        """Referrer to return to, never None and never the failing URL itself."""
+        back = request.referrer
+        if not back or back == request.url:
+            back = url_for('index')
+        return back
+
     @app.errorhandler(500)
     def internal_server_error(e):
+        # API callers parse JSON; an HTML 500 page made `response.json()` throw
+        # in the frontend and hid the failure behind a parse error.
+        if _wants_json():
+            return _error_envelope(500, "SERVER_ERROR", "Ocurrió un error interno. Intenta de nuevo más tarde.")
         return render_template('500.html', error=e), 500
+
+    @app.errorhandler(401)
+    def unauthorized_error(e):
+        # abort(401) from permission_required/any_permission_required had no
+        # handler: API callers received Werkzeug's English HTML page.
+        if _wants_json():
+            return _error_envelope(401, "UNAUTHORIZED", "No autenticado")
+        flash(login_manager.login_message, login_manager.login_message_category)
+        return redirect(url_for(login_manager.login_view))
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        # RFC 9110: a 405 MUST list the allowed methods; Werkzeug's default
+        # response did, so the custom one has to carry it over.
+        allow = {'Allow': ', '.join(sorted(e.valid_methods or []))}
+        if _wants_json():
+            body, status = _error_envelope(405, "METHOD_NOT_ALLOWED", "Método no permitido para este recurso.")
+            return body, status, allow
+        return render_template('404.html', error=e), 405, allow
+
+    @app.errorhandler(413)
+    def payload_too_large(e):
+        limit_mb = (app.config.get('MAX_CONTENT_LENGTH') or 0) // (1024 * 1024)
+        message = f"El archivo excede el tamaño máximo permitido ({limit_mb} MB)."
+        if _wants_json():
+            return _error_envelope(413, "PAYLOAD_TOO_LARGE", message)
+        flash(message, "danger")
+        return redirect(_back_or_index(), code=303)
 
     @app.errorhandler(403)
     def forbidden(e):
@@ -172,26 +250,23 @@ def create_app(test_config=None):
                 "meta": {}
             }), 403
         flash("No tienes permiso para acceder a esta página.", "danger")
-        back = request.referrer
-        if not back or back == request.url:
-            back = url_for('index')
         code = 303 if request.method == 'POST' else 302
-        return redirect(back, code=code)
+        return redirect(_back_or_index(), code=code)
 
     @app.errorhandler(400)
     def bad_request(e):
-        if request.path.startswith('/api/') or request.is_json or \
-                request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                "data": None,
-                "flash": [{"level": "danger", "message": e.description}],
-                "error": {"code": "BAD_REQUEST", "message": e.description},
-                "meta": {}
-            }), 400
-        flash(e.description, "danger")
-        back = request.referrer
+        # Our own abort(400, description=...) calls are Spanish; Werkzeug's
+        # stock description is English and must never reach the UI.
+        from werkzeug.exceptions import BadRequest
+        message = e.description
+        if not message or message == BadRequest.description:
+            message = "La solicitud no es válida."
+        if _wants_json():
+            return _error_envelope(400, "BAD_REQUEST", message)
+        flash(message, "danger")
         code = 303 if request.method == 'POST' else 302
-        return redirect(back, code=code)
+        # Without a Referer this used to send `Location: None`.
+        return redirect(_back_or_index(), code=code)
 
     # ─── Middleware / before_request ─────────────────────────────────────────
 
@@ -207,6 +282,7 @@ def create_app(test_config=None):
             'api_auth.api_logout',
             'api_auth.api_keepalive',
             'api_health.health_check',
+            'api_health.readiness_check',
             'static',
         }
 
@@ -271,7 +347,8 @@ def create_app(test_config=None):
                 }), 400
 
         # Query string values
-        for key, value in request.args.items():
+        # multi=True: `?id=1&id=undefined` must not slip through on the first value.
+        for key, value in request.args.items(multi=True):
             if value in BAD_TOKENS:
                 return jsonify({
                     "data": None,
@@ -337,9 +414,13 @@ def create_app(test_config=None):
             '/api/v1/auth/reset-password/',
             '/static/',
             '/health',                        # docker health check
+            '/ready',                         # blue-green readiness probe
         )
+        # Segment-aware match: a bare startswith() admitted `/api/v1/auth/menu`
+        # through `/api/v1/auth/me` and `/healthz` through `/health`.
+        path = request.path
         for allowed in allowed_paths:
-            if request.path.startswith(allowed):
+            if path == allowed.rstrip('/') or path.startswith(allowed.rstrip('/') + '/'):
                 return None
 
         if request.path.startswith('/api/') or request.is_json or \

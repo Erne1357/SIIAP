@@ -48,5 +48,7 @@ def validate_csrf_for_api():
             if not sent:
                 abort(400, description="Token CSRF no enviado en la petición")
             
-            if not hmac.compare_digest(sent, saved):
+            # Compare bytes: compare_digest() raises TypeError on a str with
+            # non-ASCII characters, which turned a forged header into a 500.
+            if not hmac.compare_digest(sent.encode('utf-8'), saved.encode('utf-8')):
                 abort(400, description="Token CSRF inválido. Por favor, recarga la página.")

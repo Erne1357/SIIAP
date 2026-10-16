@@ -1,5 +1,5 @@
 from app import db
-from app.utils.datetime_utils import now_local
+from app.utils.datetime_utils import now_local, to_local_timezone
 
 
 class UserPermission(db.Model):
@@ -54,7 +54,9 @@ class UserPermission(db.Model):
     def is_expired(self):
         if self.expires_at is None:
             return False
-        return now_local() > self.expires_at
+        # expires_at is a naive DATETIME column written in local time, while
+        # now_local() is aware: re-attach the local zone before comparing.
+        return now_local() > to_local_timezone(self.expires_at)
 
     @property
     def is_valid(self):

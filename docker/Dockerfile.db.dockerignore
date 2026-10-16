@@ -1,0 +1,6 @@
+# Build context of docker/Dockerfile.db: only the numbered init scripts.
+# (BuildKit reads <Dockerfile>.dockerignore instead of the root .dockerignore,
+# which excludes database/ entirely for the app image.)
+*
+!database/DDL/0*.sql
+!database/DML/0*.sql

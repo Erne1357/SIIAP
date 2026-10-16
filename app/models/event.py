@@ -135,7 +135,7 @@ class EventAttendance(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='registered')  # registered|attended|no_show
-    registered_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now())
+    registered_at = db.Column(db.DateTime, nullable=False, default=now_local)
     attended_at = db.Column(db.DateTime, nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
@@ -169,7 +169,7 @@ class EventInvitation(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     invited_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending|accepted|rejected
-    invited_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now())
+    invited_at = db.Column(db.DateTime, nullable=False, default=now_local)
     responded_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
     

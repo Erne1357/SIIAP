@@ -28,10 +28,14 @@
       <button class="nav-link active" id="tab-archives" data-bs-toggle="tab" data-bs-target="#pane-archives"
         type="button" role="tab" aria-controls="pane-archives" aria-selected="true">Archivos</button>
     </li>
+    {# Retention policies are a postgraduate-admin capability; coordinators
+       reach this page through archives.api.list and used to get a 403 alert. #}
+    {% if current_user.has_permission('admin_retention.api.manage') %}
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="tab-retention" data-bs-toggle="tab" data-bs-target="#pane-retention" type="button"
         role="tab" aria-controls="pane-retention" aria-selected="false">Retención de archivos</button>
     </li>
+    {% endif %}
   </ul>
 
   <div class="tab-content" id="settingsTabsContent">
@@ -73,9 +77,11 @@
     </div>
 
     <!-- ========== RETENCIÓN ========== -->
+    {% if current_user.has_permission('admin_retention.api.manage') %}
     <div class="tab-pane fade" id="pane-retention" role="tabpanel" aria-labelledby="tab-retention">
       {% include 'admin/settings/_retention_panel.html' %}
     </div>
+    {% endif %}
 
   </div>
 </div>
@@ -183,5 +189,7 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/admin/settings/archives.js') }}?v={{ static_version }}"></script>
+{% if current_user.has_permission('admin_retention.api.manage') %}
 <script src="{{ url_for('static', filename='js/admin/settings/retention.js') }}?v={{ static_version }}"></script>
+{% endif %}
 {% endblock %}

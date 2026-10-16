@@ -27,7 +27,7 @@ class EmailQueue(db.Model):
     subject = db.Column(db.String(500), nullable=False)
     html_content = db.Column(db.Text, nullable=False)
     
-    status = db.Column(db.String(20), nullable=False, default='pending')  # pending|sent|failed
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending|sending|sent|failed ('sending' = claimed by a worker, see EmailService._claim)
     attempts = db.Column(db.Integer, nullable=False, default=0)
     max_attempts = db.Column(db.Integer, nullable=False, default=3)
     

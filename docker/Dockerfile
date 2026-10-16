@@ -17,8 +17,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
-# instala gunicorn
-RUN pip install gunicorn
+# .dockerignore keeps data, VCS and test files out of the image.
 COPY . .
 
 # Copia y da permisos de ejecución al script de entrada
