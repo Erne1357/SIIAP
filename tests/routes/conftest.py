@@ -11,14 +11,14 @@ from app import create_app, db
 from tests.support.factories import (
     ROLE_NAMES, enroll, get_or_create_role, make_academic_period, make_program, make_user,
 )
-from tests.support.fixtures import login_as, make_test_config
+from tests.support.fixtures import login_as, make_test_config, prepare_database, release_database
 
 
 @pytest.fixture(scope='module')
 def routes_app(tmp_path_factory):
     app = create_app(make_test_config(tmp_path_factory.mktemp('routes')))
     with app.app_context():
-        db.create_all()
+        prepare_database()
         for name in ROLE_NAMES:
             get_or_create_role(name)
         db.session.commit()
@@ -27,8 +27,7 @@ def routes_app(tmp_path_factory):
     # across requests (a logout would then log out every later request).
     yield app
     with app.app_context():
-        db.session.remove()
-        db.drop_all()
+        release_database()
 
 
 @pytest.fixture(scope='module')

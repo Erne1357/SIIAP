@@ -45,14 +45,52 @@ def make_test_config(tmp_path, **overrides) -> dict:
     return cfg
 
 
+_PG_SCHEMA_BUILT = False
+
+
+def prepare_database() -> None:
+    """
+    Empty database with the full schema, ready for one test (or one module).
+
+    SQLite :memory: is fresh per app, so create_all() is all it needs. On the
+    CI PostgreSQL rebuilding 43 tables per test cost ~1.5 s each, so the schema
+    is built once per process and later tests only TRUNCATE. Tables outside
+    the models (a test creates alembic_version by hand) are dropped.
+    """
+    global _PG_SCHEMA_BUILT
+    if db.engine.dialect.name == 'sqlite':
+        db.create_all()
+        return
+    with db.engine.begin() as conn:
+        if not _PG_SCHEMA_BUILT:
+            conn.exec_driver_sql('DROP SCHEMA public CASCADE')
+            conn.exec_driver_sql('CREATE SCHEMA public')
+        else:
+            conn.exec_driver_sql('DROP TABLE IF EXISTS alembic_version')
+            names = ', '.join(f'"{t.name}"' for t in db.metadata.sorted_tables)
+            conn.exec_driver_sql(f'TRUNCATE {names} RESTART IDENTITY CASCADE')
+    if not _PG_SCHEMA_BUILT:
+        db.create_all()
+        _PG_SCHEMA_BUILT = True
+
+
+def release_database() -> None:
+    db.session.remove()
+    if db.engine.dialect.name == 'sqlite':
+        db.drop_all()
+    else:
+        # One engine per test app: without this each test leaves its pool open
+        # and PostgreSQL runs out of connections a hundred tests in.
+        db.engine.dispose()
+
+
 @pytest.fixture
 def app(tmp_path):
     application = create_app(make_test_config(tmp_path))
     with application.app_context():
-        db.create_all()
+        prepare_database()
         yield application
-        db.session.remove()
-        db.drop_all()
+        release_database()
 
 
 @pytest.fixture
