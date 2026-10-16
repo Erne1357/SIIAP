@@ -19,6 +19,10 @@ from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
 from sqlalchemy import and_
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # string annotations only; imported lazily at runtime
+    from app.models.document_deadline import DocumentDeadline
 
 
 class PermanenceError(Exception):

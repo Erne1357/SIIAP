@@ -15,6 +15,7 @@ from app.models.role_permission_audit import RolePermissionAudit
 from app.models.user_permission import UserPermission
 from app.models.user import User, GLOBAL_SCOPE_PERMISSION, SELF_SERVICE_PERMISSIONS
 from app.models.role import Role
+from app.utils.datetime_utils import now_local
 from app.utils.validators import (
     EMAIL_MAX_LENGTH,
     validate_person_name,
@@ -250,17 +251,28 @@ def delegate_permission(granter_id, grantee_id, codename, program_id=None, note=
     program_id = _normalize_program_id(program_id)
     _require_delegation_scope(granter, program_id)
 
-    # Check duplicado activo (usando la constraint uq_user_permission_active)
+    # uq_user_permission_active covers (user, permission, program) regardless
+    # of is_active/expires_at, so at most one row exists per triple. A live
+    # one is a duplicate; an expired or revoked one is re-issued in place,
+    # because inserting a second row would violate the constraint.
     existing = UserPermission.query.filter_by(
         user_id=grantee.id,
         permission_id=perm.id,
         program_id=program_id,
-        is_active=True
     ).first()
-    if existing and not existing.is_expired:
+    if existing and existing.is_active and not existing.is_expired:
         raise PermissionError(
             f"El usuario ya tiene el permiso '{codename}' delegado (activo)."
         )
+
+    if existing:
+        existing.granted_by = granter.id
+        existing.granted_at = now_local()
+        existing.expires_at = expires_at
+        existing.note = note
+        existing.is_active = True
+        db.session.commit()
+        return existing
 
     up = UserPermission(
         user_id=grantee.id,

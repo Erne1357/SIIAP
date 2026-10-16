@@ -11,6 +11,7 @@ from app.services.public_id_service import uuid_for
 from app.services.retention_service import RetentionService
 from app.services.user_history_service import UserHistoryService
 from datetime import datetime, timezone
+from app.utils.datetime_utils import now_local
 
 api_retention = Blueprint('api_retention', __name__, url_prefix='/api/v1/retention')
 
@@ -18,7 +19,7 @@ api_retention = Blueprint('api_retention', __name__, url_prefix='/api/v1/retenti
 @login_required
 @permission_required('admin_retention.api.manage')
 def candidates():
-    now = datetime.now()
+    now = now_local()
     items = RetentionService.compute_candidates(now)
     # Identificadores públicos: la consola devuelve estos mismos valores en
     # `submission_ids` al purgar.

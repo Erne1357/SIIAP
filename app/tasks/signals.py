@@ -7,6 +7,7 @@ Se conectan al final de make_celery() en app/celery_app.py.
 
 import logging
 from datetime import datetime
+from app.utils.datetime_utils import now_local
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +41,13 @@ def register_task_signals(app, socketio_instance):
                 existing = TaskLog.query.filter_by(task_id=task_id).first()
                 if existing:
                     existing.status     = 'started'
-                    existing.started_at = datetime.utcnow()
+                    existing.started_at = now_local()
                 else:
                     log = TaskLog(
                         task_id      = task_id,
                         task_name    = task.name,
                         status       = 'started',
-                        started_at   = datetime.utcnow(),
+                        started_at   = now_local(),
                         kwargs       = kwargs or {},
                         triggered_by = getattr(task.request, '_triggered_by', 'scheduled'),
                         triggered_by_user_id = getattr(task.request, '_triggered_by_user_id', None),
@@ -59,7 +60,7 @@ def register_task_signals(app, socketio_instance):
                     'task_id':   task_id,
                     'task_name': task.name,
                     'status':    'started',
-                    'started_at': datetime.utcnow().isoformat(),
+                    'started_at': now_local().isoformat(),
                 })
             except Exception as exc:
                 logger.error(f"[signals] on_task_prerun error: {exc}", exc_info=True)
@@ -77,7 +78,7 @@ def register_task_signals(app, socketio_instance):
                 log = TaskLog.query.filter_by(task_id=task_id).first()
                 if log:
                     log.status      = 'success'
-                    log.finished_at = datetime.utcnow()
+                    log.finished_at = now_local()
                     log.result      = result if isinstance(result, dict) else {'value': str(result)}
                     db.session.commit()
 
@@ -85,7 +86,7 @@ def register_task_signals(app, socketio_instance):
                     'task_id':     task_id,
                     'task_name':   sender.name,
                     'status':      'success',
-                    'finished_at': datetime.utcnow().isoformat(),
+                    'finished_at': now_local().isoformat(),
                     'result':      result,
                 })
             except Exception as exc:
@@ -103,7 +104,7 @@ def register_task_signals(app, socketio_instance):
                 log = TaskLog.query.filter_by(task_id=task_id).first()
                 if log:
                     log.status        = 'failure'
-                    log.finished_at   = datetime.utcnow()
+                    log.finished_at   = now_local()
                     log.error_message = f"{type(exception).__name__}: {exception}"
                     db.session.commit()
 
@@ -111,7 +112,7 @@ def register_task_signals(app, socketio_instance):
                     'task_id':       task_id,
                     'task_name':     sender.name,
                     'status':        'failure',
-                    'finished_at':   datetime.utcnow().isoformat(),
+                    'finished_at':   now_local().isoformat(),
                     'error_message': f"{type(exception).__name__}: {exception}",
                 })
             except Exception as exc:

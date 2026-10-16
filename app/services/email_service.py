@@ -3,6 +3,7 @@ from app.models.email_queue import EmailQueue
 from app.models.user import User
 from app.utils.ms_graph import graph_send_mail, acquire_token_silent, is_connected
 from app.utils.datetime_utils import now_local
+from sqlalchemy import and_, or_, update
 from sqlalchemy.orm import defer
 from datetime import timedelta
 from typing import Optional
@@ -17,6 +18,15 @@ PURGED_BODY = ''
 # How long a rendered body survives after the mail stopped being sendable.
 # See EmailService.purge_delivered_bodies for the reasoning behind 24 h.
 BODY_RETENTION_HOURS = 24
+
+# A worker claims a row by moving it to 'sending' and stamping
+# `next_retry_at` with the end of its lease. If the worker dies mid-send the
+# row would stay 'sending' forever, so once the lease is over any worker may
+# claim it again. Graph answers in seconds; 15 minutes is far beyond a send.
+SENDING_LEASE = timedelta(minutes=15)
+
+# Rows not yet delivered: queued, or currently held by a worker.
+UNDELIVERED_STATUSES = ('pending', 'sending')
 
 
 class EmailService:
@@ -64,7 +74,9 @@ class EmailService:
         """Emite el estado actual de la cola al panel de admin vía WebSocket."""
         try:
             from app.extensions import socketio
-            pending = EmailQueue.query.filter_by(status='pending').count()
+            pending = EmailQueue.query.filter(
+                EmailQueue.status.in_(UNDELIVERED_STATUSES)
+            ).count()
             failed = EmailQueue.query.filter_by(status='failed').count()
             socketio.emit(
                 'email:queue_update',
@@ -75,10 +87,63 @@ class EmailService:
             pass
     
     @staticmethod
+    def _claimable(now):
+        """
+        SQL condition for a row a worker may take: 'pending', or 'sending'
+        whose lease (`next_retry_at`) is over because its worker died.
+        """
+        return or_(
+            EmailQueue.status == 'pending',
+            and_(
+                EmailQueue.status == 'sending',
+                or_(EmailQueue.next_retry_at.is_(None), EmailQueue.next_retry_at < now),
+            ),
+        )
+
+    @staticmethod
+    def _claim(email_item: EmailQueue) -> bool:
+        """
+        Atomically takes ownership of a row before sending it.
+
+        A single conditional UPDATE is atomic on both SQLite and PostgreSQL:
+        when two workers race for the same row only one sees rowcount == 1,
+        the other gets 0 and must not send. The claim is committed right away
+        so it is visible to every other worker for the whole send (and no row
+        lock is held across the network call).
+        """
+        now = now_local()
+        result = db.session.execute(
+            update(EmailQueue)
+            .where(EmailQueue.id == email_item.id, EmailService._claimable(now))
+            .values(status='sending', next_retry_at=now + SENDING_LEASE)
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount != 1:
+            return False
+        db.session.commit()
+        # Re-read the row: the claim must still be ours before mailing anyone.
+        db.session.refresh(email_item)
+        return email_item.status == 'sending'
+
+    @staticmethod
     def _try_send_email(email_item: EmailQueue) -> bool:
         """
         Intenta enviar un email de la cola.
         Retorna True si se envió exitosamente.
+
+        Returns False without touching the row when another worker already
+        holds it (see _claim).
+        """
+        if not EmailService._claim(email_item):
+            logger.info(f"Email {email_item.id} ya está siendo enviado por otro proceso; se omite")
+            return False
+        return EmailService._deliver_claimed(email_item)
+
+    @staticmethod
+    def _deliver_claimed(email_item: EmailQueue) -> bool:
+        """
+        Sends a row this worker has already claimed. Every path leaves the row
+        out of 'sending': 'sent', back to 'pending' for a retry, or 'failed'.
         """
         # A blanked body means the retention purge already reclaimed this row,
         # which only happens once the mail is no longer sendable ('sent', or
@@ -100,6 +165,10 @@ class EmailService:
             token = acquire_token_silent()
             if not token:
                 logger.warning(f"No hay token para enviar email {email_item.id}")
+                # Not an attempt: release the claim so the next sweep takes it.
+                email_item.status = 'pending'
+                email_item.next_retry_at = None
+                db.session.flush()
                 return False
 
             response = graph_send_mail(
@@ -113,6 +182,7 @@ class EmailService:
             if response.status_code in (200, 202):
                 email_item.status = 'sent'
                 email_item.sent_at = now_local()
+                email_item.next_retry_at = None
                 email_item.error_message = None
                 db.session.flush()
                 logger.info(f"Email {email_item.id} enviado exitosamente")
@@ -129,6 +199,7 @@ class EmailService:
                 email_item.status = 'failed'
             else:
                 # Reintentar en 5 minutos
+                email_item.status = 'pending'
                 email_item.next_retry_at = now_local() + timedelta(minutes=5)
             
             db.session.flush()
@@ -148,28 +219,36 @@ class EmailService:
                 'error': 'No hay sesión activa de Microsoft'
             }
         
-        # Obtener correos pendientes
-        pending = EmailQueue.query.filter_by(status='pending').order_by(
+        # Obtener correos pendientes (y los 'sending' cuyo worker murió)
+        pending = EmailQueue.query.filter(
+            EmailService._claimable(now_local())
+        ).order_by(
             EmailQueue.created_at.asc()
         ).limit(limit).all()
-        
+
+        processed = 0
         sent_count = 0
         failed_count = 0
-        
+
         for email_item in pending:
-            if EmailService._try_send_email(email_item):
+            # Another worker may have claimed it since the SELECT: skip it,
+            # it is neither processed nor failed here.
+            if not EmailService._claim(email_item):
+                continue
+            processed += 1
+            if EmailService._deliver_claimed(email_item):
                 sent_count += 1
             else:
                 failed_count += 1
-        
+
         db.session.commit()
-        
+
         return {
-            'processed': len(pending),
+            'processed': processed,
             'sent': sent_count,
             'failed': failed_count
         }
-    
+
     @staticmethod
     def retry_failed(limit: int = 20) -> dict:
         """Reintenta enviar correos fallidos que no han superado max_attempts"""
@@ -181,27 +260,32 @@ class EmailService:
             }
         
         failed = EmailQueue.query.filter(
-            EmailQueue.status == 'pending',
+            EmailService._claimable(now_local()),
             EmailQueue.attempts > 0,
             EmailQueue.attempts < EmailQueue.max_attempts
         ).limit(limit).all()
-        
+
+        processed = 0
         sent_count = 0
         for email_item in failed:
-            if EmailService._try_send_email(email_item):
+            if not EmailService._claim(email_item):
+                continue
+            processed += 1
+            if EmailService._deliver_claimed(email_item):
                 sent_count += 1
-        
+
         db.session.commit()
-        
+
         return {
-            'processed': len(failed),
+            'processed': processed,
             'sent': sent_count
         }
-    
+
     @staticmethod
     def get_queue_stats() -> dict:
         """Obtiene estadísticas de la cola"""
-        pending = EmailQueue.query.filter_by(status='pending').count()
+        # 'sending' rows are still undelivered: they count as pending.
+        pending = EmailQueue.query.filter(EmailQueue.status.in_(UNDELIVERED_STATUSES)).count()
         sent = EmailQueue.query.filter_by(status='sent').count()
         failed = EmailQueue.query.filter_by(status='failed').count()
         
@@ -221,7 +305,9 @@ class EmailService:
         for password-reset and activation mail is a live one-time token link —
         never reaches the application layer on a listing, let alone the client.
         """
-        query = EmailQueue.query.filter_by(status='pending').order_by(
+        query = EmailQueue.query.filter(
+            EmailQueue.status.in_(UNDELIVERED_STATUSES)
+        ).order_by(
             EmailQueue.created_at.desc()
         )
         total = query.count()
@@ -244,7 +330,7 @@ class EmailService:
 
         Rationale for the window (24 h by default): once a mail is 'sent' the
         rendered body has no operational use — the sender already consumed it
-        and no code path re-reads it (`retry_failed` only picks 'pending' rows).
+        and no code path re-reads it (senders only claim 'pending'/'sending' rows).
         What it does keep is a copy of whatever the template rendered, including
         password-reset and staff-activation token links, which stay valid for up
         to 7 days (`generate_token` default `ttl_days=7`). Keeping the body for

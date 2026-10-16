@@ -178,9 +178,10 @@ def send_bulk_notification_by_filter(
         if filter_type == 'role':
             role = Role.query.filter_by(name=filter_value).first()
             if role:
+                # User carries a single role (role_id), not a roles collection.
                 users = User.query.filter(
-                    User.roles.any(id=role.id),
-                    User.is_active == True,
+                    User.role_id == role.id,
+                    User.is_active.is_(True),
                 ).all()
                 user_ids = [u.id for u in users]
 
@@ -189,7 +190,7 @@ def send_bulk_notification_by_filter(
             user_ids = list({up.user_id for up in ups})
 
         elif filter_type == 'process':
-            ups = UserProgram.query.filter_by(status=filter_value).all()
+            ups = UserProgram.query.filter_by(admission_status=filter_value).all()
             user_ids = list({up.user_id for up in ups})
 
         elif filter_type == 'all':
@@ -254,7 +255,8 @@ def send_email_async(self, email_queue_id: int):
             logger.warning(f"[send_email_async] EmailQueue {email_queue_id} no encontrado")
             return
 
-        # Si ya se envió o falló definitivamente, no reintentar
+        # Si ya se envió o falló definitivamente, no reintentar. A 'sending'
+        # row belongs to another worker; _try_send_email re-checks its lease.
         if email_item.status in ('sent', 'failed'):
             return
 
@@ -285,8 +287,14 @@ def send_email_async(self, email_queue_id: int):
             raise
 
         if not sent:
-            # _try_send_email ya incrementó attempts y, si llegó al tope,
-            # marcó 'failed'. Forzamos el reintento de Celery con backoff.
+            # Only a row still 'pending' deserves a Celery retry. 'sending'
+            # means another worker claimed it (and will finish it); 'failed'
+            # means attempts are exhausted. The commit above expired the
+            # instance, so this reads the current status from the DB.
+            if email_item.status != 'pending':
+                return {'skipped': True, 'reason': email_item.status}
+            # _try_send_email ya incrementó attempts (o no había token).
+            # Forzamos el reintento de Celery con backoff.
             raise Exception(f"Fallo al enviar email {email_queue_id}")
 
     except Exception as exc:
@@ -316,11 +324,13 @@ def process_email_queue(self, limit: int = 100):
     """
     from app.models.email_queue import EmailQueue
     from app.services.email_service import EmailService
+    from app.utils.datetime_utils import now_local
     from app.utils.ms_graph import is_connected
 
     # Salida barata en vacío: 1 COUNT indexado, sin tocar MSAL ni red.
-    # Es el caso normal la mayoría de las corridas /10min.
-    pending = EmailQueue.query.filter_by(status='pending').count()
+    # Es el caso normal la mayoría de las corridas /10min. Counts 'pending'
+    # plus 'sending' rows whose worker died (expired claim lease).
+    pending = EmailQueue.query.filter(EmailService._claimable(now_local())).count()
     if pending == 0:
         return {'processed': 0, 'sent': 0, 'failed': 0, 'idle': True}
 

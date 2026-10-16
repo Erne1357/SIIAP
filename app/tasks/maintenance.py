@@ -16,6 +16,7 @@ Tasks DEPRECATED (no corren en cron desde 2026-04-30, flujo manual con ZIP):
 import logging
 import os
 from datetime import datetime, timedelta
+from app.utils.datetime_utils import now_local
 
 from app.celery_app import celery
 
@@ -37,7 +38,7 @@ def _periods_elapsed_since(enrollment_period_code: str) -> int:
         AcademicPeriod.query
         .filter(
             AcademicPeriod.code > enrollment_period_code,
-            AcademicPeriod.admission_end_date < datetime.utcnow(),
+            AcademicPeriod.admission_end_date < now_local().date(),
         )
         .count()
     )
@@ -192,7 +193,7 @@ def apply_retention_policies(self):
             if not policy.keep_years:
                 continue
 
-            cutoff_date = datetime.utcnow() - timedelta(days=policy.keep_years * 365)
+            cutoff_date = now_local() - timedelta(days=policy.keep_years * 365)
 
             # Encuentra UserPrograms con admission_status igual a apply_after
             # (ej: 'rejected', 'enrolled') cuyo updated_at sea anterior al cutoff.

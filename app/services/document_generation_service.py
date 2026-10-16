@@ -17,6 +17,7 @@ Variables disponibles:
 """
 import locale
 import os
+import re
 from typing import Optional
 
 from app.utils.datetime_utils import now_local
@@ -185,32 +186,78 @@ class DocumentGenerationService:
 
         doc = Document(template_abs)
 
-        def replace_in_text(text):
-            for var_name, var_value in variables.items():
-                text = text.replace(f'{{{{{var_name}}}}}', str(var_value))
-            return text
+        # One regex over the known placeholders, applied in a single pass, so a
+        # value that itself looks like '{{x}}' is inserted literally and an
+        # unknown '{{x}}' is left untouched.
+        pattern = re.compile(
+            r'\{\{(' + '|'.join(re.escape(name) for name in variables) + r')\}\}'
+        ) if variables else None
 
-        # Párrafos del documento principal
-        for para in doc.paragraphs:
-            for run in para.runs:
-                run.text = replace_in_text(run.text)
+        def substitute(text):
+            return pattern.sub(lambda m: str(variables[m.group(1)]), text)
 
-        # Celdas de tablas
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for para in cell.paragraphs:
-                        for run in para.runs:
-                            run.text = replace_in_text(run.text)
+        def replace_in_paragraph(para):
+            """
+            Word often splits '{{student_name}}' across several runs (spell
+            check, partial formatting, editing history). When every placeholder
+            sits inside one run, runs are replaced in place and keep their own
+            formatting. Otherwise the paragraph text is merged into its first
+            run (whose formatting the whole paragraph then takes) and the
+            remaining runs are emptied, so no placeholder survives the split.
+            """
+            runs = para.runs
+            texts = [run.text for run in runs]
+            full = ''.join(texts)
+            matches = list(pattern.finditer(full))
+            if not matches:
+                return
 
-        # Encabezados y pies de página
-        for section in doc.sections:
-            for header_para in section.header.paragraphs:
-                for run in header_para.runs:
-                    run.text = replace_in_text(run.text)
-            for footer_para in section.footer.paragraphs:
-                for run in footer_para.runs:
-                    run.text = replace_in_text(run.text)
+            bounds, offset = [], 0
+            for text in texts:
+                bounds.append((offset, offset + len(text)))
+                offset += len(text)
+
+            def inside_one_run(m):
+                return any(lo <= m.start() and m.end() <= hi for lo, hi in bounds)
+
+            if all(inside_one_run(m) for m in matches):
+                for run in runs:
+                    run.text = substitute(run.text)
+                return
+
+            runs[0].text = substitute(full)
+            for run in runs[1:]:
+                run.text = ''
+
+        seen = set()
+
+        def replace_in_container(container):
+            # Process each paragraph once only (merged table cells repeat).
+            for para in container.paragraphs:
+                if para._p in seen:
+                    continue
+                seen.add(para._p)
+                replace_in_paragraph(para)
+            for table in container.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        # Merged cells repeat the same cell; `seen` dedupes them.
+                        replace_in_container(cell)
+
+        if pattern is not None:
+            # Documento principal (párrafos y tablas, incluidas las anidadas)
+            replace_in_container(doc)
+
+            # Encabezados y pies de página (todas sus variantes)
+            for section in doc.sections:
+                for part in (section.header, section.footer,
+                             section.first_page_header, section.first_page_footer,
+                             section.even_page_header, section.even_page_footer):
+                    # A linked part has no definition of its own (it reuses an
+                    # earlier section's, already processed); touching it would
+                    # make python-docx add an empty one to the document.
+                    if not part.is_linked_to_previous:
+                        replace_in_container(part)
 
         filename = f"{doc_type}_{timestamp}.docx"
         output_path = os.path.join(output_dir, filename)

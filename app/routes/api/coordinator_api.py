@@ -29,6 +29,7 @@ from app.models.appointment import Appointment
 from app.models.semester_enrollment import SemesterEnrollment
 from app.models.academic_period import AcademicPeriod
 from app.services.admission_service import get_admission_state
+from app.utils.datetime_utils import now_local
 
 api_coordinator = Blueprint('api_coordinator', __name__, url_prefix='/api/v1/coordinator')
 
@@ -563,7 +564,7 @@ def upload_for_student():
         submission = Submission(
             file_path=file_relative_path,
             status=new_status,
-            review_date=datetime.now(),
+            review_date=now_local(),
             reviewer_comment=f"{prefix} {comment_body}",
             user_id=student_id,
             archive_id=archive_id,

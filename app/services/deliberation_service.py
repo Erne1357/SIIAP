@@ -178,6 +178,18 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
         ),
     )
 
+    # 'medium' is this codebase's normal priority (low/medium/high/critical),
+    # the same one start_deliberation uses for the next transition.
+    NotificationService.create_notification(
+        user_id=user_id,
+        notification_type='interview_completed',
+        title='Tu entrevista fue registrada',
+        message=f'Tu entrevista para {program_name} quedó registrada como completada. '
+                f'El siguiente paso es la deliberación del comité de admisión.',
+        priority='medium',
+        action_url='/user/dashboard',
+    )
+
     db.session.commit()
 
     # Notificar al aspirante + coordinadores del programa en tiempo real

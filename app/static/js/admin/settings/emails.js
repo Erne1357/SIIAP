@@ -234,9 +234,11 @@ class EmailConfigManager {
 
     renderEmailItem(email) {
         // El chip usa el componente compartido .status-badge:
-        // pendiente -> --pending, enviado -> --accepted, fallido -> --rejected.
+        // pendiente -> --pending, enviando -> --in-progress (claimed by a
+        // worker), enviado -> --accepted, fallido -> --rejected.
         const STATUS_MAP = {
             pending: { key: 'pending',  label: 'Pendiente' },
+            sending: { key: 'in-progress', label: 'Enviando' },
             sent:    { key: 'accepted', label: 'Enviado' },
             failed:  { key: 'rejected', label: 'Fallido' },
         };

@@ -17,6 +17,7 @@ from flask_login import login_required, current_user
 
 from app.utils.permissions import permission_required
 from app.extensions import celery as celery_app
+from app.utils.datetime_utils import now_local
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +182,7 @@ def run_task():
             triggered_by = 'manual',
             triggered_by_user_id = current_user.id,
             kwargs       = kwargs,
-            created_at   = datetime.utcnow(),
+            created_at   = now_local(),
         )
         db.session.add(log)
         db.session.commit()
@@ -214,6 +215,9 @@ def list_schedules():
         import redis as redis_lib
 
         broker_url = celery_app.conf.broker_url
+        if not str(broker_url).startswith(('redis://', 'rediss://')):
+            # redbeat keeps schedules in Redis; any other broker has none to list.
+            return _err("El broker de Celery no es Redis: no hay programaciones que mostrar.", 503)
         r = redis_lib.from_url(broker_url, decode_responses=True, socket_connect_timeout=3)
 
         prefix = celery_app.conf.get('redbeat_key_prefix', 'redbeat:')

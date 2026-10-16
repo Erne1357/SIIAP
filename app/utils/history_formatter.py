@@ -345,6 +345,8 @@ class HistoryFormatter:
             changed_fields = details['changed_fields']
             if isinstance(changed_fields, dict):
                 field_names = list(changed_fields.keys())
+                if not field_names:
+                    return "Actualizó información personal"
                 if len(field_names) == 1:
                     return f"Actualizó {field_names[0]}"
                 elif len(field_names) <= 3:
@@ -435,7 +437,10 @@ class HistoryFormatter:
             timestamp_str = entry_dict.get('timestamp', '')
             if timestamp_str:
                 dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                formatted_entry['formatted_timestamp'] = dt.strftime('%d de %B de %Y a las %H:%M')
+                # format_date_es, not strftime with the month-name directive: there is no Spanish locale,
+                # so %B printed the month in English ('31 de July de 2026').
+                from app.utils.datetime_utils import format_date_es, format_time_es
+                formatted_entry['formatted_timestamp'] = f"{format_date_es(dt)} a las {format_time_es(dt)}"
                 formatted_entry['date_only'] = dt.strftime('%d/%m/%Y')
                 formatted_entry['time_only'] = dt.strftime('%H:%M')
         except:
