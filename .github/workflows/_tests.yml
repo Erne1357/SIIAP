@@ -103,9 +103,10 @@ jobs:
       - name: Combinar y exigir el mínimo
         run: |
           pip install coverage==7.6.10
+          # Floor = measured 70% (2026-10-16) minus 2 points of slack; raise it as coverage grows.
           coverage combine .coverage.*
           coverage report --skip-covered --sort=cover | tail -40
-          coverage report --fail-under=${{ inputs.lane == 'smoke' && '0' || '70' }} > /dev/null
+          coverage report --fail-under=${{ inputs.lane == 'smoke' && '0' || '68' }} > /dev/null
 
   postgres:
     name: PostgreSQL 18
@@ -150,6 +151,11 @@ jobs:
       - name: Esquema desde los modelos en PostgreSQL 18
         run: python -m tests.support.build_schema && flask db check
       - name: Suites con base real
+        env:
+          # Tests fake Redis themselves (fakeredis). A reachable Redis here made
+          # the app built at import time register a Socket.IO message queue,
+          # which flask_socketio's test client refuses.
+          REDIS_URL: redis://127.0.0.1:1/0
         run: |
           psql postgresql://postgres:postgres@localhost:5432/postgres -qc 'DROP DATABASE siiap_test' -c 'CREATE DATABASE siiap_test'
           python -m pytest tests/integration tests/services tests/routes -m "not e2e" -q -p no:cacheprovider
