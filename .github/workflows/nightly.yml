@@ -1,0 +1,22 @@
+# Nightly: the full suite against main, so a dependency or date-sensitive
+# failure surfaces without waiting for the next PR. 03:00 Ciudad Juárez.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/_tests.yml
+    with:
+      lane: full

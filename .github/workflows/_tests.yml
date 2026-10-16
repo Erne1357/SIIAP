@@ -1,0 +1,198 @@
+# Reusable test suite. Called by ci.yml (pull requests), deploy.yml (before
+# every deploy) and nightly.yml. Branch protection requires ONE check with a
+# stable name — "Tests / Resultado" — because matrix job names change with the
+# shard count.
+name: Tests
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        description: "full = everything; smoke = lint + infra/style + unit only (hotfix lane)"
+        type: string
+        default: full
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  # System libraries weasyprint needs at import time (same as docker/Dockerfile).
+  APT_LIBS: >-
+    libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf-xlib-2.0-0
+    shared-mime-info fonts-liberation fonts-dejavu-core
+
+jobs:
+  lint:
+    name: Lint e infraestructura
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: ruff
+        run: pip install ruff==0.8.4 && ruff check app tests
+      - name: compileall
+        run: python -m compileall -q app tests migrations
+      - name: shellcheck
+        run: shellcheck -x docker/scripts/*.sh docker/entrypoint.sh
+      - name: docker compose config
+        run: |
+          touch docker/.env.prod
+          docker compose -f docker/docker-compose.prod.yml config -q
+          docker compose -f docker/docker-compose.e2e.yml config -q
+      - name: nginx -t (config de producción)
+        run: |
+          mkdir -p /tmp/runtime
+          printf 'upstream siiap_app { server web-blue:5000; }\nmap $host $static_release { default "ci"; }\n' > /tmp/runtime/upstream.conf
+          docker run --rm --add-host web-blue:127.0.0.1 \
+            -v "$PWD/docker/nginx:/etc/nginx/siiap:ro" \
+            -v /tmp/runtime:/etc/nginx/siiap-runtime:ro \
+            nginx:1.28-alpine nginx -t -c /etc/nginx/siiap/nginx.conf
+
+  unit:
+    name: Unitarias e integración (${{ matrix.group }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Librerías del sistema
+        timeout-minutes: 5
+        run: sudo apt-get -o Acquire::Retries=3 update -qq && sudo apt-get -o Acquire::Retries=3 install -y -qq $APT_LIBS
+      - run: pip install -r requirements-dev.txt
+      - name: pytest
+        env:
+          SELECTION: ${{ inputs.lane == 'smoke' && 'tests/infra tests/style tests/unit' || 'tests' }}
+        run: |
+          python -m pytest $SELECTION -m "not e2e and not postgres" \
+            --splits 4 --group ${{ matrix.group }} \
+            --cov=app --cov-report= -q -p no:cacheprovider
+          mv .coverage .coverage.${{ matrix.group }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.group }}
+          path: .coverage.${{ matrix.group }}
+          include-hidden-files: true
+          retention-days: 3
+
+  coverage:
+    name: Cobertura
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+      - name: Combinar y exigir el mínimo
+        run: |
+          pip install coverage==7.6.10
+          coverage combine .coverage.*
+          coverage report --skip-covered --sort=cover | tail -40
+          coverage report --fail-under=${{ inputs.lane == 'smoke' && '0' || '70' }} > /dev/null
+
+  postgres:
+    name: PostgreSQL 18
+    if: inputs.lane == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: siiap_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    env:
+      FLASK_APP: app
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/siiap_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/siiap_test
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Librerías del sistema
+        timeout-minutes: 5
+        run: sudo apt-get -o Acquire::Retries=3 update -qq && sudo apt-get -o Acquire::Retries=3 install -y -qq $APT_LIBS
+      - run: pip install -r requirements-dev.txt
+      - name: Una sola cabeza de migraciones
+        run: test "$(flask db heads 2>/dev/null | grep -c '(head)')" = "1"
+      - name: Esquema desde los modelos en PostgreSQL 18
+        run: python -m tests.support.build_schema && flask db check
+      - name: Suites con base real
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/postgres -qc 'DROP DATABASE siiap_test' -c 'CREATE DATABASE siiap_test'
+          python -m pytest tests/integration tests/services tests/routes -m "not e2e" -q -p no:cacheprovider
+
+  e2e:
+    name: E2E (Playwright)
+    if: inputs.lane == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Suite E2E
+        run: |
+          docker compose -f docker/docker-compose.e2e.yml up --build \
+            --abort-on-container-exit --exit-code-from e2e
+      - name: Logs de la app
+        if: failure()
+        run: docker compose -f docker/docker-compose.e2e.yml logs --tail=200 app
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-test-results
+          path: test-results/
+          retention-days: 7
+      - if: always()
+        run: docker compose -f docker/docker-compose.e2e.yml down -v
+
+  result:
+    name: Resultado
+    if: always()
+    needs: [lint, unit, coverage, postgres, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Todo verde
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          LANE: ${{ inputs.lane }}
+        run: |
+          echo "lane=$LANE resultados: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              success) ;;
+              skipped) [ "$LANE" = "smoke" ] || { echo "un job se saltó en el carril completo"; exit 1; } ;;
+              *) exit 1 ;;
+            esac
+          done
