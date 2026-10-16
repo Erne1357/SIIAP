@@ -1,0 +1,13 @@
+# Test and lint tooling. Never installed in the production image: the
+# Dockerfile only reads requirements.txt.
+-r requirements.txt
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-split==0.10.0
+pytest-timeout==2.3.1
+fakeredis==2.26.2
+freezegun==1.5.1
+PyYAML==6.0.2
+ruff==0.8.4
+pytest-playwright==0.6.2
+playwright==1.49.1
