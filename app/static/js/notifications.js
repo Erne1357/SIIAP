@@ -70,6 +70,9 @@ class NotificationManager {
         try {
             const res = await window.apiClient.get('/api/v1/notifications/unread-count');
             const json = await res.json();
+            // A 403 PASSWORD_CHANGE_REQUIRED (forced-change modal up) carries
+            // data: null; there is simply no count to paint yet.
+            if (!res.ok || !json || !json.data) return;
             this.setBadgeCount(json.data.count);
         } catch (error) {
             console.error('Error updating notification badge:', error);

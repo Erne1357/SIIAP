@@ -31,6 +31,14 @@
   <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
 
   {% block styles %}{% endblock %}
+
+  {# ES-module imports (login.js → ../api/http.js) resolve to a bare URL with
+     no ?v=; with /static/ cached as immutable for a year, a release kept the
+     old http.js. The import map pins the release version on that URL. Must
+     precede every <script type="module">. #}
+  <script type="importmap">
+    {"imports": {"{{ url_for('static', filename='js/api/http.js') }}": "{{ url_for('static', filename='js/api/http.js') }}?v={{ static_version }}"}}
+  </script>
 </head>
 
 <body class="{% block body_class %}{% endblock %}">
