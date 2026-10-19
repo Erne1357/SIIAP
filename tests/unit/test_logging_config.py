@@ -1,4 +1,4 @@
-"""Unit tests: app/utils/logging_config.py (request id, log filter, Sentry gate)."""
+"""Unit tests: app/utils/logging_config.py (request id and log filter)."""
 
 import logging
 
@@ -8,7 +8,6 @@ from flask import Flask, g
 from app.utils.logging_config import (
     REQUEST_ID_HEADER,
     RequestIdFilter,
-    init_error_tracking,
     init_request_id,
 )
 
@@ -59,27 +58,3 @@ def test_filter_inside_request_uses_current_id(mini_app):
         record = _record()
         RequestIdFilter().filter(record)
     assert record.request_id == 'req-1'
-
-
-def test_error_tracking_disabled_without_dsn(monkeypatch):
-    monkeypatch.delenv('SENTRY_DSN', raising=False)
-    assert init_error_tracking(Flask(__name__)) is False
-
-
-def test_error_tracking_disabled_under_testing(monkeypatch):
-    monkeypatch.setenv('SENTRY_DSN', 'https://public@example.invalid/1')
-    application = Flask(__name__)
-    application.testing = True
-    assert init_error_tracking(application) is False
-
-
-def test_error_tracking_never_ships_applicant_data(monkeypatch):
-    import sentry_sdk
-    captured = {}
-    monkeypatch.setattr(sentry_sdk, 'init', lambda **kw: captured.update(kw))
-    monkeypatch.setenv('SENTRY_DSN', 'https://public@example.invalid/1')
-    assert init_error_tracking(Flask(__name__)) is True
-    assert captured['dsn'] == 'https://public@example.invalid/1'
-    assert captured['send_default_pii'] is False
-    assert captured['max_request_body_size'] == 'never'
-    assert captured['include_local_variables'] is False

@@ -1,5 +1,5 @@
 """
-Process-wide logging and optional error tracking.
+Process-wide logging to stdout with a request id per line.
 
 Every module already logs through `logging.getLogger(__name__)`, but nothing
 configured the root logger: Python's last-resort handler only printed WARNING
@@ -7,8 +7,9 @@ and above, without timestamps, so INFO lines from services were lost.
 
 `configure_logging()` sends everything to stdout (Docker collects it) with a
 request id on each line, so one request can be followed across log lines.
-`init_error_tracking()` enables Sentry only when SENTRY_DSN is set; without it
-the function is a no-op and the dependency is never imported.
+Loki (via Alloy, in the separate `platform` stack) collects every container's
+stdout, so the `request_id=<id>` token is what correlates a request across
+lines there.
 """
 from __future__ import annotations
 
@@ -50,7 +51,7 @@ def configure_logging(level: str | None = None) -> None:
         'filters': {'request_id': {'()': RequestIdFilter}},
         'formatters': {
             'default': {
-                'format': '%(asctime)s %(levelname)s [%(request_id)s] %(name)s: %(message)s',
+                'format': '%(asctime)s %(levelname)s request_id=%(request_id)s %(name)s: %(message)s',
             },
         },
         'handlers': {
@@ -86,33 +87,3 @@ def init_request_id(app: Flask) -> None:
         if request_id:
             response.headers.setdefault(REQUEST_ID_HEADER, request_id)
         return response
-
-
-def init_error_tracking(app: Flask) -> bool:
-    """
-    Enable Sentry when SENTRY_DSN is set. Returns True if it was enabled.
-
-    Applicant data must not leave the server, so three defaults are turned
-    off: `send_default_pii` (cookies, IP, user), `max_request_body_size`
-    (form and JSON bodies, e.g. a registration form) and
-    `include_local_variables` (frame locals, which hold user rows and
-    e-mails). Events carry the stack trace, URL and exception message only.
-    """
-    dsn = (os.environ.get('SENTRY_DSN') or '').strip()
-    if not dsn or app.testing:
-        return False
-    import sentry_sdk
-    from sentry_sdk.integrations.celery import CeleryIntegration
-    from sentry_sdk.integrations.flask import FlaskIntegration
-
-    sentry_sdk.init(
-        dsn=dsn,
-        environment=app.config.get('FLASK_ENV', 'development'),
-        release=app.config.get('STATIC_VERSION'),
-        integrations=[FlaskIntegration(), CeleryIntegration()],
-        send_default_pii=False,
-        max_request_body_size='never',
-        include_local_variables=False,
-        traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0') or 0),
-    )
-    return True
