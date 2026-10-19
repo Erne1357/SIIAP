@@ -138,9 +138,14 @@ def test_mutation_without_csrf_header_is_rejected(page, login_as, diag):
     assert wrong.status == 400
     assert 'inválido' in wrong.json()['error']['message']
 
-    for method in ('put', 'patch', 'delete'):
-        r = getattr(page.request, method)('/api/v1/submissions/00000000-0000-7000-8000-000000000000')
-        assert r.status == 400, f'{method.upper()} without CSRF header returned {r.status}'
+    # CSRFProtect guards each routed (path, method), so every URL here must
+    # really accept the method; an unrouted one is a plain 405.
+    some_uuid = '00000000-0000-7000-8000-000000000000'
+    for method, url in (('put', f'/api/v1/archives/{some_uuid}'),
+                        ('patch', f'/api/v1/archives/{some_uuid}'),
+                        ('delete', f'/api/v1/submissions/{some_uuid}')):
+        r = getattr(page.request, method)(url)
+        assert r.status == 400, f'{method.upper()} {url} without CSRF header returned {r.status}'
 
 
 def test_mutation_with_the_pages_csrf_token_is_accepted(page, login_as):

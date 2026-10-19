@@ -68,7 +68,9 @@ class TestClassification:
         db.session.commit()
         assert people.graduate.id in HR._classify_users()['active']   # 1 of 2 semesters
 
-        db.session.add(SemesterEnrollment(user_program_id=up.id, academic_period_id=period.id,
+        # One enrollment per period (uq_semester_enrollment_up_period).
+        next_period = make_academic_period(is_active=False)
+        db.session.add(SemesterEnrollment(user_program_id=up.id, academic_period_id=next_period.id,
                                           semester_number=2, status='completed'))
         db.session.commit()
         c = HR._classify_users()
