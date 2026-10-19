@@ -7,6 +7,7 @@ from app.utils.permissions import (
 )
 from app.services.appointments_service import AppointmentsService, AppointmentAccessDenied
 from app.services.events_service import EventsService
+from app.services.deliberation_service import complete_interview_from_appointment
 from app.services.user_history_service import UserHistoryService
 from app.models.appointment import Appointment
 from app import db
@@ -643,8 +644,6 @@ def mark_appointment_status(appointment_id: int):
     Marca el estado de una cita (done, no_show).
     Si se marca como 'done' y es una entrevista, actualiza admission_status.
     """
-    from app.models import UserProgram
-
     data = request.get_json() or {}
     new_status = data.get('status')
     notes = data.get('notes')
@@ -670,25 +669,12 @@ def mark_appointment_status(appointment_id: int):
         if notes:
             appt.notes = f"{appt.notes or ''}\n[{new_status.upper()}]: {notes}".strip()
 
-        # Si es entrevista y se marca como 'done', actualizar admission_status
-        if new_status == 'done' and event.type == 'interview' and event.program_id:
-            user_program = UserProgram.query.filter_by(
-                user_id=appt.applicant_id,
-                program_id=event.program_id
-            ).first()
-
-            if user_program and user_program.admission_status == 'in_progress':
-                user_program.admission_status = 'interview_completed'
-
-                # Registrar en historial
-                UserHistoryService.log_action(
-                    user_id=appt.applicant_id,
-                    admin_id=current_user.id,
-                    action='interview_completed',
-                    details=f'Entrevista completada: {event.title}'
-                )
-
-        db.session.commit()
+        # Si es entrevista y se marca como 'done', actualizar admission_status.
+        # El servicio hace el unico commit (cita + admision) en ambos casos.
+        if new_status == 'done':
+            complete_interview_from_appointment(appt, current_user.id)
+        else:
+            db.session.commit()
 
         return jsonify({
             "ok": True,

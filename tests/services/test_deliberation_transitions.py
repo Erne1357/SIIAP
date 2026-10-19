@@ -283,7 +283,7 @@ class TestResets:
                                     admission.coordinator.id)
 
     @pytest.mark.parametrize('status', [
-        'interview_completed', 'deliberation', 'accepted', 'rejected', 'deferred', 'enrolled'])
+        'interview_completed', 'deliberation', 'accepted', 'rejected', 'deferred', 'expired'])
     def test_force_reset_from_any_state(self, admission, status):
         a = admission
         _set(a, status)
@@ -293,11 +293,98 @@ class TestResets:
         assert len(_history(a.applicant.id, 'admission_reset')) == 1
         assert len(_notifs(a.applicant.id, 'deliberation_reset')) == 1
 
+    def test_force_reset_of_enrolled_student_is_refused_and_untouched(self, admission):
+        a = admission
+        _set(a, 'enrolled')
+        a.up.decision_notes = 'aprobado'
+        a.up.decision_by = a.coordinator.id
+        a.up.decision_at = a.up.updated_at
+        db.session.commit()
+        with pytest.raises(InvalidStateTransition) as ei:
+            ds.force_reset_applicant(a.applicant.id, a.program.id, a.coordinator.id, 'x')
+        db.session.rollback()
+        up = UserProgram.query.get(a.up.id)
+        assert up.admission_status == 'enrolled'
+        assert up.decision_notes == 'aprobado'
+        assert up.decision_by == a.coordinator.id and up.decision_at is not None
+        assert 'inscrito' in str(ei.value)
+        assert _history(a.applicant.id) == []
+        assert _notifs(a.applicant.id) == []
+
     def test_force_reset_records_previous_state_in_history(self, admission):
         _set(admission, 'accepted')
         ds.force_reset_applicant(admission.applicant.id, admission.program.id,
                                  admission.coordinator.id)
         assert 'accepted' in _history(admission.applicant.id, 'admission_reset')[0].details
+
+
+class TestCompleteInterviewFromAppointment:
+    def _appointment(self, adm, *, event_type='interview', program=True):
+        from datetime import datetime, timedelta
+        from app.models.appointment import Appointment
+        from app.models.event import Event, EventSlot, EventWindow
+        ev = Event(program_id=adm.program.id if program else None, type=event_type,
+                   title='Entrevistas', description='', location='Sala',
+                   created_by=adm.coordinator.id, visible_to_students=True,
+                   capacity_type='single', requires_registration=True,
+                   allows_attendance_tracking=False, reminders_enabled=True,
+                   status='published', visibility='public')
+        db.session.add(ev)
+        db.session.flush()
+        start = datetime.now() + timedelta(days=2)
+        win = EventWindow(event_id=ev.id, date=start.date(), start_time=start.time(),
+                          end_time=(start + timedelta(hours=1)).time(), slot_minutes=30,
+                          timezone='America/Ciudad_Juarez', slots_generated=True)
+        db.session.add(win)
+        db.session.flush()
+        slot = EventSlot(event_window_id=win.id, starts_at=start,
+                         ends_at=start + timedelta(minutes=30), status='booked')
+        db.session.add(slot)
+        db.session.flush()
+        appt = Appointment(event_id=ev.id, slot_id=slot.id, applicant_id=adm.applicant.id,
+                           assigned_by=adm.coordinator.id, status='scheduled')
+        db.session.add(appt)
+        db.session.commit()
+        return appt
+
+    def test_in_progress_moves_notifies_and_logs(self, admission):
+        a = admission
+        appt = self._appointment(a)
+        assert ds.complete_interview_from_appointment(appt, a.coordinator.id) is True
+        assert UserProgram.query.get(a.up.id).admission_status == 'interview_completed'
+        assert [n.type for n in _notifs(a.applicant.id)] == ['interview_completed']
+        rows = _history(a.applicant.id, 'interview_completed')
+        assert len(rows) == 1 and rows[0].admin_id == a.coordinator.id
+
+    def test_commits_pending_appointment_changes(self, admission):
+        from app.models.appointment import Appointment
+        a = admission
+        appt = self._appointment(a)
+        appt.status = 'done'
+        ds.complete_interview_from_appointment(appt, a.coordinator.id)
+        db.session.rollback()
+        assert Appointment.query.get(appt.id).status == 'done'
+
+    @pytest.mark.parametrize('status', [
+        'interview_completed', 'deliberation', 'accepted', 'rejected', 'deferred',
+        'enrolled', 'expired'])
+    def test_other_statuses_are_a_noop(self, admission, status):
+        _set(admission, status)
+        appt = self._appointment(admission)
+        assert ds.complete_interview_from_appointment(appt, admission.coordinator.id) is False
+        assert UserProgram.query.get(admission.up.id).admission_status == status
+        assert _notifs(admission.applicant.id) == []
+        assert _history(admission.applicant.id) == []
+
+    def test_non_interview_event_is_a_noop(self, admission):
+        appt = self._appointment(admission, event_type='workshop')
+        assert ds.complete_interview_from_appointment(appt, admission.coordinator.id) is False
+        assert UserProgram.query.get(admission.up.id).admission_status == 'in_progress'
+
+    def test_global_event_is_a_noop(self, admission):
+        appt = self._appointment(admission, program=False)
+        assert ds.complete_interview_from_appointment(appt, admission.coordinator.id) is False
+        assert UserProgram.query.get(admission.up.id).admission_status == 'in_progress'
 
 
 class TestFullLifecycle:

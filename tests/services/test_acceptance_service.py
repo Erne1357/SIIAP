@@ -7,6 +7,7 @@ import io
 from datetime import timedelta
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from werkzeug.datastructures import FileStorage
 
 from app import db
@@ -442,3 +443,94 @@ class TestAssignControlNumberAdmin:
         assert up.admission_status == 'enrolled'
         assert User.query.get(acc.applicant.id).control_number == 'L1'
         assert len(_hist(acc.applicant.id, 'control_number_assigned_admin')) == 1
+
+
+def _spy_notifications(monkeypatch):
+    """Record any control-number notification or queued email attempt."""
+    from app.services.email_service import EmailService
+    from app.services.notification_service import NotificationService
+    seen = []
+    monkeypatch.setattr(
+        NotificationService, 'notify_control_number_assigned',
+        staticmethod(lambda *a, **k: seen.append(('notify', a, k))),
+    )
+    monkeypatch.setattr(
+        EmailService, 'queue_email',
+        staticmethod(lambda *a, **k: seen.append(('email', a, k))),
+    )
+    return seen
+
+
+class TestAssignControlNumberRaces:
+    def test_integrity_error_gives_friendly_error_and_rolls_back(self, acc, monkeypatch):
+        _approved_receipt(acc)
+        real_commit = db.session.commit
+        calls = {'n': 0}
+
+        def boom():
+            calls['n'] += 1
+            if calls['n'] == 1:
+                raise IntegrityError('INSERT', {}, Exception('uq_user_control_number'))
+            return real_commit()
+
+        emitted = []
+        notified = _spy_notifications(monkeypatch)
+        monkeypatch.setattr(svc, '_emit_acceptance_updated', lambda *a, **k: emitted.append(a))
+        monkeypatch.setattr(db.session, 'commit', boom)
+        with pytest.raises(ValueError) as ei:
+            svc.assign_control_number(acc.applicant.id, acc.program.id, 'M900', acc.coord.id)
+        assert str(ei.value) == svc.CONTROL_NUMBER_REJECTED_MESSAGE
+        assert emitted == []
+        assert notified == []
+        monkeypatch.undo()
+        assert _notifs(acc.applicant.id, 'control_number_assigned') == []
+        assert UserProgram.query.get(acc.up.id).admission_status == 'accepted'
+        assert User.query.get(acc.applicant.id).control_number is None
+
+    def test_socket_emitted_only_after_commit(self, acc, monkeypatch):
+        _approved_receipt(acc)
+        order = []
+        real_commit = db.session.commit
+
+        def commit():
+            order.append('commit')
+            return real_commit()
+
+        monkeypatch.setattr(db.session, 'commit', commit)
+        monkeypatch.setattr(svc, '_emit_acceptance_updated',
+                            lambda *a, **k: order.append('emit'))
+        svc.assign_control_number(acc.applicant.id, acc.program.id, 'M901', acc.coord.id)
+        assert order[-2:] == ['commit', 'emit']
+
+
+class TestAssignControlNumberAdminOverride:
+    def test_from_rejected_enrolls_by_override(self, acc):
+        acc.up.admission_status = 'rejected'
+        db.session.commit()
+        up = svc.assign_control_number_admin(acc.applicant.id, acc.program.id, 'L100', acc.coord.id)
+        assert up.admission_status == 'enrolled'
+        user = User.query.get(acc.applicant.id)
+        assert user.control_number == 'L100' and user.role.name == 'student'
+        assert len(_hist(acc.applicant.id, 'control_number_assigned_admin')) == 1
+
+    def test_already_enrolled_keeps_status_and_reassigns_number(self, acc):
+        acc.up.admission_status = 'enrolled'
+        acc.up.current_semester = 3
+        db.session.commit()
+        up = svc.assign_control_number_admin(acc.applicant.id, acc.program.id, 'L200', acc.coord.id)
+        assert up.admission_status == 'enrolled' and up.current_semester == 3
+        assert User.query.get(acc.applicant.id).control_number == 'L200'
+
+    def test_integrity_error_is_friendly(self, acc, monkeypatch):
+        def boom():
+            raise IntegrityError('INSERT', {}, Exception('uq_user_control_number'))
+
+        emitted = []
+        notified = _spy_notifications(monkeypatch)
+        monkeypatch.setattr(svc, '_emit_acceptance_updated', lambda *a, **k: emitted.append(a))
+        monkeypatch.setattr(db.session, 'commit', boom)
+        with pytest.raises(ValueError) as ei:
+            svc.assign_control_number_admin(acc.applicant.id, acc.program.id, 'L300', acc.coord.id)
+        assert str(ei.value) == svc.CONTROL_NUMBER_REJECTED_MESSAGE
+        assert emitted == []
+        assert notified == []

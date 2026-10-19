@@ -639,6 +639,14 @@ def api_force_reset_applicant(user_uuid, program_id):
             "meta": {}
         }), 404
 
+    except svc.InvalidStateTransition as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "BUSINESS_ERROR", "message": str(e)},
+            "meta": {}
+        }), 400
+
     except Exception as e:
         return jsonify({
             "data": None,

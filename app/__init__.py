@@ -278,6 +278,18 @@ def create_app(test_config=None):
         e.description = csrf_error_message(e)
         return bad_request(e)
 
+    # Function-local import: the service imports `app.db`.
+    from app.services.admission_status_service import InvalidAdmissionTransition
+
+    @app.errorhandler(InvalidAdmissionTransition)
+    def invalid_admission_transition(e):
+        """Safety net for an unguarded status move refused by the state machine."""
+        message = str(e)
+        if _wants_json():
+            return _error_envelope(400, "BUSINESS_ERROR", message, level="warning")
+        flash(message, "warning")
+        return redirect(_back_or_index(), code=303)
+
     # ─── Middleware / before_request ─────────────────────────────────────────
 
     # Registered before every other before_request hook: a forged mutation is

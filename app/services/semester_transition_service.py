@@ -24,6 +24,12 @@ from app.services import public_id_service
 from app.models import UserProgram, User, Program, AcademicPeriod
 from app.models.semester_enrollment import SemesterEnrollment
 from app.models.enrollment_deferral import EnrollmentDeferral
+from app.services.admission_status_service import (
+    EXPIRABLE_STATUSES,
+    regular_period_ids,
+    regular_periods_between,
+    transition,
+)
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.services.payment_reference_service import PaymentReferenceService
@@ -68,40 +74,6 @@ def _get_program(program_id: int) -> Program:
     if not program:
         raise ProgramNotFound(f"Programa {program_id} no encontrado")
     return program
-
-
-def _ordered_period_ids() -> list:
-    """
-    Devuelve todos los IDs de periodos ordenados cronológicamente por
-    ``start_date``. NO usar ``id`` como proxy porque los periodos pueden
-    crearse en cualquier orden (ej: migración que rellena periodos
-    históricos faltantes después de que ya existían los recientes).
-    """
-    rows = (
-        db.session.query(AcademicPeriod.id)
-        .order_by(AcademicPeriod.start_date)
-        .all()
-    )
-    return [r[0] for r in rows]
-
-
-def _delta_periods(admission_period_id: Optional[int], target_period_id: int) -> Optional[int]:
-    """
-    Calcula cuántos periodos de diferencia hay entre admission_period_id
-    y target_period_id en la lista ordenada.
-
-    Retorna None si admission_period_id es None o no existe en la lista.
-    Retorna el número de posiciones de distancia (≥ 0).
-    """
-    if admission_period_id is None:
-        return None
-    period_ids = _ordered_period_ids()
-    try:
-        idx_target = period_ids.index(target_period_id)
-        idx_admission = period_ids.index(admission_period_id)
-    except ValueError:
-        return None
-    return idx_target - idx_admission
 
 
 def _get_conacyt_archive_step_id() -> Optional[int]:
@@ -350,11 +322,10 @@ def _build_admission_rows(
     periodo activo, no requieren acción. Antes se omitían silenciosamente y
     parecían "en limbo" en la UI.
     """
-    period_ids = _ordered_period_ids()
-
-    try:
-        idx_target = period_ids.index(target_period_id)
-    except ValueError:
+    # Non-summer periods only: summer (YYYY2) never counts toward the wait,
+    # and a summer target leaves every applicant untouched.
+    period_ids = regular_period_ids()
+    if target_period_id not in period_ids:
         return [], [], [], [], []
 
     # Todos los UserProgram del programa que NO son estudiantes enrolled
@@ -403,21 +374,22 @@ def _build_admission_rows(
             'admission_period_id': up.admission_period_id,
         }
 
-        # Excepción diferidos: si tienen deferral activo que apunta al target_period
-        if up.id in active_deferrals:
-            deferred_reactivate.append(base_row)
+        # Diferidos: solo se reactivan si tienen deferral activo hacia el
+        # target_period; fuera de eso los gestiona el flujo de diferimiento.
+        if up.admission_status == 'deferred':
+            if up.id in active_deferrals:
+                deferred_reactivate.append(base_row)
             continue
 
         if up.admission_period_id is None:
             # Sin periodo de admisión registrado: ignorar
             continue
 
-        try:
-            idx_admission = period_ids.index(up.admission_period_id)
-        except ValueError:
+        delta = regular_periods_between(
+            up.admission_period_id, target_period_id, period_ids,
+        )
+        if delta is None:
             continue
-
-        delta = idx_target - idx_admission
 
         if delta < 0:
             # Periodo de admisión es FUTURO al destino: ignorar (no aplica)
@@ -428,7 +400,9 @@ def _build_admission_rows(
         elif delta == 1:
             migrate.append(base_row)
         elif delta == 2:
-            expire.append(base_row)
+            # `rejected` keeps the committee's decision: never expired.
+            if up.admission_status in EXPIRABLE_STATUSES:
+                expire.append(base_row)
         else:  # delta >= 3
             cleanup.append(base_row)
 
@@ -614,7 +588,8 @@ def execute_program_transition(
     - Estudiantes elegibles: cierra SE actual, crea SE nuevo en pending.
     - Aspirantes Δ=1: migra admission_period_id al target_period_id.
     - Aspirantes Δ=2: admission_status='expired'.
-    - Diferidos con deferred_to_period_id == target_period_id: reactiva (in_progress).
+    - Diferidos (status 'deferred') con deferred_to_period_id == target_period_id: reactiva (accepted).
+    - Periodos de verano (YYYY2) no cuentan para Δ; 'rejected' nunca expira.
     - Idempotente: si ya existe SE para target_period, se omite.
 
     Returns:
@@ -661,13 +636,9 @@ def execute_program_transition(
         }
 
         # ── Aspirantes ──────────────────────────────────────────────────────
-        period_ids = _ordered_period_ids()
-        try:
-            idx_target = period_ids.index(target_period_id)
-        except ValueError:
-            idx_target = None
+        period_ids = regular_period_ids()
 
-        if idx_target is not None:
+        if target_period_id in period_ids:
             applicants = (
                 UserProgram.query
                 .filter(
@@ -680,10 +651,13 @@ def execute_program_transition(
             for up in applicants:
                 try:
                     # Diferidos con deferred_to_period_id == target → reactivar
-                    if up.id in active_deferrals:
-                        deferral = active_deferrals[up.id]
+                    if up.admission_status == 'deferred':
+                        deferral = active_deferrals.get(up.id)
+                        if deferral is None:
+                            continue
+                        # transition() first: a refusal must leave the row untouched.
+                        transition(up, 'accepted')
                         up.admission_period_id = target_period_id
-                        up.admission_status = 'in_progress'
                         deferral.status = 'used'
                         UserHistoryService.log_action(
                             user_id=up.user_id,
@@ -712,14 +686,11 @@ def execute_program_transition(
                     if up.admission_period_id is None:
                         continue
 
-                    try:
-                        idx_admission = period_ids.index(up.admission_period_id)
-                    except ValueError:
-                        continue
+                    delta = regular_periods_between(
+                        up.admission_period_id, target_period_id, period_ids,
+                    )
 
-                    delta = idx_target - idx_admission
-
-                    if delta <= 0:
+                    if delta is None or delta <= 0:
                         continue
                     elif delta == 1:
                         up.admission_period_id = target_period_id
@@ -735,7 +706,10 @@ def execute_program_transition(
                         )
                         stats['admission_migrated'] += 1
                     elif delta == 2:
-                        up.admission_status = 'expired'
+                        # `rejected` keeps the committee's decision.
+                        if up.admission_status not in EXPIRABLE_STATUSES:
+                            continue
+                        transition(up, 'expired')
                         up.updated_at = now
                         UserHistoryService.log_action(
                             user_id=up.user_id,

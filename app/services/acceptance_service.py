@@ -11,6 +11,8 @@ Flujo:
 6. Una vez aprobada, se puede proceder a la transicion a estudiante (Fase 5)
 """
 
+import logging
+
 from app import db
 from app.services import public_id_service
 from app.models import UserProgram, User, Program, ExtensionRequest, Submission, ProgramStep
@@ -20,6 +22,8 @@ from app.services.user_history_service import UserHistoryService
 from app.utils.files import save_user_doc
 from app.utils.datetime_utils import now_local, to_local_timezone
 from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError
+from app.services import admission_status_service
 
 
 VALID_DOC_TYPES = {'acceptance_letter', 'course_schedule', 'enrollment_receipt', 'acceptance_opinion'}
@@ -658,6 +662,55 @@ def _check_document_debt(user_id: int, program_id: int) -> None:
         raise DocumentDebtError(debts=debts)
 
 
+def _commit_control_number() -> None:
+    """
+    Commit de una asignación de número de control.
+
+    La consulta de unicidad es check-then-act: dos asignaciones simultáneas
+    pueden pasarla con el mismo número. La restricción única de
+    user.control_number es la que decide; el perdedor recibe el mismo mensaje
+    genérico que el chequeo previo.
+    """
+    try:
+        db.session.flush()
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
+
+
+def _notify_control_number_assigned(user_id: int, control_number: str) -> None:
+    """
+    Post-commit notification. The notification and queued-email rows need
+    their own commit; a failure here must not undo the committed assignment.
+    """
+    try:
+        NotificationService.notify_control_number_assigned(
+            user_id=user_id,
+            control_number=control_number,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logging.getLogger(__name__).exception(
+            'No se pudo notificar la asignación del número de control (user_id=%s)',
+            user_id,
+        )
+
+
+def _emit_acceptance_updated(user_id: int, program_id: int, action: str) -> None:
+    """Notifica por WebSocket a la pestaña de aceptación; nunca interrumpe el flujo."""
+    try:
+        from app.extensions import socketio
+        socketio.emit('acceptance:updated', {
+            'user_id': public_id_service.user_uuid(user_id),
+            'program_id': program_id,
+            'action': action,
+        }, room=f'user:{user_id}')
+    except Exception:
+        pass
+
+
 def assign_control_number(user_id: int, program_id: int,
                            control_number: str, coordinator_id: int) -> UserProgram:
     """
@@ -692,7 +745,9 @@ def assign_control_number(user_id: int, program_id: int,
     if existing and existing.id != user_id:
         raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
-    up = _get_user_program(user_id, program_id)
+    up = admission_status_service.lock_user_program(user_id, program_id)
+    if not up:
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     if up.admission_status != 'accepted':
         raise InvalidStateTransition(
@@ -728,7 +783,7 @@ def assign_control_number(user_id: int, program_id: int,
     user.role_id = student_role.id
 
     # 3. Actualizar estado de inscripción
-    up.admission_status = 'enrolled'
+    admission_status_service.transition(up, 'enrolled')
     up.current_semester = 1
 
     # 3b. Crear SemesterEnrollment para semestre 1 ya confirmado.
@@ -763,23 +818,14 @@ def assign_control_number(user_id: int, program_id: int,
         details=f'Número de control {ctrl} asignado en {program.name}. Transición a estudiante completada.'
     )
 
-    NotificationService.notify_control_number_assigned(
-        user_id=user_id,
-        control_number=ctrl,
-    )
+    _commit_control_number()
 
-    # WebSocket: actualizar pestaña de aceptación del aspirante
-    try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
-            'user_id': public_id_service.user_uuid(user_id),
-            'program_id': program_id,
-            'action': 'control_number_assigned',
-        }, room=f'user:{user_id}')
-    except Exception:
-        pass
+    # Notification (socket + email) only after the assignment is durable: the
+    # loser of a unique-constraint race must not hear about a rolled-back number.
+    _notify_control_number_assigned(user_id, ctrl)
 
-    db.session.commit()
+    # WebSocket (después del commit): actualizar pestaña de aceptación del aspirante
+    _emit_acceptance_updated(user_id, program_id, 'control_number_assigned')
 
     return up
 
@@ -827,7 +873,9 @@ def assign_control_number_admin(user_id: int, program_id: int,
     if existing and existing.id != user_id:
         raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
-    up = _get_user_program(user_id, program_id)
+    up = admission_status_service.lock_user_program(user_id, program_id)
+    if not up:
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     student_role = Role.query.filter_by(name='student').first()
     if not student_role:
@@ -845,8 +893,10 @@ def assign_control_number_admin(user_id: int, program_id: int,
     # 2. Cambiar rol a 'student'
     user.role_id = student_role.id
 
-    # 3. Actualizar estado de inscripción (forzado, sin verificar transición previa)
-    up.admission_status = 'enrolled'
+    # 3. Actualizar estado de inscripción (override administrativo). Si ya está
+    #    inscrito se conserva el estado: solo se reasigna el número de control.
+    if up.admission_status != 'enrolled':
+        admission_status_service.transition(up, 'enrolled', override=True)
     if not up.current_semester or up.current_semester < 1:
         up.current_semester = 1
 
@@ -884,21 +934,12 @@ def assign_control_number_admin(user_id: int, program_id: int,
         )
     )
 
-    NotificationService.notify_control_number_assigned(
-        user_id=user_id,
-        control_number=ctrl,
-    )
+    _commit_control_number()
 
-    try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
-            'user_id': public_id_service.user_uuid(user_id),
-            'program_id': program_id,
-            'action': 'control_number_assigned_admin',
-        }, room=f'user:{user_id}')
-    except Exception:
-        pass
+    # Notification (socket + email) only after the assignment is durable: the
+    # loser of a unique-constraint race must not hear about a rolled-back number.
+    _notify_control_number_assigned(user_id, ctrl)
 
-    db.session.commit()
+    _emit_acceptance_updated(user_id, program_id, 'control_number_assigned_admin')
 
     return up

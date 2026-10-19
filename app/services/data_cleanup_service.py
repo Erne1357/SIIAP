@@ -21,21 +21,22 @@ class DataCleanupService:
         ejecución automática del task cleanup_expired_admission_files.
 
         Criterio: admission_status en ('in_progress', 'interview_completed',
-        'deliberation') y 2+ periodos cerrados desde su admission_period.
+        'deliberation', 'accepted') y 2+ periodos cerrados desde su admission_period.
         """
         from app.models.user_program import UserProgram
         from app.models.academic_period import AcademicPeriod
         from app.models.submission import Submission
         from app.models.program_step import ProgramStep
-        from app.tasks.maintenance import _periods_elapsed_since
+        from app.services.admission_status_service import (
+            EXPIRABLE_STATUSES, regular_periods_closed_since,
+        )
+        from app.utils.datetime_utils import now_local
 
         candidates = (
             UserProgram.query
             .join(AcademicPeriod, UserProgram.admission_period_id == AcademicPeriod.id)
             .filter(
-                UserProgram.admission_status.in_(
-                    ['in_progress', 'interview_completed', 'deliberation']
-                ),
+                UserProgram.admission_status.in_(EXPIRABLE_STATUSES),
                 UserProgram.admission_period_id.isnot(None),
             )
             .all()
@@ -47,7 +48,7 @@ class DataCleanupService:
             if not enrollment_period:
                 continue
 
-            elapsed = _periods_elapsed_since(enrollment_period.code)
+            elapsed = regular_periods_closed_since(enrollment_period, now_local().date())
             if elapsed < 2:
                 continue
 

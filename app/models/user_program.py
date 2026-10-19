@@ -112,14 +112,21 @@ class UserProgram(db.Model):
 
         return data
 
+    def _set_status(self, to_status):
+        """Write `admission_status` through the state machine (raises if not allowed)."""
+        # Function-local import: the service imports this model, so a module-level
+        # import would be circular.
+        from app.services.admission_status_service import transition
+        transition(self, to_status)
+
     def start_deliberation(self):
         """Marca el inicio del proceso de deliberacion despues de la entrevista."""
-        self.admission_status = 'deliberation'
+        self._set_status('deliberation')
         self.deliberation_started_at = now_local()
 
     def accept(self, decision_by, notes=None):
         """Acepta al aspirante en el programa."""
-        self.admission_status = 'accepted'
+        self._set_status('accepted')
         self.decision_at = now_local()
         self.decision_by = decision_by
         self.decision_notes = notes
@@ -136,16 +143,9 @@ class UserProgram(db.Model):
             notes: Notas sobre la decision
             correction_required: Descripcion de lo que debe corregir (si es parcial)
         """
-        self.admission_status = 'rejected'
+        self._set_status('rejected')
         self.decision_at = now_local()
         self.decision_by = decision_by
         self.decision_notes = notes
         self.rejection_type = rejection_type
         self.correction_required = correction_required
-
-    def defer(self, decision_by, notes=None):
-        """Difiere la inscripcion del aspirante para otro periodo."""
-        self.admission_status = 'deferred'
-        self.decision_at = now_local()
-        self.decision_by = decision_by
-        self.decision_notes = notes

@@ -449,6 +449,65 @@ class InstitutionalEventAppointmentsTestCase(unittest.TestCase):
         db.session.refresh(self.appt_inst)
         self.assertEqual(self.appt_inst.status, 'cancelled')
 
+    # -- mark-status: admission advances through the service ---------------
+
+    def _book(self, applicant, slot):
+        appt = Appointment(
+            event_id=self.event_a.id, slot_id=slot.id, applicant_id=applicant.id,
+            assigned_by=self.coord_a.id, status='scheduled',
+        )
+        db.session.add(appt)
+        db.session.commit()
+        return appt
+
+    def _admission_status(self, applicant, program):
+        db.session.expire_all()
+        return UserProgram.query.filter_by(
+            user_id=applicant.id, program_id=program.id).one().admission_status
+
+    def test_mark_done_moves_applicant_to_interview_completed(self):
+        appt = self._book(self.applicant_a, self.slot_1)
+        resp = self._post(
+            self.client_coord_a, self.csrf_coord_a,
+            f'/api/v1/appointments/{appt.id}/mark-status',
+            {'status': 'done', 'notes': 'ok'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        db.session.refresh(appt)
+        self.assertEqual(appt.status, 'done')
+        self.assertEqual(
+            self._admission_status(self.applicant_a, self.program_a),
+            'interview_completed')
+
+    def test_mark_no_show_leaves_admission_untouched(self):
+        appt = self._book(self.applicant_a, self.slot_1)
+        resp = self._post(
+            self.client_coord_a, self.csrf_coord_a,
+            f'/api/v1/appointments/{appt.id}/mark-status',
+            {'status': 'no_show'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        db.session.refresh(appt)
+        self.assertEqual(appt.status, 'no_show')
+        self.assertEqual(
+            self._admission_status(self.applicant_a, self.program_a), 'in_progress')
+
+    def test_mark_done_does_not_regress_a_later_status(self):
+        appt = self._book(self.applicant_a, self.slot_1)
+        UserProgram.query.filter_by(user_id=self.applicant_a.id).update(
+            {'admission_status': 'deliberation'})
+        db.session.commit()
+        resp = self._post(
+            self.client_coord_a, self.csrf_coord_a,
+            f'/api/v1/appointments/{appt.id}/mark-status',
+            {'status': 'done'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        db.session.refresh(appt)
+        self.assertEqual(appt.status, 'done')
+        self.assertEqual(
+            self._admission_status(self.applicant_a, self.program_a), 'deliberation')
+
 
 if __name__ == '__main__':
     unittest.main()
