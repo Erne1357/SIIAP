@@ -26,7 +26,7 @@ BASELINE = {
     },
     'js_mutation_without_csrf': {},
     'prefers_color_scheme': {},
-    # py_db_in_routes: total 265 in 31 files
+    # py_db_in_routes: total 264 in 31 files
     'py_db_in_routes': {
         'app/routes/api/acceptance_api.py': 2,
         'app/routes/api/admin/celery_api.py': 3,
@@ -34,7 +34,7 @@ BASELINE = {
         'app/routes/api/admin/history_api.py': 1,
         'app/routes/api/admin/users_api.py': 19,
         'app/routes/api/admission_api.py': 2,
-        'app/routes/api/appointments_api.py': 15,
+        'app/routes/api/appointments_api.py': 14,
         'app/routes/api/archives_api.py': 23,
         'app/routes/api/attendance_api.py': 8,
         'app/routes/api/auth_api.py': 10,
