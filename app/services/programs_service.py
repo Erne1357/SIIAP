@@ -9,11 +9,20 @@ from app.models.program_step import ProgramStep
 from app.models.user_program import UserProgram
 from app.utils.datetime_utils import now_local
 
-class AlreadyEnrolledError(Exception): ...
-class ProgramNotFound(Exception): ...
+from app.services.errors import DomainError, NotFoundError
 
 
-class AdmissionClosedError(Exception):
+class ProgramsError(DomainError):
+    """Base de los errores del catálogo de programas."""
+
+
+class AlreadyEnrolledError(ProgramsError): ...
+
+
+class ProgramNotFound(ProgramsError, NotFoundError): ...
+
+
+class AdmissionClosedError(ProgramsError):
     """Se lanza cuando no hay un periodo de admisión activo abierto."""
     def __init__(self, next_period=None):
         self.next_period = next_period
@@ -147,11 +156,11 @@ def update_program_config(program_id: int, data: dict):
 # Interés en una futura convocatoria de admisión
 # ---------------------------------------------------------------------------
 
-class AdmissionAlreadyOpenError(Exception):
+class AdmissionAlreadyOpenError(ProgramsError):
     """Raised when a user registers interest while admissions are already open."""
 
 
-class AlreadyInterestedError(Exception):
+class AlreadyInterestedError(ProgramsError):
     """Raised when the user already asked to be notified for the same period."""
 
 

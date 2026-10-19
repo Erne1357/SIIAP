@@ -1,5 +1,6 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from flask_login import login_required, current_user
+from app.utils.api_response import api_ok, api_error, api_server_error
 from app.utils.permissions import (
     permission_required,
     any_permission_required,
@@ -33,13 +34,7 @@ def _public_user_id(user_id):
 
 def _deny(code: str, message: str, status: int):
     """Respuesta de denegación con el envelope del proyecto (mensaje en español)."""
-    return jsonify({
-        "ok": False,
-        "data": None,
-        "flash": [{"level": "danger", "message": message}],
-        "error": {"code": code, "message": message},
-        "meta": {}
-    }), status
+    return api_error(code, message, status=status, level="danger")
 
 
 def _event_manage_denied(event):
@@ -243,9 +238,12 @@ def assign():
         except Exception:
             pass
 
-        return jsonify({"ok": True, "id": appt.id}), 201
+        return api_ok({"id": appt.id}, status=201)
+    except ValueError as e:
+        # AppointmentsService raises ValueError with Spanish, user-facing text.
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="appointments.assign")
 
 @api_appointments.route('/mine', methods=['GET'])
 @login_required
@@ -266,7 +264,7 @@ def my_appointments():
         "slot_id": a.slot_id,
         "status": a.status
     } for a in appts]
-    return jsonify({"ok": True, "items": payload}), 200
+    return api_ok({"items": payload})
 
 @api_appointments.route('/<int:appointment_id>', methods=['DELETE'])
 @login_required
@@ -322,11 +320,13 @@ def cancel(appointment_id:int):
         except Exception:
             pass
 
-        return jsonify({"ok": True, "id": appt.id, "status": appt.status}), 200
+        return api_ok({"id": appt.id, "status": appt.status})
     except AppointmentAccessDenied:
         return _appointment_not_found()
+    except ValueError as e:
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="appointments.cancel")
 
 @api_appointments.route('/<int:appointment_id>/change-requests', methods=['POST'])
 @login_required
@@ -362,11 +362,13 @@ def request_change(appointment_id:int):
             )
         except Exception:
             pass
-        return jsonify({"ok": True, "id": acr.id}), 201
+        return api_ok({"id": acr.id}, status=201)
     except AppointmentAccessDenied:
         return _appointment_not_found()
+    except ValueError as e:
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="appointments.request_change")
 
 @api_appointments.route('/<int:appointment_id>/details', methods=['GET'])
 @login_required
@@ -395,8 +397,7 @@ def appointment_details(appointment_id: int):
     # Información del coordinador que asignó
     assigner = db.session.get(User, appt.assigned_by) if appt.assigned_by else None
 
-    return jsonify({
-        "ok": True,
+    return api_ok({
         "appointment": {
             "id": appt.id,
             "status": appt.status,
@@ -424,7 +425,7 @@ def appointment_details(appointment_id: int):
                 "name": f"{assigner.first_name} {assigner.last_name}"
             } if assigner else None
         }
-    }), 200
+    })
 
 @api_appointments.route('/mine/active', methods=['GET'])
 @login_required
@@ -473,7 +474,7 @@ def my_active_appointments():
             } if pending_change else None
         })
 
-    return jsonify({"ok": True, "appointments": items}), 200
+    return api_ok({"appointments": items})
 
 @api_appointments.route('/change-requests/by-event/<int:event_id>', methods=['GET'])
 @login_required
@@ -527,10 +528,10 @@ def get_change_requests_by_event(event_id: int):
                 "created_at": req.created_at.isoformat()
             })
 
-        return jsonify({"ok": True, "change_requests": items, "count": len(items)}), 200
+        return api_ok({"change_requests": items, "count": len(items)})
 
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context="appointments.get_change_requests_by_event")
 
 
 @api_appointments.route('/change-requests/<int:req_id>/decision', methods=['PUT'])
@@ -591,9 +592,11 @@ def decide_change(req_id:int):
             import logging
             logging.error(f"Error enviando notificación de cambio de cita: {notify_err}")
 
-        return jsonify({"ok": True, "id": acr.id, "status": acr.status}), 200
+        return api_ok({"id": acr.id, "status": acr.status})
+    except ValueError as e:
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="appointments.decide_change")
 
 @api_appointments.route('/by-slot/<int:slot_id>', methods=['GET'])
 @login_required
@@ -616,14 +619,13 @@ def get_appointment_by_slot(slot_id: int):
     appointment = AppointmentsService.get_active_appointment_for_slot(slot_id)
 
     if not appointment:
-        return jsonify({"ok": True, "appointment": None}), 200
+        return api_ok({"appointment": None})
 
     # Obtener datos del estudiante
     from app.models.user import User
     student = db.session.get(User, appointment.applicant_id)
 
-    return jsonify({
-        "ok": True,
+    return api_ok({
         "appointment": {
             "id": appointment.id,
             "status": appointment.status,
@@ -634,7 +636,7 @@ def get_appointment_by_slot(slot_id: int):
             "assigned_by": _public_user_id(appointment.assigned_by),
             "created_at": appointment.created_at.isoformat()
         }
-    }), 200
+    })
 
 @api_appointments.route('/<int:appointment_id>/mark-status', methods=['POST'])
 @login_required
@@ -649,10 +651,7 @@ def mark_appointment_status(appointment_id: int):
     notes = data.get('notes')
 
     if new_status not in ['done', 'no_show']:
-        return jsonify({
-            "ok": False,
-            "error": "Estado invalido. Usar 'done' o 'no_show'"
-        }), 400
+        return api_error("VALIDATION_ERROR", "Estado inválido. Usar 'done' o 'no_show'", status=400)
 
     ctx, _as_admin, err = _resolve_manage_context(appointment_id)
     if err:
@@ -676,16 +675,14 @@ def mark_appointment_status(appointment_id: int):
         else:
             db.session.commit()
 
-        return jsonify({
-            "ok": True,
-            "flash": [{"level": "success", "message": f"Cita marcada como {new_status}"}],
-            "id": appointment_id,
-            "status": new_status
-        }), 200
+        return api_ok(
+            {"id": appointment_id, "status": new_status},
+            flash=[{"level": "success", "message": f"Cita marcada como {new_status}"}],
+        )
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context="appointments.mark_appointment_status")
 
 
 @api_appointments.route('/<int:appointment_id>/cancel', methods=['POST'])
@@ -742,12 +739,12 @@ def cancel_appointment_by_coordinator(appointment_id: int):
         except Exception:
             pass
 
-        return jsonify({"ok": True, "id": appointment_id}), 200
+        return api_ok({"id": appointment_id})
 
     except AppointmentAccessDenied:
         return _appointment_not_found()
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context="appointments.cancel_appointment_by_coordinator")

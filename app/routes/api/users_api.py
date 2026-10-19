@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from app import db
 from datetime import datetime
 
+from app.utils.api_response import api_server_error
 from app.models.user_history import UserHistory
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
@@ -395,12 +396,7 @@ def upload_my_photo():
         }), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al actualizar foto"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='upload_my_photo')
 
 
 @api_users.post('/me/photo/request-change')
@@ -430,12 +426,7 @@ def request_my_photo_change():
         }), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al enviar solicitud"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='request_my_photo_change')
 
 
 # Coordinator endpoints
@@ -509,12 +500,7 @@ def enable_photo_change(user_uuid):
         }), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al procesar solicitud"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='enable_photo_change')
 
 
 @api_users.post('/<uuid:user_uuid>/photo')
@@ -576,9 +562,4 @@ def coordinator_upload_photo(user_uuid):
         }), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al actualizar foto"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='coordinator_upload_photo')

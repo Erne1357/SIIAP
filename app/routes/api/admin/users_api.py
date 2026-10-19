@@ -867,7 +867,7 @@ def create_social_service():
     from datetime import datetime
     from app.services.permission_service import (
         create_social_service_user,
-        PermissionError as PermErr,
+        PermissionServiceError as PermErr,
     )
 
     payload = request.get_json(silent=True) or {}

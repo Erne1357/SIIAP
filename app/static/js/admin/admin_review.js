@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const json = await res.json();
       
-      extensionRequests = json.items || [];
+      extensionRequests = json.data?.items || [];
 
       renderExtensions();
       updateExtensionCounts();
@@ -386,12 +386,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        emitFlash('danger', json.error || 'No se pudo procesar la decisión');
+      if (!res.ok || json.error) {
+        emitFlash('danger', json.error?.message || 'No se pudo procesar la decisión');
         return;
       }
 
-      emitFlash('success', json.message || 'Decisión registrada exitosamente');
+      emitFlash('success', json.data?.message || 'Decisión registrada exitosamente');
 
       // Cerrar modal y recargar
       const modal = bootstrap.Modal.getInstance(extensionReviewModal);

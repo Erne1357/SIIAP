@@ -1,7 +1,8 @@
 # app/routes/api/attendance_api.py
-from flask import Blueprint, request, jsonify,current_app
+from flask import Blueprint, request, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_server_error
 from app.services.events_service import EventsService
 from app.services.user_history_service import UserHistoryService
 from app.models.event import Event
@@ -16,13 +17,7 @@ api_attendance = Blueprint('api_attendance', __name__, url_prefix='/api/v1/atten
 
 def _deny(code: str, message: str, status: int):
     """Denegación con el envelope del proyecto y mensaje en español."""
-    return jsonify({
-        "ok": False,
-        "data": None,
-        "flash": [{"level": "danger", "message": message}],
-        "error": {"code": code, "message": message},
-        "meta": {}
-    }), status
+    return api_error(code, message, status=status, level='danger')
 
 
 def _load_manageable_event(event_id: int):
@@ -102,21 +97,19 @@ def register_to_event(event_id: int):
         except Exception as e:
             current_app.logger.error(f"Error al registrar registro de evento en historial: {e}")
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "id": attendance.id,
             "message": "Registro exitoso"
-        }), 201
-        
+        }, status=201)
+
     except ValueError as e:
         current_app.logger.warning(f"Error al registrar a evento {event_id} usuario {current_user.id}: {e}")
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        current_app.logger.exception(
-            f"Error 500 al registrar usuario {current_user.id} a evento {event_id}"
+        return api_server_error(
+            e, context=f"register_to_event (user {current_user.id}, event {event_id})"
         )
-        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @api_attendance.route('/event/<int:event_id>/unregister', methods=['POST'])
@@ -129,16 +122,13 @@ def unregister_from_event(event_id: int):
             user_id=current_user.id
         )
         
-        return jsonify({
-            "ok": True,
-            "message": "Registro cancelado"
-        }), 200
-        
+        return api_ok({"message": "Registro cancelado"})
+
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='unregister_from_event')
 
 
 @api_attendance.route('/event/<int:event_id>/registrations', methods=['GET'])
@@ -174,8 +164,7 @@ def get_event_registrations(event_id: int):
             event_id, include_notes=True
         )
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "event_id": event_id,
             # Constante hoy —sin gestión no se llega hasta aquí— pero sigue en
             # la respuesta porque la consola la lee (`data.can_manage !== false`)
@@ -183,10 +172,10 @@ def get_event_registrations(event_id: int):
             "can_manage": True,
             "registrations": registrations,
             "total": len(registrations)
-        }), 200
+        })
 
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='get_event_registrations')
 
 
 @api_attendance.route('/event/<int:event_id>/mark-attendance', methods=['POST'])
@@ -220,7 +209,7 @@ def mark_attendance(event_id: int):
     reset = data.get('reset', False)  # NUEVO
 
     if not user_id:
-        return jsonify({"ok": False, "error": "user_id es requerido"}), 400
+        return api_error('VALIDATION_ERROR', "user_id es requerido", status=400)
 
     try:
         attendance = EventsService.mark_attendance(
@@ -231,17 +220,16 @@ def mark_attendance(event_id: int):
             reset=reset  # NUEVO
         )
         
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "id": attendance.id,
             "status": attendance.status
-        }), 200
-        
+        })
+
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='mark_attendance')
 
 
 @api_attendance.route('/my-registrations', methods=['GET'])
@@ -267,7 +255,4 @@ def my_registrations():
         'attended_at': attendance.attended_at.isoformat() if attendance.attended_at else None
     } for attendance, event in registrations]
     
-    return jsonify({
-        "ok": True,
-        "registrations": items
-    }), 200
+    return api_ok({"registrations": items})

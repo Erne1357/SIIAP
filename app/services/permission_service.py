@@ -23,7 +23,10 @@ from app.utils.validators import (
 )
 
 
-class PermissionError(Exception):
+from app.services.errors import DomainError
+
+
+class PermissionServiceError(DomainError):
     """Error de negocio en operaciones de permisos."""
 
 
@@ -39,7 +42,7 @@ def _normalize_program_id(program_id):
     try:
         return int(program_id)
     except (TypeError, ValueError):
-        raise PermissionError("program_id inválido.")
+        raise PermissionServiceError("program_id inválido.")
 
 
 def _require_delegation_scope(granter, program_id):
@@ -55,14 +58,14 @@ def _require_delegation_scope(granter, program_id):
 
     if program_id is None:
         if not scope_service.is_global_scope(granter):
-            raise PermissionError(
+            raise PermissionServiceError(
                 "Debes indicar el programa de la delegación: sólo el jefe de "
                 "posgrado puede delegar sobre todos los programas."
             )
         return
 
     if not scope_service.program_in_scope(granter, program_id):
-        raise PermissionError(
+        raise PermissionServiceError(
             "No puedes delegar sobre un programa que no está a tu alcance."
         )
 
@@ -215,35 +218,35 @@ def delegate_permission(granter_id, grantee_id, codename, program_id=None, note=
     """
     granter = User.query.get(granter_id)
     if not granter:
-        raise PermissionError("Usuario otorgante no encontrado.")
+        raise PermissionServiceError("Usuario otorgante no encontrado.")
 
     grantee = User.query.get(grantee_id)
     if not grantee:
-        raise PermissionError("Usuario destinatario no encontrado.")
+        raise PermissionServiceError("Usuario destinatario no encontrado.")
 
     if grantee.id == granter.id:
-        raise PermissionError(
+        raise PermissionServiceError(
             "No puedes delegarte permisos a ti mismo. Una delegación amplía el "
             "alcance del destinatario; autodelegarse sería ampliarse el propio."
         )
 
     if not granter.has_permission('permissions.api.delegate'):
-        raise PermissionError("No tienes permiso para delegar.")
+        raise PermissionServiceError("No tienes permiso para delegar.")
 
     if not granter.has_permission(codename):
-        raise PermissionError(f"No puedes delegar '{codename}' porque no lo tienes.")
+        raise PermissionServiceError(f"No puedes delegar '{codename}' porque no lo tienes.")
 
     perm = Permission.query.filter_by(codename=codename, is_active=True).first()
     if not perm:
-        raise PermissionError(f"Permiso '{codename}' no existe o está inactivo.")
+        raise PermissionServiceError(f"Permiso '{codename}' no existe o está inactivo.")
 
     if perm.resource in NON_DELEGATABLE_RESOURCES:
-        raise PermissionError(
+        raise PermissionServiceError(
             f"No se puede delegar permisos del sistema de permisos: '{codename}'."
         )
 
     if codename in SELF_SERVICE_PERMISSIONS:
-        raise PermissionError(
+        raise PermissionServiceError(
             f"'{codename}' es un permiso de cuenta propia: cada usuario ya lo "
             "ejerce sobre sí mismo y delegarlo no da acceso a ningún programa."
         )
@@ -261,7 +264,7 @@ def delegate_permission(granter_id, grantee_id, codename, program_id=None, note=
         program_id=program_id,
     ).first()
     if existing and existing.is_active and not existing.is_expired:
-        raise PermissionError(
+        raise PermissionServiceError(
             f"El usuario ya tiene el permiso '{codename}' delegado (activo)."
         )
 
@@ -305,13 +308,13 @@ def revoke_delegation(revoker_id, user_permission_id):
 
     up = UserPermission.query.get(user_permission_id)
     if not up:
-        raise PermissionError("Delegación no encontrada.")
+        raise PermissionServiceError("Delegación no encontrada.")
     if not up.is_active:
-        raise PermissionError("Esta delegación ya fue revocada.")
+        raise PermissionServiceError("Esta delegación ya fue revocada.")
 
     revoker = User.query.get(revoker_id)
     if not revoker:
-        raise PermissionError("Usuario no encontrado.")
+        raise PermissionServiceError("Usuario no encontrado.")
 
     can_revoke = (
         up.granted_by == revoker_id
@@ -323,7 +326,7 @@ def revoke_delegation(revoker_id, user_permission_id):
         )
     )
     if not can_revoke:
-        raise PermissionError("No tienes permiso para revocar esta delegación.")
+        raise PermissionServiceError("No tienes permiso para revocar esta delegación.")
 
     up.revoke()
     db.session.commit()
@@ -429,13 +432,13 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     """
     creator = User.query.get(creator_id)
     if not creator:
-        raise PermissionError("Usuario creador no encontrado.")
+        raise PermissionServiceError("Usuario creador no encontrado.")
 
     if not creator.has_permission('admin_users.api.create_social_service'):
-        raise PermissionError("No tienes permiso para crear usuarios de servicio social.")
+        raise PermissionServiceError("No tienes permiso para crear usuarios de servicio social.")
 
     if not creator.has_permission('permissions.api.delegate'):
-        raise PermissionError("No tienes permiso para delegar.")
+        raise PermissionServiceError("No tienes permiso para delegar.")
 
     # Same rules as self-registration (app/utils/validators.py). These columns
     # are rendered by the staff consoles, so storage stays clean here too.
@@ -456,23 +459,23 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     # address nothing can be delivered to must stop the creation here — before
     # anything is written — instead of leaving an account nobody can enter.
     if '@' not in email:
-        raise PermissionError(
+        raise PermissionServiceError(
             "El correo electrónico no es una dirección válida. La cuenta se "
             "activa mediante un enlace enviado por correo, así que no puede "
             "crearse sin un buzón al que llegar."
         )
 
     if User.query.filter_by(email=email).first():
-        raise PermissionError(f"El email '{email}' ya está registrado.")
+        raise PermissionServiceError(f"El email '{email}' ya está registrado.")
     if User.query.filter_by(username=email).first():
-        raise PermissionError(f"El usuario '{email}' ya existe.")
+        raise PermissionServiceError(f"El usuario '{email}' ya existe.")
 
     ss_role = Role.query.filter_by(name='social_service').first()
     if not ss_role:
-        raise PermissionError("Rol 'social_service' no existe en el sistema.")
+        raise PermissionServiceError("Rol 'social_service' no existe en el sistema.")
 
     if not permissions_to_delegate:
-        raise PermissionError("Debe delegarse al menos un permiso.")
+        raise PermissionServiceError("Debe delegarse al menos un permiso.")
 
     # Alcance global se decide por ROL, nunca por un permiso delegado: si se
     # leyera con has_permission(), delegar 'academic_periods.api.create' sobre
@@ -482,7 +485,7 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
         try:
             effective_pids = sorted({int(pid) for pid in (program_ids or [])})
         except (TypeError, ValueError):
-            raise PermissionError("La lista de programas contiene un valor inválido.")
+            raise PermissionServiceError("La lista de programas contiene un valor inválido.")
     else:
         # Alcance real del creador, no sólo lo que coordina: una cuenta de
         # servicio social nunca puede nacer con más alcance que quien la crea.
@@ -497,21 +500,21 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
             # tratar None como "todos" aquí crearía una cuenta de servicio social
             # con alcance sobre el instituto entero a manos de quien no es jefe
             # de posgrado.
-            raise PermissionError(
+            raise PermissionServiceError(
                 "Tu cuenta tiene alcance global sin ser jefe de posgrado. No se "
                 "creará la cuenta de servicio social: reporta esta inconsistencia "
                 "de permisos antes de continuar."
             )
         creator_pids = sorted(creator_scope)
         if not creator_pids:
-            raise PermissionError("No coordinas programas. No puedes crear servicio social.")
+            raise PermissionServiceError("No coordinas programas. No puedes crear servicio social.")
         effective_pids = creator_pids
 
     # Sin programas no hay cuenta. Una delegación con program_id NULL no aporta
     # alcance (`User.get_accessible_program_ids` la ignora), así que crear la
     # cuenta aquí sería fabricar un usuario que nunca podrá ver un expediente.
     if not effective_pids:
-        raise PermissionError(
+        raise PermissionServiceError(
             "Selecciona al menos un programa para la cuenta de servicio social. "
             "Una delegación sin programa no otorga acceso a ningún expediente: "
             "la cuenta se crearía sin poder trabajar."
@@ -529,7 +532,7 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     }
     missing_pids = [pid for pid in effective_pids if pid not in found_pids]
     if missing_pids:
-        raise PermissionError(
+        raise PermissionServiceError(
             "Alguno de los programas seleccionados no existe: "
             + ", ".join(str(pid) for pid in missing_pids)
         )
@@ -542,18 +545,18 @@ def create_social_service_user(creator_id, user_data, permissions_to_delegate,
     for codename in permissions_to_delegate:
         perm = Permission.query.filter_by(codename=codename, is_active=True).first()
         if not perm:
-            raise PermissionError(f"Permiso '{codename}' no existe o está inactivo.")
+            raise PermissionServiceError(f"Permiso '{codename}' no existe o está inactivo.")
         if perm.resource in NON_DELEGATABLE_RESOURCES:
-            raise PermissionError(f"No se puede delegar permisos del sistema de permisos: '{codename}'.")
+            raise PermissionServiceError(f"No se puede delegar permisos del sistema de permisos: '{codename}'.")
         if codename in SELF_SERVICE_PERMISSIONS:
-            raise PermissionError(
+            raise PermissionServiceError(
                 f"'{codename}' es un permiso de cuenta propia y no otorga "
                 "acceso a ningún programa; quítalo de la selección."
             )
         perm_objects[codename] = perm
         # Capacidad: el creador debe tener el permiso.
         if not creator.has_permission(codename):
-            raise PermissionError(f"No puedes delegar '{codename}' porque no lo tienes.")
+            raise PermissionServiceError(f"No puedes delegar '{codename}' porque no lo tienes.")
 
     # The account is born with a password nobody knows — not the creator, not
     # the holder. Access arrives exclusively through the single-use link mailed
@@ -717,7 +720,7 @@ def add_role_override(role_id, codename, performed_by, reason=None):
     """
     role = Role.query.get(role_id)
     if not role:
-        raise PermissionError("Rol no encontrado.")
+        raise PermissionServiceError("Rol no encontrado.")
 
     # El alcance global no se reparte: se es jefe de posgrado o no se es.
     #
@@ -734,7 +737,7 @@ def add_role_override(role_id, codename, performed_by, reason=None):
     # mano la incluye. La vía legítima para dar alcance global existe, es
     # explícita y es visible: asignar el rol 'postgraduate_admin' a la cuenta.
     if codename == GLOBAL_SCOPE_PERMISSION:
-        raise PermissionError(
+        raise PermissionServiceError(
             f"'{codename}' define el alcance global del sistema y no puede "
             "otorgarse como override de rol: daría acceso a todos los programas "
             "a cada cuenta con ese rol. Si alguien debe tener alcance global, "
@@ -743,7 +746,7 @@ def add_role_override(role_id, codename, performed_by, reason=None):
 
     perm = Permission.query.filter_by(codename=codename, is_active=True).first()
     if not perm:
-        raise PermissionError(f"Permiso '{codename}' no existe o está inactivo.")
+        raise PermissionServiceError(f"Permiso '{codename}' no existe o está inactivo.")
 
     # Verificar override activo existente
     existing = RolePermissionOverride.query.filter_by(
@@ -752,7 +755,7 @@ def add_role_override(role_id, codename, performed_by, reason=None):
         is_active=True
     ).first()
     if existing:
-        raise PermissionError(
+        raise PermissionServiceError(
             f"El rol '{role.name}' ya tiene un override activo para '{codename}'."
         )
 
@@ -796,7 +799,7 @@ def revert_role_override(role_id, codename, performed_by):
     """
     perm = Permission.query.filter_by(codename=codename).first()
     if not perm:
-        raise PermissionError(f"Permiso '{codename}' no encontrado.")
+        raise PermissionServiceError(f"Permiso '{codename}' no encontrado.")
 
     override = RolePermissionOverride.query.filter_by(
         role_id=role_id,
@@ -804,7 +807,7 @@ def revert_role_override(role_id, codename, performed_by):
         is_active=True
     ).first()
     if not override:
-        raise PermissionError(
+        raise PermissionServiceError(
             f"No hay override activo de '{codename}' para este rol."
         )
 

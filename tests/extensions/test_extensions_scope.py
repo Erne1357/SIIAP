@@ -133,7 +133,7 @@ class ExtensionsScopeTest(unittest.TestCase):
     def _ids(self, path):
         res = self.client.get(path)
         self.assertEqual(res.status_code, 200)
-        return [item['id'] for item in res.get_json()['items']]
+        return [item['id'] for item in res.get_json()['data']['items']]
 
     # ── Listing ─────────────────────────────────────────────────────────────
 

@@ -73,14 +73,14 @@ class TestPublicEventsApi(unittest.TestCase):
         resp = self.client.get('/api/v1/events/public')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertIn('items', data)
+        self.assertIsNone(data['error'])
+        self.assertIn('items', data['data'])
 
     def test_list_public_events_includes_multiple_events(self):
         ev = self._make_public_multiple_event()
         resp = self.client.get('/api/v1/events/public')
         data = json.loads(resp.data)
-        ids = [i['id'] for i in data['items']]
+        ids = [i['id'] for i in data['data']['items']]
         self.assertIn(ev.id, ids)
 
     def test_list_public_events_excludes_single_capacity(self):
@@ -88,14 +88,14 @@ class TestPublicEventsApi(unittest.TestCase):
         resp = self.client.get('/api/v1/events/public')
         data = json.loads(resp.data)
         # single events never appear in public list
-        for item in data['items']:
+        for item in data['data']['items']:
             self.assertNotEqual(item['capacity_type'], 'single')
 
     def test_list_public_events_excludes_draft(self):
         self._make_public_multiple_event(status='draft')
         resp = self.client.get('/api/v1/events/public')
         data = json.loads(resp.data)
-        for item in data['items']:
+        for item in data['data']['items']:
             self.assertEqual(item.get('status', 'published'), 'published')
 
     def test_list_public_events_excludes_not_visible_to_students(self):
@@ -103,7 +103,7 @@ class TestPublicEventsApi(unittest.TestCase):
         resp = self.client.get('/api/v1/events/public')
         data = json.loads(resp.data)
         # Events with visible_to_students=False should not appear
-        self.assertEqual(len(data['items']), 0)
+        self.assertEqual(len(data['data']['items']), 0)
 
     def test_list_public_events_unauthenticated_redirects(self):
         anon = self.app.test_client()
@@ -115,8 +115,8 @@ class TestPublicEventsApi(unittest.TestCase):
         resp = self.client.get(f'/api/v1/events/public/{ev.id}')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertEqual(data['event']['id'], ev.id)
+        self.assertIsNone(data['error'])
+        self.assertEqual(data['data']['event']['id'], ev.id)
 
     def test_get_public_event_detail_not_found(self):
         resp = self.client.get('/api/v1/events/public/99999')
@@ -143,7 +143,7 @@ class TestPublicEventsApi(unittest.TestCase):
         ev = self._make_public_multiple_event()
         resp = self.client.get(f'/api/v1/events/public/{ev.id}')
         data = json.loads(resp.data)
-        self.assertIsNone(data['my_registration'])
+        self.assertIsNone(data['data']['my_registration'])
 
     def test_get_private_event_without_invitation_is_indistinguishable_from_missing(self):
         ev = self._make_public_multiple_event(visibility='private')
@@ -179,6 +179,6 @@ class TestPublicEventsApi(unittest.TestCase):
         db.session.commit()
         resp = self.client.get('/api/v1/events/public')
         data = json.loads(resp.data)
-        found = next((i for i in data['items'] if i['id'] == ev.id), None)
+        found = next((i for i in data['data']['items'] if i['id'] == ev.id), None)
         if found:
             self.assertEqual(found['my_invitation_status'], 'pending')

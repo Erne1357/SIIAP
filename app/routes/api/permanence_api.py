@@ -6,6 +6,7 @@ API para gestionar la permanencia semestral de estudiantes (Fase 6).
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app import db
+from app.utils.api_response import api_server_error
 from app.utils.permissions import (
     permission_required,
     program_scope_required,
@@ -39,11 +40,7 @@ def api_get_enrolled_students(program_id):
             "meta": {"count": len(data)}
         }), 200
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_enrolled_students')
 
 
 @api_permanence.get('/program/<int:program_id>/stats')
@@ -60,11 +57,7 @@ def api_get_permanence_stats(program_id):
             "meta": {}
         }), 200
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_permanence_stats')
 
 
 def _extract_payment_proof(user_id: int):
@@ -229,12 +222,7 @@ def api_confirm_semester_enrollment(user_program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al confirmar inscripción"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_confirm_semester_enrollment')
 
 
 @api_permanence.get('/program/<int:program_id>/enrollment-overview')
@@ -247,11 +235,7 @@ def api_get_enrollment_overview(program_id):
         data = svc.get_enrollment_overview(program_id)
         return jsonify({"data": data, "error": None, "meta": {}}), 200
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_enrollment_overview')
 
 
 @api_permanence.post('/user-program/<int:user_program_id>/reinstate')
@@ -318,12 +302,7 @@ def api_reinstate_from_leave(user_program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al reincorporar"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reinstate_from_leave')
 
 
 @api_permanence.patch('/semester-enrollment/<int:semester_enrollment_id>/status')
@@ -392,12 +371,7 @@ def api_update_enrollment_status(semester_enrollment_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al actualizar estado"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_update_enrollment_status')
 
 
 @api_permanence.get('/user-program/<int:user_program_id>/status')
@@ -420,11 +394,7 @@ def api_get_student_permanence(user_program_id):
             "meta": {}
         }), 200
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_student_permanence')
 
 
 # ── Ventanas de entrega (Coordinador) ─────────────────────────────────────────
@@ -446,7 +416,7 @@ def api_get_deadlines(program_id):
         )
         return jsonify({"data": data, "error": None, "meta": {"count": len(data)}}), 200
     except Exception as e:
-        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_get_deadlines')
 
 
 @api_permanence.post('/program/<int:program_id>/deadlines')
@@ -515,12 +485,7 @@ def api_create_deadline(program_id):
             "meta": {}
         }), 400
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al crear ventana"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_create_deadline')
 
 
 @api_permanence.patch('/deadlines/<int:deadline_id>/toggle')
@@ -561,8 +526,7 @@ def api_toggle_deadline(deadline_id):
         return jsonify({"data": None, "flash": [{"level": "danger", "message": str(e)}],
                         "error": {"code": "NOT_FOUND", "message": str(e)}, "meta": {}}), 404
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al actualizar ventana"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_toggle_deadline')
 
 
 @api_permanence.patch('/deadlines/<int:deadline_id>')
@@ -616,8 +580,7 @@ def api_update_deadline(deadline_id):
         return jsonify({"data": None, "flash": [{"level": "danger", "message": str(e)}],
                         "error": {"code": "NOT_FOUND", "message": str(e)}, "meta": {}}), 404
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al actualizar ventana"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_update_deadline')
 
 
 @api_permanence.delete('/deadlines/<int:deadline_id>')
@@ -650,8 +613,7 @@ def api_delete_deadline(deadline_id):
         return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
                         "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al archivar ventana"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_delete_deadline')
 
 
 @api_permanence.post('/deadlines/<int:deadline_id>/restore')
@@ -681,8 +643,7 @@ def api_restore_deadline(deadline_id):
         return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
                         "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al restaurar ventana"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_restore_deadline')
 
 
 # ── Documentos del estudiante ──────────────────────────────────────────────────
@@ -701,7 +662,7 @@ def api_get_student_documents(user_program_id):
     except svc.StudentNotFound as e:
         return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": str(e)}, "meta": {}}), 404
     except Exception as e:
-        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_get_student_documents')
 
 
 @api_permanence.post('/user-program/<int:user_program_id>/documents/<int:deadline_id>')
@@ -738,8 +699,7 @@ def api_submit_permanence_document(user_program_id, deadline_id):
         return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
                         "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al subir documento"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_submit_permanence_document')
 
 
 # ── Revisión de documentos (Coordinador) ──────────────────────────────────────
@@ -754,7 +714,7 @@ def api_get_pending_documents(program_id):
         data = svc.get_pending_documents(program_id)
         return jsonify({"data": data, "error": None, "meta": {"count": len(data)}}), 200
     except Exception as e:
-        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_get_pending_documents')
 
 
 @api_permanence.post('/submissions/<uuid:submission_uuid>/review')
@@ -806,8 +766,7 @@ def api_review_permanence_document(submission_uuid):
         return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
                         "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al revisar documento"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_review_permanence_document')
 
 
 # ── Referencia Bancaria ────────────────────────────────────────────────────────
@@ -829,11 +788,7 @@ def api_get_payment_reference(user_program_id):
         data = get_payment_reference_for_student(user_program_id)
         return jsonify({"data": data, "error": None, "meta": {}}), 200
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_payment_reference')
 
 
 # ── Solicitudes de Baja Temporal ──────────────────────────────────────────────
@@ -848,7 +803,7 @@ def api_get_pending_leave_requests(program_id):
         data = svc.get_pending_leave_requests(program_id)
         return jsonify({"data": data, "error": None, "meta": {"count": len(data)}}), 200
     except Exception as e:
-        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_get_pending_leave_requests')
 
 
 @api_permanence.get('/user-program/<int:user_program_id>/leave-request')
@@ -865,7 +820,7 @@ def api_get_student_leave_request(user_program_id):
     except svc.StudentNotFound as e:
         return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": str(e)}, "meta": {}}), 404
     except Exception as e:
-        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_get_student_leave_request')
 
 
 @api_permanence.post('/user-program/<int:user_program_id>/leave-request')
@@ -901,8 +856,7 @@ def api_submit_leave_request(user_program_id):
         return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
                         "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al subir la solicitud"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_submit_leave_request')
 
 
 @api_permanence.post('/submissions/<uuid:submission_uuid>/leave-request')
@@ -954,8 +908,7 @@ def api_process_leave_request(submission_uuid):
         return jsonify({"data": None, "flash": [{"level": "warning", "message": str(e)}],
                         "error": {"code": "INVALID_STATE", "message": str(e)}, "meta": {}}), 400
     except Exception as e:
-        return jsonify({"data": None, "flash": [{"level": "danger", "message": "Error al procesar la solicitud"}],
-                        "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='api_process_leave_request')
 
 
 @api_permanence.post('/program/<int:program_id>/deadlines/conacyt-monthly')
@@ -1022,12 +975,7 @@ def api_create_conacyt_monthly_deadlines(program_id):
             "meta": {}
         }), 404
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al crear ventanas CONACyT"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_create_conacyt_monthly_deadlines')
 
 
 @api_permanence.patch('/user-program/<int:user_program_id>/conacyt-scholarship')
@@ -1193,11 +1141,7 @@ def api_transition_preview():
             "meta": {}
         }), 400
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_transition_preview')
 
 
 @api_permanence.post('/transition/execute')
@@ -1338,12 +1282,7 @@ def api_transition_execute():
             "meta": {}
         }), 400
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al ejecutar la transición semestral"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_transition_execute')
 
 
 @api_permanence.get('/my-enrollment')
@@ -1404,11 +1343,7 @@ def api_get_my_enrollment():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_my_enrollment')
 
 
 @api_permanence.post('/my-enrollment/payment-proof')
@@ -1546,9 +1481,4 @@ def api_upload_my_payment_proof():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al subir el comprobante de pago"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_upload_my_payment_proof')

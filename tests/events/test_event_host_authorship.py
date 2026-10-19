@@ -292,7 +292,7 @@ class TestExploitOverHttp(HostAuthorshipBase):
         resp = self.client.get(
             f'/api/v1/events/{self.ev_a.id}/hosts')
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(json.loads(resp.data)['hosts'], [])
+        self.assertEqual(json.loads(resp.data)['data']['hosts'], [])
 
         self._clear_login_cache()
         resp = self.client.get(
@@ -319,7 +319,7 @@ class TestExploitOverHttp(HostAuthorshipBase):
             {'external_name': 'Dra. Externa', 'role_label': 'Invitada'},
         ]})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(json.loads(resp.data)['count'], 2)
+        self.assertEqual(json.loads(resp.data)['data']['count'], 2)
 
 
 class TestAttendeeStillSeesTheCartel(HostAuthorshipBase):
@@ -352,7 +352,7 @@ class TestAttendeeStillSeesTheCartel(HostAuthorshipBase):
     def test_hosts_endpoint_returns_names_and_photos(self):
         resp = self._get(f'/api/v1/events/{self.ev_a.id}/hosts')
         self.assertEqual(resp.status_code, 200)
-        hosts = json.loads(resp.data)['hosts']
+        hosts = json.loads(resp.data)['data']['hosts']
         self.assertEqual(len(hosts), 2)
         # El URL termina en el handle de la fila; el nombre del archivo
         # dejó de viajar en el URL.

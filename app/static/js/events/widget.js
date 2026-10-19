@@ -27,8 +27,8 @@
         body: JSON.stringify({ accept }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok || body.ok === false) {
-        flash('danger', body.error || 'No se pudo registrar tu respuesta.');
+      if (!res.ok || body.error) {
+        flash('danger', body.error?.message || 'No se pudo registrar tu respuesta.');
         return;
       }
       flash('success', accept ? 'Invitación aceptada.' : 'Invitación rechazada.');

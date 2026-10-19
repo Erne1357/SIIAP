@@ -18,9 +18,10 @@ El autoservicio NUNCA aprueba la solicitud ni se firma como decisor: deja la
 solicitud en `executed`, que es lo que de verdad ocurrió.
 """
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_not_found, api_server_error
 from app.models.program_change_request import PENDING
 from app.services.program_changes_service import ProgramChangesService
 from app.services.program_transfer_service import (
@@ -51,11 +52,10 @@ def _transfer_denied(exc: ProgramTransferError):
     el programa destino): un 403 confirmaría que el objeto existe.
     409 cuando el objeto existe pero su estado no admite la operación.
 
-    Se conserva el envoltorio {"ok": false, "error": "<texto>"} de este
-    blueprint porque `program_transfer.js` lee `json.error` como cadena.
     """
-    status = 404 if isinstance(exc, ProgramTransferNotFound) else 409
-    return jsonify({"ok": False, "error": exc.message}), status
+    if isinstance(exc, ProgramTransferNotFound):
+        return api_not_found(exc.message)
+    return api_error("CONFLICT", exc.message, status=409)
 
 
 @api_program_changes.route('', methods=['POST'])
@@ -72,10 +72,8 @@ def create_request():
     to_program_id = _int_or_none(data.get('to_program_id'))
 
     if from_program_id is None or to_program_id is None:
-        return jsonify({
-            "ok": False,
-            "error": "Se requieren from_program_id y to_program_id"
-        }), 400
+        return api_error("VALIDATION_ERROR",
+                         "Se requieren el programa de origen y el de destino.", status=400)
 
     try:
         ProgramTransferService.validate_change_request(
@@ -106,7 +104,7 @@ def create_request():
     except Exception as e:
         current_app.logger.error(f"Error al registrar solicitud de cambio en historial: {e}")
 
-    return jsonify({"ok": True, "id": req.id}), 201
+    return api_ok({"id": req.id}, status=201)
 
 
 @api_program_changes.route('/requests', methods=['GET'])
@@ -128,7 +126,7 @@ def list_requests():
         items = ProgramTransferService.list_change_requests(applicant_id=current_user.id)
 
     payload = [{"id": r.id, "from_program_id": r.from_program_id, "to_program_id": r.to_program_id, "status": r.status} for r in items]
-    return jsonify({"ok": True, "items": payload}), 200
+    return api_ok({"items": payload})
 
 
 @api_program_changes.route('/requests/<int:req_id>/decision', methods=['PUT'])
@@ -148,19 +146,17 @@ def decide(req_id: int):
     try:
         req = ProgramTransferService.get_change_request(req_id)
     except ProgramTransferNotFound as e:
-        return jsonify({"ok": False, "error": e.message}), 404
+        return api_not_found(e.message)
 
     in_scope = scope_service.programs_in_scope(
         current_user, [req.from_program_id, req.to_program_id]
     )
     if {req.from_program_id, req.to_program_id} - in_scope:
-        return jsonify({"ok": False, "error": "La solicitud de cambio no existe."}), 404
+        return api_not_found("La solicitud de cambio no existe.")
 
     if req.status != PENDING:
-        return jsonify({
-            "ok": False,
-            "error": "Esta solicitud ya fue resuelta y no puede volver a decidirse."
-        }), 409
+        return api_error("CONFLICT",
+                         "Esta solicitud ya fue resuelta y no puede volver a decidirse.", status=409)
 
     try:
         r = ProgramChangesService.decide_request(
@@ -168,12 +164,12 @@ def decide(req_id: int):
             status=data.get('status'),
             decided_by=current_user.id
         )
-        return jsonify({"ok": True, "id": r.id, "status": r.status}), 200
+        return api_ok({"id": r.id, "status": r.status})
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        current_app.logger.error(f"Error al decidir solicitud de cambio {req_id}: {e}")
-        return jsonify({"ok": False, "error": "No se pudo procesar la decisión."}), 500
+        return api_server_error(e, message="No se pudo procesar la decisión.",
+                                context=f"program_changes.decide id={req_id}")
 
 
 @api_program_changes.route('/analyze', methods=['POST'])
@@ -192,10 +188,8 @@ def analyze_transfer():
     to_id = _int_or_none(data.get('to_program_id'))
 
     if from_id is None or to_id is None:
-        return jsonify({
-            "ok": False,
-            "error": "Se requieren from_program_id y to_program_id"
-        }), 400
+        return api_error("VALIDATION_ERROR",
+                         "Se requieren el programa de origen y el de destino.", status=400)
 
     try:
         ProgramTransferService.validate_transfer(current_user.id, from_id, to_id)
@@ -208,10 +202,10 @@ def analyze_transfer():
             from_id,
             to_id
         )
-        return jsonify({"ok": True, "analysis": analysis}), 200
+        return api_ok({"analysis": analysis})
     except Exception as e:
-        current_app.logger.error(f"Error al analizar cambio de programa: {e}")
-        return jsonify({"ok": False, "error": "No se pudo analizar el cambio de programa."}), 500
+        return api_server_error(e, message="No se pudo analizar el cambio de programa.",
+                                context="program_changes.analyze_transfer")
 
 
 @api_program_changes.route('/execute', methods=['POST'])
@@ -227,10 +221,8 @@ def execute_transfer():
     reason = data.get('reason', '')
 
     if from_id is None or to_id is None:
-        return jsonify({
-            "ok": False,
-            "error": "Se requieren from_program_id y to_program_id"
-        }), 400
+        return api_error("VALIDATION_ERROR",
+                         "Se requieren el programa de origen y el de destino.", status=400)
 
     # Validar ANTES de crear la solicitud: un cambio denegado no debe dejar
     # basura en program_change_request.
@@ -284,18 +276,15 @@ def execute_transfer():
         except Exception as e:
             current_app.logger.error(f"Error al registrar transferencia ejecutada en historial: {e}")
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "message": "Cambio de programa completado exitosamente",
             "result": result
-        }), 200
+        })
     else:
         current_app.logger.error(
             f"Fallo al ejecutar cambio de programa {from_id}->{to_id} "
             f"del usuario {current_user.id}: {result.get('error')}"
         )
         ProgramChangesService.mark_cancelled(change_request.id)
-        return jsonify({
-            "ok": False,
-            "error": "No se pudo completar el cambio de programa."
-        }), 500
+        return api_error("SERVER_ERROR", "No se pudo completar el cambio de programa.",
+                         status=500, level="danger")

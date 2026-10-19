@@ -27,6 +27,14 @@
         enrollment: "Inscripción",
     };
 
+    // Mensaje de un envelope de error: el primer mensaje por campo si existe
+    // (es el más específico) y si no `error.message`.
+    function errText(body, fallback) {
+        const fields = body?.error?.fields;
+        const first = fields ? Object.values(fields)[0] : null;
+        return first || body?.error?.message || fallback;
+    }
+
     function flash(msg, type = "success") {
         if (!alerts) return;
         const el = document.createElement("div");
@@ -91,13 +99,13 @@
         // archivos (para selector y vista)
         const aRes = await fetch(`${API}/archives?include=step`, { credentials: "same-origin" });
         const aData = await aRes.json();
-        archives = aData.items || [];
+        archives = aData.data?.items || [];
         renderArchivesOptions();
 
         // políticas
         const pRes = await fetch(`${API}/retention/policies`, { credentials: "same-origin" });
         const pData = await pRes.json();
-        policies = pData.items || [];
+        policies = pData.data?.items || [];
         renderPolicies();
     }
 
@@ -150,7 +158,7 @@
                 });
             }
             data = await res.json();
-            if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo guardar");
+            if (!res.ok || data.error) throw new Error(errText(data, "No se pudo guardar"));
             flash("Política guardada");
             btnReset.click();
             await loadAll();
@@ -184,7 +192,7 @@
                 credentials: "same-origin"
             });
             const data = await res.json();
-            if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo eliminar");
+            if (!res.ok || data.error) throw new Error(errText(data, "No se pudo eliminar"));
             flash("Política eliminada");
             btnReset.click();
             await loadAll();
@@ -199,8 +207,8 @@
             try {
                 const res = await fetch("/api/v1/retention/candidates", { credentials: "same-origin" });
                 const data = await res.json();
-                if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo traer candidatos");
-                const count = data.count || (data.items ? data.items.length : 0);
+                if (!res.ok || data.error) throw new Error(errText(data, "No se pudo traer candidatos"));
+                const count = data.data?.count || (data.data?.items ? data.data.items.length : 0);
                 flash(
                     count === 1
                         ? "Hay 1 archivo candidato a eliminación."

@@ -204,11 +204,11 @@
       
       const json = await res.json();
       
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || 'Error al analizar');
+      if (!res.ok || json.error) {
+        throw new Error(json.error?.message || 'Error al analizar');
       }
       
-      currentAnalysis = json.analysis;
+      currentAnalysis = json.data.analysis;
       renderAnalysis(currentAnalysis);
       
     } catch (err) {
@@ -439,8 +439,8 @@
       
       const json = await res.json();
       
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || 'Error al ejecutar el cambio');
+      if (!res.ok || json.error) {
+        throw new Error(json.error?.message || 'Error al ejecutar el cambio');
       }
       
       // Éxito

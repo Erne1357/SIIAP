@@ -13,9 +13,10 @@ Endpoints:
 """
 import os
 
-from flask import Blueprint, jsonify, request, send_file, current_app
+from flask import Blueprint, request, send_file, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_server_error
 from app.services import program_scope_service as scope_service
 from app.services import template_access_service
 from app import db
@@ -33,16 +34,16 @@ api_document_templates = Blueprint(
 ALLOWED_EXTENSIONS = {'html', 'docx'}
 
 
-def _ok(data=None, **kwargs):
-    payload = {'ok': True}
-    if data is not None:
-        payload['data'] = data
-    payload.update(kwargs)
-    return jsonify(payload)
+_ERROR_CODES = {
+    400: 'VALIDATION_ERROR',
+    403: 'FORBIDDEN',
+    404: 'NOT_FOUND',
+}
 
 
 def _err(msg, code=400):
-    return jsonify({'ok': False, 'error': msg}), code
+    """Standard error envelope; the error code follows the HTTP status."""
+    return api_error(_ERROR_CODES.get(code, 'BUSINESS_ERROR'), msg, status=code)
 
 
 def _allowed_file(filename):
@@ -117,7 +118,7 @@ def list_templates():
         current_user,
         q.order_by(DocumentTemplate.document_type, DocumentTemplate.name).all(),
     )
-    return _ok([t.to_dict() for t in templates], total=len(templates))
+    return api_ok([t.to_dict() for t in templates], meta={'total': len(templates)})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -204,7 +205,7 @@ def upload_template():
     db.session.add(template)
     db.session.commit()
 
-    return _ok(template.to_dict()), 201
+    return api_ok(template.to_dict(), status=201)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -226,7 +227,7 @@ def get_template(template_uuid):
     if t is None or not template_access_service.may_download_document_template(
             current_user, t):
         return _err("Plantilla no encontrada.", 404)
-    return _ok(t.to_dict())
+    return api_ok(t.to_dict())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -257,7 +258,7 @@ def update_template(template_uuid):
         t.is_active = bool(body['is_active'])
 
     db.session.commit()
-    return _ok(t.to_dict())
+    return api_ok(t.to_dict())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -285,7 +286,7 @@ def delete_template(template_uuid):
 
     db.session.delete(t)
     db.session.commit()
-    return _ok({'deleted_id': deleted_public_id})
+    return api_ok({'deleted_id': deleted_public_id})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -310,7 +311,7 @@ def list_variables():
         {'key': '{{coordinator_name}}', 'description': 'Nombre del coordinador del programa'},
         {'key': '{{current_date}}',     'description': 'Fecha actual en formato dd/mm/yyyy'},
     ]
-    return _ok(variables)
+    return api_ok(variables)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -368,11 +369,11 @@ def generate_document():
         )
     except ValueError as e:
         return _err(str(e), 404)
-    except RuntimeError as e:
-        return _err(str(e), 500)
     except Exception as e:
-        current_app.logger.error(f"[generate_document] Error: {e}", exc_info=True)
-        return _err(f"Error interno al generar el documento: {e}", 500)
+        return api_server_error(
+            e, message='Error interno al generar el documento.',
+            context='document_templates.generate_document',
+        )
 
     mime = 'application/pdf' if result['file_type'] == 'pdf' else \
            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

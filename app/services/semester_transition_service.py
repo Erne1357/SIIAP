@@ -42,15 +42,18 @@ logger = logging.getLogger(__name__)
 # Domain exceptions
 # ---------------------------------------------------------------------------
 
-class TransitionError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class TransitionError(DomainError):
     """Error base para operaciones de transición semestral."""
 
 
-class PeriodNotFound(TransitionError):
+class PeriodNotFound(TransitionError, NotFoundError):
     """El periodo académico no existe."""
 
 
-class ProgramNotFound(TransitionError):
+class ProgramNotFound(TransitionError, NotFoundError):
     """El programa no existe."""
 
 

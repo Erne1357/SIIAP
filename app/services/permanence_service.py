@@ -25,12 +25,15 @@ if TYPE_CHECKING:  # string annotations only; imported lazily at runtime
     from app.models.document_deadline import DocumentDeadline
 
 
-class PermanenceError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class PermanenceError(DomainError):
     """Error base para operaciones de permanencia."""
     pass
 
 
-class StudentNotFound(PermanenceError):
+class StudentNotFound(PermanenceError, NotFoundError):
     pass
 
 

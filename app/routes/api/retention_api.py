@@ -1,9 +1,12 @@
 from __future__ import annotations
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from flask_login import login_required, current_user
 from sqlalchemy import select
 from app import db
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_not_found, api_server_error
+from app.utils.validation import parse_json
+from app.schemas.retention import RetentionPolicyIn
 from app.models.retention_policy import RetentionPolicy
 from app.models.archive import Archive
 from app.models.submission import Submission
@@ -28,7 +31,7 @@ def candidates():
         "archive_id": str(s.archive.uuid) if s.archive and s.archive.uuid else None,
         "upload_date": s.upload_date.isoformat() if s.upload_date else None,
     } for s in items]
-    return jsonify({"ok": True, "count": len(items), "items": payload}), 200
+    return api_ok({"count": len(items), "items": payload}, meta={"count": len(items)})
 
 @api_retention.route('/purge', methods=['POST'])
 @login_required
@@ -84,7 +87,7 @@ def purge():
         from flask import current_app
         current_app.logger.error(f"Error al guardar historial de eliminaciones: {e}")
     
-    return jsonify({"ok": True, "deleted": deleted}), 200
+    return api_ok({"deleted": deleted})
 
 @api_retention.route("/policies", methods=["GET"])
 @login_required
@@ -100,39 +103,31 @@ def list_policies():
         "keep_forever": bool(r.keep_forever),
         "apply_after": r.apply_after
     } for r in rows]
-    return jsonify({"ok": True, "items": items}), 200
+    return api_ok({"items": items})
 
 
 @api_retention.route("/policies", methods=["POST"])
 @login_required
 @permission_required('admin_retention.api.manage')
 def create_policy():
-    data = request.get_json() or {}
+    payload = parse_json(RetentionPolicyIn)
     # `archive_id` llega como UUID público en el cuerpo.
-    raw_archive = data.get("archive_id")
-    a = Archive.by_uuid(raw_archive)
-    keep_forever = bool(data.get("keep_forever", False))
-    keep_years = data.get("keep_years")
-    apply_after = data.get("apply_after") or "graduated"
-
+    raw_archive = payload.archive_id
     if not raw_archive:
-        return jsonify({"ok": False, "error": "archive_id es requerido"}), 400
+        return api_error("VALIDATION_ERROR", "Selecciona un archivo.", status=400,
+                         fields={"archive_id": "Este campo es obligatorio."})
+    a = Archive.by_uuid(raw_archive)
     if not a:
-        return jsonify({"ok": False, "error": "Archivo no existe"}), 404
+        return api_not_found("Archivo no existe")
     archive_id = a.id
+    keep_forever = payload.keep_forever
+    keep_years = payload.keep_years
+    apply_after = payload.apply_after
 
     # Un archivo → 1 política. Si ya hay, actualizamos (upsert simple).
     existing = db.session.execute(
         select(RetentionPolicy).where(RetentionPolicy.archive_id == archive_id)
     ).scalar_one_or_none()
-
-    if keep_forever:
-        keep_years = None
-    else:
-        # validar años si no es forever
-        if not keep_years or int(keep_years) <= 0:
-            return jsonify({"ok": False, "error": "keep_years debe ser > 0 si no es 'forever'"}), 400
-        keep_years = int(keep_years)
 
     try:
         if existing:
@@ -140,7 +135,7 @@ def create_policy():
             existing.keep_years = keep_years
             existing.apply_after = apply_after
             db.session.commit()
-            return jsonify({"ok": True, "id": existing.id}), 200
+            return api_ok({"id": existing.id})
         else:
             rp = RetentionPolicy(
                 archive_id=archive_id,
@@ -150,41 +145,34 @@ def create_policy():
             )
             db.session.add(rp)
             db.session.commit()
-            return jsonify({"ok": True, "id": rp.id}), 201
+            return api_ok({"id": rp.id}, status=201)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="retention.create_policy")
 
 
 @api_retention.route("/policies/<int:policy_id>", methods=["PUT"])
 @login_required
 @permission_required('admin_retention.api.manage')
 def update_policy(policy_id: int):
-    data = request.get_json() or {}
-    keep_forever = bool(data.get("keep_forever", False))
-    keep_years = data.get("keep_years")
-    apply_after = data.get("apply_after") or "graduated"
+    payload = parse_json(RetentionPolicyIn)
+    keep_forever = payload.keep_forever
+    keep_years = payload.keep_years
+    apply_after = payload.apply_after
 
     rp = db.session.get(RetentionPolicy, policy_id)
     if not rp:
-        return jsonify({"ok": False, "error": "Política no encontrada"}), 404
-
-    if keep_forever:
-        keep_years = None
-    else:
-        if not keep_years or int(keep_years) <= 0:
-            return jsonify({"ok": False, "error": "keep_years debe ser > 0 si no es 'forever'"}), 400
-        keep_years = int(keep_years)
+        return api_not_found("Política no encontrada")
 
     try:
         rp.keep_forever = keep_forever
         rp.keep_years = keep_years
         rp.apply_after = apply_after
         db.session.commit()
-        return jsonify({"ok": True, "id": rp.id}), 200
+        return api_ok({"id": rp.id})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="retention.update_policy")
 
 
 @api_retention.route("/policies/<int:policy_id>", methods=["DELETE"])
@@ -193,11 +181,11 @@ def update_policy(policy_id: int):
 def delete_policy(policy_id: int):
     rp = db.session.get(RetentionPolicy, policy_id)
     if not rp:
-        return jsonify({"ok": False, "error": "Política no encontrada"}), 404
+        return api_not_found("Política no encontrada")
     try:
         db.session.delete(rp)
         db.session.commit()
-        return jsonify({"ok": True, "deleted": policy_id}), 200
+        return api_ok({"deleted": policy_id})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="retention.delete_policy")

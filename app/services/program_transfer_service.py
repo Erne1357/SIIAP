@@ -54,7 +54,10 @@ ADMISSION_PHASE_ID = 1
 TRANSFERABLE_ADMISSION_STATUSES = frozenset({'in_progress'})
 
 
-class ProgramTransferError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class ProgramTransferError(DomainError):
     """
     Regla de negocio del cambio de programa incumplida.
 
@@ -63,10 +66,9 @@ class ProgramTransferError(Exception):
 
     def __init__(self, message: str):
         super().__init__(message)
-        self.message = message
 
 
-class ProgramTransferNotFound(ProgramTransferError):
+class ProgramTransferNotFound(ProgramTransferError, NotFoundError):
     """El objeto (inscripción, programa o solicitud) no existe para este usuario."""
 
 

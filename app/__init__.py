@@ -278,16 +278,21 @@ def create_app(test_config=None):
         e.description = csrf_error_message(e)
         return bad_request(e)
 
-    # Function-local import: the service imports `app.db`.
-    from app.services.admission_status_service import InvalidAdmissionTransition
+    from app.services.errors import DomainError
+    from app.utils.api_response import domain_error_response
 
-    @app.errorhandler(InvalidAdmissionTransition)
-    def invalid_admission_transition(e):
-        """Safety net for an unguarded status move refused by the state machine."""
-        message = str(e)
+    @app.errorhandler(DomainError)
+    def domain_error(e):
+        """
+        Business-rule refusal raised by a service (Spanish message).
+
+        Routes no longer need a try/except per domain exception: anything
+        inheriting DomainError (InvalidAdmissionTransition, ValidationFailed,
+        the per-service bases) lands here with its own status and code.
+        """
         if _wants_json():
-            return _error_envelope(400, "BUSINESS_ERROR", message, level="warning")
-        flash(message, "warning")
+            return domain_error_response(e)
+        flash(e.message or str(e), e.level)
         return redirect(_back_or_index(), code=303)
 
     # ─── Middleware / before_request ─────────────────────────────────────────

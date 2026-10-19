@@ -76,12 +76,15 @@ CONTROL_NUMBER_REJECTED_MESSAGE = (
 )
 
 
-class AcceptanceError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class AcceptanceError(DomainError):
     """Error base para operaciones de aceptacion."""
     pass
 
 
-class ApplicantNotFound(AcceptanceError):
+class ApplicantNotFound(AcceptanceError, NotFoundError):
     pass
 
 
@@ -361,6 +364,10 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
             details=f'Carta de aceptación y tira de materias subidas para {program.name}'
         )
 
+    db.session.commit()
+
+    # Emit only after the commit succeeded: a rollback must not tell clients
+    # that the acceptance state changed.
     # WebSocket: actualizar pestaña de aceptación del aspirante en tiempo real
     try:
         from app.extensions import socketio
@@ -379,8 +386,6 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
         }, room=f'coordinator:program:{program_id}')
     except Exception:
         pass
-
-    db.session.commit()
 
     return doc
 
@@ -457,6 +462,10 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
             data={'student_id': user_id, 'program_id': program_id},
         )
 
+    db.session.commit()
+
+    # Emit only after the commit succeeded: a rollback must not tell clients
+    # that the acceptance state changed.
     # WebSocket: actualizar pestaña de aceptación del coordinador
     try:
         # Igual que los otros emits de aceptación de este servicio: la sala
@@ -469,8 +478,6 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
         }, program_id)
     except Exception:
         pass
-
-    db.session.commit()
 
     return doc
 
@@ -574,6 +581,10 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
         import logging
         logging.error(f"Error queueing email for enrollment_receipt_{status}: {e}")
 
+    db.session.commit()
+
+    # Emit only after the commit succeeded: a rollback must not tell clients
+    # that the acceptance state changed.
     # WebSocket: actualizar pestaña de aceptación del aspirante
     try:
         from app.extensions import socketio
@@ -584,8 +595,6 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
         }, room=f'user:{user_id}')
     except Exception:
         pass
-
-    db.session.commit()
 
     return doc
 

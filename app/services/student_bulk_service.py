@@ -93,7 +93,10 @@ logger = logging.getLogger(__name__)
 # Excepciones del dominio
 # ---------------------------------------------------------------------------
 
-class StudentBulkError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class StudentBulkError(DomainError):
     """Error base para operaciones de alta masiva."""
 
 

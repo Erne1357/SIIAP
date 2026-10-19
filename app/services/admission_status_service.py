@@ -29,6 +29,7 @@ from typing import Iterable, Optional
 from app import db
 from app.models.academic_period import AcademicPeriod
 from app.models.user_program import UserProgram
+from app.services.errors import DomainError
 
 IN_PROGRESS = 'in_progress'
 INTERVIEW_COMPLETED = 'interview_completed'
@@ -81,17 +82,17 @@ _STATUS_LABELS_ES = {
 }
 
 
-class InvalidAdmissionTransition(Exception):
+class InvalidAdmissionTransition(DomainError):
     """The requested status change is not allowed from the current status."""
 
     def __init__(self, from_status: str, to_status: str):
-        self.from_status = from_status
-        self.to_status = to_status
         super().__init__(
             f'No se puede cambiar el estado de admisión de '
             f'"{_STATUS_LABELS_ES.get(from_status, from_status)}" a '
             f'"{_STATUS_LABELS_ES.get(to_status, to_status)}".'
         )
+        self.from_status = from_status
+        self.to_status = to_status
 
 
 def can_transition(from_status: str, to_status: str, *, override: bool = False) -> bool:

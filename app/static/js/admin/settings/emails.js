@@ -90,12 +90,12 @@ class EmailConfigManager {
                 headers: { 'X-CSRFToken': this.getCsrf() }
             });
             const json = await res.json();
-            if (res.ok && json.ok) {
-                const r = json.result;
+            if (res.ok && !json.error) {
+                const r = json.data.result;
                 this.showFlash('success', `Procesados: ${r.processed}, Enviados: ${r.sent}, Fallidos: ${r.failed}`);
                 await this.loadPendingEmails();
             } else if (json.error) {
-                this.showFlash('error', json.error);
+                this.showFlash('error', json.error.message);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -118,12 +118,12 @@ class EmailConfigManager {
                 headers: { 'X-CSRFToken': this.getCsrf() }
             });
             const json = await res.json();
-            if (res.ok && json.ok) {
-                const r = json.result;
+            if (res.ok && !json.error) {
+                const r = json.data.result;
                 this.showFlash('success', `Reintentados: ${r.processed}, Enviados: ${r.sent}`);
                 await this.loadPendingEmails();
             } else if (json.error) {
-                this.showFlash('error', json.error);
+                this.showFlash('error', json.error.message);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -190,7 +190,7 @@ class EmailConfigManager {
 
             if (!res.ok) throw new Error('Error al cargar correos');
 
-            const emails = json.emails;
+            const emails = json.data.emails;
 
             if (emails.length === 0) {
                 container.innerHTML = `

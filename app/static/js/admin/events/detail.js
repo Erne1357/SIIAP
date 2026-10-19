@@ -225,7 +225,7 @@
     // =================================================================
     async function loadEventDetails() {
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}`);
+            const { data } = await C.apiData(`${C.API}/events/${eventId}`);
             currentEvent = data;
             setBreadcrumb(data.title);
             renderHeader(data);
@@ -242,7 +242,7 @@
 
     async function refreshEventOnly() {
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}`);
+            const { data } = await C.apiData(`${C.API}/events/${eventId}`);
             currentEvent = data;
             renderHeader(data);
             renderStatChips(data);
@@ -277,7 +277,7 @@
         const tbody = document.querySelector('#windowsTable tbody');
         setRegionBusy(tbody, true, 'Cargando plazos de horarios…');
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}/windows-list`);
+            const { data } = await C.apiData(`${C.API}/events/${eventId}/windows-list`);
             currentWindows = data.windows || [];
             renderWindowsTable();
             loaded.windows = true;
@@ -356,7 +356,7 @@
             slot_minutes: parseInt(el('windowSlotMinutes').value)
         };
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/windows`, {
+            await C.apiData(`${C.API}/events/${eventId}/windows`, {
                 method: 'POST', body: JSON.stringify(payload)
             });
             C.flash('Plazo creado exitosamente', 'success');
@@ -372,7 +372,7 @@
 
     async function handleGenerateWindowSlots(windowId) {
         try {
-            const { data } = await C.apiRequest(
+            const { data } = await C.apiData(
                 `${C.API}/events/windows/${windowId}/generate-slots`, { method: 'POST' });
             C.flash(data.created > 0
                 ? `Se generaron ${data.created} horarios nuevos`
@@ -393,7 +393,7 @@
         let totalCreated = 0;
         for (const w of currentWindows) {
             try {
-                const { data } = await C.apiRequest(
+                const { data } = await C.apiData(
                     `${C.API}/events/windows/${w.id}/generate-slots`, { method: 'POST' });
                 totalCreated += data.created || 0;
             } catch (err) {
@@ -427,7 +427,7 @@
         const windowId = parseInt(el('deleteWindowId').value);
         if (!windowId) return;
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/windows/${windowId}`, { method: 'DELETE' });
+            const { data } = await C.apiData(`${C.API}/events/windows/${windowId}`, { method: 'DELETE' });
             if (data.requires_force) {
                 const confirmed = await siiapConfirm({
                     type: 'danger', title: 'Eliminar plazo',
@@ -435,7 +435,7 @@
                     confirmLabel: 'Sí, eliminar'
                 });
                 if (!confirmed) return;
-                await C.apiRequest(`${C.API}/events/windows/${windowId}?force=true`, { method: 'DELETE' });
+                await C.apiData(`${C.API}/events/windows/${windowId}?force=true`, { method: 'DELETE' });
             }
             C.flash('Plazo eliminado exitosamente', 'success');
             modal('confirmDeleteWindowModal')?.hide();
@@ -453,12 +453,12 @@
     async function loadSlots() {
         setRegionBusy(document.querySelector('#slotsTable tbody'), true, 'Cargando horarios…');
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}/slots`);
+            const { data } = await C.apiData(`${C.API}/events/${eventId}/slots`);
             const items = data.items || [];
             const enriched = await Promise.all(items.map(async (slot) => {
                 if (slot.status === 'booked') {
                     try {
-                        const { data: a } = await C.apiRequest(`${C.API}/appointments/by-slot/${slot.id}`);
+                        const { data: a } = await C.apiData(`${C.API}/appointments/by-slot/${slot.id}`);
                         if (a.appointment) {
                             return {
                                 ...slot,
@@ -629,10 +629,10 @@
     async function loadEligibleStudents(programId) {
         try {
             if (programId) {
-                const { data } = await C.apiRequest(`${C.API}/interviews/eligible-students/${programId}`);
+                const { data } = await C.apiData(`${C.API}/interviews/eligible-students/${programId}`);
                 eligibleStudents = (data.eligible_students || []).map(s => ({ ...s, program_id: programId }));
             } else {
-                const { data } = await C.apiRequest(`${C.API}/interviews/eligible-students`);
+                const { data } = await C.apiData(`${C.API}/interviews/eligible-students`);
                 const groups = data.programs || [];
                 eligibleStudents = [];
                 groups.forEach(g => {
@@ -661,7 +661,7 @@
             return;
         }
         try {
-            await C.apiRequest(`${C.API}/appointments`, { method: 'POST', body: JSON.stringify(payload) });
+            await C.apiData(`${C.API}/appointments`, { method: 'POST', body: JSON.stringify(payload) });
             C.flash('Cita asignada exitosamente', 'success');
             modal('assignSlotModal')?.hide();
             el('assignSlotForm').reset();
@@ -685,7 +685,7 @@
         const appointmentId = el('cancelAppointmentId').value;
         const reason = el('cancelReason').value.trim();
         try {
-            await C.apiRequest(`${C.API}/appointments/${appointmentId}/cancel`, {
+            await C.apiData(`${C.API}/appointments/${appointmentId}/cancel`, {
                 method: 'POST',
                 body: JSON.stringify({ reason: reason || 'Cancelada por coordinador' })
             });
@@ -719,7 +719,7 @@
         const slotId = parseInt(el('deleteSlotId').value);
         if (!slotId) return;
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/slots/${slotId}`, { method: 'DELETE' });
+            const { data } = await C.apiData(`${C.API}/events/slots/${slotId}`, { method: 'DELETE' });
             if (data.requires_force) {
                 const confirmed = await siiapConfirm({
                     type: 'danger', title: 'Eliminar horario',
@@ -727,7 +727,7 @@
                     confirmLabel: 'Sí, eliminar'
                 });
                 if (!confirmed) return;
-                await C.apiRequest(`${C.API}/events/slots/${slotId}?force=true`, { method: 'DELETE' });
+                await C.apiData(`${C.API}/events/slots/${slotId}?force=true`, { method: 'DELETE' });
             }
             C.flash('Horario eliminado exitosamente', 'success');
             modal('confirmDeleteSlotModal')?.hide();
@@ -748,7 +748,7 @@
         setRegionBusy(tbody, true, 'Cargando solicitudes de cambio…');
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Cargando&hellip;</td></tr>';
         try {
-            const { data } = await C.apiRequest(`${C.API}/appointments/change-requests/by-event/${eventId}`);
+            const { data } = await C.apiData(`${C.API}/appointments/change-requests/by-event/${eventId}`);
             currentChangeRequests = data.change_requests || [];
             renderChangeRequestsTable();
             const badge = el('changeRequestsBadge');
@@ -852,7 +852,7 @@
             return;
         }
         try {
-            await C.apiRequest(`${C.API}/appointments/change-requests/${reqId}/decision`, {
+            await C.apiData(`${C.API}/appointments/change-requests/${reqId}/decision`, {
                 method: 'PUT',
                 body: JSON.stringify({ status: 'accepted', new_slot_id: parseInt(newSlotId) })
             });
@@ -874,7 +874,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/appointments/change-requests/${reqId}/decision`, {
+            await C.apiData(`${C.API}/appointments/change-requests/${reqId}/decision`, {
                 method: 'PUT', body: JSON.stringify({ status: 'rejected' })
             });
             C.flash('Solicitud rechazada', 'success');
@@ -891,7 +891,7 @@
         setRegionBusy(document.querySelector('#registrationsTable tbody'), true, 'Cargando registros…');
         setRegionBusy(document.querySelector('#quickRegistrationsTable tbody'), true);
         try {
-            const { data } = await C.apiRequest(`${C.API}/attendance/event/${eventId}/registrations`);
+            const { data } = await C.apiData(`${C.API}/attendance/event/${eventId}/registrations`);
             currentRegistrations = data.registrations || [];
             // `can_manage` viene del propio endpoint (attendance_api.py) y es el
             // MISMO booleano con el que decidió si mandar `notes`. Sin él la
@@ -1030,7 +1030,7 @@
 
     async function markAttendance(userId, attended) {
         try {
-            await C.apiRequest(`${C.API}/attendance/event/${eventId}/mark-attendance`, {
+            await C.apiData(`${C.API}/attendance/event/${eventId}/mark-attendance`, {
                 method: 'POST', body: JSON.stringify({ user_id: userId, attended: attended })
             });
             C.flash(attended ? 'Asistencia registrada' : 'Marcado como ausente', 'success');
@@ -1042,7 +1042,7 @@
 
     async function undoAttendance(userId) {
         try {
-            await C.apiRequest(`${C.API}/attendance/event/${eventId}/mark-attendance`, {
+            await C.apiData(`${C.API}/attendance/event/${eventId}/mark-attendance`, {
                 method: 'POST', body: JSON.stringify({ user_id: userId, reset: true })
             });
             C.flash('Estado actualizado a registrado', 'success');
@@ -1082,7 +1082,7 @@
         const tbody = document.querySelector('#invitationsTable tbody');
         setRegionBusy(tbody, true, 'Cargando invitaciones…');
         try {
-            const { data } = await C.apiRequest(`${C.API}/invitations/event/${eventId}/list`);
+            const { data } = await C.apiData(`${C.API}/invitations/event/${eventId}/list`);
             currentInvitations = data.invitations || [];
             renderInvitationsTable();
             if (el('invitationsBadge')) el('invitationsBadge').textContent = currentInvitations.length;
@@ -1155,10 +1155,10 @@
         try {
             let users = [];
             if (scope === 'event_program' && currentEvent.program_id) {
-                const { data } = await C.apiRequest(`${C.API}/coordinator/students?program_id=${currentEvent.program_id}`);
+                const { data } = await C.apiData(`${C.API}/coordinator/students?program_id=${currentEvent.program_id}`);
                 users = (data.students || []).map(s => ({ ...s, role_name: 'student' }));
             } else if (scope === 'all_students') {
-                const { data } = await C.apiRequest(`${C.API}/coordinator/students`);
+                const { data } = await C.apiData(`${C.API}/coordinator/students`);
                 users = (data.students || []).map(s => ({ ...s, role_name: 'student' }));
             } else if (scope === 'all_users' || (scope === 'event_program' && !currentEvent.program_id)) {
                 const { data } = await C.apiRequest(`${C.API}/admin/users?per_page=500&active=true`);
@@ -1316,7 +1316,7 @@
         const allowExternal = el('inviteAllowExternal')?.checked
             || el('inviteScopeSelect')?.value !== 'event_program';
         try {
-            const { data } = await C.apiRequest(`${C.API}/invitations/event/${eventId}/invite`, {
+            const { data } = await C.apiData(`${C.API}/invitations/event/${eventId}/invite`, {
                 method: 'POST',
                 body: JSON.stringify({ user_ids: ids, notes: message, allow_external: allowExternal })
             });
@@ -1342,7 +1342,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/invitations/${invitationId}`, { method: 'DELETE' });
+            await C.apiData(`${C.API}/invitations/${invitationId}`, { method: 'DELETE' });
             C.flash('Invitación cancelada', 'success');
             await loadInvitations();
             await refreshEventOnly();
@@ -1461,7 +1461,7 @@
         }
 
         try {
-            await C.apiRequest(`${C.API}/events/${evId}`, {
+            await C.apiData(`${C.API}/events/${evId}`, {
                 method: 'PUT', body: JSON.stringify(payload)
             });
             C.flash('Evento actualizado exitosamente', 'success');
@@ -1487,7 +1487,7 @@
 
     async function loadEventMedia() {
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}/images`);
+            const { data } = await C.apiData(`${C.API}/events/${eventId}/images`);
             currentEventImages = { cover: data.cover || null, gallery: data.gallery || [], eventId: eventId };
             renderCoverPreview();
             renderGalleryGrid();
@@ -1499,7 +1499,7 @@
 
     async function loadEventHosts() {
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}/hosts`);
+            const { data } = await C.apiData(`${C.API}/events/${eventId}/hosts`);
             currentEventHosts = data.hosts || [];
             renderHostsList();
             renderSummaryHosts();
@@ -1718,7 +1718,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/images/${imageId}`, { method: 'DELETE' });
+            await C.apiData(`${C.API}/events/images/${imageId}`, { method: 'DELETE' });
             C.flash('Portada eliminada', 'success');
             currentEventImages.cover = null;
             renderCoverPreview();
@@ -1757,7 +1757,7 @@
             });
             if (!ok) return;
             try {
-                await C.apiRequest(`${C.API}/events/images/${imageId}`, { method: 'DELETE' });
+                await C.apiData(`${C.API}/events/images/${imageId}`, { method: 'DELETE' });
                 C.flash('Imagen eliminada', 'success');
                 await loadEventMedia();
             } catch (err) {
@@ -2014,7 +2014,7 @@
                         body: fd
                     });
                     const d = await res.json();
-                    if (res.ok && d.path) photoPath = d.path;
+                    if (res.ok && d.data?.path) photoPath = d.data.path;
                 } catch (err) {
                     C.flash('Error al subir foto del ponente', 'warning');
                 }
@@ -2031,7 +2031,7 @@
 
     async function saveHosts() {
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/hosts`, {
+            await C.apiData(`${C.API}/events/${eventId}/hosts`, {
                 method: 'PUT', body: JSON.stringify({ hosts: currentEventHosts })
             });
             C.flash('Ponentes guardados exitosamente', 'success');
@@ -2061,7 +2061,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/conclude`, { method: 'POST' });
+            await C.apiData(`${C.API}/events/${eventId}/conclude`, { method: 'POST' });
             C.flash('Evento concluido exitosamente', 'success');
             await loadEventDetails();
         } catch (err) {
@@ -2077,7 +2077,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/archive`, { method: 'POST' });
+            await C.apiData(`${C.API}/events/${eventId}/archive`, { method: 'POST' });
             C.flash('Evento archivado', 'success');
             await loadEventDetails();
         } catch (err) {
@@ -2092,7 +2092,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/unarchive`, {
+            await C.apiData(`${C.API}/events/${eventId}/unarchive`, {
                 method: 'POST', body: JSON.stringify({ new_status: 'published' })
             });
             C.flash('Evento reactivado', 'success');
@@ -2118,7 +2118,7 @@
 
     async function handleDeleteEvent() {
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}`, { method: 'DELETE' });
+            const { data } = await C.apiData(`${C.API}/events/${eventId}`, { method: 'DELETE' });
             if (data.requires_force) {
                 const confirmed = await siiapConfirm({
                     type: 'danger', title: 'Eliminar evento con citas',
@@ -2126,7 +2126,7 @@
                     confirmLabel: 'Sí, eliminar'
                 });
                 if (!confirmed) return;
-                await C.apiRequest(`${C.API}/events/${eventId}?force=true`, { method: 'DELETE' });
+                await C.apiData(`${C.API}/events/${eventId}?force=true`, { method: 'DELETE' });
             }
             C.flash('Evento eliminado exitosamente', 'success');
             modal('confirmDeleteEventModal')?.hide();
@@ -2149,7 +2149,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}`, {
+            await C.apiData(`${C.API}/events/${eventId}`, {
                 method: 'PUT', body: JSON.stringify({ visibility: next })
             });
             C.flash('Visibilidad actualizada', 'success');

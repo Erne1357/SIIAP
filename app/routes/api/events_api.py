@@ -1,7 +1,9 @@
-from datetime import date, time
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required, guard_program_scope
+from app.utils.api_response import api_ok, api_error, api_server_error
+from app.utils.validation import parse_json
+from app.schemas.events import CreateEventIn, AddWindowIn
 from app.services import program_scope_service as scope_service
 from app.services.events_service import EventsService
 from app.models.event import Event, EventWindow, EventSlot
@@ -20,13 +22,15 @@ api_events = Blueprint('api_events', __name__, url_prefix='/api/v1/events')
 
 def _deny(code: str, message: str, status: int):
     """Denegación con el envelope del proyecto y mensaje en español."""
-    return jsonify({
-        "ok": False,
-        "data": None,
-        "flash": [{"level": "danger", "message": message}],
-        "error": {"code": code, "message": message},
-        "meta": {}
-    }), status
+    return api_error(code, message, status=status, level='danger')
+
+
+def _requires_force(message: str):
+    """409 que pide confirmación: `data.requires_force` le dice al front que reintente con ?force=true."""
+    resp, status = api_error('CONFLICT', message, status=409)
+    body = resp.get_json()
+    body['data'] = {'requires_force': True, 'message': message}
+    return jsonify(body), status
 
 
 def _event_managed_by_current_user(event) -> bool:
@@ -106,19 +110,12 @@ def _check_event_access(event_id: int):
 @login_required
 @permission_required('events.api.create')
 def create_event():
-    data = request.get_json() or {}
+    payload = parse_json(CreateEventIn)
 
     # Un usuario con alcance limitado DEBE anclar el evento a uno de sus
     # programas: sin program_id el evento sería institucional y se saltaría
     # todos los controles de alcance posteriores.
-    program_id = data.get('program_id')
-    if program_id not in (None, ''):
-        try:
-            program_id = int(program_id)
-        except (TypeError, ValueError):
-            return _deny("VALIDATION_ERROR", "program_id inválido.", 400)
-    else:
-        program_id = None
+    program_id = payload.program_id or None
 
     if not scope_service.is_global_scope(current_user):
         if not program_id:
@@ -131,23 +128,28 @@ def create_event():
         if denied:
             return denied
 
-    ev = EventsService.create_event(
-        program_id=program_id,
-        type_=data.get('type', 'interview'),
-        title=data.get('title'),
-        description=data.get('description'),
-        location=data.get('location'),
-        created_by=current_user.id,
-        visible_to_students=bool(data.get('visible_to_students', True)),
-        capacity_type=data.get('capacity_type', 'single'),
-        max_capacity=data.get('max_capacity'),
-        requires_registration=bool(data.get('requires_registration', True)),
-        allows_attendance_tracking=bool(data.get('allows_attendance_tracking', False)),
-        status=data.get('status', 'published'),
-        academic_period_id=data.get('academic_period_id'),
-        visibility=data.get('visibility', 'public'),
-        reminders_enabled=bool(data.get('reminders_enabled', True))
-    )
+    try:
+        ev = EventsService.create_event(
+            program_id=program_id,
+            type_=payload.type,
+            title=payload.title,
+            description=payload.description,
+            location=payload.location,
+            created_by=current_user.id,
+            visible_to_students=payload.visible_to_students,
+            capacity_type=payload.capacity_type,
+            max_capacity=payload.max_capacity,
+            requires_registration=payload.requires_registration,
+            allows_attendance_tracking=payload.allows_attendance_tracking,
+            status=payload.status,
+            academic_period_id=payload.academic_period_id,
+            visibility=payload.visibility,
+            reminders_enabled=payload.reminders_enabled
+        )
+    except ValueError as e:
+        return api_error('BUSINESS_ERROR', str(e), status=400)
+    except Exception as e:
+        return api_server_error(e, context='create_event')
 
     from app.sockets.emitters import emit_event_change
     emit_event_change({
@@ -157,7 +159,7 @@ def create_event():
         'title': ev.title,
     }, event=ev)
 
-    return jsonify({"ok": True, "id": ev.id}), 201
+    return api_ok({"id": ev.id}, status=201)
 
 @api_events.route('/<int:event_id>/windows', methods=['POST'])
 @login_required
@@ -167,22 +169,21 @@ def add_window(event_id:int):
     if err:
         return err
 
-    data = request.get_json() or {}
-    current_app.logger.warning(f"Received add_window request with data: {data}")
+    payload = parse_json(AddWindowIn)
     try:
-        current_app.logger.warning(f"Adding window with data: {data}")
         win = EventsService.add_window(
             event_id=event_id,
-            window_date=date.fromisoformat(str(data.get('date'))),
-            start=time.fromisoformat(str(data.get('start_time'))),
-            end=time.fromisoformat(str(data.get('end_time'))),
-            slot_minutes=int(data.get('slot_minutes')),
-            timezone_str=data.get('timezone','America/Ciudad_Juarez')
+            window_date=payload.date,
+            start=payload.start_time,
+            end=payload.end_time,
+            slot_minutes=payload.slot_minutes,
+            timezone_str=payload.timezone
         )
-        return jsonify({"ok": True, "id": win.id}), 201
+        return api_ok({"id": win.id}, status=201)
+    except ValueError as e:
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        current_app.logger.warning(str(e))
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context='add_window')
 
 @api_events.route('/windows/<int:window_id>/generate-slots', methods=['POST'])
 @login_required
@@ -199,14 +200,15 @@ def generate_slots(window_id:int):
         result = EventsService.generate_slots(window_id)
         # `generate_slots` devuelve {'created', 'skipped', 'total'}: antes se
         # publicaba len(dict) — siempre 3.
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "created": result.get('created', 0),
             "skipped": result.get('skipped', 0),
             "total": result.get('total', 0),
-        }), 201
+        }, status=201)
+    except ValueError as e:
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context='generate_slots')
 
 @api_events.route('/<int:event_id>/slots', methods=['GET'])
 @login_required
@@ -227,7 +229,7 @@ def list_slots(event_id:int):
     status = request.args.get('status')
     items = EventsService.list_slots(event_id=event_id, status=status)
     payload = [{"id": s.id, "starts_at": s.starts_at.isoformat(), "ends_at": s.ends_at.isoformat(), "status": s.status} for s in items]
-    return jsonify({"ok": True, "items": payload}), 200
+    return api_ok({"items": payload})
 
 @api_events.route('', methods=['GET'])
 @login_required
@@ -312,7 +314,7 @@ def list_events():
             "created_at": event.created_at.isoformat()
         })
 
-    return jsonify({"ok": True, "items": items}), 200
+    return api_ok({"items": items})
 
 @api_events.route('/<int:event_id>', methods=['DELETE'])
 @login_required
@@ -340,11 +342,9 @@ def delete_event(event_id: int):
     if appointments_count > 0:
         force = request.args.get('force') in ('true', '1', 'yes')
         if not force:
-            return jsonify({
-                "ok": False, 
-                "requires_force": True,
-                "message": f"El evento tiene {appointments_count} citas activas. Usa ?force=true para eliminar."
-            }), 409
+            return _requires_force(
+                f"El evento tiene {appointments_count} citas activas. Usa ?force=true para eliminar."
+            )
     
     try:
         # Cascade debería manejar la eliminación de windows, slots y appointments
@@ -363,11 +363,11 @@ def delete_event(event_id: int):
             'title': title,
         })
 
-        return jsonify({"ok": True, "deleted": event_id}), 200
+        return api_ok({"deleted": event_id})
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='delete_event')
 
 @api_events.route('/<int:event_id>', methods=['GET'])
 @login_required
@@ -397,7 +397,6 @@ def get_event_details(event_id: int):
 
     payload = event.to_dict()
     payload.update({
-        "ok": True,
         "program_name": program.name if program else None,
         "academic_period_code": period.code if period else None,
         "windows_count": len(windows),
@@ -413,7 +412,9 @@ def get_event_details(event_id: int):
             "slot_minutes": w.slot_minutes
         } for w in windows]
     })
-    return jsonify(payload), 200
+    return api_ok(payload)
+
+
 @api_events.route('/windows/<int:window_id>', methods=['DELETE'])
 @login_required
 @permission_required('events.api.manage')
@@ -430,18 +431,14 @@ def delete_window(window_id: int):
 
     try:
         EventsService.delete_window(window_id, force=force)
-        return jsonify({"ok": True, "deleted": window_id}), 200
+        return api_ok({"deleted": window_id})
     except ValueError as e:
         if "force=True" in str(e):
-            return jsonify({
-                "ok": False,
-                "requires_force": True,
-                "message": str(e)
-            }), 409
-        return jsonify({"ok": False, "error": str(e)}), 400
+            return _requires_force(str(e))
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='delete_window')
 
 
 @api_events.route('/slots/<int:slot_id>', methods=['DELETE'])
@@ -461,18 +458,14 @@ def delete_slot(slot_id: int):
 
     try:
         EventsService.delete_slot(slot_id, force=force)
-        return jsonify({"ok": True, "deleted": slot_id}), 200
+        return api_ok({"deleted": slot_id})
     except ValueError as e:
         if "force=True" in str(e):
-            return jsonify({
-                "ok": False,
-                "requires_force": True,
-                "message": str(e)
-            }), 409
-        return jsonify({"ok": False, "error": str(e)}), 400
+            return _requires_force(str(e))
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='delete_slot')
 
 
 @api_events.route('/<int:event_id>/windows-list', methods=['GET'])
@@ -511,7 +504,7 @@ def list_event_windows(event_id: int):
             "slots_booked": slots_booked
         })
     
-    return jsonify({"ok": True, "windows": items}), 200
+    return api_ok({"windows": items})
 
 @api_events.route('/<int:event_id>', methods=['PUT'])
 @login_required
@@ -565,10 +558,10 @@ def update_event(event_id: int):
     try:
         event = EventsService.update_event(event_id, data)
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='update_event')
 
     from app.sockets.emitters import emit_event_change
     emit_event_change({
@@ -578,7 +571,7 @@ def update_event(event_id: int):
         'title': event.title,
     }, event=event)
 
-    return jsonify({"ok": True, "id": event.id}), 200
+    return api_ok({"id": event.id})
 
 @api_events.route('/public', methods=['GET'])
 @login_required
@@ -668,7 +661,7 @@ def list_public_events():
             "hosts_total": hosts_total,
         })
 
-    return jsonify({"ok": True, "items": items}), 200
+    return api_ok({"items": items})
 
 
 @api_events.route('/public/<int:event_id>', methods=['GET'])
@@ -701,7 +694,7 @@ def get_public_event_detail(event_id: int):
     # la contesta `EventsService`, en un solo sitio.
     event = db.session.get(Event, event_id)
     if event is None:
-        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+        return api_error('NOT_FOUND', "Evento no encontrado", status=404)
 
     # ACL — el creador, quien gestiona el evento, o quien puede participar en
     # él (`EventsService.user_may_participate_in_event`: público de su programa
@@ -727,7 +720,7 @@ def get_public_event_detail(event_id: int):
 
     if not (is_creator or is_admin or _event_participable_by_current_user(event)):
         # Mismo cuerpo y mismo código que el evento inexistente de arriba.
-        return jsonify({"ok": False, "error": "Evento no encontrado"}), 404
+        return api_error('NOT_FOUND', "Evento no encontrado", status=404)
 
     program = db.session.get(Program, event.program_id) if event.program_id else None
 
@@ -808,8 +801,7 @@ def get_public_event_detail(event_id: int):
             event_id=event.id, status='registered'
         ).count()
 
-    return jsonify({
-        "ok": True,
+    return api_ok({
         "event": {
             "id": event.id,
             "title": event.title,
@@ -834,7 +826,7 @@ def get_public_event_detail(event_id: int):
         "my_appointment": my_appointment,
         "my_invitation": my_invitation,
         "windows": windows,
-    }), 200
+    })
 
 
 # ============================================================================
@@ -859,12 +851,12 @@ def conclude_event(event_id: int):
             'program_id': event.program_id,
             'title': event.title,
         }, event=event)
-        return jsonify({"ok": True, "status": event.status}), 200
+        return api_ok({"status": event.status})
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='conclude_event')
 
 
 @api_events.route('/<int:event_id>/archive', methods=['POST'])
@@ -885,12 +877,12 @@ def archive_event(event_id: int):
             'program_id': event.program_id,
             'title': event.title,
         }, event=event)
-        return jsonify({"ok": True, "status": event.status}), 200
+        return api_ok({"status": event.status})
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='archive_event')
 
 
 @api_events.route('/<int:event_id>/unarchive', methods=['POST'])
@@ -913,12 +905,12 @@ def unarchive_event(event_id: int):
             'program_id': event.program_id,
             'title': event.title,
         }, event=event)
-        return jsonify({"ok": True, "status": event.status}), 200
+        return api_ok({"status": event.status})
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='unarchive_event')
 
 
 # ============================================================================
@@ -952,7 +944,7 @@ def list_event_hosts(event_id: int):
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
     hosts = EventsService.get_event_hosts(event_id, viewer=current_user)
-    return jsonify({"ok": True, "hosts": hosts}), 200
+    return api_ok({"hosts": hosts})
 
 
 @api_events.route('/<int:event_id>/hosts/photo', methods=['POST'])
@@ -969,14 +961,14 @@ def upload_host_photo(event_id: int):
 
     file_storage = request.files.get('file')
     if not file_storage:
-        return jsonify({"ok": False, "error": "Archivo 'file' es requerido"}), 400
+        return api_error('VALIDATION_ERROR', "Archivo 'file' es requerido", status=400)
 
     try:
         from app.utils.files import save_event_image
         path = save_event_image(file_storage, event_id, 'host')
-        return jsonify({"ok": True, "path": path}), 201
+        return api_ok({"path": path}, status=201)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='upload_host_photo')
 
 
 @api_events.route('/<int:event_id>/hosts', methods=['PUT'])
@@ -999,17 +991,17 @@ def set_event_hosts(event_id: int):
     data = request.get_json() or {}
     hosts_data = data.get('hosts', [])
     if not isinstance(hosts_data, list):
-        return jsonify({"ok": False, "error": "'hosts' debe ser una lista"}), 400
+        return api_error('VALIDATION_ERROR', "'hosts' debe ser una lista", status=400)
 
     try:
         hosts = EventsService.set_event_hosts(
             event_id, hosts_data, acting_user=current_user
         )
-        return jsonify({"ok": True, "count": len(hosts)}), 200
+        return api_ok({"count": len(hosts)})
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='set_event_hosts')
 
 
 # ============================================================================
@@ -1038,7 +1030,7 @@ def list_event_images(event_id: int):
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
     data = EventsService.get_event_images(event_id)
-    return jsonify({"ok": True, **data}), 200
+    return api_ok(data)
 
 
 @api_events.route('/<int:event_id>/cover', methods=['POST'])
@@ -1052,15 +1044,15 @@ def upload_event_cover(event_id: int):
 
     file_storage = request.files.get('file')
     if not file_storage:
-        return jsonify({"ok": False, "error": "Archivo 'file' es requerido"}), 400
+        return api_error('VALIDATION_ERROR', "Archivo 'file' es requerido", status=400)
 
     try:
         image = EventsService.upload_event_cover(event_id, file_storage)
-        return jsonify({"ok": True, "image": image.to_dict()}), 201
+        return api_ok({"image": image.to_dict()}, status=201)
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='upload_event_image')
 
 
 @api_events.route('/<int:event_id>/images', methods=['POST'])
@@ -1074,16 +1066,16 @@ def upload_event_gallery_image(event_id: int):
 
     file_storage = request.files.get('file')
     if not file_storage:
-        return jsonify({"ok": False, "error": "Archivo 'file' es requerido"}), 400
+        return api_error('VALIDATION_ERROR', "Archivo 'file' es requerido", status=400)
 
     caption = request.form.get('caption')
     try:
         image = EventsService.upload_event_gallery_image(event_id, file_storage, caption)
-        return jsonify({"ok": True, "image": image.to_dict()}), 201
+        return api_ok({"image": image.to_dict()}, status=201)
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='upload_event_image')
 
 
 @api_events.route('/images/<int:image_id>', methods=['DELETE'])
@@ -1099,11 +1091,11 @@ def delete_event_image(image_id: int):
 
     try:
         EventsService.delete_event_image(image_id)
-        return jsonify({"ok": True, "deleted": image_id}), 200
+        return api_ok({"deleted": image_id})
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='delete_event_image')
 
 
 # ============================================================================
@@ -1122,7 +1114,7 @@ def get_admin_dashboard_stats():
     """
     accessible_pids = current_user.get_accessible_program_ids()
     stats = EventsService.get_admin_dashboard_stats(accessible_pids)
-    return jsonify({"ok": True, **stats}), 200
+    return api_ok(stats)
 
 
 @api_events.route('/new-count', methods=['GET'])
@@ -1131,11 +1123,9 @@ def get_new_events_count():
     """Cuenta eventos públicos creados desde la última visita del usuario."""
     try:
         count = EventsService.count_new_events(current_user.id)
-        return jsonify({"data": {"count": count}, "error": None, "meta": {}}), 200
+        return api_ok({"count": count})
     except Exception as e:
-        from flask import current_app
-        current_app.logger.exception(f"new-count failed for user {current_user.id}")
-        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='get_new_events_count')
 
 
 @api_events.route('/mark-seen', methods=['POST'])
@@ -1144,7 +1134,7 @@ def mark_events_seen():
     """Marca los eventos como vistos por el usuario actual."""
     try:
         EventsService.mark_events_seen(current_user.id)
-        return jsonify({"data": {"ok": True}, "error": None, "meta": {}}), 200
+        return api_ok()
     except Exception as e:
         db.session.rollback()
-        return jsonify({"data": None, "error": {"code": "SERVER_ERROR", "message": str(e)}, "meta": {}}), 500
+        return api_server_error(e, context='mark_events_seen')

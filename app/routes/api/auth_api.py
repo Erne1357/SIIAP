@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, session, redirect, url_for, curre
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
+from app.utils.api_response import api_server_error
 from app.models.user import User
 from app.services.auth_audit_service import AuthAuditService
 from app.services.user_history_service import UserHistoryService
@@ -539,11 +540,7 @@ def api_reset_password(token):
         }), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reset_password')
 
     return jsonify({
         "data": {"username": user.username},

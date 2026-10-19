@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const msg = json?.error || 'No se pudo enviar la solicitud de prórroga.';
+        const msg = json?.error?.message || 'No se pudo enviar la solicitud de prórroga.';
         flash(msg, 'danger');
         return;
       }
@@ -399,10 +399,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('appointments-request-failed');
 
       const json = await res.json();
-      if (json.ok && json.appointments && json.appointments.length > 0) {
+      const appointments = json.data?.appointments || [];
+      if (!json.error && appointments.length > 0) {
         renderInterviewPanel('', '');
-        json.appointments.forEach(appt => showInterviewCard(appt));
-      } else if (json.ok && !json.appointments.length) {
+        appointments.forEach(appt => showInterviewCard(appt));
+      } else if (!json.error && !appointments.length) {
         // Sin cita asignada: informar si falta completar el perfil.
         const meRes = await fetch('/api/v1/users/me', { credentials: 'same-origin' });
         const userInfo = await meRes.json();
@@ -562,8 +563,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        flash(json.error || 'No se pudo enviar la solicitud', 'danger');
+      if (!res.ok || json.error) {
+        flash(json.error?.message || 'No se pudo enviar la solicitud', 'danger');
         return;
       }
 

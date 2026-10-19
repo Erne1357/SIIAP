@@ -19,6 +19,7 @@ Alcance (permiso ≠ alcance):
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.utils.permissions import (
     permission_required,
     program_scope_required,
@@ -92,11 +93,7 @@ def api_get_applicants_for_deliberation(program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_applicants_for_deliberation')
 
 
 @api_deliberation.get('/program/<int:program_id>/stats')
@@ -115,11 +112,7 @@ def api_get_deliberation_stats(program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_deliberation_stats')
 
 
 @api_deliberation.get('/program/<int:program_id>/by-status/<string:status>')
@@ -161,11 +154,7 @@ def api_get_applicants_by_status(program_id, status):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_applicants_by_status')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/interview-completed')
@@ -205,12 +194,7 @@ def api_mark_interview_completed(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al marcar entrevista"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_mark_interview_completed')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/start')
@@ -250,12 +234,7 @@ def api_start_deliberation(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al iniciar deliberacion"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_start_deliberation')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/accept')
@@ -316,12 +295,7 @@ def api_accept_applicant(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al aceptar aspirante"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_accept_applicant')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/reject')
@@ -386,12 +360,7 @@ def api_reject_applicant(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al rechazar aspirante"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reject_applicant')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/reset')
@@ -434,12 +403,7 @@ def api_reset_applicant(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al reiniciar estado"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reset_applicant')
 
 
 @api_deliberation.get('/program/<int:program_id>/pending-interview')
@@ -472,11 +436,7 @@ def api_get_applicants_pending_interview(program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_applicants_pending_interview')
 
 
 @api_deliberation.get('/user/<uuid:user_uuid>/program/<int:program_id>/status')
@@ -556,11 +516,7 @@ def api_get_user_deliberation_status(user_uuid, program_id):
         }), 404
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_user_deliberation_status')
 
 
 @api_deliberation.get('/program/<int:program_id>/admission-archives')
@@ -601,11 +557,7 @@ def api_get_program_admission_archives(program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_program_admission_archives')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/force-reset')
@@ -648,9 +600,4 @@ def api_force_reset_applicant(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": str(e)}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_force_reset_applicant')

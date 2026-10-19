@@ -4,22 +4,29 @@ from app import db
 from app.models.academic_period import AcademicPeriod
 
 
-class AcademicPeriodNotFound(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class AcademicPeriodError(DomainError):
+    """Base de los errores de periodos académicos."""
+
+
+class AcademicPeriodNotFound(AcademicPeriodError, NotFoundError):
     """Se lanza cuando no se encuentra el periodo académico."""
     pass
 
 
-class InvalidPeriodCode(Exception):
+class InvalidPeriodCode(AcademicPeriodError):
     """Se lanza cuando el código de periodo es inválido."""
     pass
 
 
-class DuplicatePeriodCode(Exception):
+class DuplicatePeriodCode(AcademicPeriodError):
     """Se lanza cuando ya existe un periodo con ese código."""
     pass
 
 
-class InvalidDateRange(Exception):
+class InvalidDateRange(AcademicPeriodError):
     """Se lanza cuando las fechas no son válidas."""
     pass
 

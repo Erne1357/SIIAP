@@ -55,11 +55,14 @@ logger = logging.getLogger(__name__)
 # Domain exceptions
 # ---------------------------------------------------------------------------
 
-class PurgeError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class PurgeError(DomainError):
     """Error base para operaciones de purga."""
 
 
-class PurgeRunNotFound(PurgeError):
+class PurgeRunNotFound(PurgeError, NotFoundError):
     pass
 
 

@@ -1,5 +1,5 @@
 # app/routes/api/coordinator_api.py
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import select, and_, or_, func
 from datetime import datetime, timezone
@@ -30,6 +30,7 @@ from app.models.semester_enrollment import SemesterEnrollment
 from app.models.academic_period import AcademicPeriod
 from app.services.admission_service import get_admission_state
 from app.utils.datetime_utils import now_local
+from app.utils.api_response import api_ok, api_error, api_not_found, api_server_error
 
 api_coordinator = Blueprint('api_coordinator', __name__, url_prefix='/api/v1/coordinator')
 
@@ -127,7 +128,6 @@ def _restricted_permanence_payload(student, user_program, program) -> dict:
     """
     s = _summary_of(student, program, user_program=user_program)
     return {
-        "ok": True,
         "restricted": True,
         "student": {
             "id": s.get('id'),
@@ -172,7 +172,6 @@ def _restricted_details_payload(student, program, admission_state) -> dict:
     """
     s = _summary_of(student, program, admission_state=admission_state)
     return {
-        "ok": True,
         "restricted": True,
         "student": {
             "id": s.get('id'),
@@ -269,7 +268,7 @@ def list_students():
 
     if scope is not None and not show_other:
         if not scope:
-            return jsonify({"students": []}), 200
+            return api_ok({"students": []})
         query = query.filter(Program.id.in_(scope))
 
     # Filtros adicionales
@@ -367,7 +366,7 @@ def list_students():
 
         students.append(student_data)
     
-    return jsonify({"students": students}), 200
+    return api_ok({"students": students})
 
 @api_coordinator.route('/manageable-students', methods=['GET'])
 @login_required
@@ -381,7 +380,7 @@ def manageable_students():
         program_filter = True  # acceso global
     else:
         if not scope:
-            return jsonify({"students": []}), 200
+            return api_ok({"students": []})
         program_filter = Program.id.in_(scope)
     
     query = db.session.query(User, Program).join(
@@ -405,7 +404,7 @@ def manageable_students():
             "program_name": program.name
         })
     
-    return jsonify({"students": students}), 200
+    return api_ok({"students": students})
 
 @api_coordinator.route('/student/<uuid:student_uuid>/uploadable-archives', methods=['GET'])
 @login_required
@@ -427,7 +426,7 @@ def student_uploadable_archives(student_uuid):
 
     user_program = _scoped_user_program(student_id)
     if not user_program:
-        return jsonify({"error": "Estudiante no inscrito en programa"}), 404
+        return api_not_found("Estudiante no inscrito en programa")
 
     # Obtener archivos que permiten subida por coordinador
     query = db.session.query(Archive, Step, Phase).join(
@@ -463,7 +462,7 @@ def student_uploadable_archives(student_uuid):
             "existing_status": existing.status if existing else None
         })
     
-    return jsonify({"archives": archives}), 200
+    return api_ok({"archives": archives})
 
 @api_coordinator.route('/upload-for-student', methods=['POST'])
 @login_required
@@ -491,7 +490,7 @@ def upload_for_student():
     # llegara a opinar. El 400 se reserva para lo que de verdad es un campo
     # ausente.
     if not request.form.get('student_id') or not request.form.get('archive_id'):
-        return jsonify({"error": "student_id y archive_id son requeridos"}), 400
+        return api_error("VALIDATION_ERROR", "El estudiante y el archivo son requeridos.", status=400)
 
     if student is not None and not _is_student_account(student):
         student = None
@@ -512,19 +511,21 @@ def upload_for_student():
     if file and not file.filename:
         file = None
     if not file and not notes:
-        return jsonify({
-            "error": "Si no subes un archivo debes proporcionar al menos un comentario justificativo"
-        }), 400
+        return api_error(
+            "VALIDATION_ERROR",
+            "Si no subes un archivo debes proporcionar al menos un comentario justificativo",
+            status=400,
+        )
     
     # Inscripción sobre la que se escribe: siempre una que el llamador gestiona.
     user_program = _scoped_user_program(student_id)
     if not user_program:
-        return jsonify({"error": "Estudiante no inscrito"}), 404
+        return api_not_found("Estudiante no inscrito")
 
     # Verificar que el archivo permite subida por coordinador
     archive = db.session.get(Archive, archive_id)
     if not archive or not archive.allow_coordinator_upload:
-        return jsonify({"error": "Este archivo no permite subida por coordinador"}), 403
+        return api_error("FORBIDDEN", "Este archivo no permite subida por coordinador", status=403)
     
     try:
         # Si hay archivo, guardarlo. Si no, file_relative_path queda en None.
@@ -543,7 +544,7 @@ def upload_for_student():
         ).first()
 
         if not program_step:
-            return jsonify({"error": "Configuración de programa incompleta"}), 400
+            return api_error("BUSINESS_ERROR", "Configuración de programa incompleta", status=400)
 
         # Eliminar submission anterior si existe
         existing = Submission.query.filter_by(
@@ -596,16 +597,16 @@ def upload_for_student():
             f"Documento {'aprobado' if decision == 'approve' else 'rechazado'} exitosamente por coordinador"
             + ('' if file else ' (sin archivo adjunto)')
         )
-        return jsonify({
+        return api_ok({
             # Handle público de la entrega recién creada.
-            "ok": True,
             "submission_id": str(submission.uuid) if submission.uuid else None,
             "message": msg,
-        }), 201
+        }, status=201)
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al guardar: {str(e)}"}), 500
+        return api_server_error(e, message="Error al guardar el documento.",
+                                context="coordinator.upload_for_student")
 
 
 @api_coordinator.route('/programs', methods=['GET'])
@@ -628,7 +629,7 @@ def list_coordinator_programs():
         "description": p.description
     } for p in programs]
     
-    return jsonify({"ok": True, "programs": items}), 200
+    return api_ok({"programs": items})
 
 @api_coordinator.route('/student/<uuid:student_uuid>/permanence-details', methods=['GET'])
 @login_required
@@ -644,7 +645,7 @@ def get_student_permanence_details(student_uuid):
 
     student = _resolve_student(student_uuid)
     if student is None:
-        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+        return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
     student_id = student.id
 
     # La inscripción que se muestra es la del programa que el llamador gestiona;
@@ -654,7 +655,7 @@ def get_student_permanence_details(student_uuid):
     if user_program is None:
         user_program = UserProgram.query.filter_by(user_id=student_id).first()
     if not user_program:
-        return jsonify({"ok": False, "error": "Sin programa"}), 404
+        return api_not_found("Sin programa")
 
     program = db.session.get(Program, user_program.program_id)
 
@@ -662,11 +663,9 @@ def get_student_permanence_details(student_uuid):
     # de control, ni foto, ni beca, ni historial semestral cruzan de programa.
     if not can_manage:
         if not scope_service.may_view_cross_program_summary(current_user):
-            return jsonify({
-                "ok": False,
-                "error": "No tienes acceso a la información de este estudiante"
-            }), 403
-        return jsonify(_restricted_permanence_payload(student, user_program, program)), 200
+            return api_error("FORBIDDEN", "No tienes acceso a la información de este estudiante",
+                             status=403)
+        return api_ok(_restricted_permanence_payload(student, user_program, program))
 
     # Periodo activo y enrollment del periodo actual
     active_period = AcademicPeriod.get_active_period()
@@ -689,8 +688,7 @@ def get_student_permanence_details(student_uuid):
         admission_state['status_count'].get('rejected', 0)
     )
 
-    return jsonify({
-        "ok": True,
+    return api_ok({
         "student": {
             "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
@@ -736,7 +734,7 @@ def get_student_permanence_details(student_uuid):
             for se in history
         ],
         "can_manage": can_manage,
-    }), 200
+    })
 
 
 @api_coordinator.route('/student/<uuid:student_uuid>/details', methods=['GET'])
@@ -753,7 +751,7 @@ def get_student_details(student_uuid):
     # 1. Obtener estudiante
     student = _resolve_student(student_uuid)
     if student is None:
-        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+        return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
     student_id = student.id
 
     # 2. Resolver la inscripción dentro del alcance del llamador
@@ -762,7 +760,7 @@ def get_student_details(student_uuid):
     if user_program is None:
         user_program = UserProgram.query.filter_by(user_id=student_id).first()
     if not user_program:
-        return jsonify({"ok": False, "error": "Estudiante no inscrito"}), 404
+        return api_not_found("Estudiante no inscrito")
 
     program = db.session.get(Program, user_program.program_id)
 
@@ -773,11 +771,9 @@ def get_student_details(student_uuid):
     # sus URLs nunca cruzan de programa, aunque el llamador tenga el permiso.
     if not can_manage:
         if not scope_service.may_view_cross_program_summary(current_user):
-            return jsonify({
-                "ok": False,
-                "error": "No tienes acceso a la información de este estudiante"
-            }), 403
-        return jsonify(_restricted_details_payload(student, program, admission_state)), 200
+            return api_error("FORBIDDEN", "No tienes acceso a la información de este estudiante",
+                             status=403)
+        return api_ok(_restricted_details_payload(student, program, admission_state))
 
     # 4. Organizar documentos por paso
     documents_by_step = []
@@ -842,8 +838,7 @@ def get_student_details(student_uuid):
     eligibility = InterviewEligibilityService.check_student_eligibility(student_id, program.id)
     
     # 7. Construir respuesta
-    return jsonify({
-        "ok": True,
+    return api_ok({
         "student": {
             "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
@@ -888,7 +883,7 @@ def get_student_details(student_uuid):
         },
         "missing_documents": _get_missing_documents(documents_by_step),
         "can_manage": can_manage
-    }), 200
+    })
 
 def _format_archive_status(archive, subs, all_extensions):
     """Formatea el estado de un archivo para el modal"""
@@ -1077,10 +1072,7 @@ def get_student_history(student_uuid):
         # Verificar que el estudiante existe y el coordinador tiene acceso
         student = _resolve_student(student_uuid)
         if student is None:
-            return jsonify({
-                'success': False,
-                'message': STUDENT_NOT_FOUND_MESSAGE
-            }), 404
+            return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
         student_id = student.id
         
         # El historial es información prohibida entre programas: aquí no hay
@@ -1092,10 +1084,7 @@ def get_student_history(student_uuid):
         # ajeno averigua si señala a alguien real. Aquí no cuesta nada
         # colapsarlos y es la regla que ya sigue el resto del módulo.
         if not scope_service.user_in_scope(current_user, student, allow_self=False):
-            return jsonify({
-                'success': False,
-                'message': STUDENT_NOT_FOUND_MESSAGE
-            }), 404
+            return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
 
 
         # Parámetros de consulta
@@ -1127,9 +1116,8 @@ def get_student_history(student_uuid):
             
             formatted_history.append(entry_dict)
         
-        return jsonify({
-            'success': True,
-            'data': {
+        return api_ok(
+            {
                 'student': {
                     'id': str(student.uuid) if student.uuid else None,
                     'name': f"{student.first_name} {student.last_name}",
@@ -1140,18 +1128,16 @@ def get_student_history(student_uuid):
                 'total_count': len(history_entries),
                 'format_type': format_type
             },
-            'meta': {
+            meta={
                 'viewed_by': str(current_user.uuid) if current_user.uuid else None,
                 'ordered_by': 'timestamp_desc',
                 'limit_applied': limit
-            }
-        }), 200
+            },
+        )
         
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error al obtener historial del estudiante: {str(e)}'
-        }), 500
+        return api_server_error(e, message='Error al obtener el historial del estudiante.',
+                                context='coordinator.get_student_history')
 
 def _check_ready_for_interview(admission_state):
     """Verifica si el estudiante está listo para entrevista"""

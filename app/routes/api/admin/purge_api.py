@@ -21,6 +21,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file, after_this_request
 from flask_login import login_required, current_user
 
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required
 import app.services.applicant_archive_service as svc
 
@@ -56,11 +57,7 @@ def list_candidates():
             "meta": {}
         }), 400
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='list_candidates')
 
 
 # ---------------------------------------------------------------------------
@@ -127,12 +124,7 @@ def start_purge_run():
             "meta": {}
         }), 400
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al generar respaldo"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='start_purge_run')
 
 
 # ---------------------------------------------------------------------------
@@ -221,12 +213,7 @@ def confirm_purge(run_id):
             "meta": {}
         }), 409
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al ejecutar purga"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='confirm_purge')
 
 
 # ---------------------------------------------------------------------------
@@ -259,11 +246,7 @@ def cancel_run(run_id):
             "meta": {}
         }), 409
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='cancel_run')
 
 
 # ---------------------------------------------------------------------------
@@ -283,8 +266,4 @@ def list_runs():
             "meta": {"count": len(runs)}
         }), 200
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='list_runs')

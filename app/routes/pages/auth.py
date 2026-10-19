@@ -1,5 +1,5 @@
 # app/routes/pages/auth.py
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import current_user, login_required
 from datetime import datetime, timezone
 from app.models.user import User
@@ -11,6 +11,7 @@ from app.utils.validators import (
     validate_short_text,
 )
 from app import db
+from app.utils.api_response import api_ok, api_error, api_server_error
 
 pages_auth = Blueprint("pages_auth", __name__)
 
@@ -66,7 +67,7 @@ def register_page():
         if not first_name or not last_name or not username or not email or not password:
             error_msg = "Faltan campos obligatorios."
             if is_ajax:
-                return jsonify({"ok": False, "error": error_msg}), 400
+                return api_error("VALIDATION_ERROR", error_msg, status=400)
             flash(error_msg, "danger")
             return render_template("auth/register.html")
 
@@ -90,28 +91,28 @@ def register_page():
             )
         except InputValidationError as e:
             if is_ajax:
-                return jsonify({"ok": False, "error": e.message}), 400
+                return api_error("VALIDATION_ERROR", e.message, status=400)
             flash(e.message, "danger")
             return render_template("auth/register.html")
 
         if password != confirm:
             error_msg = "Las contraseñas no coinciden."
             if is_ajax:
-                return jsonify({"ok": False, "error": error_msg}), 400
+                return api_error("VALIDATION_ERROR", error_msg, status=400)
             flash(error_msg, "danger")
             return render_template("auth/register.html")
             
         if User.query.filter_by(username=username).first():
             error_msg = "El nombre de usuario ya existe."
             if is_ajax:
-                return jsonify({"ok": False, "error": error_msg}), 400
+                return api_error("VALIDATION_ERROR", error_msg, status=400)
             flash(error_msg, "danger")
             return render_template("auth/register.html")
             
         if User.query.filter_by(email=email).first():
             error_msg = "El correo electrónico ya está registrado."
             if is_ajax:
-                return jsonify({"ok": False, "error": error_msg}), 400
+                return api_error("VALIDATION_ERROR", error_msg, status=400)
             flash(error_msg, "danger")
             return render_template("auth/register.html")
 
@@ -119,7 +120,7 @@ def register_page():
         if not applicant_role:
             error_msg = "No se encontró el rol 'applicant'. Contacta al administrador."
             if is_ajax:
-                return jsonify({"ok": False, "error": error_msg}), 500
+                return api_error("SERVER_ERROR", error_msg, status=500, level="danger")
             flash(error_msg, "danger")
             return render_template("auth/register.html")
 
@@ -143,16 +144,16 @@ def register_page():
             
             success_msg = "Registro exitoso. Ahora inicia sesión."
             if is_ajax:
-                return jsonify({"ok": True, "message": success_msg})
+                return api_ok({"message": success_msg}, flash=[{"level": "success", "message": success_msg}])
             
             flash(success_msg, "success")
             return redirect(url_for("pages_auth.login_page"))
             
         except Exception as e:
             db.session.rollback()
-            error_msg = f"Error al registrar el usuario: {str(e)}"
             if is_ajax:
-                return jsonify({"ok": False, "error": "Error al registrar el usuario."}), 500
+                return api_server_error(e, message="Error al registrar el usuario.",
+                                        context="auth.register_page")
             flash("Error al registrar el usuario.", "danger")
             return render_template("auth/register.html")
 

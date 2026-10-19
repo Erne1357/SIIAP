@@ -6,6 +6,7 @@ y diferimientos de inscripcion (Fase 7).
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.utils.permissions import (
     permission_required,
     any_permission_required,
@@ -56,11 +57,7 @@ def api_get_accepted_applicants(program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_accepted_applicants')
 
 
 @api_acceptance.get('/program/<int:program_id>/stats')
@@ -78,11 +75,7 @@ def api_get_acceptance_stats(program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_acceptance_stats')
 
 
 @api_acceptance.get('/user/<uuid:user_uuid>/program/<int:program_id>/status')
@@ -130,11 +123,7 @@ def api_get_acceptance_status(user_uuid, program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_acceptance_status')
 
 
 @api_acceptance.post('/user/<uuid:user_uuid>/program/<int:program_id>/upload-doc')
@@ -210,12 +199,7 @@ def api_upload_coordinator_doc(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al subir el documento"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_upload_coordinator_doc')
 
 
 @api_acceptance.post('/user/<uuid:user_uuid>/program/<int:program_id>/submit-receipt')
@@ -267,12 +251,7 @@ def api_submit_enrollment_receipt(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al enviar la boleta"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_submit_enrollment_receipt')
 
 
 @api_acceptance.post('/document/<uuid:doc_uuid>/review')
@@ -348,12 +327,7 @@ def api_review_enrollment_receipt(doc_uuid):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al revisar la boleta"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_review_enrollment_receipt')
 
 
 @api_acceptance.post('/user/<uuid:user_uuid>/program/<int:program_id>/assign-control-number')
@@ -424,12 +398,7 @@ def api_assign_control_number(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al asignar número de control"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_assign_control_number')
 
 
 @api_acceptance.delete('/document/<uuid:doc_uuid>')
@@ -469,12 +438,7 @@ def api_delete_coordinator_doc(doc_uuid):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al eliminar el documento"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_delete_coordinator_doc')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -497,11 +461,7 @@ def api_get_deferred_applicants(program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_deferred_applicants')
 
 
 @api_acceptance.post('/user/<uuid:user_uuid>/program/<int:program_id>/defer')
@@ -556,12 +516,7 @@ def api_defer_applicant(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al diferir la inscripción"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_defer_applicant')
 
 
 @api_acceptance.post('/program/<int:program_id>/request-deferral')
@@ -606,12 +561,7 @@ def api_request_deferral(program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al enviar la solicitud"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_request_deferral')
 
 
 @api_acceptance.post('/deferral/<int:deferral_id>/approve')
@@ -657,12 +607,7 @@ def api_approve_deferral(deferral_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al aprobar el diferimiento"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_approve_deferral')
 
 
 @api_acceptance.post('/deferral/<int:deferral_id>/reject')
@@ -714,12 +659,7 @@ def api_reject_deferral(deferral_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al rechazar el diferimiento"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reject_deferral')
 
 
 @api_acceptance.post('/user/<uuid:user_uuid>/program/<int:program_id>/reactivate')
@@ -766,12 +706,7 @@ def api_reactivate_deferred(user_uuid, program_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al reactivar al aspirante"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reactivate_deferred')
 
 
 @api_acceptance.get('/user/<uuid:user_uuid>/program/<int:program_id>/deferral-status')
@@ -813,8 +748,4 @@ def api_get_deferral_status(user_uuid, program_id):
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_deferral_status')

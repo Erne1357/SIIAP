@@ -70,11 +70,11 @@
       }
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || `Error HTTP ${response.status}`);
+        throw new Error(data.error?.message || (typeof data.error === 'string' ? data.error : null) || data.message || `Error HTTP ${response.status}`);
       }
 
-      if (data.ok === false) {
-        throw new Error(data.error || 'Operación fallida');
+      if (data.ok === false || (data.error && typeof data.error === 'object')) {
+        throw new Error(data.error?.message || (typeof data.error === 'string' ? data.error : null) || 'Operación fallida');
       }
 
       return { response, data };
@@ -95,7 +95,7 @@
   async function loadPrograms() {
     try {
       const { data } = await apiRequest(`${API}/coordinator/students`);
-      const uniquePrograms = [...new Set(data.students.map(s => ({id: s.program_id, name: s.program_name})))];
+      const uniquePrograms = [...new Set((data.data?.students || []).map(s => ({id: s.program_id, name: s.program_name})))];
       programs = uniquePrograms;
       
       const programSelects = [
@@ -118,7 +118,7 @@
   async function loadEvents() {
     try {
       const { data } = await apiRequest(`${API}/events`);
-      currentEvents = data.items || [];
+      currentEvents = data.data?.items || [];
       renderEventsTable();
       
     } catch (err) {
@@ -169,7 +169,7 @@
   async function loadSlots(eventId) {
     try {
       const { data } = await apiRequest(`${API}/events/${eventId}/slots`);
-      currentSlots = data.items || [];
+      currentSlots = data.data?.items || [];
       renderSlotsTable();
       updateSlotCounts();
       
@@ -246,7 +246,7 @@
         : `${API}/coordinator/students?phase=admission&status=approved`;
       
       const { data } = await apiRequest(url);
-      eligibleStudentsList = data.eligible_students || data.students || [];
+      eligibleStudentsList = data.data?.eligible_students || data.data?.students || data.eligible_students || data.students || [];
       renderEligibleStudents();
       
     } catch (err) {
@@ -397,7 +397,7 @@
     
     try {
       const { data: eventData } = await apiRequest(`${API}/events/${selectedEventId}`);
-      const event = eventData;
+      const event = eventData.data;
       
       if (!event || !event.windows || event.windows.length === 0) {
         flash('Primero agrega ventanas de horarios para este evento', 'warning');
@@ -411,7 +411,7 @@
           `${API}/events/windows/${window.id}/generate-slots`, 
           { method: 'POST' }
         );
-        totalCreated += slotsData.created || 0;
+        totalCreated += slotsData.data?.created || 0;
       }
       
       flash(`Se generaron ${totalCreated} nuevos horarios`, 'success');

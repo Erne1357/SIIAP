@@ -534,3 +534,102 @@ class TestAssignControlNumberAdminOverride:
         assert str(ei.value) == svc.CONTROL_NUMBER_REJECTED_MESSAGE
         assert emitted == []
         assert notified == []
+
+
+class TestEmitsAfterCommit:
+    """`acceptance:updated` emits for upload/submit/review must follow the commit."""
+
+    @staticmethod
+    def _spy_emitters(monkeypatch, log):
+        """Record only the `acceptance:updated` emits (other services emit too)."""
+        from app.extensions import socketio
+        from app.sockets import emitters
+
+        def record(event, *a, **k):
+            if event == 'acceptance:updated':
+                log.append('emit')
+
+        monkeypatch.setattr(socketio, 'emit', record)
+        monkeypatch.setattr(emitters, 'emit_to_coordinators', record)
+
+    @staticmethod
+    def _fail_service_commit(monkeypatch):
+        """Make only the commit issued by acceptance_service itself fail."""
+        import sys
+        real_commit = db.session.commit
+
+        def commit():
+            if sys._getframe(1).f_globals.get('__name__') == svc.__name__:
+                raise RuntimeError('commit failed')
+            return real_commit()
+
+        monkeypatch.setattr(db.session, 'commit', commit)
+
+    @staticmethod
+    def _track_commits(monkeypatch, log):
+        real_commit = db.session.commit
+
+        def commit():
+            log.append('commit')
+            return real_commit()
+
+        monkeypatch.setattr(db.session, 'commit', commit)
+
+    @staticmethod
+    def _assert_emit_after_last_commit(log):
+        assert 'emit' in log
+        last_commit = len(log) - 1 - log[::-1].index('commit')
+        assert log.index('emit') > last_commit
+
+    def test_upload_coordinator_doc_no_emit_when_commit_fails(self, acc, monkeypatch):
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._fail_service_commit(monkeypatch)
+        with pytest.raises(RuntimeError):
+            svc.upload_coordinator_doc(acc.applicant.id, acc.program.id, 'acceptance_letter',
+                                       _file(), acc.coord.id)
+        assert log == []
+
+    def test_upload_coordinator_doc_emits_after_commit(self, acc, monkeypatch):
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._track_commits(monkeypatch, log)
+        svc.upload_coordinator_doc(acc.applicant.id, acc.program.id, 'acceptance_letter',
+                                   _file(), acc.coord.id)
+        self._assert_emit_after_last_commit(log)
+
+    def test_submit_enrollment_receipt_no_emit_when_commit_fails(self, acc, monkeypatch):
+        _upload_both(acc)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._fail_service_commit(monkeypatch)
+        with pytest.raises(RuntimeError):
+            svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        assert log == []
+
+    def test_submit_enrollment_receipt_emits_after_commit(self, acc, monkeypatch):
+        _upload_both(acc)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._track_commits(monkeypatch, log)
+        svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        self._assert_emit_after_last_commit(log)
+
+    def test_review_enrollment_receipt_no_emit_when_commit_fails(self, acc, monkeypatch):
+        _upload_both(acc)
+        doc = svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._fail_service_commit(monkeypatch)
+        with pytest.raises(RuntimeError):
+            svc.review_enrollment_receipt(doc.id, acc.coord.id, 'approved')
+        assert log == []
+
+    def test_review_enrollment_receipt_emits_after_commit(self, acc, monkeypatch):
+        _upload_both(acc)
+        doc = svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._track_commits(monkeypatch, log)
+        svc.review_enrollment_receipt(doc.id, acc.coord.id, 'approved')
+        self._assert_emit_after_last_commit(log)

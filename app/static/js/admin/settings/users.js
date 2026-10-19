@@ -852,7 +852,7 @@
         const res = await fetch(SCOPE_PROGRAMS_API);
         const json = await res.json();
         if (!res.ok) throw new Error(json.error?.message || 'No se pudieron cargar los programas');
-        scopeProgramsCache = json.programs || [];
+        scopeProgramsCache = json.data?.programs || [];
         return scopeProgramsCache;
     }
 

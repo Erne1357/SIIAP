@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone
 from typing import Set
 
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, current_app, send_file
 from flask_login import login_required, current_user
 from sqlalchemy import select, func, join
 
@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_not_found, api_server_error
 from app.models.archive import Archive
 from app.models.step import Step
 from app.models.phase import Phase
@@ -145,13 +146,7 @@ def _exclusive_step_ids_for_user() -> Set[int] | None:
 
 def _deny(code: str, message: str, status: int):
     """Denegación con el envelope del proyecto y mensaje en español."""
-    return jsonify({
-        "ok": False,
-        "data": None,
-        "flash": [{"level": "danger", "message": message}],
-        "error": {"code": code, "message": message},
-        "meta": {}
-    }), status
+    return api_error(code, message, status=status, level="danger")
 
 
 def _archive_write_denied(step_id):
@@ -238,7 +233,7 @@ def list_archives():
         if is_scoped:
             permitted = _permitted_step_ids_for_user()
             if not permitted:
-                return jsonify({"ok": True, "items": []}), 200
+                return api_ok({"items": []})
             sel = sel.where(Archive.step_id.in_(permitted))
         rows = db.session.execute(sel).all()
         items = []
@@ -260,14 +255,14 @@ def list_archives():
                 "template_url": f"/api/v1/archives/{public_id}/template" if fpath else None,
                 "template_name": os.path.basename(fpath) if fpath else None
             })
-        return jsonify({"ok": True, "items": items}), 200
+        return api_ok({"items": items})
 
     # sin join
     sel = select(Archive)
     if is_scoped:
         permitted = _permitted_step_ids_for_user()
         if not permitted:
-            return jsonify({"ok": True, "items": []}), 200
+            return api_ok({"items": []})
         sel = sel.where(Archive.step_id.in_(permitted))
     archives = db.session.execute(sel).scalars().all()
     items = []
@@ -286,7 +281,7 @@ def list_archives():
             "template_url": f"/api/v1/archives/{a.uuid}/template" if a.file_path else None,
             "template_name": os.path.basename(a.file_path) if a.file_path else None
         })
-    return jsonify({"ok": True, "items": items}), 200
+    return api_ok({"items": items})
 
 # =========================
 # Steps disponibles (para selects)
@@ -316,7 +311,7 @@ def list_steps():
     if scope != "all" or is_scoped:
         permitted = _permitted_step_ids_for_user()
         if not permitted:
-            return jsonify({"ok": True, "items": []}), 200
+            return api_ok({"items": []})
         sel = sel.where(Step.id.in_(permitted))
 
     rows = db.session.execute(sel.order_by(Phase.id, Step.id)).all()
@@ -327,7 +322,7 @@ def list_steps():
         "phase_name": pn,
         "can_manage": exclusive is None or i in exclusive,
     } for (i, n, pid, pn) in rows]
-    return jsonify({"ok": True, "items": items}), 200
+    return api_ok({"items": items})
 
 # =========================
 # Crear archivo
@@ -340,7 +335,7 @@ def create_archive():
     name = (data.get("name") or "").strip()
     step_id = data.get("step_id")
     if not name or not step_id:
-        return jsonify({"ok": False, "error": "name y step_id son requeridos"}), 400
+        return api_error("VALIDATION_ERROR", "El nombre y la etapa son requeridos.", status=400)
 
     try:
         step_id = int(step_id)
@@ -383,7 +378,7 @@ def create_archive():
     except Exception as e:
         current_app.logger.error(f"Error al registrar creación de archivo en historial: {e}")
     
-    return jsonify({"ok": True, "id": str(a.uuid) if a.uuid else None}), 201
+    return api_ok({"id": str(a.uuid) if a.uuid else None}, status=201)
 
 # =========================
 # Actualizar (toggles + meta + mover de step)
@@ -397,7 +392,7 @@ def update_archive(archive_uuid):
     # inexistente. El alcance de escritura se resuelve después, por step.
     a = Archive.by_uuid(archive_uuid)
     if not a:
-        return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+        return api_not_found("Archivo no encontrado")
     archive_id = a.id
 
     # Alcance de escritura sobre el step actual Y sobre el destino si cambia.
@@ -482,10 +477,10 @@ def update_archive(archive_uuid):
                 current_app.logger.error(f"Error al registrar actualización de archivo en historial: {e}")
         
         # Handle público, nunca la clave primaria entera.
-        return jsonify({"ok": True, "id": str(a.uuid) if a.uuid else None}), 200
+        return api_ok({"id": str(a.uuid) if a.uuid else None})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="archives.update_archive")
 
 # =========================
 # Borrar archivo (con seguridad)
@@ -497,7 +492,7 @@ def delete_archive(archive_uuid):
     force = request.args.get("force") in ("1", "true", "True", "yes")
     a = Archive.by_uuid(archive_uuid)
     if not a:
-        return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+        return api_not_found("Archivo no encontrado")
     # El id interno sigue mandando en disco: `_templates_dir_for` y las rutas
     # de plantilla usan el entero, y los archivos NO se mueven.
     archive_id = a.id
@@ -514,7 +509,7 @@ def delete_archive(archive_uuid):
     ).scalar_one()
 
     if cnt and not force:
-        return jsonify({"ok": False, "requires_force": True, "message": f"Hay {cnt} submissions relacionados. Usa ?force=true para eliminar."}), 409
+        return api_error("CONFLICT", f"Hay {cnt} entregas relacionadas. Marca «Eliminar forzado» para eliminar.", status=409)
 
     try:
         # Guardar información para el historial antes del borrado
@@ -541,11 +536,10 @@ def delete_archive(archive_uuid):
             force
         )
         
-        return jsonify({"ok": True, "deleted": archive_public_id}), 200
+        return api_ok({"deleted": archive_public_id})
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error en delete_archive para el id {archive_id}: {e}")
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context=f"archives.delete_archive id={archive_id}")
 
 # =========================
 # Plantillas
@@ -556,7 +550,7 @@ def delete_archive(archive_uuid):
 def upload_template(archive_uuid):
     a = Archive.by_uuid(archive_uuid)
     if not a:
-        return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+        return api_not_found("Archivo no encontrado")
     archive_id = a.id
 
     # Alcance de escritura por step: sin esto un coordinador sobrescribía la
@@ -567,10 +561,10 @@ def upload_template(archive_uuid):
         return denied
 
     if "file" not in request.files:
-        return jsonify({"ok": False, "error": "Archivo no provisto"}), 400
+        return api_error("VALIDATION_ERROR", "Archivo no provisto", status=400)
     fs = request.files["file"]
     if not fs or not fs.filename:
-        return jsonify({"ok": False, "error": "Nombre de archivo inválido"}), 400
+        return api_error("VALIDATION_ERROR", "Nombre de archivo inválido", status=400)
     try:
         # Verificar si tenía plantilla previa
         had_previous_template = bool(a.file_path)
@@ -588,10 +582,14 @@ def upload_template(archive_uuid):
         )
         
         public_id = str(a.uuid) if a.uuid else None
-        return jsonify({"ok": True, "id": public_id, "template_url": f"/api/v1/archives/{public_id}/template", "template_name": fname}), 200
+        return api_ok({"id": public_id, "template_url": f"/api/v1/archives/{public_id}/template", "template_name": fname})
+    except ValueError as e:
+        # _store_template raises ValueError (before any DB change) with a
+        # Spanish, user-facing message.
+        return api_error("VALIDATION_ERROR", str(e), status=400)
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="archives.upload_template")
 
 @api_archives.route("/<uuid:archive_uuid>/template", methods=["GET"])
 @login_required
@@ -600,7 +598,7 @@ def download_template(archive_uuid):
     # alcance: los tres devuelven el mismo 404 con el mismo texto.
     a = Archive.by_uuid(archive_uuid)
     if not a or not a.file_path:
-        return jsonify({"ok": False, "error": "Plantilla no disponible"}), 404
+        return api_not_found("Plantilla no disponible")
     archive_id = a.id
 
     # `is_downloadable` marca las plantillas publicadas: son formatos en
@@ -614,9 +612,9 @@ def download_template(archive_uuid):
     # El predicado es el compartido con `/files/template/<filename>`, que sirve
     # estas mismas plantillas por otra puerta.
     if not template_access_service.may_download_archive_template(current_user, a):
-        return jsonify({"ok": False, "error": "Plantilla no disponible"}), 404
+        return api_not_found("Plantilla no disponible")
 
     abs_path, fname = _abs_path_from_archive(a)
     if not abs_path or not os.path.exists(abs_path):
-        return jsonify({"ok": False, "error": "Archivo no encontrado en el servidor"}), 404
+        return api_not_found("Archivo no encontrado en el servidor")
     return send_file(abs_path, as_attachment=True, download_name=fname or f"plantilla_{archive_id}")

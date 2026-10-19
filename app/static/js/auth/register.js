@@ -148,8 +148,8 @@
 
       const json = await response.json();
 
-      if (!response.ok || !json.ok) {
-        const errorMsg = json?.error || json?.message
+      if (!response.ok || json.error) {
+        const errorMsg = json?.error?.message || json?.message
           || 'No pudimos crear la cuenta. Revisa los datos e inténtalo de nuevo.';
         flash(errorMsg, 'danger');
         return;

@@ -47,7 +47,10 @@ MAX_DEFERRALS = 2
 # Excepciones
 # ─────────────────────────────────────────────────────────────────────────────
 
-class DeferralError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class DeferralError(DomainError):
     """Error base para operaciones de diferimiento."""
     pass
 
@@ -56,7 +59,7 @@ class DeferralNotAllowed(DeferralError):
     pass
 
 
-class DeferralNotFound(DeferralError):
+class DeferralNotFound(DeferralError, NotFoundError):
     pass
 
 

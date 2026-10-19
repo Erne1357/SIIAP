@@ -102,11 +102,9 @@
   /**
    * Mensaje legible a partir de cualquier cuerpo que devuelva la API.
    *
-   * `_deny` (archives_api.py) manda `error` como objeto `{code, message}` —ahí
-   * viaja la explicación de por qué una etapa compartida no se puede tocar—
-   * mientras que el resto de este blueprint sigue mandando `error` como cadena.
-   * Leer `data.error` a secas convertía el objeto en «[object Object]» y
-   * borraba justo el motivo que hay que enseñar.
+   * Todo el blueprint responde con el envelope estándar: `error` es un objeto
+   * `{code, message}` y ahí viaja, por ejemplo, la explicación de por qué una
+   * etapa compartida no se puede tocar. Se aceptan también cadenas por seguridad.
    */
   function errorMessage(data, fallback = 'Ocurrió un error inesperado') {
     const text = (value) => (typeof value === 'string' && value.trim()) ? value.trim() : null;
@@ -171,11 +169,12 @@
         throw new Error(errorMessage(data, `Error HTTP ${response.status}`));
       }
 
-      if (data.ok === false) {
+      if (data.error) {
         throw new Error(errorMessage(data, 'Operación fallida'));
       }
 
-      return { response, data };
+      // `data` es el contenido útil (`body.data`); `body` el envelope completo.
+      return { response, data: data.data || {}, body: data };
     } catch (error) {
       console.error('API Request Error:', error);
       throw error;
@@ -619,12 +618,12 @@
 
       const data = await response.json();
       
-      if (response.status === 409 && data.requires_force) {
-        flash(data.message || "Tiene submissions; marca 'Eliminar forzado' para continuar", "warning");
+      if (response.status === 409 && data.error?.code === 'CONFLICT') {
+        flash(errorMessage(data, "Tiene entregas; marca 'Eliminar forzado' para continuar"), "warning");
         return;
       }
       
-      if (!response.ok || data.ok === false) {
+      if (!response.ok || data.error) {
         throw new Error(errorMessage(data, "No se pudo eliminar"));
       }
       

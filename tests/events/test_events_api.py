@@ -118,8 +118,8 @@ class TestCreateEvent(TestEventsApiBase):
         })
         self.assertEqual(resp.status_code, 201)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertIn('id', data)
+        self.assertIsNone(data['error'])
+        self.assertIn('id', data['data'])
 
     def test_create_event_requires_login(self):
         anon = self.app.test_client()
@@ -155,15 +155,15 @@ class TestListEvents(TestEventsApiBase):
         resp = self.client.get('/api/v1/events')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertIn('items', data)
-        self.assertGreater(len(data['items']), 0)
+        self.assertIsNone(data['error'])
+        self.assertIn('items', data['data'])
+        self.assertGreater(len(data['data']['items']), 0)
 
     def test_list_events_empty(self):
         resp = self.client.get('/api/v1/events')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['items'], [])
+        self.assertEqual(data['data']['items'], [])
 
 
 class TestGetEventDetails(TestEventsApiBase):
@@ -173,8 +173,8 @@ class TestGetEventDetails(TestEventsApiBase):
         resp = self.client.get(f'/api/v1/events/{ev.id}')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertEqual(data['id'], ev.id)
+        self.assertIsNone(data['error'])
+        self.assertEqual(data['data']['id'], ev.id)
 
     def test_get_event_not_found(self):
         resp = self.client.get('/api/v1/events/99999')
@@ -188,7 +188,7 @@ class TestUpdateEvent(TestEventsApiBase):
         resp = self._put(f'/api/v1/events/{ev.id}', {'title': 'Updated Title'})
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
+        self.assertIsNone(data['error'])
 
     def test_update_event_not_found(self):
         resp = self._put('/api/v1/events/99999', {'title': 'Ghost'})
@@ -202,7 +202,7 @@ class TestDeleteEvent(TestEventsApiBase):
         resp = self._delete(f'/api/v1/events/{ev.id}')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
+        self.assertIsNone(data['error'])
         self.assertIsNone(db.session.get(Event, ev.id))
 
     def test_delete_event_not_found(self):
@@ -222,7 +222,7 @@ class TestWindowsAndSlots(TestEventsApiBase):
         })
         self.assertEqual(resp.status_code, 201)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
+        self.assertIsNone(data['error'])
 
     def test_generate_slots_success(self):
         ev = self._make_event(capacity_type='single', max_capacity=None)
@@ -295,7 +295,7 @@ class TestStatusTransitions(TestEventsApiBase):
         resp = self._post(f'/api/v1/events/{ev.id}/conclude', {})
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['status'], 'completed')
+        self.assertEqual(data['data']['status'], 'completed')
 
     @patch('app.services.events_service.EventsService.purge_event_media')
     def test_archive_event(self, mock_purge):
@@ -304,14 +304,14 @@ class TestStatusTransitions(TestEventsApiBase):
         resp = self._post(f'/api/v1/events/{ev.id}/archive', {})
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['status'], 'archived')
+        self.assertEqual(data['data']['status'], 'archived')
 
     def test_unarchive_event(self):
         ev = self._make_event(status='archived')
         resp = self._post(f'/api/v1/events/{ev.id}/unarchive', {'new_status': 'published'})
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['status'], 'published')
+        self.assertEqual(data['data']['status'], 'published')
 
 
 class TestNewCountAndMarkSeen(TestEventsApiBase):
@@ -326,7 +326,7 @@ class TestNewCountAndMarkSeen(TestEventsApiBase):
         resp = self._post('/api/v1/events/mark-seen', {})
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['data']['ok'])
+        self.assertIsNone(data['error'])
 
     def test_new_count_unauthenticated(self):
         anon = self.app.test_client()

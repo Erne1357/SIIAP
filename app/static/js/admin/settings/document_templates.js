@@ -52,7 +52,7 @@
     try {
       const res  = await fetch(`${API}?${params}`, { credentials: 'same-origin' });
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Error al cargar plantillas');
+      if (data.error) throw new Error(data.error.message || 'Error al cargar plantillas');
       renderTemplates(data.data || []);
     } catch (e) {
       tbodyTpl.innerHTML = `<tr><td colspan="6">
@@ -143,7 +143,7 @@
     try {
       const res  = await fetch(`${API}/variables`, { credentials: 'same-origin' });
       const data = await res.json();
-      if (!data.ok) return;
+      if (data.error) return;
       tbodyVars.innerHTML = (data.data || []).map(v =>
         `<tr><td><code>${SIIAP.escapeHtml(v.key)}</code></td><td class="text-muted">${SIIAP.escapeHtml(v.description)}</td></tr>`
       ).join('');
@@ -215,7 +215,7 @@
           body: fd,
         });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Error al subir');
+        if (data.error) throw new Error(data.error.message || 'Error al subir');
         flash('Plantilla subida exitosamente.');
         bootstrap.Modal.getInstance(document.getElementById('modalUpload'))?.hide();
         document.getElementById('formUpload').reset();
@@ -253,7 +253,7 @@
           body: JSON.stringify(body),
         });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Error al actualizar');
+        if (data.error) throw new Error(data.error.message || 'Error al actualizar');
         flash('Plantilla actualizada.');
         bootstrap.Modal.getInstance(document.getElementById('modalEdit'))?.hide();
         await loadTemplates();
@@ -279,7 +279,7 @@
           headers: { 'X-CSRFToken': csrfToken() },
         });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Error al eliminar');
+        if (data.error) throw new Error(data.error.message || 'Error al eliminar');
         flash('Plantilla eliminada.', 'warning');
         bootstrap.Modal.getInstance(document.getElementById('modalEdit'))?.hide();
         await loadTemplates();
@@ -416,7 +416,7 @@
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Error del servidor (${res.status})`);
+        throw new Error(data.error?.message || `Error del servidor (${res.status})`);
       }
 
       // Descargar el archivo

@@ -175,7 +175,7 @@
             ...options,
         });
         const data = await res.json();
-        if (!res.ok || data.ok === false) {
+        if (!res.ok || data.error) {
             const msg = data.error?.message || data.error || 'Error en la solicitud';
             throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
@@ -199,9 +199,9 @@
     function fetchEventImages(evId) {
         if (!imagesPromise) {
             imagesPromise = apiRequest(`${API}/events/${evId}/images`)
-                .then(data => ({
-                    cover:   data.cover   || data.data?.cover   || null,
-                    gallery: data.gallery || data.data?.gallery || [],
+                .then(body => ({
+                    cover:   body.data?.cover   || null,
+                    gallery: body.data?.gallery || [],
                 }))
                 .catch(() => ({ cover: null, gallery: [] }));
         }
@@ -212,7 +212,8 @@
         imagesPromise = null;
         setBusy(true, 'Cargando información del evento…');
         try {
-            const data = await apiRequest(`${API}/events/public/${eventId}`);
+            const body = await apiRequest(`${API}/events/public/${eventId}`);
+            const data = body.data || {};
             eventData       = data.event;
             myReg           = data.my_registration || null;
             myAppt          = data.my_appointment  || null;
@@ -345,8 +346,8 @@
      */
     async function loadHosts(evId) {
         try {
-            const data  = await apiRequest(`${API}/events/${evId}/hosts`);
-            const hosts = data.hosts || data.data?.hosts || [];
+            const body  = await apiRequest(`${API}/events/${evId}/hosts`);
+            const hosts = body.data?.hosts || [];
             if (!hosts.length) return;
 
             const card = document.getElementById('hostsCard');

@@ -58,12 +58,15 @@ EDITABLE_PERSONAL_FIELDS = {
 RECORD_NOT_FOUND_MESSAGE = 'Expediente no encontrado.'
 
 
-class StudentRecordError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class StudentRecordError(DomainError):
     """Base of the two outcomes that collapse into a single 404 response."""
     pass
 
 
-class StudentNotFound(StudentRecordError):
+class StudentNotFound(StudentRecordError, NotFoundError):
     """No user with that id. For the LOG only — never for the response."""
     pass
 

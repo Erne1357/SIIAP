@@ -31,9 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       const programFilter = document.getElementById('programFilter');
       
-      if (programFilter && data.programs) {
+      if (programFilter && data.data?.programs) {
         programFilter.innerHTML = '<option value="">Todos los programas</option>' +
-          data.programs.map(p =>
+          data.data.programs.map(p =>
             `<option value="${SIIAP.escapeAttr(p.id)}">${SIIAP.escapeHtml(p.name)}</option>`
           ).join('');
       }
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       
 
-      studentsData = data.students || [];
+      studentsData = data.data?.students || [];
       
       
 
@@ -446,9 +446,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('Error al cargar detalles');
 
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Error desconocido');
+      if (data.error) throw new Error(data.error.message || 'Error desconocido');
 
-      renderStudentDetails(data);
+      renderStudentDetails(data.data);
 
     } catch (err) {
       console.error('Error loading student details:', err);
@@ -985,11 +985,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const json = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          emitFlash('danger', json.error || 'No se pudo subir el documento');
+          emitFlash('danger', json.error?.message || 'No se pudo subir el documento');
           return;
         }
 
-        emitFlash('success', json.message || 'Documento registrado exitosamente por coordinador');
+        emitFlash('success', json.data?.message || 'Documento registrado exitosamente por coordinador');
 
         // Cerrar modal y recargar datos
         const modal = bootstrap.Modal.getInstance(document.getElementById('uploadForStudentModal'));
@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const select = document.getElementById('targetStudent');
 
       select.innerHTML = '<option value="">Seleccionar estudiante...</option>' +
-        data.students.map(s =>
+        (data.data?.students || []).map(s =>
           `<option value="${SIIAP.escapeAttr(s.id)}">${SIIAP.escapeHtml(s.full_name)} - ${SIIAP.escapeHtml(s.program_name)}</option>`
         ).join('');
 
@@ -1039,12 +1039,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       const select = document.getElementById('targetArchive');
 
-      if (data.archives.length === 0) {
+      const archives = data.data?.archives || [];
+      if (archives.length === 0) {
         select.innerHTML = '<option value="">No hay archivos disponibles para subir</option>';
         select.disabled = true;
       } else {
         select.innerHTML = '<option value="">Seleccionar archivo...</option>' +
-          data.archives.map(a =>
+          archives.map(a =>
             `<option value="${SIIAP.escapeAttr(a.id)}">${SIIAP.escapeHtml(a.name)} (${SIIAP.escapeHtml(a.step_name)})</option>`
           ).join('');
         select.disabled = false;
@@ -1101,8 +1102,8 @@ document.addEventListener('DOMContentLoaded', () => {
         credentials: 'same-origin'
       });
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar');
-      renderPermanenceModal(data);
+      if (!res.ok || data.error) throw new Error(data.error?.message || 'Error al cargar');
+      renderPermanenceModal(data.data);
     } catch (err) {
       document.getElementById('permModalSpinner').innerHTML = `
         <div class="alert alert-danger">

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.services.notification_service import NotificationService
 from app.services.events_service import EventsService
 from app import db
@@ -216,12 +217,7 @@ def respond_invitation(notification_id):
         }), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            'data': None,
-            'flash': [{'level': 'error', 'message': 'No se pudo registrar tu respuesta.'}],
-            'error': {'code': 'SERVER_ERROR', 'message': str(e)},
-            'meta': {}
-        }), 500
+        return api_server_error(e, context='respond_invitation')
 
     # La transición ya está confirmada; marcar leída es un efecto de la ruta.
     NotificationService.mark_as_read(notification_id, current_user.id)

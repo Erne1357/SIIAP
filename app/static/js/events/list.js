@@ -58,7 +58,7 @@
             ...options,
         });
         const data = await res.json();
-        if (!res.ok || data.ok === false) {
+        if (!res.ok || data.error) {
             const msg = data.error?.message || data.error || 'Error en la solicitud';
             throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
@@ -144,9 +144,9 @@
                 apiRequest(`${API}/invitations/my-invitations`).catch(() => ({ data: { invitations: [] } })),
             ]);
 
-            allEvents       = (eventsData.data?.items ?? eventsData.items) || [];
-            myRegistrations = regsData.data?.registrations || regsData.registrations || [];
-            myInvitations   = invsData.data?.invitations   || invsData.invitations   || [];
+            allEvents       = eventsData.data?.items || [];
+            myRegistrations = regsData.data?.registrations || [];
+            myInvitations   = invsData.data?.invitations   || [];
 
             renderHero(allEvents, myInvitations, myRegistrations);
             renderPendingInvitations(myInvitations);
@@ -716,7 +716,7 @@
             const res = await fetch(`${API}/invitations/my-invitations`, { credentials: 'same-origin' });
             if (!res.ok) return;
             const data = await res.json();
-            const count = Number(data.total || 0);
+            const count = Number(data.data?.total || 0);
             window.dispatchEvent(new CustomEvent('siiap:invitations:count_changed', {
                 detail: { count }
             }));

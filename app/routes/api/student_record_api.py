@@ -15,6 +15,7 @@ from flask_login import login_required, current_user
 from io import BytesIO
 
 from app import db
+from app.utils.api_response import api_server_error
 from app.models.user import User
 from app.services import student_record_service as svc
 from app.utils.permissions import permission_required
@@ -72,11 +73,7 @@ def get_record(user_uuid):
         _log_denial(e, user_id, 'get_record')
         return _record_not_found()
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='get_record')
 
 
 @api_student_record.patch('/<uuid:user_uuid>/personal-info')
@@ -98,12 +95,7 @@ def patch_personal_info(user_uuid):
         return _record_not_found(with_flash=True)
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al actualizar"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='patch_personal_info')
 
 
 @api_student_record.get('/<uuid:user_uuid>/record/pdf')
@@ -135,8 +127,4 @@ def export_record_pdf(user_uuid):
             download_name=filename,
         )
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": f"Error generando PDF: {e}"},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='export_record_pdf')

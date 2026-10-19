@@ -1,6 +1,7 @@
 # app/routes/api/programs_api.py
 from flask import Blueprint, jsonify, request, abort
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required, any_permission_required
 from app.services import programs_service as svc
 from app.services.user_history_service import UserHistoryService
@@ -191,9 +192,4 @@ def api_update_program(slug):
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al actualizar programa: {e}")
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al actualizar el programa."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_update_program')

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required
 from app.services.email_service import EmailService
 from app.utils.ms_graph import is_connected, acquire_token_silent, read_account_info, graph_send_mail
@@ -197,7 +198,4 @@ def send_test_email():
             }]
         }), 502
     except Exception as e:
-        return jsonify({
-            'data': None,
-            'flash': [{'level': 'error', 'message': f'Error al enviar correo de prueba: {str(e)}'}]
-        }), 500
+        return api_server_error(e, context='send_test_email')

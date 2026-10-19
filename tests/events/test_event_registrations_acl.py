@@ -124,11 +124,11 @@ class EventRegistrationsAclTestCase(unittest.TestCase):
         res = self._roster(self.coord_a, self.ev_a.id)
         self.assertEqual(res.status_code, 200, res.data.decode('utf-8'))
         body = res.get_json()
-        self.assertEqual(body['total'], 1)
-        self.assertTrue(body['can_manage'])
-        self.assertEqual(body['registrations'][0]['email'], self.student_a.email)
+        self.assertEqual(body['data']['total'], 1)
+        self.assertTrue(body['data']['can_manage'])
+        self.assertEqual(body['data']['registrations'][0]['email'], self.student_a.email)
         # A manager gets the organiser's notes — that is what managing means.
-        self.assertEqual(body['registrations'][0]['notes'], 'Nota del organizador')
+        self.assertEqual(body['data']['registrations'][0]['notes'], 'Nota del organizador')
 
     def test_postgraduate_admin_reads_the_institutional_roster(self):
         for event in (self.ev_institutional, self.ev_institutional_draft,

@@ -945,12 +945,12 @@ class PermanenceManager {
       const res = await fetch(
         `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`);
       const json = await res.json();
-      if (!res.ok || json.ok === false) {
-        showFlash('danger', json.error || 'Error al cargar expediente');
+      if (!res.ok || json.error) {
+        showFlash('danger', json.error?.message || 'Error al cargar expediente');
         modal.hide();
         return;
       }
-      this._renderExpediente(json);
+      this._renderExpediente(json.data);
     } catch (e) {
       showFlash('danger', `Error al cargar expediente: ${e.message}`);
       modal.hide();

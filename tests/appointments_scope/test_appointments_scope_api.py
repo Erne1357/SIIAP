@@ -279,7 +279,7 @@ class AppointmentsScopeTestCase(unittest.TestCase):
         resp = self._get(self.client_coord_a, f'/api/v1/appointments/by-slot/{self.slot_1.id}')
         self.assertEqual(resp.status_code, 200)
         body = json.loads(resp.data)
-        appointment = body['appointment']
+        appointment = body['data']['appointment']
         self.assertIsNotNone(appointment)
         self.assertNotIn('notes', appointment)
         self.assertIn('full_name', appointment['student'])
@@ -436,7 +436,7 @@ class InstitutionalEventAppointmentsTestCase(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         body = json.loads(resp.data)
-        self.assertEqual(body['appointment']['id'], self.appt_inst.id)
+        self.assertEqual(body['data']['appointment']['id'], self.appt_inst.id)
 
     # ── el aspirante sigue siendo dueño de su propia cita ────────────────
 

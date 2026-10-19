@@ -34,7 +34,10 @@ from app.utils.datetime_utils import now_local
 from sqlalchemy import and_, or_
 
 
-class DeliberationError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class DeliberationError(DomainError):
     """Error base para operaciones de deliberacion."""
     pass
 
@@ -46,7 +49,7 @@ class DeliberationError(Exception):
 APPLICANT_NOT_FOUND_MESSAGE = 'No se encontró al aspirante en este programa.'
 
 
-class ApplicantNotFound(DeliberationError):
+class ApplicantNotFound(DeliberationError, NotFoundError):
     """El aspirante no fue encontrado."""
     pass
 

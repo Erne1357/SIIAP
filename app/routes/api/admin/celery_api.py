@@ -15,6 +15,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required
 from app.extensions import celery as celery_app
 from app.utils.datetime_utils import now_local
@@ -196,7 +197,7 @@ def run_task():
 
     except Exception as exc:
         logger.error(f"[celery_api] run_task error: {exc}", exc_info=True)
-        return _err(f"Error al encolar la tarea: {exc}", 500)
+        return api_server_error(exc, context='run_task')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -251,7 +252,7 @@ def list_schedules():
 
     except Exception as exc:
         logger.error(f"[celery_api] list_schedules error: {exc}", exc_info=True)
-        return _err(f"Error al leer schedules: {exc}", 500)
+        return api_server_error(exc, context='list_schedules')
 
 
 def _serialize_schedule(entry):
@@ -348,4 +349,4 @@ def update_schedule(entry_name):
 
     except Exception as exc:
         logger.error(f"[celery_api] update_schedule error: {exc}", exc_info=True)
-        return _err(f"Error al actualizar schedule: {exc}", 500)
+        return api_server_error(exc, context='update_schedule')

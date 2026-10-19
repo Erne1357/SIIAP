@@ -411,7 +411,7 @@ class RoleOverridePropagationTest(Phase12Base):
         vía legítima es asignar el rol de jefe de posgrado.
         """
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.add_role_override(
                     role_id=self.r_program.id,
                     codename=GLOBAL_SCOPE_PERMISSION,
