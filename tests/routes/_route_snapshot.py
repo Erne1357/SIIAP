@@ -180,7 +180,6 @@ KNOWN_ROUTES = frozenset({
     'GET /register',
     'GET /reset-password/<token>',
     'GET /static/<path:filename>',
-    'GET /static/bootstrap/<path:filename>',
     'GET /students/<uuid:user_uuid>/record',
     'GET /user/dashboard',
     'GET /user/profile',

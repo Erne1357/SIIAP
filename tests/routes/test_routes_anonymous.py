@@ -72,7 +72,6 @@ PUBLIC_EXPECT = {
     'GET /health': {200},
     'GET /ready': {200, 503},                                # 503 when Redis/DB unreachable (as in tests)
     'GET /static/<path:filename>': {200, 404},
-    'GET /static/bootstrap/<path:filename>': {200, 404},
     'POST /api/v1/auth/login': {400, 401, 422},              # empty credentials, never 200
     'POST /api/v1/auth/reset-password/<token>': {400},       # CSRF guard: no session token
     'GET /api/v1/auth/reset-password/<token>/info': {404},   # unknown token

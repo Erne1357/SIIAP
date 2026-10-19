@@ -103,7 +103,6 @@ PUBLIC = frozenset({
     'GET /health',
     'GET /ready',
     'GET /static/<path:filename>',
-    'GET /static/bootstrap/<path:filename>',
     'POST /api/v1/auth/login',
     'POST /api/v1/auth/reset-password/<token>',
     'GET /api/v1/auth/reset-password/<token>/info',

@@ -3,7 +3,6 @@ from flask import request, has_request_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import current_user, logout_user, LoginManager
 from flask_migrate import Migrate
-from flask_bootstrap import Bootstrap
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import timedelta
 from app.utils.datetime_utils import now_local, format_date_es, format_datetime_es
@@ -34,7 +33,6 @@ def create_app(test_config=None):
     # Aceptar rutas con o sin trailing slash sin emitir 308 redirect.
     # Evita que llamadas JS a /api/v1/x y /api/v1/x/ se comporten distinto.
     app.url_map.strict_slashes = False
-    Bootstrap(app)
 
     if test_config is None:
         app.config.from_object(Config)

@@ -422,3 +422,85 @@ def test_app_base_url_trailing_slash_stripped(monkeypatch, reload_config):
 def test_app_base_url_default_is_dev(monkeypatch, reload_config):
     monkeypatch.delenv('APP_BASE_URL', raising=False)
     assert reload_config().Config.APP_BASE_URL == cfg.DEVELOPMENT_BASE_URL
+
+
+# --- fail-closed security defaults -------------------------------------------
+
+_SECURITY_VARS = ('FLASK_DEBUG', 'SESSION_COOKIE_SECURE', 'PREFERRED_URL_SCHEME')
+
+
+def _clear_security_vars(monkeypatch):
+    for name in _SECURITY_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_prod_defaults_are_secure_when_vars_unset(monkeypatch, reload_config):
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.setenv('APP_BASE_URL', 'https://siiap.example.org')
+    _clear_security_vars(monkeypatch)
+    c = reload_config().Config
+    assert c.DEBUG is False
+    assert c.SESSION_COOKIE_SECURE is True
+    assert c.REMEMBER_COOKIE_SECURE is True
+    assert c.PREFERRED_URL_SCHEME == 'https'
+
+
+def test_dev_defaults_keep_debug_and_plain_cookies(monkeypatch, reload_config):
+    monkeypatch.setenv('FLASK_ENV', 'development')
+    _clear_security_vars(monkeypatch)
+    c = reload_config().Config
+    assert c.DEBUG is True
+    assert c.SESSION_COOKIE_SECURE is False
+    assert c.PREFERRED_URL_SCHEME == 'http'
+
+
+def test_prod_explicit_insecure_cookie_override_is_honoured(monkeypatch, reload_config):
+    # The E2E stack runs FLASK_ENV=production over plain HTTP.
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.setenv('APP_BASE_URL', 'https://siiap.example.org')
+    monkeypatch.setenv('SESSION_COOKIE_SECURE', 'False')
+    c = reload_config().Config
+    assert c.SESSION_COOKIE_SECURE is False
+    assert c.REMEMBER_COOKIE_SECURE is False
+
+
+@pytest.mark.parametrize('raw, expected', [
+    ('true', True), ('True', True), ('1', True), (' yes ', True), ('on', True),
+    ('false', False), ('0', False), ('no', False), ('anything', False),
+])
+def test_env_flag_parsing(monkeypatch, raw, expected):
+    monkeypatch.setenv('SIIAP_TEST_FLAG', raw)
+    assert cfg._env_flag('SIIAP_TEST_FLAG', default=not expected) is expected
+
+
+@pytest.mark.parametrize('raw', [None, '', '   '])
+def test_env_flag_unset_or_blank_uses_default(monkeypatch, raw):
+    if raw is None:
+        monkeypatch.delenv('SIIAP_TEST_FLAG', raising=False)
+    else:
+        monkeypatch.setenv('SIIAP_TEST_FLAG', raw)
+    assert cfg._env_flag('SIIAP_TEST_FLAG', default=True) is True
+    assert cfg._env_flag('SIIAP_TEST_FLAG', default=False) is False
+
+
+def test_prod_with_debug_enabled_refuses_boot(monkeypatch, not_pytest):
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.setenv('FLASK_DEBUG', 'True')
+    with pytest.raises(cfg.MissingProductionConfigError, match='FLASK_DEBUG'):
+        cfg._require_production_debug_off()
+
+
+@pytest.mark.parametrize('raw', [None, 'false', '0'])
+def test_prod_with_debug_off_or_unset_boots(monkeypatch, not_pytest, raw):
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    if raw is None:
+        monkeypatch.delenv('FLASK_DEBUG', raising=False)
+    else:
+        monkeypatch.setenv('FLASK_DEBUG', raw)
+    cfg._require_production_debug_off()
+
+
+def test_dev_with_debug_enabled_boots(monkeypatch, not_pytest):
+    monkeypatch.setenv('FLASK_ENV', 'development')
+    monkeypatch.setenv('FLASK_DEBUG', 'True')
+    cfg._require_production_debug_off()

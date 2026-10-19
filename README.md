@@ -2,9 +2,9 @@
 
 > Gestión unificada de **admisión → permanencia → conclusión**, 100 % web y container‑ready.
 
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
-![Flask](https://img.shields.io/badge/flask-2.x-lightgrey)
-![PostgreSQL](https://img.shields.io/badge/postgresql-14-blue)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![Flask](https://img.shields.io/badge/flask-3.0-lightgrey)
+![PostgreSQL](https://img.shields.io/badge/postgresql-18-blue)
 ![Docker](https://img.shields.io/badge/docker-compose-blue)
 
 ---
@@ -60,7 +60,7 @@ Nginx (caché estática)  ←→  Flask app (Gunicorn)  ←→  PostgreSQL
 
 * **Monolito modular** en Flask (Blueprints por dominio).  
 * Contenedores separados para infra, pero **una sola base de código**.  
-* Frontend SSR (Jinja + Bootstrap) con **AOS** para animaciones.  
+* Frontend SSR (Jinja + Bootstrap 5) con sistema de diseño propio (tokens CSS).  
 * Hot‑reload y tareas async preparados para Celery/RQ.
 
 ---
@@ -68,9 +68,9 @@ Nginx (caché estática)  ←→  Flask app (Gunicorn)  ←→  PostgreSQL
 ## Tecnologías
 | Capa | Stack |
 |------|-------|
-| Backend | Python 3.9, Flask 2.x, SQLAlchemy, Flask‑Login, WTForms |
-| Frontend | Jinja2, Bootstrap 5, AOS, Vanilla JS |
-| Persistencia | PostgreSQL 14, Alembic/Flask‑Migrate |
+| Backend | Python 3.11, Flask 3.0, SQLAlchemy 2, Flask-Login, Flask-WTF (CSRF), Celery + Redis, Flask-SocketIO |
+| Frontend | Jinja2, Bootstrap 5, Bootstrap Icons, Vanilla JS, Socket.IO |
+| Persistencia | PostgreSQL 18, Alembic/Flask-Migrate |
 | Contenedores | Docker + docker‑compose |
 | Otros | Gunicorn, Nginx, pytest, ruff |
 
@@ -114,7 +114,7 @@ Tabla | Propósito
 ## Primeros pasos
 ### Requisitos
 * Docker 20.10+ y docker‑compose v2  
-* (Opcional dev) Python 3.9, Poetry o venv
+* (Opcional dev) Python 3.11 y venv; los tests corren en Docker
 
 ### Clonar & levantar
 \`\`\`bash
