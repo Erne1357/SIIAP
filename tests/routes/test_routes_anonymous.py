@@ -1,17 +1,20 @@
 """Step 2 — anonymous matrix over every (method, rule) in the url_map.
 
 Two anonymous flavours:
-  A. no session at all  -> GET /api/* is 401 JSON; a mutating /api/* call is
-     stopped earlier by the CSRF guard with 400 JSON (BAD_REQUEST); pages 302 -> /login.
-  B. session carrying a valid CSRF token but no user -> every non-public mutation
-     reaches the login manager and gets 401 JSON.
+  A. no session at all  -> GET /api/* is 401 JSON; any mutating call (API or
+     page) is stopped earlier by CSRFProtect with 400 JSON (BAD_REQUEST); page
+     GETs 302 -> /login.
+  B. session carrying a valid CSRF token but no user -> every non-public API
+     mutation reaches the login manager and gets 401 JSON; page mutations
+     302 -> /login.
 Never 500, never 200 for anything outside the PUBLIC allow-list.
 """
 
 import pytest
 
-from app.utils.csrf import CSRF_HEADER, CSRF_SESSION_KEY
+from app.utils.csrf import CSRF_HEADER
 from tests.routes import _helpers as h
+from tests.support.fixtures import seed_csrf
 
 MUTATING = {'POST', 'PUT', 'PATCH', 'DELETE'}
 PARAMS = h.case_params('anonymous')
@@ -38,8 +41,8 @@ def test_anonymous_without_session_is_rejected(routes_app, id_, method, url, rul
     client = routes_app.test_client()
     resp = _call(client, method, url)
     assert resp.status_code != 500
-    if is_api and method in MUTATING:
-        _assert_envelope(resp, 400, 'BAD_REQUEST')            # CSRF guard fires first
+    if method in MUTATING:
+        _assert_envelope(resp, 400, 'BAD_REQUEST')            # CSRFProtect fires first
     elif is_api:
         _assert_envelope(resp, 401, 'UNAUTHORIZED')
     else:
@@ -50,15 +53,16 @@ def test_anonymous_without_session_is_rejected(routes_app, id_, method, url, rul
 @pytest.mark.parametrize('id_,method,url,rule,is_api', [p for p in NON_PUBLIC if p.values[4] and p.values[1] in MUTATING])
 def test_anonymous_with_csrf_token_gets_401(routes_app, id_, method, url, rule, is_api):
     client = routes_app.test_client()
-    with client.session_transaction() as sess:
-        sess[CSRF_SESSION_KEY] = 'anon-csrf'
-    resp = _call(client, method, url, headers={CSRF_HEADER: 'anon-csrf'})
+    header = seed_csrf(client, 'anon-csrf')
+    resp = _call(client, method, url, headers={CSRF_HEADER: header})
     _assert_envelope(resp, 401, 'UNAUTHORIZED')
 
 
 @pytest.mark.parametrize('id_,method,url,rule,is_api', [p for p in NON_PUBLIC if not p.values[4] and p.values[1] in MUTATING])
 def test_anonymous_page_mutations_redirect_to_login(routes_app, id_, method, url, rule, is_api):
-    resp = _call(routes_app.test_client(), method, url)
+    client = routes_app.test_client()
+    header = seed_csrf(client, 'anon-csrf')
+    resp = _call(client, method, url, headers={CSRF_HEADER: header})
     assert resp.status_code in (302, 303)
     assert resp.headers['Location'].split('?')[0].endswith('/login')
 

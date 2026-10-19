@@ -7,7 +7,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import timedelta
 from app.utils.datetime_utils import now_local, format_date_es, format_datetime_es
 from app.config import Config
-from app.utils.csrf import generate_csrf_token, validate_csrf_for_api
+from app.utils.csrf import CSRFError, csrf_error_message, generate_csrf_token, init_csrf
 from app.extensions import socketio
 
 db = SQLAlchemy()
@@ -274,13 +274,20 @@ def create_app(test_config=None):
         # Without a Referer this used to send `Location: None`.
         return redirect(_back_or_index(), code=code)
 
+    @app.errorhandler(CSRFError)
+    def csrf_failed(e):
+        e.description = csrf_error_message(e)
+        return bad_request(e)
+
     # ─── Middleware / before_request ─────────────────────────────────────────
 
-    @app.before_request
-    def _csrf_guard_api():
-        """Valida CSRF y gestiona la expiración de sesión."""
-        validate_csrf_for_api()
+    # Registered before every other before_request hook: a forged mutation is
+    # rejected before session bookkeeping or authentication run.
+    init_csrf(app)
 
+    @app.before_request
+    def _enforce_session_timeout():
+        """Gestiona la expiración de sesión por inactividad."""
         safe_endpoints = {
             'pages_auth.login_page',
             'pages_auth.register_page',

@@ -87,6 +87,7 @@
   {%- elif section == 'footer' -%}
   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
   <form method="POST" action="{{ url_for('program.inscription_program', program_id=program.id) }}" class="d-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-primary">Sí, postularme</button>
   </form>
   {%- endif -%}

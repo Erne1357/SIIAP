@@ -15,6 +15,7 @@ from tests.integration.auth_support import (  # noqa: F401
     isolate_globals, login_via_api, make_token, post_login,
 )
 from tests.support.factories import make_user
+from tests.support.fixtures import seed_csrf, signed_csrf_token
 
 INVALID_BODY = {
     'data': None,
@@ -53,7 +54,12 @@ class TestLoginSuccess:
         token = post_login(client, 'ana', GOOD_PASSWORD).get_json()['data']['csrf_token']
         assert token
         with client.session_transaction() as sess:
-            assert sess['_csrf_token'] == token
+            raw = sess['csrf_token']
+        # The client gets the signed copy of the session's raw token.
+        assert token != raw
+        from itsdangerous import URLSafeTimedSerializer
+        assert URLSafeTimedSerializer(
+            client.application.secret_key, salt='wtf-csrf-token').loads(token) == raw
 
     def test_sets_session_and_last_activity(self, client, fake_redis):
         user = make_user('student', username='ana')
@@ -407,7 +413,7 @@ class TestLogout:
         client = login(make_user('student'))
         client.post('/api/v1/auth/logout')
         with client.raw.session_transaction() as sess:
-            assert '_csrf_token' not in sess
+            assert 'csrf_token' not in sess
             assert 'last_activity' not in sess
             assert '_user_id' not in sess
 
@@ -441,14 +447,15 @@ class TestLogout:
 class TestMeAndKeepalive:
     def test_me_payload(self, login):
         user = make_user('student', username='ana', email='ana@x.test')
-        resp = login(user).get('/api/v1/auth/me')
+        client = login(user)
+        resp = client.get('/api/v1/auth/me')
         assert resp.status_code == 200
         data = resp.get_json()['data']
         assert data['username'] == 'ana'
         assert data['email'] == 'ana@x.test'
         assert data['role'] == 'student'
         assert data['id'] == str(user.uuid)
-        assert data['csrf_token'] == 'test-csrf-token'
+        assert data['csrf_token'] == signed_csrf_token(client.raw.application, 'test-csrf-token')
         assert 'password' not in data
 
     def test_me_anonymous_401_envelope(self, client):
@@ -517,9 +524,8 @@ class TestChangePassword:
         assert client.post(CP, json={}).status_code in (400, 401)
 
     def test_anonymous_with_csrf_is_401(self, client):
-        with client.session_transaction() as sess:
-            sess['_csrf_token'] = 'tok'
-        resp = client.post(CP, json={}, headers={'X-CSRFToken': 'tok'})
+        header = seed_csrf(client, 'tok')
+        resp = client.post(CP, json={}, headers={'X-CSRFToken': header})
         assert resp.status_code == 401
 
     @pytest.mark.parametrize('missing', ['current_password', 'new_password', 'confirm_password'])
@@ -658,13 +664,11 @@ class TestResetPasswordInfo:
 
 class TestResetPasswordSet:
     def _post(self, client, token, new=NEW_PASSWORD, confirm=None, csrf=True):
-        if csrf:
-            with client.session_transaction() as sess:
-                sess['_csrf_token'] = 'tok'
+        header = seed_csrf(client, 'tok') if csrf else None
         return client.post(
             f'/api/v1/auth/reset-password/{token}',
             json={'new_password': new, 'confirm_password': new if confirm is None else confirm},
-            headers={'X-CSRFToken': 'tok'} if csrf else {},
+            headers={'X-CSRFToken': header} if csrf else {},
         )
 
     # Regression (fixed): password_reset_service.consume_token logs action 'password_set_via_token',
@@ -741,10 +745,9 @@ class TestResetPasswordSet:
 
     def test_missing_fields(self, client):
         prt = make_token(make_user('student'))
-        with client.session_transaction() as sess:
-            sess['_csrf_token'] = 'tok'
+        header = seed_csrf(client, 'tok')
         resp = client.post(f'/api/v1/auth/reset-password/{prt.token}', json={},
-                           headers={'X-CSRFToken': 'tok'})
+                           headers={'X-CSRFToken': header})
         assert resp.status_code == 400
         assert resp.get_json()['error']['code'] == 'VALIDATION_ERROR'
 

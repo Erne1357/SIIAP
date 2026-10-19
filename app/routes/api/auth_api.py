@@ -393,9 +393,8 @@ def api_me():
     Incluye el flag must_change_password.
     """
     u = current_user
-    # Obtener el token CSRF actual de la sesión
-    from flask import session
-    csrf_token = session.get("_csrf_token", "")
+    # Signed CSRF token of the current session, for the client to refresh.
+    csrf_token = generate_csrf_token()
     
     return jsonify({
         "data": {
