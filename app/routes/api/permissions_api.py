@@ -8,9 +8,7 @@ API de permisos granulares:
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
-from app.models.role import Role
 from app.models.user import User
-from app.models.permission import Permission
 import app.services.permission_service as svc
 
 api_permissions = Blueprint('api_permissions', __name__, url_prefix='/api/v1/permissions')
@@ -149,7 +147,7 @@ def revoke_delegation(up_id):
 @permission_required('permissions.api.list_role_permissions')
 def list_roles():
     """Lista todos los roles del sistema."""
-    roles = Role.query.order_by(Role.name).all()
+    roles = svc.list_roles()
     return jsonify({'data': [{'id': r.id, 'name': r.name} for r in roles]})
 
 

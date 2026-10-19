@@ -23,15 +23,14 @@ from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
 from app.utils.api_response import api_ok, api_error, api_not_found, api_server_error
 from app.models.program_change_request import PENDING
+from app.services import program_changes_service
 from app.services.program_changes_service import ProgramChangesService
 from app.services.program_transfer_service import (
     ProgramTransferService,
     ProgramTransferError,
     ProgramTransferNotFound,
 )
-from app.services.user_history_service import UserHistoryService
 from app.services import program_scope_service as scope_service
-from app import db
 
 api_program_changes = Blueprint('api_program_changes', __name__, url_prefix='/api/v1/program-changes')
 
@@ -90,19 +89,8 @@ def create_request():
     )
 
     # Registrar en el historial
-    try:
-        from_program = ProgramTransferService.get_program(from_program_id)
-        to_program = ProgramTransferService.get_program(to_program_id)
-
-        UserHistoryService.log_program_transfer_request(
-            user_id=current_user.id,
-            from_program=from_program.name if from_program else f"ID {from_program_id}",
-            to_program=to_program.name if to_program else f"ID {to_program_id}",
-            reason=data.get('reason', '')
-        )
-        db.session.commit()
-    except Exception as e:
-        current_app.logger.error(f"Error al registrar solicitud de cambio en historial: {e}")
+    program_changes_service.record_request_history(
+        current_user.id, from_program_id, to_program_id, data.get('reason', ''))
 
     return api_ok({"id": req.id}, status=201)
 
@@ -261,20 +249,8 @@ def execute_transfer():
         ProgramChangesService.mark_executed(change_request.id)
 
         # Registrar transferencia ejecutada en el historial
-        try:
-            from_program = ProgramTransferService.get_program(from_id)
-            to_program = ProgramTransferService.get_program(to_id)
-
-            UserHistoryService.log_program_transfer_execution(
-                user_id=current_user.id,
-                from_program=from_program.name if from_program else f"ID {from_id}",
-                to_program=to_program.name if to_program else f"ID {to_id}",
-                documents_moved=result.get('updated_documents', 0),
-                documents_lost=result.get('deleted_documents', 0)
-            )
-            db.session.commit()
-        except Exception as e:
-            current_app.logger.error(f"Error al registrar transferencia ejecutada en historial: {e}")
+        program_changes_service.record_execution_history(
+            current_user.id, from_id, to_id, result)
 
         return api_ok({
             "message": "Cambio de programa completado exitosamente",

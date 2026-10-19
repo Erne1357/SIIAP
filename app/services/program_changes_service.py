@@ -156,3 +156,49 @@ class ProgramChangesService:
             elif m.mapping_rule == 'needs_update':
                 # no copiamos archivo; el checklist mostrará el pendiente del archive destino
                 pass
+
+
+# --------------------------------------------------------------------------
+# History entries (best effort; keep db.session out of program_changes_api.py)
+# --------------------------------------------------------------------------
+def record_request_history(user_id: int, from_program_id: int, to_program_id: int, reason) -> None:
+    """History entry for a program-change request (logs and swallows failures)."""
+    import logging
+    try:
+        from app.services.program_transfer_service import ProgramTransferService
+        from app.services.user_history_service import UserHistoryService
+        from_program = ProgramTransferService.get_program(from_program_id)
+        to_program = ProgramTransferService.get_program(to_program_id)
+
+        UserHistoryService.log_program_transfer_request(
+            user_id=user_id,
+            from_program=from_program.name if from_program else f"ID {from_program_id}",
+            to_program=to_program.name if to_program else f"ID {to_program_id}",
+            reason=reason
+        )
+        db.session.commit()
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            f"Error al registrar solicitud de cambio en historial: {e}")
+
+
+def record_execution_history(user_id: int, from_program_id: int, to_program_id: int, result: dict) -> None:
+    """History entry for an executed program transfer (logs and swallows failures)."""
+    import logging
+    try:
+        from app.services.program_transfer_service import ProgramTransferService
+        from app.services.user_history_service import UserHistoryService
+        from_program = ProgramTransferService.get_program(from_program_id)
+        to_program = ProgramTransferService.get_program(to_program_id)
+
+        UserHistoryService.log_program_transfer_execution(
+            user_id=user_id,
+            from_program=from_program.name if from_program else f"ID {from_program_id}",
+            to_program=to_program.name if to_program else f"ID {to_program_id}",
+            documents_moved=result.get('updated_documents', 0),
+            documents_lost=result.get('deleted_documents', 0)
+        )
+        db.session.commit()
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            f"Error al registrar transferencia ejecutada en historial: {e}")

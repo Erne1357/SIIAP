@@ -1,15 +1,12 @@
 # app/routes/api/admin/users_admin_api.py
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from sqlalchemy import and_, not_, or_
-from app import db
 from app.models.user import User
-from app.models.user_history import UserHistory
-from app.models.program import Program
-from app.models.user_program import UserProgram
+from app.services import user_admin_service as admin_svc
 from app.services.user_history_service import UserHistoryService
 from app.services import program_scope_service as scope_service
 from app.utils.permissions import guard_user_scope, permission_required
+from app.utils.api_response import api_server_error
 from app.routes._public_id import resolved_id
 from app.utils.validators import (
     EMAIL_MAX_LENGTH,
@@ -52,64 +49,6 @@ def _validation_error_response(message: str):
         "error": {"code": "VALIDATION", "message": message},
         "meta": {}
     }), 400
-
-
-# ─── Búsqueda con alcance: un filtro sobre un campo prohibido es un oráculo ───
-#
-# La proyección al nivel reducido corre DESPUÉS de la consulta, así que no
-# protege ningún campo que el WHERE ya haya tocado: si el número de control
-# entra en el predicado, el simple hecho de que la fila vuelva —o no— responde
-# «¿el número de control de esta persona contiene X?». El valor se filtra una
-# adivinanza a la vez aunque jamás aparezca en el payload. Lo mismo vale para
-# el orden (publica el valor relativo de la columna) y para cualquier conteo
-# calculado sobre ese filtro.
-#
-# Regla: sólo se puede buscar sobre campos que el llamador puede VER en ESA
-# fila. Como el alcance es por fila y el filtro es por consulta, el predicado
-# se parte en dos ramas mutuamente excluyentes (dentro / fuera de alcance).
-
-#: Columnas buscables cuando la fila es visible COMPLETA para el llamador.
-_FULL_SEARCH_COLUMNS = (
-    User.first_name,
-    User.last_name,
-    User.mother_last_name,
-    User.email,
-    User.username,       # para un estudiante ES el número de control
-    User.control_number,
-)
-
-#: Columnas buscables cuando la fila sólo puede salir al nivel reducido.
-#: Se derivan del catálogo del servicio para que no puedan divergir de la
-#: lista blanca de la proyección.
-_REDUCED_SEARCH_COLUMNS = tuple(
-    getattr(User, name)
-    for name in sorted(scope_service.CROSS_PROGRAM_SEARCHABLE_FIELDS)
-)
-
-
-def _search_clause(columns, search: str):
-    """OR de ILIKE sobre `columns` — nunca se llama con columnas prohibidas."""
-    pattern = f"%{search}%"
-    return or_(*[column.ilike(pattern) for column in columns])
-
-
-def _in_scope_clause(scope: set, caller_id: int):
-    """
-    Predicado SQL «esta fila está dentro del alcance del llamador».
-
-    Espejo exacto en SQL de `scope_service.user_in_scope(..., allow_self=True)`
-    para un alcance NO global: el propio usuario, más quien tenga un
-    `UserProgram` en alguno de los programas del llamador. Una cuenta de staff
-    (sin `UserProgram`) queda fuera, igual que en el servicio.
-
-    Va como EXISTS y no como JOIN a propósito: se evalúa fila por fila dentro
-    de la consulta —que es lo que permite aplicar un conjunto de campos
-    distinto a cada fila— y no duplica al usuario con varias inscripciones.
-    """
-    clauses = [User.id == caller_id]
-    if scope:
-        clauses.append(User.user_program.any(UserProgram.program_id.in_(scope)))
-    return or_(*clauses)
 
 
 @api_admin_users.get("")
@@ -155,67 +94,16 @@ def list_users():
     scope = scope_service.accessible_program_ids(current_user)
     may_summarize = scope_service.may_view_cross_program_summary(current_user)
 
-    # Query base
-    query = User.query
-
-    # Filtro por programa — permitido sobre cualquier fila.
-    if program_filter:
-        query = query.filter(
-            User.user_program.any(UserProgram.program_id == program_filter)
-        )
-
-    # Predicados que SÓLO pueden evaluarse sobre una fila visible completa.
-    full_only = []
-    ignored_cross_program = []
-
-    if role_filter:
-        full_only.append(User.role.has(name=role_filter))
-        ignored_cross_program.append('role')
-
-    if active_filter == 'true':
-        full_only.append(User.is_active.is_(True))
-        ignored_cross_program.append('active')
-    elif active_filter == 'false':
-        full_only.append(User.is_active.is_(False))
-        ignored_cross_program.append('active')
-
-    if search:
-        full_only.append(_search_clause(_FULL_SEARCH_COLUMNS, search))
-
-    if scope is None:
-        # Alcance global: no hay filas ajenas, un solo conjunto de campos.
-        ignored_cross_program = []
-        if full_only:
-            query = query.filter(and_(*full_only))
-    else:
-        in_scope = _in_scope_clause(scope, current_user.id)
-        full_branch = and_(in_scope, *full_only) if full_only else in_scope
-
-        if may_summarize:
-            # Dos ramas disjuntas por construcción (P / NOT P): la unión de
-            # «dentro de alcance Y conjunto completo» con «fuera de alcance Y
-            # conjunto reducido». La única rama que menciona control_number,
-            # username, role o is_active va conjugada con `in_scope`, así que
-            # ninguna fila puede entrar por un campo que el llamador no vería.
-            reduced_branch = not_(in_scope)
-            if search:
-                reduced_branch = and_(
-                    reduced_branch,
-                    _search_clause(_REDUCED_SEARCH_COLUMNS, search),
-                )
-            query = query.filter(or_(full_branch, reduced_branch))
-        else:
-            # Sin nivel reducido las filas ajenas no se devolvían igual, pero
-            # seguían contando en `pagination.total`: ese conteo también era un
-            # oráculo. Ahora ni entran en la consulta.
-            ignored_cross_program = []
-            query = query.filter(full_branch)
-
-    # Ejecutar query con paginación
-    pagination = query.order_by(User.last_name, User.first_name).paginate(
+    pagination, ignored_cross_program = admin_svc.search_users(
         page=page,
         per_page=per_page,
-        error_out=False
+        role_filter=role_filter,
+        program_filter=program_filter,
+        active_filter=active_filter,
+        search=search,
+        scope=scope,
+        may_summarize=may_summarize,
+        caller_id=current_user.id,
     )
 
     # Una sola consulta de alcance para toda la página.
@@ -293,7 +181,7 @@ def get_user(user_uuid):
     user_id = user.id
 
     # Obtener programa
-    user_program = UserProgram.query.filter_by(user_id=user_id).first()
+    user_program = admin_svc.get_user_program(user_id)
 
     if not scope_service.user_in_scope(current_user, user):
         if not scope_service.may_view_cross_program_summary(current_user):
@@ -358,7 +246,6 @@ def update_user(user_uuid):
     user_id = user.id
     
     payload = request.get_json(silent=True) or {}
-    changed_fields = {}
 
     # Same rules as self-registration and PATCH /users/me (app/utils/validators.py):
     # an admin edit is another write path into columns the staff consoles render,
@@ -398,72 +285,33 @@ def update_user(user_uuid):
     except InputValidationError as e:
         return _validation_error_response(e.message)
 
-    # Actualizar campos
+    values = {}
     if 'first_name' in payload:
-        new_value = first_name
-        if new_value and new_value != user.first_name:
-            changed_fields['first_name'] = {'old': user.first_name, 'new': new_value}
-            user.first_name = new_value
-
+        values['first_name'] = first_name
     if 'last_name' in payload:
-        new_value = last_name
-        if new_value and new_value != user.last_name:
-            changed_fields['last_name'] = {'old': user.last_name, 'new': new_value}
-            user.last_name = new_value
-
+        values['last_name'] = last_name
     if 'mother_last_name' in payload:
-        new_value = mother_last_name
-        if new_value != user.mother_last_name:
-            changed_fields['mother_last_name'] = {'old': user.mother_last_name, 'new': new_value}
-            user.mother_last_name = new_value
-
+        values['mother_last_name'] = mother_last_name
     if 'email' in payload:
-        new_value = email
-        if new_value and new_value != user.email:
-            # Nadie cambia su propio correo desde la consola de administración.
-            #
-            # El correo es el canal de recuperación de la cuenta: es a donde
-            # viaja el enlace de un solo uso de `reset_password` y la única vía
-            # de vuelta cuando se pierde la contraseña. Quien puede reescribirlo
-            # sobre sí mismo puede apuntar su propia recuperación a un buzón
-            # ajeno a la institución y conservar la entrada después de causar
-            # baja, sin que nadie más intervenga. Por eso `PATCH /users/me`
-            # tampoco lo expone: el nombre es autoservicio, el correo no.
-            #
-            # La condición cuelga de "el valor cambia" a propósito: el modal
-            # envía siempre los cuatro campos precargados, y rechazar por la
-            # simple presencia de 'email' impediría a un administrador
-            # corregirse una tilde del nombre.
-            if user_id == current_user.id:
-                # Los campos de nombre ya se asignaron en la sesión más arriba;
-                # la petición se rechaza entera, así que se descartan.
-                db.session.rollback()
-                return jsonify({
-                    "data": None,
-                    "flash": [{"level": "danger", "message": (
-                        "No puedes cambiar tu propio correo: es el canal de "
-                        "recuperación de tu cuenta. Pídeselo al jefe de posgrado."
-                    )}],
-                    "error": {"code": "FORBIDDEN", "message": "Cambio de correo propio no permitido"},
-                    "meta": {}
-                }), 403
+        values['email'] = email
 
-            existing = User.query.filter(User.email == new_value, User.id != user_id).first()
-            if existing:
-                return jsonify({
-                    "data": None,
-                    "flash": [{"level": "danger", "message": "El email ya está en uso."}],
-                    "error": {"code": "VALIDATION", "message": "Email duplicado"},
-                    "meta": {}
-                }), 400
-            changed_fields['email'] = {'old': user.email, 'new': new_value}
-            user.email = new_value
-    
-    # Registrar cambios
-    if changed_fields:
-        UserHistoryService.log_basic_info_update(user_id=user_id, changed_fields=changed_fields)
-
-    db.session.commit()
+    try:
+        changed_fields = admin_svc.update_basic_info(
+            user, values, caller_id=current_user.id)
+    except admin_svc.OwnEmailChangeForbidden as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "FORBIDDEN", "message": "Cambio de correo propio no permitido"},
+            "meta": {}
+        }), 403
+    except admin_svc.EmailAlreadyInUse as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "VALIDATION", "message": "Email duplicado"},
+            "meta": {}
+        }), 400
 
     if changed_fields:
         try:
@@ -531,9 +379,9 @@ def reset_password(user_uuid):
         }), 403
 
     try:
-        result = prs.issue_admin_reset(user_id=user_id, admin_id=current_user.id)
+        result = admin_svc.issue_admin_password_reset(
+            user_id=user_id, admin_id=current_user.id)
     except prs.TokenNotFound as e:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": "Usuario no encontrado."}],
@@ -541,15 +389,12 @@ def reset_password(user_uuid):
             "meta": {}
         }), 404
     except prs.MissingEmail as e:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": str(e)}],
             "error": {"code": "BUSINESS_ERROR", "message": str(e)},
             "meta": {}
         }), 400
-
-    db.session.commit()
 
     user = result['user']
     return jsonify({
@@ -593,26 +438,20 @@ def toggle_active(user_uuid):
         }), 403
     
     # Toggle estado
-    user.is_active = not user.is_active
-    action = 'activated' if user.is_active else 'deactivated'
-    message = f"Usuario {user.first_name} {user.last_name} {'activado' if user.is_active else 'desactivado'}."
-
-    # Registrar en historial
-    UserHistoryService.log_user_activation(user_id=user_id, is_active=user.is_active)
-
-    db.session.commit()
+    is_active = admin_svc.toggle_user_active(user)
+    message = f"Usuario {user.first_name} {user.last_name} {'activado' if is_active else 'desactivado'}."
 
     # Deactivation has to reach the open sockets too. load_user() already turns
     # the next HTTP request anonymous, but a Socket.IO connection is authorised
     # once at the handshake and then keeps its rooms for the lifetime of the
     # sid, so without this the tab keeps receiving live payloads. Runs after the
     # commit so a failed write never evicts anybody.
-    if not user.is_active:
+    if not is_active:
         from app.sockets.emitters import disconnect_user_sockets
         disconnect_user_sockets(user_id)
 
     return jsonify({
-        "data": {"is_active": user.is_active},
+        "data": {"is_active": is_active},
         "flash": [{"level": "success", "message": message}],
         "error": None,
         "meta": {}
@@ -675,8 +514,7 @@ def assign_control_number(user_uuid):
     # PII persistida y sin filas que el llamador pueda provocar en la base):
     # el sondeo requiere una petición autenticada por intento, así que lo que
     # protege de verdad es la detección del volumen, no un mensaje más.
-    existing = User.query.filter(User.control_number == control_number).first()
-    if existing:
+    if admin_svc.control_number_exists(control_number):
         from flask import current_app
         from app.services.acceptance_service import CONTROL_NUMBER_REJECTED_MESSAGE
         current_app.logger.warning(
@@ -692,7 +530,7 @@ def assign_control_number(user_uuid):
         }), 400
 
     # Verificar que tenga programa
-    user_program = UserProgram.query.filter_by(user_id=user_id).first()
+    user_program = admin_svc.get_user_program(user_id)
     if not user_program:
         return jsonify({
             "data": None,
@@ -722,17 +560,14 @@ def assign_control_number(user_uuid):
 
     # Ejecutar transición completa a estudiante (sin chequeos rigurosos del flujo
     # de aceptación — variante administrativa para casos legacy).
-    from app.services import acceptance_service as svc
-
     try:
-        up = svc.assign_control_number_admin(
+        up = admin_svc.assign_control_number_as_admin(
             user_id=user_id,
             program_id=user_program.program_id,
             control_number=control_number,
             admin_id=current_user.id,
         )
     except ValueError as e:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": str(e)}],
@@ -740,13 +575,7 @@ def assign_control_number(user_uuid):
             "meta": {}
         }), 400
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": f"Error al asignar número de control: {e}"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='assign_control_number')
 
     return jsonify({
         "data": {
@@ -811,13 +640,7 @@ def delete_user(user_uuid):
         if user_role in ('applicant', 'student')
         else None
     )
-    UserHistoryService.log_user_deletion(user_id=user_id, user_name=user_name)
-
-    db.session.commit()
-
-    # Eliminar usuario
-    db.session.delete(user)
-    db.session.commit()
+    admin_svc.delete_user_account(user, user_name)
 
     # Misma razón que en toggle_active: las salas de Socket.IO se unen una sola
     # vez en el handshake y no se vuelven a resolver contra la base. Sin esto,
@@ -865,10 +688,7 @@ def create_social_service():
       expires_at        : str ISO 8601 | null
     """
     from datetime import datetime
-    from app.services.permission_service import (
-        create_social_service_user,
-        PermissionServiceError as PermErr,
-    )
+    from app.services.permission_service import PermissionServiceError as PermErr
 
     payload = request.get_json(silent=True) or {}
 
@@ -903,7 +723,7 @@ def create_social_service():
             }), 400
 
     try:
-        new_user, delegations, email_sent = create_social_service_user(
+        new_user, delegations, email_sent = admin_svc.create_social_service_account(
             creator_id=current_user.id,
             user_data={
                 'first_name':       payload['first_name'],
@@ -912,22 +732,11 @@ def create_social_service():
                 'email':            payload['email'],
                 'is_internal':      payload.get('is_internal', True),
             },
-            permissions_to_delegate=payload['permissions'],
+            permissions=payload['permissions'],
             program_ids=payload.get('program_ids'),
             expires_at=expires_at,
+            raw_expires_at=payload.get('expires_at'),
         )
-
-        UserHistoryService.log_action(
-            user_id=new_user.id,
-            admin_id=current_user.id,
-            action='social_service_created',
-            details={
-                'permissions_delegated': payload['permissions'],
-                'program_ids': payload.get('program_ids') or [],
-                'expires_at': payload.get('expires_at'),
-            }
-        )
-        db.session.commit()
 
         created_msg = (
             f"Usuario {new_user.first_name} {new_user.last_name} creado con "
@@ -967,7 +776,6 @@ def create_social_service():
     except InputValidationError as e:
         # The service validates the person-name fields; the route is what turns
         # that into the envelope.
-        db.session.rollback()
         return _validation_error_response(e.message)
     except PermErr as e:
         return jsonify({
@@ -977,13 +785,7 @@ def create_social_service():
             "meta": {}
         }), 400
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al crear usuario."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='create_user')
 
 
 @api_admin_users.get("/<uuid:user_uuid>/history")

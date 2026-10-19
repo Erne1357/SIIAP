@@ -14,7 +14,6 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from flask_login import login_required, current_user
 from io import BytesIO
 
-from app import db
 from app.utils.api_response import api_server_error
 from app.models.user import User
 from app.services import student_record_service as svc
@@ -94,7 +93,6 @@ def patch_personal_info(user_uuid):
         _log_denial(e, user_id, 'patch_personal_info')
         return _record_not_found(with_flash=True)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='patch_personal_info')
 
 

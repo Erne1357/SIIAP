@@ -1,142 +1,42 @@
 # app/routes/api/api_archives.py
 from __future__ import annotations
 import os
-from datetime import datetime, timezone
 from typing import Set
 
-from flask import Blueprint, request, current_app, send_file
+from flask import Blueprint, request, send_file
 from flask_login import login_required, current_user
-from sqlalchemy import select, func, join
 
-from werkzeug.utils import secure_filename
-
-from app import db
 from app.utils.permissions import permission_required
 from app.utils.api_response import api_ok, api_error, api_not_found, api_server_error
 from app.models.archive import Archive
-from app.models.step import Step
-from app.models.phase import Phase
-from app.models.program import Program
-from app.models.program_step import ProgramStep
-from app.models.submission import Submission
-from app.services import template_access_service
-from app.services.user_history_service import UserHistoryService
+from app.schemas.archives import CreateArchiveIn, UpdateArchiveIn
+from app.services import archive_service, template_access_service
+from app.services.errors import DomainError
+from app.utils.validation import parse_json
 
-import shutil
 api_archives = Blueprint("api_archives", __name__, url_prefix="/api/v1/archives")
 
 # =========================
 # Helpers
 # =========================
-def _instance_path() -> str:
-    return current_app.instance_path
-
-def _templates_dir_for(archive_id: int) -> str:
-    return os.path.join(_instance_path(), "uploads", "templates", "archives", str(archive_id))
-
-def _allowed_template_ext() -> Set[str]:
-    """Extensiones aceptadas para una plantilla (mismas que los documentos)."""
-    return set(current_app.config.get('ALLOWED_DOC_EXT', {'pdf', 'doc', 'docx'}))
-
-
-def _store_template(archive: Archive, file_storage) -> tuple[str, str]:
-    """Guarda un archivo de plantilla en el disco."""
-    filename = file_storage.filename or ''
-    if '.' not in filename:
-        raise ValueError("El archivo no tiene extensión.")
-    ext = filename.rsplit('.', 1)[1].lower()
-
-    # Lista blanca obligatoria: sin esto se podía escribir cualquier extensión
-    # dentro de instance/uploads/templates.
-    allowed = _allowed_template_ext()
-    if ext not in allowed:
-        raise ValueError(
-            "Extensión no permitida. Solo se aceptan: "
-            + ", ".join(sorted(allowed))
-            + "."
-        )
-
-    templates_dir = _templates_dir_for(archive.id)
-    os.makedirs(templates_dir, exist_ok=True)
-    base_name = secure_filename(archive.name)
-    final_filename = f"{base_name}.{ext}"
-    abs_path = os.path.join(templates_dir, final_filename)
-    file_storage.save(abs_path)
-    rel_path = os.path.relpath(abs_path, _instance_path())
-    return rel_path, final_filename
-
-def _abs_path_from_archive(a: Archive) -> tuple[str|None, str|None]:
-    if not a.file_path:
-        return None, None
-    fpath = a.file_path
-    abs_path = os.path.join(_instance_path(), fpath) if not os.path.isabs(fpath) else fpath
-    return abs_path, os.path.basename(abs_path)
-
 def _permitted_step_ids_for_user() -> Set[int]:
     """Step_ids que el usuario actual puede VER en el catálogo.
-
-    - Acceso global (jefe de posgrado): todos los steps.
-    - Scoped (program_admin o delegado): steps que tocan alguno de sus
-      programas accesibles.
 
     OJO — esto NO es un permiso de escritura. Un Step puede estar enganchado a
     varios programas a la vez, así que "toca uno de mis programas" no reparte
     el catálogo entre coordinadores. Para escribir usa
     `_exclusive_step_ids_for_user` / `_archive_write_denied`.
     """
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is None:
-        ids = db.session.execute(select(Step.id)).scalars().all()
-        return set(ids)
-    if not accessible_pids:
-        return set()
-    step_ids = db.session.execute(
-        select(ProgramStep.step_id).where(ProgramStep.program_id.in_(accessible_pids))
-    ).scalars().all()
-    return set(step_ids)
+    return archive_service.permitted_step_ids(current_user.get_accessible_program_ids())
 
 
 def _exclusive_step_ids_for_user() -> Set[int] | None:
     """Step_ids cuyo CATÁLOGO de documentos puede modificar el usuario actual.
 
-    Returns:
-        None si el usuario tiene alcance global (puede modificar cualquiera);
-        si no, el conjunto de steps que le pertenecen en exclusiva.
-
-    Un Step es COMPARTIDO por diseño: `program_step` engancha el mismo
-    `step_id` a varios programas (en el catálogo de fábrica, 'Documentos
-    Generales' y toda la fase de permanencia cuelgan de los cuatro posgrados).
-    Los Archive cuelgan del Step, no del Program, así que filtrar por "el step
-    de este archivo toca uno de mis programas" NO es una partición: el
-    coordinador de MII pasa ese filtro sobre el step 1 y, al renombrar un
-    archivo o sustituir su plantilla, reescribe el trámite de MANI, MIA y DCI.
-
-    Modificar un archivo de un step compartido es, por tanto, un acto
-    institucional, y sólo el alcance global lo autoriza. Un step queda dentro
-    del alcance de escritura de un coordinador únicamente cuando TODOS sus
-    `ProgramStep` apuntan a programas suyos (p. ej. 'Documentos Específicos
-    DCI', que sólo usa el doctorado). Un step sin ningún ProgramStep no es de
-    nadie: falla cerrado y queda para la Jefatura de Posgrado.
+    None si tiene alcance global. La regla (un step compartido sólo lo modifica
+    el alcance global) vive en `archive_service.exclusive_step_ids`.
     """
-    accessible_pids = current_user.get_accessible_program_ids()
-    if accessible_pids is None:
-        return None
-    accessible_pids = set(accessible_pids)
-    if not accessible_pids:
-        return set()
-
-    rows = db.session.execute(
-        select(ProgramStep.step_id, ProgramStep.program_id)
-    ).all()
-
-    programs_by_step: dict[int, Set[int]] = {}
-    for step_id, program_id in rows:
-        programs_by_step.setdefault(step_id, set()).add(program_id)
-
-    return {
-        step_id for step_id, pids in programs_by_step.items()
-        if pids and pids <= accessible_pids
-    }
+    return archive_service.exclusive_step_ids(current_user.get_accessible_program_ids())
 
 # Los steps que un usuario puede CONSULTAR (descargar plantillas) ya no se
 # calculan aquí: la regla es `template_access_service.visible_step_ids`, porque
@@ -174,31 +74,6 @@ def _archive_write_denied(step_id):
     )
 
 
-def _delete_archive_files(archive_id: int):
-    """Borra el directorio de plantillas y los archivos de entrega (submissions) de un archivo."""
-    # 1. Borrar directorio de plantillas
-    templates_dir = _templates_dir_for(archive_id)
-    if os.path.isdir(templates_dir):
-        try:
-            # shutil.rmtree borra un directorio y todo su contenido
-            shutil.rmtree(templates_dir) 
-        except OSError as e:
-            current_app.logger.error(f"Error borrando el directorio de plantillas {templates_dir}: {e}")
-
-    # 2. Borrar archivos de entrega (submissions) asociados
-    # (Asumiendo que tienes una función para obtener la ruta de los archivos de submission)
-    submissions = db.session.execute(select(Submission).where(Submission.archive_id == archive_id)).scalars().all()
-    for sub in submissions:
-        if sub.file_path:
-            # Reemplaza 'get_submission_path' con tu lógica real para obtener la ruta absoluta
-            abs_submission_path = os.path.join(_instance_path(), sub.file_path)
-            if os.path.isfile(abs_submission_path):
-                try:
-                    os.remove(abs_submission_path)
-                except OSError as e:
-                    current_app.logger.error(f"Error borrando el archivo de submission {abs_submission_path}: {e}")
-
-
 # =========================
 # Listado principal
 # =========================
@@ -220,22 +95,13 @@ def list_archives():
     exclusive = _exclusive_step_ids_for_user()
 
     if include_step:
-        j = join(Archive, Step, Archive.step_id == Step.id)
-        sel = select(
-            Archive.id, Archive.uuid, Archive.name, Archive.description,
-            Archive.is_uploadable, Archive.is_downloadable,
-            Archive.step_id, Step.name.label("step_name"),
-            Archive.file_path,
-            getattr(Archive, "allow_coordinator_upload"),
-            getattr(Archive, "allow_extension_request", None),
-        ).select_from(j)
         # alcance: usuarios scoped (no globales) sólo ven steps de sus programas accesibles
+        permitted = None
         if is_scoped:
             permitted = _permitted_step_ids_for_user()
             if not permitted:
                 return api_ok({"items": []})
-            sel = sel.where(Archive.step_id.in_(permitted))
-        rows = db.session.execute(sel).all()
+        rows = archive_service.list_archive_rows_with_step(permitted)
         items = []
         for r in rows:
             (aid, auuid, name, desc, up, down, step_id, step_name, fpath, allow_coord, allow_ext) = r
@@ -258,13 +124,12 @@ def list_archives():
         return api_ok({"items": items})
 
     # sin join
-    sel = select(Archive)
+    permitted = None
     if is_scoped:
         permitted = _permitted_step_ids_for_user()
         if not permitted:
             return api_ok({"items": []})
-        sel = sel.where(Archive.step_id.in_(permitted))
-    archives = db.session.execute(sel).scalars().all()
+    archives = archive_service.list_archives(permitted)
     items = []
     for a in archives:
         allow_ext = getattr(a, "allow_extension_request", False)
@@ -302,19 +167,14 @@ def list_steps():
     is_scoped = current_user.get_accessible_program_ids() is not None
     exclusive = _exclusive_step_ids_for_user()
 
-    j = join(Step, Phase, Step.phase_id == Phase.id)
-    sel = select(
-        Step.id, Step.name, Step.phase_id, Phase.name.label("phase_name")
-    ).select_from(j)
-
     # Usuarios scoped siempre quedan filtrados; los globales sólo si scope=permitted
+    permitted = None
     if scope != "all" or is_scoped:
         permitted = _permitted_step_ids_for_user()
         if not permitted:
             return api_ok({"items": []})
-        sel = sel.where(Step.id.in_(permitted))
 
-    rows = db.session.execute(sel.order_by(Phase.id, Step.id)).all()
+    rows = archive_service.list_step_rows(permitted)
     items = [{
         "id": i,
         "name": n,
@@ -331,9 +191,9 @@ def list_steps():
 @login_required
 @permission_required('archives.api.create')
 def create_archive():
-    data = request.get_json() or {}
-    name = (data.get("name") or "").strip()
-    step_id = data.get("step_id")
+    data = parse_json(CreateArchiveIn)
+    name = data.name
+    step_id = data.step_id
     if not name or not step_id:
         return api_error("VALIDATION_ERROR", "El nombre y la etapa son requeridos.", status=400)
 
@@ -348,36 +208,16 @@ def create_archive():
     if denied:
         return denied
 
-    a = Archive(
+    a = archive_service.create_archive(
         name=name,
-        description=data.get("description"),
-        file_path=None,
         step_id=step_id,
-        is_downloadable=bool(data.get("is_downloadable", False)),
-        is_uploadable=bool(data.get("is_uploadable", False)),
+        description=data.description,
+        is_downloadable=data.is_downloadable,
+        is_uploadable=data.is_uploadable,
+        allow_coordinator_upload=data.allow_coordinator_upload,
+        allow_extension_request=data.allow_extension_request,
+        actor_id=current_user.id,
     )
-    if hasattr(Archive, "allow_coordinator_upload"):
-        a.allow_coordinator_upload = bool(data.get("allow_coordinator_upload", False))
-    if hasattr(Archive, "allow_extension_request"):
-        setattr(a, "allow_extension_request", bool(data.get("allow_extension_request", False)))
-
-    db.session.add(a)
-    db.session.commit()
-    
-    # Registrar en el historial
-    try:
-        step = db.session.get(Step, step_id)
-        step_name = step.name if step else f"Step ID {step_id}"
-        
-        UserHistoryService.log_archive_created(
-            current_user.id,
-            name,
-            step_name
-        )
-        db.session.commit()
-    except Exception as e:
-        current_app.logger.error(f"Error al registrar creación de archivo en historial: {e}")
-    
     return api_ok({"id": str(a.uuid) if a.uuid else None}, status=201)
 
 # =========================
@@ -387,13 +227,12 @@ def create_archive():
 @login_required
 @permission_required('archives.api.update')
 def update_archive(archive_uuid):
-    data = request.get_json() or {}
+    data = parse_json(UpdateArchiveIn).model_dump(exclude_unset=True)
     # Identificador desconocido o malformado: el mismo 404 que un archive
     # inexistente. El alcance de escritura se resuelve después, por step.
     a = Archive.by_uuid(archive_uuid)
     if not a:
         return api_not_found("Archivo no encontrado")
-    archive_id = a.id
 
     # Alcance de escritura sobre el step actual Y sobre el destino si cambia.
     denied = _archive_write_denied(a.step_id)
@@ -401,85 +240,20 @@ def update_archive(archive_uuid):
         return denied
     if "step_id" in data and data["step_id"]:
         try:
-            target_step_id = int(data["step_id"])
+            data["step_id"] = int(data["step_id"])
         except (TypeError, ValueError):
             return _deny("VALIDATION_ERROR", "step_id inválido.", 400)
-        denied = _archive_write_denied(target_step_id)
+        denied = _archive_write_denied(data["step_id"])
         if denied:
             return denied
 
     try:
-        # Capturar cambios para el historial
-        changes = {}
-        original_name = a.name
-        
-        # meta
-        if "name" in data and data["name"].strip():
-            new_name = data["name"].strip()
-            if new_name != a.name:
-                changes['name'] = {'old': a.name, 'new': new_name}
-            a.name = new_name
-        if "description" in data:
-            if data["description"] != a.description:
-                changes['description'] = {'old': a.description, 'new': data["description"]}
-            a.description = data["description"]
-        if "step_id" in data and data["step_id"]:
-            new_step_id = int(data["step_id"])
-            if new_step_id != a.step_id:
-                old_step = db.session.get(Step, a.step_id)
-                new_step = db.session.get(Step, new_step_id)
-                changes['step'] = {
-                    'old': old_step.name if old_step else f"Step {a.step_id}",
-                    'new': new_step.name if new_step else f"Step {new_step_id}"
-                }
-            a.step_id = new_step_id
-
-        # toggles
-        if "is_uploadable" in data:
-            new_value = bool(data["is_uploadable"])
-            if new_value != a.is_uploadable:
-                changes['is_uploadable'] = {'old': a.is_uploadable, 'new': new_value}
-            a.is_uploadable = new_value
-        if "is_downloadable" in data:
-            new_value = bool(data["is_downloadable"])
-            if new_value != a.is_downloadable:
-                changes['is_downloadable'] = {'old': a.is_downloadable, 'new': new_value}
-            a.is_downloadable = new_value
-        if "allow_coordinator_upload" in data and hasattr(Archive, "allow_coordinator_upload"):
-            new_value = bool(data["allow_coordinator_upload"])
-            old_value = getattr(a, 'allow_coordinator_upload', False)
-            if new_value != old_value:
-                changes['allow_coordinator_upload'] = {'old': old_value, 'new': new_value}
-            a.allow_coordinator_upload = new_value
-        if "allow_extension_request" in data and hasattr(Archive, "allow_extension_request"):
-            new_value = bool(data["allow_extension_request"])
-            old_value = getattr(a, 'allow_extension_request', False)
-            if new_value != old_value:
-                changes['allow_extension_request'] = {'old': old_value, 'new': new_value}
-            setattr(a, "allow_extension_request", new_value)
-
-        db.session.commit()
-        
-        # Registrar en el historial solo si hubo cambios
-        if changes:
-            try:
-                step = db.session.get(Step, a.step_id)
-                step_name = step.name if step else f"Step ID {a.step_id}"
-                
-                UserHistoryService.log_archive_updated(
-                    current_user.id,
-                    a.name,
-                    step_name,
-                    changes
-                )
-                db.session.commit()
-            except Exception as e:
-                current_app.logger.error(f"Error al registrar actualización de archivo en historial: {e}")
-        
+        a = archive_service.update_archive(a, data, actor_id=current_user.id)
         # Handle público, nunca la clave primaria entera.
         return api_ok({"id": str(a.uuid) if a.uuid else None})
+    except DomainError:
+        raise
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context="archives.update_archive")
 
 # =========================
@@ -504,41 +278,17 @@ def delete_archive(archive_uuid):
     if denied:
         return denied
 
-    cnt = db.session.execute(
-        select(func.count(Submission.id)).where(Submission.archive_id == archive_id)
-    ).scalar_one()
+    cnt = archive_service.count_submissions(archive_id)
 
     if cnt and not force:
         return api_error("CONFLICT", f"Hay {cnt} entregas relacionadas. Marca «Eliminar forzado» para eliminar.", status=409)
 
     try:
-        # Guardar información para el historial antes del borrado
-        archive_name = a.name
-        archive_description = a.description
-        
-        # --- INICIO DE LA LÓGICA DE BORRADO DE ARCHIVOS ---
-        
-        # Llama a la función de borrado ANTES de hacer commit a la DB.
-        # Si esto falla, la transacción se revierte y no se pierde el registro en la DB.
-        _delete_archive_files(archive_id)
-        
-        # --- FIN DE LA LÓGICA DE BORRADO DE ARCHIVOS ---
-        
-        # El borrado en cascada de la DB se encargará de los registros de submission
-        db.session.delete(a)
-        db.session.commit()
-        
-        # Registrar en el historial después del commit exitoso
-        UserHistoryService.log_archive_deleted(
-            current_user.id,
-            archive_name,
-            archive_description,
-            force
-        )
-        
+        archive_service.delete_archive(a, force=force, actor_id=current_user.id)
         return api_ok({"deleted": archive_public_id})
+    except DomainError:
+        raise
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context=f"archives.delete_archive id={archive_id}")
 
 # =========================
@@ -566,29 +316,13 @@ def upload_template(archive_uuid):
     if not fs or not fs.filename:
         return api_error("VALIDATION_ERROR", "Nombre de archivo inválido", status=400)
     try:
-        # Verificar si tenía plantilla previa
-        had_previous_template = bool(a.file_path)
-        
-        rel_path, fname = _store_template(a, fs)
-        a.file_path = rel_path
-        db.session.commit()
-        
-        # Registrar en el historial después del commit exitoso
-        UserHistoryService.log_template_uploaded(
-            current_user.id,
-            a.name,
-            fname,
-            had_previous_template
-        )
-        
+        fname = archive_service.upload_template(a, fs, actor_id=current_user.id)
         public_id = str(a.uuid) if a.uuid else None
         return api_ok({"id": public_id, "template_url": f"/api/v1/archives/{public_id}/template", "template_name": fname})
-    except ValueError as e:
-        # _store_template raises ValueError (before any DB change) with a
-        # Spanish, user-facing message.
-        return api_error("VALIDATION_ERROR", str(e), status=400)
+    except DomainError:
+        # Bad extension / missing extension: Spanish message, nothing changed.
+        raise
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context="archives.upload_template")
 
 @api_archives.route("/<uuid:archive_uuid>/template", methods=["GET"])
@@ -614,7 +348,7 @@ def download_template(archive_uuid):
     if not template_access_service.may_download_archive_template(current_user, a):
         return api_not_found("Plantilla no disponible")
 
-    abs_path, fname = _abs_path_from_archive(a)
+    abs_path, fname = archive_service.template_abs_path(a)
     if not abs_path or not os.path.exists(abs_path):
         return api_not_found("Archivo no encontrado en el servidor")
     return send_file(abs_path, as_attachment=True, download_name=fname or f"plantilla_{archive_id}")

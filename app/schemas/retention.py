@@ -34,3 +34,13 @@ class RetentionPolicyIn(BaseModel):
         elif not self.keep_years or self.keep_years <= 0:
             raise ValueError("Los años de conservación deben ser mayores a 0 si no es «para siempre».")
         return self
+
+
+class PurgeIn(BaseModel):
+    """Body of POST /purge: public UUIDs of the submissions to delete."""
+    submission_ids: list[str] = []
+
+    @field_validator('submission_ids', mode='before')
+    @classmethod
+    def _none_is_empty(cls, value: Any) -> Any:
+        return [] if value is None else value

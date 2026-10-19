@@ -62,15 +62,13 @@ def inscription_program(program_id):
         return redirect(url_for('program.admission.admission_dashboard', slug=program.slug))
     except svc.AdmissionClosedError:
         flash('Las inscripciones están cerradas en este momento.', 'warning')
-        from app.models.program import Program
-        prog = Program.query.get(program_id)
+        prog = svc.find_program(program_id)
         if prog:
             return redirect(url_for('program.view_program', slug=prog.slug))
         return redirect(url_for('program.list_programs'))
     except svc.AlreadyEnrolledError as e:
         flash(str(e), 'warning')
-        from app.models.program import Program
-        prog = Program.query.get(program_id)
+        prog = svc.find_program(program_id)
         if prog:
             return redirect(url_for('program.view_program', slug=prog.slug))
         return redirect(url_for('program.list_programs'))

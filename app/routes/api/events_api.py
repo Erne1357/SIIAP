@@ -3,15 +3,11 @@ from flask_login import login_required, current_user
 from app.utils.permissions import permission_required, guard_program_scope
 from app.utils.api_response import api_ok, api_error, api_server_error
 from app.utils.validation import parse_json
-from app.schemas.events import CreateEventIn, AddWindowIn
+from app.schemas.events import (
+    CreateEventIn, AddWindowIn, UpdateEventIn, UnarchiveEventIn, SetHostsIn,
+)
 from app.services import program_scope_service as scope_service
 from app.services.events_service import EventsService
-from app.models.event import Event, EventWindow, EventSlot
-from app.models.program import Program
-from app.models.appointment import Appointment
-from sqlalchemy import select, or_
-from app import db
-import logging
 
 api_events = Blueprint('api_events', __name__, url_prefix='/api/v1/events')
 
@@ -100,7 +96,7 @@ def _check_event_access(event_id: int):
     Returns:
         (event, None) si procede; (None, respuesta_error) si no.
     """
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event or not _event_managed_by_current_user(event):
         return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
     return event, None
@@ -189,11 +185,11 @@ def add_window(event_id:int):
 @login_required
 @permission_required('events.api.generate_slots')
 def generate_slots(window_id:int):
-    window = db.session.get(EventWindow, window_id)
+    owner_event_id = EventsService.get_event_id_of_window(window_id)
     # Un solo 404 para "no existe" y para "no es de un evento que gestionas":
     # dos mensajes distintos reconstruyen el oráculo que `_check_event_access`
     # acaba de cerrar, sólo que sobre ids de ventana.
-    if not window or _check_event_access(window.event_id)[1]:
+    if owner_event_id is None or _check_event_access(owner_event_id)[1]:
         return _deny("NOT_FOUND", "Ventana no encontrada.", 404)
 
     try:
@@ -213,7 +209,7 @@ def generate_slots(window_id:int):
 @api_events.route('/<int:event_id>/slots', methods=['GET'])
 @login_required
 def list_slots(event_id:int):
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
@@ -254,8 +250,6 @@ def list_events():
     `can_manage`; el front debe ocultar/deshabilitar las acciones cuando venga
     en False.
     """
-    from app.models.academic_period import AcademicPeriod
-
     filters = {
         'academic_period_id': request.args.get('academic_period_id', type=int),
         'program_id': request.args.get('program_id', type=int),
@@ -265,54 +259,14 @@ def list_events():
         'search': request.args.get('search'),
     }
 
-    from app.models.event import EventAttendance, EventInvitation
-
     accessible_pids = current_user.get_accessible_program_ids()
     events = EventsService.list_admin_events(accessible_pids, filters)
 
     items = []
     for event in events:
-        windows_count = EventWindow.query.filter_by(event_id=event.id).count()
-
-        slots_query = db.session.query(EventSlot).join(
-            EventWindow, EventWindow.id == EventSlot.event_window_id
-        ).filter(EventWindow.event_id == event.id)
-
-        slots_total = slots_query.count()
-        slots_booked = slots_query.filter(EventSlot.status == 'booked').count()
-
-        registrations_count = EventAttendance.query.filter_by(event_id=event.id).count()
-        invitations_pending = EventInvitation.query.filter_by(event_id=event.id, status='pending').count()
-
-        program = db.session.get(Program, event.program_id) if event.program_id else None
-        period = db.session.get(AcademicPeriod, event.academic_period_id) if event.academic_period_id else None
-
-        items.append({
-            "id": event.id,
-            "title": event.title,
-            "type": event.type,
-            "status": event.status,
-            "location": event.location,
-            "description": event.description,
-            "program_id": event.program_id,
-            "program_name": program.name if program else None,
-            "academic_period_id": event.academic_period_id,
-            "academic_period_code": period.code if period else None,
-            "visible_to_students": event.visible_to_students,
-            "visibility": event.visibility,
-            "reminders_enabled": event.reminders_enabled,
-            "capacity_type": event.capacity_type,
-            "max_capacity": event.max_capacity,
-            "event_date": event.event_date.isoformat() if event.event_date else None,
-            "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
-            "windows_count": windows_count,
-            "slots_total": slots_total,
-            "slots_booked": slots_booked,
-            "registrations_count": registrations_count,
-            "invitations_pending": invitations_pending,
-            "can_manage": _event_managed_by_current_user(event),
-            "created_at": event.created_at.isoformat()
-        })
+        item = EventsService.build_admin_event_item(event)
+        item["can_manage"] = _event_managed_by_current_user(event)
+        items.append(item)
 
     return api_ok({"items": items})
 
@@ -330,28 +284,18 @@ def delete_event(event_id: int):
         return err
 
     # Verificar si hay appointments activas
-    appointments_count = db.session.query(Appointment).join(
-        EventSlot, EventSlot.id == Appointment.slot_id
-    ).join(
-        EventWindow, EventWindow.id == EventSlot.event_window_id
-    ).filter(
-        EventWindow.event_id == event_id,
-        Appointment.status == 'scheduled'
-    ).count()
-    
+    appointments_count = EventsService.count_active_appointments(event_id)
+
     if appointments_count > 0:
         force = request.args.get('force') in ('true', '1', 'yes')
         if not force:
             return _requires_force(
                 f"El evento tiene {appointments_count} citas activas. Usa ?force=true para eliminar."
             )
-    
+
     try:
         # Cascade debería manejar la eliminación de windows, slots y appointments
-        program_id = event.program_id
-        title = event.title
-        db.session.delete(event)
-        db.session.commit()
+        info = EventsService.delete_event(event_id)
 
         # Sin `event=`: la fila ya no existe y no se puede releer su status ni
         # su visibility, así que sólo se avisa a la gestión. Es el lado seguro.
@@ -359,14 +303,13 @@ def delete_event(event_id: int):
         emit_event_change({
             'action': 'deleted',
             'event_id': event_id,
-            'program_id': program_id,
-            'title': title,
+            'program_id': info['program_id'],
+            'title': info['title'],
         })
 
         return api_ok({"deleted": event_id})
 
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='delete_event')
 
 @api_events.route('/<int:event_id>', methods=['GET'])
@@ -374,45 +317,11 @@ def delete_event(event_id: int):
 @permission_required('events.api.manage')
 def get_event_details(event_id: int):
     """Obtiene detalles completos de un evento incluyendo sus ventanas"""
-    from app.models.academic_period import AcademicPeriod
-    from app.models.event import EventAttendance, EventInvitation
-
     event, err = _check_event_access(event_id)
     if err:
         return err
 
-    windows = EventWindow.query.filter_by(event_id=event_id).all()
-
-    program = db.session.get(Program, event.program_id) if event.program_id else None
-    period = db.session.get(AcademicPeriod, event.academic_period_id) if event.academic_period_id else None
-
-    slots_query = db.session.query(EventSlot).join(
-        EventWindow, EventWindow.id == EventSlot.event_window_id
-    ).filter(EventWindow.event_id == event_id)
-    slots_total = slots_query.count()
-    slots_booked = slots_query.filter(EventSlot.status == 'booked').count()
-
-    registrations_count = EventAttendance.query.filter_by(event_id=event_id).count()
-    invitations_pending = EventInvitation.query.filter_by(event_id=event_id, status='pending').count()
-
-    payload = event.to_dict()
-    payload.update({
-        "program_name": program.name if program else None,
-        "academic_period_code": period.code if period else None,
-        "windows_count": len(windows),
-        "slots_total": slots_total,
-        "slots_booked": slots_booked,
-        "registrations_count": registrations_count,
-        "invitations_pending": invitations_pending,
-        "windows": [{
-            "id": w.id,
-            "date": w.date.isoformat(),
-            "start_time": w.start_time.isoformat(),
-            "end_time": w.end_time.isoformat(),
-            "slot_minutes": w.slot_minutes
-        } for w in windows]
-    })
-    return api_ok(payload)
+    return api_ok(EventsService.build_admin_event_detail(event))
 
 
 @api_events.route('/windows/<int:window_id>', methods=['DELETE'])
@@ -422,9 +331,9 @@ def delete_window(window_id: int):
     """Elimina una ventana y todos sus slots"""
     from app.services.events_service import EventsService
     
-    window = db.session.get(EventWindow, window_id)
+    owner_event_id = EventsService.get_event_id_of_window(window_id)
     # Un solo 404 para las dos razones — ver `generate_slots`.
-    if not window or _check_event_access(window.event_id)[1]:
+    if owner_event_id is None or _check_event_access(owner_event_id)[1]:
         return _deny("NOT_FOUND", "Ventana no encontrada.", 404)
 
     force = request.args.get('force') in ('true', '1', 'yes')
@@ -437,7 +346,6 @@ def delete_window(window_id: int):
             return _requires_force(str(e))
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='delete_window')
 
 
@@ -448,10 +356,9 @@ def delete_slot(slot_id: int):
     """Elimina un slot individual"""
     from app.services.events_service import EventsService
     
-    slot = db.session.get(EventSlot, slot_id)
-    window = db.session.get(EventWindow, slot.event_window_id) if slot else None
+    owner_event_id = EventsService.get_event_id_of_slot(slot_id)
     # Un solo 404 para las tres razones — ver `generate_slots`.
-    if not slot or not window or _check_event_access(window.event_id)[1]:
+    if owner_event_id is None or _check_event_access(owner_event_id)[1]:
         return _deny("NOT_FOUND", "Horario no encontrado.", 404)
 
     force = request.args.get('force') in ('true', '1', 'yes')
@@ -464,7 +371,6 @@ def delete_slot(slot_id: int):
             return _requires_force(str(e))
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='delete_slot')
 
 
@@ -477,34 +383,7 @@ def list_event_windows(event_id: int):
     if err:
         return err
 
-    windows = EventWindow.query.filter_by(event_id=event_id).order_by(
-        EventWindow.date.asc(), EventWindow.start_time.asc()
-    ).all()
-    
-    items = []
-    for window in windows:
-        # Contar slots
-        slots_total = EventSlot.query.filter_by(event_window_id=window.id).count()
-        slots_free = EventSlot.query.filter_by(
-            event_window_id=window.id, status='free'
-        ).count()
-        slots_booked = EventSlot.query.filter_by(
-            event_window_id=window.id, status='booked'
-        ).count()
-        
-        items.append({
-            "id": window.id,
-            "date": window.date.isoformat(),
-            "start_time": window.start_time.isoformat(),
-            "end_time": window.end_time.isoformat(),
-            "slot_minutes": window.slot_minutes,
-            "slots_generated": window.slots_generated,
-            "slots_total": slots_total,
-            "slots_free": slots_free,
-            "slots_booked": slots_booked
-        })
-    
-    return api_ok({"windows": items})
+    return api_ok({"windows": EventsService.list_windows_with_stats(event_id)})
 
 @api_events.route('/<int:event_id>', methods=['PUT'])
 @login_required
@@ -530,17 +409,11 @@ def update_event(event_id: int):
     if err:
         return err
 
-    data = request.get_json() or {}
+    payload = parse_json(UpdateEventIn)
+    data = payload.model_dump(exclude_unset=True)
 
     if 'program_id' in data:
-        new_pid = data.get('program_id')
-        if new_pid in (None, ''):
-            new_pid = None
-        else:
-            try:
-                new_pid = int(new_pid)
-            except (TypeError, ValueError):
-                return _deny("VALIDATION_ERROR", "program_id inválido.", 400)
+        new_pid = data['program_id']
 
         if new_pid == event.program_id:
             data.pop('program_id')          # no-op: no lo toques
@@ -551,16 +424,13 @@ def update_event(event_id: int):
                 "Jefatura de Posgrado que lo reasigne.",
                 403,
             )
-        else:
-            # Alcance global: puede reasignar, incluso a institucional.
-            data['program_id'] = new_pid
+        # Alcance global: puede reasignar, incluso a institucional.
 
     try:
         event = EventsService.update_event(event_id, data)
     except ValueError as e:
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='update_event')
 
     from app.sockets.emitters import emit_event_change
@@ -577,91 +447,7 @@ def update_event(event_id: int):
 @login_required
 def list_public_events():
     """Lista eventos visibles para estudiantes (filtrados por periodo activo + visibilidad)."""
-    from app.models.event import EventAttendance, EventImage, EventHost
-    from app.models.user import User
-
-    annotated = EventsService.get_public_events_with_invitation_status(current_user.id)
-
-    items = []
-    for entry in annotated:
-        event = entry['event']
-        program = db.session.get(Program, event.program_id) if event.program_id else None
-        current_registrations = EventAttendance.query.filter_by(
-            event_id=event.id,
-            status='registered'
-        ).count()
-
-        # Cover path (elimina N+1 en frontend)
-        cover = EventImage.query.filter_by(event_id=event.id, is_cover=True).first()
-        cover_path = cover.path if cover else None
-
-        # Hosts summary: máximo 3 con URL de foto ya construida (sin N+1 frontend)
-        from flask import url_for as _url_for
-        hosts_summary = []
-        hosts = EventHost.query.filter_by(event_id=event.id).order_by(
-            EventHost.display_order.asc()
-        ).limit(3).all()
-        for h in hosts:
-            if h.user_id:
-                u = db.session.get(User, h.user_id)
-                photo_url = None
-                if u:
-                    try:
-                        photo_url = u.avatar_url
-                    except Exception:
-                        photo_url = None
-                hosts_summary.append({
-                    'name': f"{u.first_name} {u.last_name}" if u else 'Ponente',
-                    'photo_url': photo_url,
-                    'is_external': False,
-                    'role_label': h.role_label,
-                })
-            else:
-                photo_url = None
-                if h.external_photo_path:
-                    filename = h.external_photo_path.split('/')[-1]
-                    photo_url = f"/files/event/{event.id}/hosts/{filename}"
-                hosts_summary.append({
-                    'name': h.external_name,
-                    'photo_url': photo_url,
-                    'is_external': True,
-                    'role_label': h.role_label,
-                })
-
-        hosts_total = EventHost.query.filter_by(event_id=event.id).count()
-
-        # Es preview si es privado y NO tiene invitación (lo ve por ser creador/admin)
-        is_preview = (
-            event.visibility == 'private'
-            and not entry['my_invitation_status']
-        )
-        is_creator = event.created_by == current_user.id
-
-        items.append({
-            "id": event.id,
-            "title": event.title,
-            "type": event.type,
-            "description": event.description,
-            "location": event.location,
-            "capacity_type": event.capacity_type,
-            "max_capacity": event.max_capacity,
-            "current_registrations": current_registrations,
-            "program_id": event.program_id,
-            "program_name": program.name if program else None,
-            "academic_period_id": event.academic_period_id,
-            "visibility": event.visibility,
-            "my_invitation_status": entry['my_invitation_status'],
-            "is_preview": is_preview,
-            "is_creator": is_creator,
-            "event_date": event.event_date.isoformat() if event.event_date else None,
-            "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
-            "created_at": event.created_at.isoformat(),
-            "cover_path": cover_path,
-            "hosts_summary": hosts_summary,
-            "hosts_total": hosts_total,
-        })
-
-    return api_ok({"items": items})
+    return api_ok({"items": EventsService.build_public_event_items(current_user.id)})
 
 
 @api_events.route('/public/<int:event_id>', methods=['GET'])
@@ -677,9 +463,6 @@ def get_public_event_detail(event_id: int):
       - ventanas con slots (para eventos 1:1)
       - conteo de registros actuales (para multiple/unlimited)
     """
-    from app.models.event import EventAttendance
-    from app.models.appointment import Appointment
-
     # Una sola respuesta para "no existe" y para "no es tuyo": cualquier otra
     # cosa convierte el id en un oráculo. Con dos códigos distintos, o con dos
     # mensajes distintos, cualquier cuenta autenticada recorre 1..N y obtiene
@@ -692,7 +475,7 @@ def get_public_event_detail(event_id: int):
     # compartido, más estricta que él (negaba a quien gestiona su propio
     # borrador) y era justo la que partía el mensaje en dos. Se va: la regla
     # la contesta `EventsService`, en un solo sitio.
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if event is None:
         return api_error('NOT_FOUND', "Evento no encontrado", status=404)
 
@@ -713,120 +496,11 @@ def get_public_event_detail(event_id: int):
     is_creator = event.created_by == current_user.id
     is_admin = _event_managed_by_current_user(event)
 
-    from app.models.event import EventInvitation as _EI
-    has_invitation = _EI.query.filter_by(
-        event_id=event.id, user_id=current_user.id
-    ).first() is not None
-
     if not (is_creator or is_admin or _event_participable_by_current_user(event)):
         # Mismo cuerpo y mismo código que el evento inexistente de arriba.
         return api_error('NOT_FOUND', "Evento no encontrado", status=404)
 
-    program = db.session.get(Program, event.program_id) if event.program_id else None
-
-    # Registro actual del usuario en eventos multiple/unlimited
-    my_registration = None
-    if event.capacity_type in ('multiple', 'unlimited'):
-        att = EventAttendance.query.filter_by(
-            event_id=event.id, user_id=current_user.id
-        ).first()
-        if att:
-            my_registration = {
-                'id': att.id,
-                'status': att.status,
-                'registered_at': att.registered_at.isoformat(),
-                'attended_at': att.attended_at.isoformat() if att.attended_at else None,
-            }
-
-    # Invitación actual del usuario a este evento
-    from app.models.event import EventInvitation
-    my_invitation = None
-    inv = EventInvitation.query.filter_by(
-        event_id=event.id, user_id=current_user.id
-    ).first()
-    if inv:
-        my_invitation = {
-            'id': inv.id,
-            'status': inv.status,
-            'invited_at': inv.invited_at.isoformat() if inv.invited_at else None,
-            'responded_at': inv.responded_at.isoformat() if inv.responded_at else None,
-        }
-
-    # Cita actual del usuario en eventos single (1:1)
-    my_appointment = None
-    if event.capacity_type == 'single':
-        appt = Appointment.query.filter(
-            Appointment.event_id == event.id,
-            Appointment.applicant_id == current_user.id,
-            Appointment.status == 'scheduled',
-        ).first()
-        if appt:
-            slot = db.session.get(EventSlot, appt.slot_id)
-            my_appointment = {
-                'id': appt.id,
-                'slot_id': appt.slot_id,
-                'status': appt.status,
-                'starts_at': slot.starts_at.isoformat() if slot else None,
-                'ends_at': slot.ends_at.isoformat() if slot else None,
-            }
-
-    # Ventanas con slots (solo para eventos 1:1 o cuando aplique)
-    windows = []
-    if event.capacity_type == 'single':
-        wins = EventWindow.query.filter_by(event_id=event.id).order_by(
-            EventWindow.date.asc(), EventWindow.start_time.asc()
-        ).all()
-        for w in wins:
-            slots = EventSlot.query.filter_by(event_window_id=w.id).order_by(
-                EventSlot.starts_at.asc()
-            ).all()
-            windows.append({
-                'id': w.id,
-                'date': w.date.isoformat() if w.date else None,
-                'start_time': w.start_time.isoformat() if w.start_time else None,
-                'end_time': w.end_time.isoformat() if w.end_time else None,
-                'slot_minutes': w.slot_minutes,
-                'slots': [{
-                    'id': s.id,
-                    'starts_at': s.starts_at.isoformat(),
-                    'ends_at': s.ends_at.isoformat(),
-                    'status': s.status,
-                } for s in slots],
-            })
-
-    # Conteo de registros (multiple/unlimited)
-    current_registrations = 0
-    if event.capacity_type in ('multiple', 'unlimited'):
-        current_registrations = EventAttendance.query.filter_by(
-            event_id=event.id, status='registered'
-        ).count()
-
-    return api_ok({
-        "event": {
-            "id": event.id,
-            "title": event.title,
-            "type": event.type,
-            "description": event.description,
-            "location": event.location,
-            "capacity_type": event.capacity_type,
-            "max_capacity": event.max_capacity,
-            "current_registrations": current_registrations,
-            "requires_registration": event.requires_registration,
-            "status": event.status,
-            "visibility": event.visibility,
-            "event_date": event.event_date.isoformat() if event.event_date else None,
-            "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
-            "program_id": event.program_id,
-            "program_name": program.name if program else None,
-            "is_creator": is_creator,
-            "is_preview": event.visibility == 'private' and not has_invitation,
-            "created_at": event.created_at.isoformat(),
-        },
-        "my_registration": my_registration,
-        "my_appointment": my_appointment,
-        "my_invitation": my_invitation,
-        "windows": windows,
-    })
+    return api_ok(EventsService.build_public_event_detail(event, current_user.id))
 
 
 # ============================================================================
@@ -855,7 +529,6 @@ def conclude_event(event_id: int):
     except ValueError as e:
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='conclude_event')
 
 
@@ -881,7 +554,6 @@ def archive_event(event_id: int):
     except ValueError as e:
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='archive_event')
 
 
@@ -893,8 +565,7 @@ def unarchive_event(event_id: int):
     event, err = _check_event_access(event_id)
     if err:
         return err
-    data = request.get_json() or {}
-    new_status = data.get('new_status', 'published')
+    new_status = parse_json(UnarchiveEventIn).new_status
     try:
         event = EventsService.unarchive_event(event_id, current_user.id, new_status)
 
@@ -909,7 +580,6 @@ def unarchive_event(event_id: int):
     except ValueError as e:
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='unarchive_event')
 
 
@@ -932,7 +602,7 @@ def list_event_hosts(event_id: int):
     publica a quien puede pedir esos bytes (`may_view_avatar`): el índice y el
     servidor de archivos tienen que contestar lo mismo.
     """
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
@@ -988,10 +658,7 @@ def set_event_hosts(event_id: int):
     if err:
         return err
 
-    data = request.get_json() or {}
-    hosts_data = data.get('hosts', [])
-    if not isinstance(hosts_data, list):
-        return api_error('VALIDATION_ERROR', "'hosts' debe ser una lista", status=400)
+    hosts_data = parse_json(SetHostsIn).hosts
 
     try:
         hosts = EventsService.set_event_hosts(
@@ -1018,7 +685,7 @@ def list_event_images(event_id: int):
     el índice de los bytes que sirve `api_files.event_image`, y las dos deben
     contestar lo mismo o el índice delata lo que el servidor niega.
     """
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
@@ -1083,10 +750,9 @@ def upload_event_gallery_image(event_id: int):
 @permission_required('events.api.manage_images')
 def delete_event_image(image_id: int):
     """Elimina imagen (cover o galería) + archivo físico."""
-    from app.models.event import EventImage
-    image = db.session.get(EventImage, image_id)
+    owner_event_id = EventsService.get_event_id_of_image(image_id)
     # Un solo 404 para las dos razones — ver `generate_slots`.
-    if not image or _check_event_access(image.event_id)[1]:
+    if owner_event_id is None or _check_event_access(owner_event_id)[1]:
         return _deny("NOT_FOUND", "Imagen no encontrada.", 404)
 
     try:
@@ -1136,5 +802,4 @@ def mark_events_seen():
         EventsService.mark_events_seen(current_user.id)
         return api_ok()
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='mark_events_seen')

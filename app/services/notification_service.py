@@ -1101,3 +1101,46 @@ class NotificationService:
             email_html=email_html,
         )
         return task.id
+
+# ==================== OPERACIONES CON COMMIT (usadas por las rutas) ====================
+# The NotificationService methods above only flush; these wrappers own the
+# commit so routes never touch the session.
+
+def get_notification_for_user(notification_id: int, user_id: int) -> Optional[Notification]:
+    """Read-only: the notification scoped to its owner, or None."""
+    return Notification.query.filter_by(id=notification_id, user_id=user_id).first()
+
+
+def mark_read_and_commit(notification_id: int, user_id: int) -> Optional[Notification]:
+    """Mark one notification as read and commit. None if it is not the user's."""
+    notification = NotificationService.mark_as_read(notification_id, user_id)
+    if notification:
+        db.session.commit()
+    return notification
+
+
+def mark_all_read_and_commit(user_id: int) -> int:
+    """Mark every unread notification of the user as read and commit."""
+    count = NotificationService.mark_all_as_read(user_id)
+    db.session.commit()
+    return count
+
+
+def delete_and_commit(notification_id: int, user_id: int) -> Optional[Notification]:
+    """Soft-delete one notification and commit. None if it is not the user's."""
+    notification = NotificationService.delete_notification(notification_id, user_id)
+    if notification:
+        db.session.commit()
+    return notification
+
+
+def clear_read_and_commit(user_id: int) -> int:
+    """Soft-delete every read notification of the user and commit."""
+    count = NotificationService.clear_read_notifications(user_id)
+    db.session.commit()
+    return count
+
+
+def rollback_session() -> None:
+    """Discard pending changes after a failed operation."""
+    db.session.rollback()

@@ -839,3 +839,26 @@ def get_applicants_with_pending_interview(program_id: int):
     ).order_by(UserProgram.updated_at.desc()).all()
 
     return applicants
+
+
+def list_admission_archives(program_id: int) -> list:
+    """Uploadable archives of the admission phase of a program (partial rejection)."""
+    from sqlalchemy import and_
+    from app.models import Step, ProgramStep, Phase
+    from app.models.archive import Archive
+
+    return (
+        Archive.query
+        .join(Step, Archive.step_id == Step.id)
+        .join(ProgramStep, Step.id == ProgramStep.step_id)
+        .join(Phase, Step.phase_id == Phase.id)
+        .filter(
+            and_(
+                ProgramStep.program_id == program_id,
+                Phase.name == 'admission',
+                Archive.is_uploadable == True  # noqa: E712
+            )
+        )
+        .order_by(ProgramStep.sequence, Archive.id)
+        .all()
+    )

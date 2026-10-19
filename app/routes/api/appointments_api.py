@@ -6,12 +6,13 @@ from app.utils.permissions import (
     any_permission_required,
     guard_user_scope,
 )
+from app.utils.validation import parse_json
+from app.schemas.appointments import (
+    AssignIn, ChangeRequestIn, ChangeDecisionIn, MarkStatusIn, CancelIn,
+)
+from app.services import appointments_service as appts
 from app.services.appointments_service import AppointmentsService, AppointmentAccessDenied
 from app.services.events_service import EventsService
-from app.services.deliberation_service import complete_interview_from_appointment
-from app.services.user_history_service import UserHistoryService
-from app.models.appointment import Appointment
-from app import db
 
 api_appointments = Blueprint('api_appointments', __name__, url_prefix='/api/v1/appointments')
 
@@ -123,13 +124,9 @@ def _event_read_denied(appointment, event):
 @login_required
 @any_permission_required('appointments.api.assign', 'appointments.api.book')
 def assign():
-    data = request.get_json() or {}
-
-    try:
-        event_id = int(data['event_id'])
-        slot_id = int(data['slot_id'])
-    except (KeyError, TypeError, ValueError):
-        return _deny("VALIDATION_ERROR", "event_id y slot_id son requeridos.", 400)
+    data = parse_json(AssignIn)
+    event_id = data.event_id
+    slot_id = data.slot_id
 
     slot_ctx = AppointmentsService.get_slot_context(slot_id)
     if not slot_ctx or not slot_ctx['event'] or slot_ctx['event'].id != event_id:
@@ -147,11 +144,9 @@ def assign():
         # con int(); hoy un valor no resoluble deja `applicant_id` en None y la
         # guarda de alcance falla cerrado con el mismo 403 que un aspirante de
         # otro programa.
-        from app.models.user import User as _User
-        raw_applicant = data.get('applicant_id')
+        raw_applicant = data.applicant_id
         if raw_applicant:
-            _target = _User.by_uuid(raw_applicant)
-            applicant_id = _target.id if _target else None
+            applicant_id = appts.resolve_applicant_id(raw_applicant)
         else:
             applicant_id = current_user.id
         # …y sólo sobre aspirantes de esos mismos programas.
@@ -185,36 +180,11 @@ def assign():
             slot_id=slot_id,
             applicant_id=applicant_id,
             assigned_by=current_user.id,
-            notes=data.get('notes')
+            notes=data.notes
         )
 
         # Registrar en el historial Y enviar notificación
-        try:
-            from app.services.notification_service import NotificationService
-            slot = slot_ctx['slot']
-
-            # Registrar en historial
-            UserHistoryService.log_appointment_assignment(
-                user_id=applicant_id,
-                event_title=event.title,
-                appointment_datetime=slot.starts_at.isoformat(),
-                assigned_by_admin=current_user.id
-            )
-
-            # Enviar notificación con correo
-            NotificationService.notify_appointment_assigned(
-                user_id=applicant_id,
-                event_title=event.title,
-                appointment_id=appt.id,
-                slot_datetime=slot.starts_at.strftime('%d/%m/%Y a las %H:%M'),
-                event_id=event.id,
-                location=event.location
-            )
-
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar asignación de cita en historial: {e}")
+        appts.record_assignment(appt, event, slot_ctx['slot'], applicant_id, current_user.id)
 
         # Al aspirante (es su cita) y a los coordinadores CON alcance sobre el
         # programa del evento. `role:coordinator` metía el applicant_id de un
@@ -285,21 +255,13 @@ def cancel(appointment_id:int):
         )
 
         # Registrar en el historial (incluye notificación automática)
-        try:
-            reason = request.args.get('reason', 'Cancelada por el usuario')
-
-            UserHistoryService.log_appointment_cancellation(
-                user_id=appt.applicant_id,
-                event_title=event_title,
-                reason=reason,
-                cancelled_by_admin=as_admin,
-                admin_id=current_user.id if as_admin else None
-            )
-
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar cancelación de cita en historial: {e}")
+        appts.record_cancellation(
+            appt.applicant_id,
+            event_title,
+            request.args.get('reason', 'Cancelada por el usuario'),
+            as_admin,
+            current_user.id if as_admin else None,
+        )
 
         # Mismo reparto que en assign(): dueño de la cita + coordinadores con
         # alcance sobre el programa del evento.
@@ -332,18 +294,17 @@ def cancel(appointment_id:int):
 @login_required
 @any_permission_required('appointments.api.change_request', 'appointments.api.assign')
 def request_change(appointment_id:int):
-    data = request.get_json() or {}
-
     ctx, as_admin, err = _resolve_manage_context(appointment_id)
     if err:
         return err
 
+    data = parse_json(ChangeRequestIn)
     try:
         acr = AppointmentsService.request_change(
             appointment_id=appointment_id,
             requested_by=current_user.id,
-            reason=data.get('reason'),
-            suggestions=data.get('suggestions'),
+            reason=data.reason,
+            suggestions=data.suggestions,
             as_admin=as_admin,
         )
         # Sólo a los coordinadores que gestionan el evento. No se emite al
@@ -374,8 +335,6 @@ def request_change(appointment_id:int):
 @login_required
 def appointment_details(appointment_id: int):
     """Obtiene detalles completos de una cita incluyendo slot, window y evento"""
-    from app.models.user import User
-
     ctx, _as_admin, err = _resolve_manage_context(appointment_id)
     if err:
         return err
@@ -395,7 +354,7 @@ def appointment_details(appointment_id: int):
         return denied
 
     # Información del coordinador que asignó
-    assigner = db.session.get(User, appt.assigned_by) if appt.assigned_by else None
+    assigner = appts.get_user_ref(appt.assigned_by)
 
     return api_ok({
         "appointment": {
@@ -421,8 +380,8 @@ def appointment_details(appointment_id: int):
                 # clave de la API que seguia republicando la clave primaria
                 # entera de un usuario, justo el identificador enumerable que
                 # el cambio a UUID existe para retirar.
-                "id": _public_user_id(assigner.id),
-                "name": f"{assigner.first_name} {assigner.last_name}"
+                "id": assigner["id"],
+                "name": assigner["full_name"]
             } if assigner else None
         }
     })
@@ -481,13 +440,7 @@ def my_active_appointments():
 @permission_required('appointments.api.assign')
 def get_change_requests_by_event(event_id: int):
     """Lista solicitudes de cambio de cita pendientes para un evento específico"""
-    from app.models.event import EventSlot
-    from app.models.event import Event
-    from app.models.user import User
-    from app.models.appointment import AppointmentChangeRequest
-    from sqlalchemy import select
-
-    event = db.session.get(Event, event_id)
+    event = appts.get_event(event_id)
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
@@ -496,38 +449,7 @@ def get_change_requests_by_event(event_id: int):
         return denied
 
     try:
-        results = db.session.execute(
-            select(AppointmentChangeRequest, Appointment, EventSlot, User)
-            .join(Appointment, AppointmentChangeRequest.appointment_id == Appointment.id)
-            .join(EventSlot, Appointment.slot_id == EventSlot.id)
-            .join(User, Appointment.applicant_id == User.id)
-            .where(
-                Appointment.event_id == event_id,
-                AppointmentChangeRequest.status == 'pending'
-            )
-            .order_by(AppointmentChangeRequest.created_at.desc())
-        ).all()
-
-        items = []
-        for req, appt, slot, user in results:
-            items.append({
-                "id": req.id,
-                "appointment_id": appt.id,
-                "student": {
-                    "id": str(user.uuid) if user.uuid else None,
-                    "full_name": f"{user.first_name} {user.last_name}",
-                    "email": user.email
-                },
-                "current_slot": {
-                    "id": slot.id,
-                    "starts_at": slot.starts_at.isoformat(),
-                    "ends_at": slot.ends_at.isoformat()
-                },
-                "reason": req.reason,
-                "suggestions": req.suggestions,
-                "created_at": req.created_at.isoformat()
-            })
-
+        items = appts.list_pending_change_requests(event_id)
         return api_ok({"change_requests": items, "count": len(items)})
 
     except Exception as e:
@@ -538,8 +460,6 @@ def get_change_requests_by_event(event_id: int):
 @login_required
 @permission_required('appointments.api.assign')
 def decide_change(req_id:int):
-    data = request.get_json() or {}
-
     ctx = AppointmentsService.get_change_request_context(req_id)
     if not ctx or not ctx.get('appointment'):
         return _deny("NOT_FOUND", "Solicitud de cambio no encontrada.", 404)
@@ -548,49 +468,17 @@ def decide_change(req_id:int):
     if denied:
         return denied
 
+    data = parse_json(ChangeDecisionIn)
     try:
         acr = AppointmentsService.decide_change(
             request_id=req_id,
-            status=data.get('status'),
+            status=data.status,
             decided_by=current_user.id,
-            new_slot_id=data.get('new_slot_id')
+            new_slot_id=data.new_slot_id
         )
 
         # Enviar notificación y correo al aspirante
-        try:
-            from app.models.event import Event, EventSlot, EventWindow
-            from app.services.notification_service import NotificationService
-
-            appt = db.session.get(Appointment, acr.appointment_id)
-            slot = db.session.get(EventSlot, appt.slot_id)
-            window = db.session.get(EventWindow, slot.event_window_id)
-            event = db.session.get(Event, window.event_id)
-
-            new_slot_str = slot.starts_at.strftime('%d/%m/%Y %H:%M') if slot else ''
-            location = getattr(event, 'location', None)
-
-            if acr.status == 'accepted':
-                NotificationService.notify_appointment_reassigned(
-                    user_id=appt.applicant_id,
-                    event_title=event.title,
-                    appointment_id=appt.id,
-                    new_slot_datetime=new_slot_str,
-                    old_slot_datetime='',
-                    event_id=event.id,
-                    location=location
-                )
-            elif acr.status == 'rejected':
-                NotificationService.create_notification(
-                    user_id=appt.applicant_id,
-                    notification_type='appointment_change_rejected',
-                    title='Cambio de horario rechazado',
-                    message=f'Tu solicitud de cambio de horario para "{event.title}" fue rechazada. Tu cita original se mantiene el {new_slot_str}.',
-                    priority='medium',
-                    data={'event_id': event.id, 'event_title': event.title, 'slot_datetime': new_slot_str}
-                )
-        except Exception as notify_err:
-            import logging
-            logging.error(f"Error enviando notificación de cambio de cita: {notify_err}")
+        appts.notify_change_decision(acr)
 
         return api_ok({"id": acr.id, "status": acr.status})
     except ValueError as e:
@@ -622,16 +510,15 @@ def get_appointment_by_slot(slot_id: int):
         return api_ok({"appointment": None})
 
     # Obtener datos del estudiante
-    from app.models.user import User
-    student = db.session.get(User, appointment.applicant_id)
+    student = appts.get_user_ref(appointment.applicant_id)
 
     return api_ok({
         "appointment": {
             "id": appointment.id,
             "status": appointment.status,
             "student": {
-                "id": str(student.uuid) if student.uuid else None,
-                "full_name": f"{student.first_name} {student.last_name}"
+                "id": student["id"],
+                "full_name": student["full_name"]
             } if student else None,
             "assigned_by": _public_user_id(appointment.assigned_by),
             "created_at": appointment.created_at.isoformat()
@@ -646,12 +533,9 @@ def mark_appointment_status(appointment_id: int):
     Marca el estado de una cita (done, no_show).
     Si se marca como 'done' y es una entrevista, actualiza admission_status.
     """
-    data = request.get_json() or {}
-    new_status = data.get('status')
-    notes = data.get('notes')
-
-    if new_status not in ['done', 'no_show']:
-        return api_error("VALIDATION_ERROR", "Estado inválido. Usar 'done' o 'no_show'", status=400)
+    data = parse_json(MarkStatusIn)
+    new_status = data.status
+    notes = data.notes
 
     ctx, _as_admin, err = _resolve_manage_context(appointment_id)
     if err:
@@ -663,17 +547,9 @@ def mark_appointment_status(appointment_id: int):
         return _deny("NOT_FOUND", "Horario no encontrado.", 404)
 
     try:
-        # Actualizar estado de la cita
-        appt.status = new_status
-        if notes:
-            appt.notes = f"{appt.notes or ''}\n[{new_status.upper()}]: {notes}".strip()
-
-        # Si es entrevista y se marca como 'done', actualizar admission_status.
+        # Si es entrevista y se marca como 'done', se actualiza admission_status.
         # El servicio hace el unico commit (cita + admision) en ambos casos.
-        if new_status == 'done':
-            complete_interview_from_appointment(appt, current_user.id)
-        else:
-            db.session.commit()
+        appts.mark_status(appt, new_status, notes, current_user.id)
 
         return api_ok(
             {"id": appointment_id, "status": new_status},
@@ -681,7 +557,6 @@ def mark_appointment_status(appointment_id: int):
         )
 
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context="appointments.mark_appointment_status")
 
 
@@ -690,8 +565,7 @@ def mark_appointment_status(appointment_id: int):
 @permission_required('appointments.api.assign')
 def cancel_appointment_by_coordinator(appointment_id: int):
     """Cancelar cita desde el coordinador con motivo"""
-    data = request.get_json() or {}
-    reason = data.get('reason', 'Cancelada por coordinador')
+    reason = parse_json(CancelIn).reason
 
     ctx, as_admin, err = _resolve_manage_context(appointment_id)
     if err:
@@ -706,18 +580,9 @@ def cancel_appointment_by_coordinator(appointment_id: int):
         )
 
         # Registrar en historial (incluye notificación automática)
-        try:
-            UserHistoryService.log_appointment_cancellation(
-                user_id=appt.applicant_id,
-                event_title=ctx['event_title'],
-                reason=reason,
-                cancelled_by_admin=True,
-                admin_id=current_user.id
-            )
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar cancelación: {e}")
+        appts.record_cancellation(
+            appt.applicant_id, ctx['event_title'], reason, True, current_user.id
+        )
 
         # Mismo reparto que en assign(): dueño de la cita + coordinadores con
         # alcance sobre el programa del evento.
@@ -746,5 +611,4 @@ def cancel_appointment_by_coordinator(appointment_id: int):
     except ValueError as e:
         return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context="appointments.cancel_appointment_by_coordinator")

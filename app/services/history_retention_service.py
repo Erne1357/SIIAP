@@ -125,8 +125,12 @@ class HistoryRetentionService:
         
         # 7. Commit si no es dry run
         if not dry_run:
-            db.session.commit()
-        
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                raise
+
         stats['users_affected'] = len(stats['users_affected'])
         return stats
 

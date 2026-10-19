@@ -864,3 +864,20 @@ def list_all_permissions(resource=None, perm_type=None):
     if perm_type:
         q = q.filter_by(perm_type=perm_type)
     return q.order_by(Permission.resource, Permission.action).all()
+
+
+def list_roles():
+    """All roles ordered by name."""
+    return Role.query.order_by(Role.name).all()
+
+
+def list_permission_resources() -> list[str]:
+    """Distinct resource names of the permission catalog, alphabetically."""
+    rows = (
+        Permission.query
+        .with_entities(Permission.resource)
+        .distinct()
+        .order_by(Permission.resource)
+        .all()
+    )
+    return [r[0] for r in rows]

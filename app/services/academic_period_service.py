@@ -377,3 +377,8 @@ def _parse_date(value):
         return date.fromisoformat(value)
 
     raise ValueError(f"Formato de fecha inválido: {value}")
+
+
+def list_periods_newest_first():
+    """All academic periods, newest id first (selectors in the admin pages)."""
+    return AcademicPeriod.query.order_by(AcademicPeriod.id.desc()).all()

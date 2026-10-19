@@ -1,11 +1,10 @@
 # app/routes/api/users_api.py
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
-from app import db
 from datetime import datetime
 
 from app.utils.api_response import api_server_error
-from app.models.user_history import UserHistory
+from app.services import user_admin_service as admin_svc
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
 from app.models.user import User
@@ -60,21 +59,12 @@ def complete_profile():
     """
     payload = request.get_json(silent=True) or {}
     
-    # Campos de información personal
-    current_user.phone = _sanitize(payload.get("phone"))
-    current_user.mobile_phone = _sanitize(payload.get("mobile_phone"))
-    current_user.address = _sanitize(payload.get("address"))
-    current_user.curp = _sanitize(payload.get("curp"))
-    current_user.rfc = _sanitize(payload.get("rfc"))
-    current_user.birth_place = _sanitize(payload.get("birth_place"))
-    current_user.cedula_profesional = _sanitize(payload.get("cedula_profesional"))
-    current_user.nss = _sanitize(payload.get("nss"))
-    
     # Fecha de nacimiento (requiere manejo especial)
+    birth_date = None
     birth_date_str = payload.get("birth_date")
     if birth_date_str:
         try:
-            current_user.birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
+            birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
         except ValueError:
             return jsonify({
                 "data": None,
@@ -83,27 +73,23 @@ def complete_profile():
                 "meta": {}
             }), 400
     
-    # Contacto de emergencia
-    current_user.emergency_contact_name = _sanitize(payload.get("emergency_contact_name"))
-    current_user.emergency_contact_phone = _sanitize(payload.get("emergency_contact_phone"))
-    current_user.emergency_contact_relationship = _sanitize(payload.get("emergency_contact_relationship"))
-    
-    # Actualizar automáticamente el estado de perfil completo
-    was_complete_before = current_user.profile_completed
-    is_complete_now = current_user.update_profile_completion_status()
-    
-    db.session.commit()
-    
-    # Registrar en el historial si completó el perfil por primera vez
-    if not was_complete_before and is_complete_now:
-        try:
-            UserHistoryService.log_profile_completion(user_id=current_user.id)
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar completado de perfil en historial: {e}")
-    
-    # Mensaje diferente si acaba de completar el perfil
+    # Información personal y contacto de emergencia, sin espacios sobrantes.
+    fields = {
+        name: _sanitize(payload.get(name))
+        for name in (
+            "phone", "mobile_phone", "address", "curp", "rfc", "birth_place",
+            "cedula_profesional", "nss", "emergency_contact_name",
+            "emergency_contact_phone", "emergency_contact_relationship",
+        )
+    }
+
+    # Actualiza el estado de perfil completo y lo registra en el historial
+    # cuando se completa por primera vez.
+    was_complete_before, is_complete_now = admin_svc.complete_profile(
+        current_user, fields, birth_date, logger=current_app.logger
+    )
+
+# Mensaje diferente si acaba de completar el perfil
     if not was_complete_before and is_complete_now:
         flash_message = "¡Perfil completado exitosamente! Ahora eres elegible para entrevistas."
         flash_level = "success"
@@ -200,16 +186,13 @@ def update_me():
             "meta": {}
         }), 400
 
-    current_user.first_name = first
-    current_user.last_name = last
-    current_user.mother_last_name = mother
-    if scol is not None:
-        current_user.scolarship_type = scol
-
-    # Actualizar estado de perfil completo
-    current_user.update_profile_completion_status()
-
-    db.session.commit()
+    admin_svc.update_own_basic_info(
+        current_user,
+        first_name=first,
+        last_name=last,
+        mother_last_name=mother,
+        scolarship_type=scol,
+    )
 
     return jsonify({
         "data": {"user": {
@@ -395,7 +378,7 @@ def upload_my_photo():
             "meta": {}
         }), 400
     except Exception as e:
-        db.session.rollback()
+        admin_svc.rollback_session()
         return api_server_error(e, context='upload_my_photo')
 
 
@@ -425,7 +408,7 @@ def request_my_photo_change():
             "meta": {}
         }), 400
     except Exception as e:
-        db.session.rollback()
+        admin_svc.rollback_session()
         return api_server_error(e, context='request_my_photo_change')
 
 
@@ -484,7 +467,7 @@ def enable_photo_change(user_uuid):
             "meta": {}
         }), 200
     except ProgramScopeDenied as e:
-        db.session.rollback()
+        admin_svc.rollback_session()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": e.message}],
@@ -499,7 +482,7 @@ def enable_photo_change(user_uuid):
             "meta": {}
         }), 400
     except Exception as e:
-        db.session.rollback()
+        admin_svc.rollback_session()
         return api_server_error(e, context='enable_photo_change')
 
 
@@ -546,7 +529,7 @@ def coordinator_upload_photo(user_uuid):
             "meta": {}
         }), 200
     except ProgramScopeDenied as e:
-        db.session.rollback()
+        admin_svc.rollback_session()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": e.message}],
@@ -561,5 +544,5 @@ def coordinator_upload_photo(user_uuid):
             "meta": {}
         }), 400
     except Exception as e:
-        db.session.rollback()
+        admin_svc.rollback_session()
         return api_server_error(e, context='coordinator_upload_photo')

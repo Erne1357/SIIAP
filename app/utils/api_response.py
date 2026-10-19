@@ -66,16 +66,20 @@ def api_server_error(exc: Optional[BaseException] = None, *,
     - IntegrityError -> rollback + 409 CONFLICT with a generic Spanish
       message (the raw text names tables and constraints);
     - anything else -> traceback to the log, generic 500.
+
+    The session is always rolled back first: routes no longer do it
+    themselves, and a failed flush leaves it unusable for the rest of the
+    request (PendingRollbackError on the next query).
     """
     from sqlalchemy.exc import IntegrityError
 
     from app.services.errors import DomainError
 
+    if exc is not None:
+        _rollback_quietly()
     if isinstance(exc, DomainError):
         return domain_error_response(exc)
     if isinstance(exc, IntegrityError):
-        from app import db
-        db.session.rollback()
         logger.warning('Integrity conflict%s: %s', f' in {context}' if context else '', exc.orig)
         return api_error('CONFLICT', CONFLICT_MESSAGE, status=409)
     if isinstance(exc, ValueError) and str(exc):
@@ -84,6 +88,14 @@ def api_server_error(exc: Optional[BaseException] = None, *,
         logger.error('Unhandled error%s', f' in {context}' if context else '',
                      exc_info=(type(exc), exc, exc.__traceback__))
     return api_error('SERVER_ERROR', message, status=500, level='danger')
+
+
+def _rollback_quietly() -> None:
+    try:
+        from app import db
+        db.session.rollback()
+    except Exception:  # noqa: BLE001 - a broken session must not mask the original error
+        logger.exception('Rollback failed while handling an error response')
 
 
 def domain_error_response(err):

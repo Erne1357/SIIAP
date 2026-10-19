@@ -4,7 +4,6 @@ from flask_login import login_required, current_user
 from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required, any_permission_required
 from app.services import programs_service as svc
-from app.services.user_history_service import UserHistoryService
 
 api_programs = Blueprint('api_programs', __name__, url_prefix='/api/v1/programs')
 
@@ -49,17 +48,7 @@ def api_enroll(program_id):
         program = svc.enroll_user_once(program_id, current_user.id)
         
         # Registrar en el historial
-        try:
-            UserHistoryService.log_program_enrollment(
-                user_id=current_user.id,
-                program_name=program.name,
-                program_id=program.id
-            )
-            from app import db
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar postulación en historial: {e}")
+        svc.record_enrollment_history(current_user.id, program)
         
         return jsonify({
             "data": {"program": {"id": program.id, "slug": program.slug}},

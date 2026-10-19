@@ -165,3 +165,57 @@ class ExtensionsService:
         """
         extension = ExtensionsService.get_active_extension(user_id, archive_id)
         return extension.granted_until if extension else None
+
+
+# --------------------------------------------------------------------------
+# History + commit helpers (keep db.session out of app/routes/api/extensions_api.py)
+# --------------------------------------------------------------------------
+def record_request_history(er, user_id: int, archive_id: int, requested_until, reason, role: str) -> None:
+    """History entry for a new extension request (best effort, commits)."""
+    import logging
+    try:
+        from app.services.user_history_service import UserHistoryService
+        archive_name = er.archive.name if er.archive else f"ID {archive_id}"
+        UserHistoryService.log_extension_request(
+            user_id=user_id,
+            archive_name=archive_name,
+            requested_until=requested_until,
+            reason=reason,
+            requested_by_admin=(role == 'coordinator')
+        )
+        db.session.commit()
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            f"Error al registrar solicitud de prórroga en historial: {e}")
+
+
+def record_decision(er, status: str, granted_until_dt, condition_text, admin_id: int) -> None:
+    """Commit the decision, then log it in the history (the log is best effort)."""
+    import logging
+
+    # First commit the decision itself.
+    db.session.commit()
+
+    try:
+        from app.services.user_history_service import UserHistoryService
+        archive_name = er.archive.name if er.archive else f"ID {er.archive_id}"
+
+        # Date formatted for the user.
+        formatted_date = None
+        if status == 'granted' and granted_until_dt:
+            formatted_date = granted_until_dt.strftime('%d/%m/%Y')
+
+        UserHistoryService.log_extension_decision(
+            user_id=er.user_id,
+            archive_name=archive_name,
+            decision=status,
+            granted_until=formatted_date,
+            condition_text=condition_text,
+            admin_id=admin_id
+        )
+        # Commit history and notifications.
+        db.session.commit()
+    except Exception as e:
+        # A logging failure must not fail the operation.
+        logging.getLogger(__name__).error(
+            f"Error al registrar decisión de prórroga en historial: {e}")

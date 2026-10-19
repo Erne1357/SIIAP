@@ -2,15 +2,13 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import current_user, login_required
 from datetime import datetime, timezone
-from app.models.user import User
-from app.models.role import Role
+from app.services import auth_service
 from app.utils.validators import (
     EMAIL_MAX_LENGTH,
     InputValidationError,
     validate_person_name,
     validate_short_text,
 )
-from app import db
 from app.utils.api_response import api_ok, api_error, api_server_error
 
 pages_auth = Blueprint("pages_auth", __name__)
@@ -102,22 +100,18 @@ def register_page():
             flash(error_msg, "danger")
             return render_template("auth/register.html")
             
-        if User.query.filter_by(username=username).first():
-            error_msg = "El nombre de usuario ya existe."
-            if is_ajax:
-                return api_error("VALIDATION_ERROR", error_msg, status=400)
-            flash(error_msg, "danger")
-            return render_template("auth/register.html")
-            
-        if User.query.filter_by(email=email).first():
-            error_msg = "El correo electrónico ya está registrado."
+        try:
+            auth_service.ensure_registration_available(username, email)
+        except auth_service.RegistrationRejected as e:
+            error_msg = e.message
             if is_ajax:
                 return api_error("VALIDATION_ERROR", error_msg, status=400)
             flash(error_msg, "danger")
             return render_template("auth/register.html")
 
-        applicant_role = Role.query.filter_by(name="applicant").first()
-        if not applicant_role:
+        try:
+            applicant_role_id = auth_service.get_applicant_role_id()
+        except auth_service.ApplicantRoleMissing:
             error_msg = "No se encontró el rol 'applicant'. Contacta al administrador."
             if is_ajax:
                 return api_error("SERVER_ERROR", error_msg, status=500, level="danger")
@@ -125,7 +119,7 @@ def register_page():
             return render_template("auth/register.html")
 
         try:
-            new_user = User(
+            auth_service.register_applicant(
                 first_name=first_name,
                 last_name=last_name,
                 mother_last_name=mother_last_name,
@@ -133,14 +127,8 @@ def register_page():
                 password=password,
                 email=email,
                 is_internal=is_internal,
-                role_id=applicant_role.id,
-                # El aspirante acaba de elegir esta contraseña: no hay nada que
-                # forzarle a cambiar en el siguiente acceso.
-                must_change_password=False,
+                role_id=applicant_role_id,
             )
-            db.session.add(new_user)
-
-            db.session.commit()
             
             success_msg = "Registro exitoso. Ahora inicia sesión."
             if is_ajax:
@@ -150,7 +138,6 @@ def register_page():
             return redirect(url_for("pages_auth.login_page"))
             
         except Exception as e:
-            db.session.rollback()
             if is_ajax:
                 return api_server_error(e, message="Error al registrar el usuario.",
                                         context="auth.register_page")

@@ -1958,3 +1958,145 @@ def get_student_permanence(user_program_id: int) -> dict:
             for se in history
         ],
     }
+
+
+# ── "Mi inscripción" (vista del propio estudiante) ────────────────────────────
+
+class NoActivePeriod(PermanenceError, NotFoundError):
+    """No hay periodo académico activo."""
+    code = 'NO_ACTIVE_PERIOD'
+
+
+class NoActiveEnrollment(PermanenceError, NotFoundError):
+    """El estudiante no tiene un UserProgram con estado 'enrolled'."""
+
+
+def _enrolled_user_program(user_id: int):
+    return (
+        UserProgram.query
+        .filter_by(user_id=user_id, admission_status='enrolled')
+        .first()
+    )
+
+
+def get_my_enrollment(user_id: int) -> dict:
+    """Inscripción semestral del periodo activo del propio estudiante.
+
+    Raises NoActivePeriod / NoActiveEnrollment (both 404).
+    """
+    from app.services.payment_reference_service import PaymentReferenceService
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        raise NoActivePeriod("No hay periodo académico activo")
+
+    # El usuario puede estar en varios programas — se usa el 'enrolled'.
+    up = _enrolled_user_program(user_id)
+    if not up:
+        raise NoActiveEnrollment("No tienes una inscripción activa")
+
+    se = SemesterEnrollment.query.filter_by(
+        user_program_id=up.id,
+        academic_period_id=active_period.id,
+    ).first()
+
+    payment_ref = PaymentReferenceService.generate(up.id, active_period.id)
+
+    return {
+        "user_program": up.to_dict(),
+        "program": {
+            "id": up.program.id,
+            "name": up.program.name,
+        } if up.program else None,
+        "current_period": active_period.to_dict(),
+        "enrollment": se.to_dict() if se else None,
+        "payment_reference": payment_ref,
+    }
+
+
+def upload_my_payment_proof(user, file) -> dict:
+    """El estudiante sube su comprobante de pago semestral (PDF).
+
+    Auto-detecta el SemesterEnrollment del periodo activo. NO marca
+    enrollment_confirmed (eso lo hace el coordinador). Notifica al coordinador
+    del programa. Devuelve el SemesterEnrollment serializado.
+
+    Raises PermanenceError / NotFoundError subclasses with the codes the UI
+    knows: MISSING_FILE, INVALID_FILE, NO_ACTIVE_PERIOD, NOT_FOUND,
+    ALREADY_CONFIRMED.
+    """
+    from app.utils.files import save_user_doc
+
+    if not file or not file.filename:
+        raise PermanenceError("No se recibió ningún archivo", code='MISSING_FILE')
+
+    if not file.filename.lower().endswith('.pdf'):
+        raise PermanenceError("El comprobante debe ser un archivo PDF", code='INVALID_FILE')
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        raise NoActivePeriod("No hay periodo académico activo")
+
+    up = _enrolled_user_program(user.id)
+    if not up:
+        raise NoActiveEnrollment("No tienes una inscripción activa")
+
+    try:
+        se = SemesterEnrollment.query.filter_by(
+            user_program_id=up.id,
+            academic_period_id=active_period.id,
+        ).first()
+
+        if not se:
+            raise StudentNotFound("No tienes inscripción semestral en el periodo activo")
+
+        if se.enrollment_confirmed:
+            err = PermanenceError(
+                "Tu inscripción ya fue confirmada por el coordinador", code='ALREADY_CONFIRMED')
+            err.level = 'info'
+            raise err
+
+        file_path = save_user_doc(file, user.id, 'permanence', 'payment_proof')
+        se.payment_proof_path = file_path
+        se.updated_at = now_local()
+
+        UserHistoryService.log_action(
+            user_id=user.id,
+            admin_id=user.id,
+            action='payment_proof_uploaded',
+            details=(
+                f'Subió comprobante de pago para semestre {se.semester_number} '
+                f'({active_period.name}) en {up.program.name if up.program else up.program_id}'
+            ),
+        )
+
+        # Notificar al coordinador del programa (best effort).
+        try:
+            if up.program and up.program.coordinator_id:
+                student_name = f"{user.first_name} {user.last_name}"
+                NotificationService.create_notification(
+                    user_id=up.program.coordinator_id,
+                    notification_type='payment_proof_uploaded',
+                    title='Comprobante de pago recibido',
+                    message=(
+                        f'{student_name} ha subido su comprobante de pago '
+                        f'para el semestre {se.semester_number} ({active_period.name}) '
+                        f'en {up.program.name}.'
+                    ),
+                    priority='normal',
+                    action_url='/coordinator/permanence',
+                    data={
+                        'student_id': user.id,
+                        'program_id': up.program_id,
+                        'semester_enrollment_id': se.id,
+                    },
+                )
+        except Exception as notify_err:
+            logging.getLogger(__name__).error(
+                f"Error notificando coordinador de comprobante: {notify_err}")
+
+        db.session.commit()
+        return se.to_dict()
+    except Exception:
+        db.session.rollback()
+        raise

@@ -1,7 +1,7 @@
 # app/routes/api/admission_api.py
 from flask import Blueprint, jsonify
 from flask_login import login_required, current_user
-from app.models import Program, UserProgram
+from app.services import programs_service
 from app.services.admission_service import get_admission_state
 
 api_admission = Blueprint("api_admission", __name__, url_prefix="/api/v1/admission")
@@ -9,11 +9,11 @@ api_admission = Blueprint("api_admission", __name__, url_prefix="/api/v1/admissi
 @api_admission.get("/<string:slug>/state")
 @login_required
 def admission_state(slug: str):
-    program = Program.query.filter_by(slug=slug).first()
+    program = programs_service.find_program_by_slug(slug)
     if not program:
         return jsonify({"data": None, "error": {"code": "NOT_FOUND", "message": "Programa no encontrado"}, "meta": {}}), 404
 
-    up = UserProgram.query.filter_by(program_id=program.id, user_id=current_user.id).first()
+    up = programs_service.find_user_program(current_user.id, program.id)
     if not up:
         return jsonify({"data": None, "error": {"code": "NOT_ENROLLED", "message": "Debes inscribirte antes de subir documentos."}, "meta": {}}), 403
 

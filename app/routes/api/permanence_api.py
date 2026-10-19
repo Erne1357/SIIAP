@@ -5,8 +5,13 @@ API para gestionar la permanencia semestral de estudiantes (Fase 6).
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from app import db
 from app.utils.api_response import api_server_error
+from app.utils.validation import parse_json, parse_model
+from app.schemas.permanence import (
+    ConfirmEnrollmentIn, EnrollmentStatusIn, CreateDeadlineIn, ToggleDeadlineIn,
+    UpdateDeadlineIn, ReviewDocumentIn, LeaveDecisionIn, MonthlyDeadlinesIn,
+    ConacytScholarshipIn, TransitionExecuteIn,
+)
 from app.utils.permissions import (
     permission_required,
     program_scope_required,
@@ -14,7 +19,6 @@ from app.utils.permissions import (
 )
 from app.models.archive import Archive
 from app.models.submission import Submission
-from app.models.user_program import UserProgram
 from app.services import permanence_service as svc
 from app.services import program_scope_service as scope_service
 import app.services.semester_transition_service as tsvc
@@ -86,12 +90,11 @@ def _extract_schedule(user_id: int):
     return save_user_doc(file, user_id, 'permanence', 'horario_semestre')
 
 
-def _extract_form_or_json(field, default=None):
-    """Lee de form-data o JSON indistintamente."""
+def _form_or_json_body() -> dict:
+    """Cuerpo de la petición, sea form-data o JSON."""
     if request.content_type and request.content_type.startswith('application/json'):
-        body = request.get_json(silent=True) or {}
-        return body.get(field, default)
-    return request.form.get(field, default)
+        return request.get_json(silent=True) or {}
+    return request.form.to_dict(flat=True)
 
 
 # ── Alcance de objeto (permiso ≠ alcance) ─────────────────────────────────────
@@ -158,10 +161,10 @@ def api_confirm_semester_enrollment(user_program_id):
     El coordinador confirma la inscripción semestral de un estudiante.
     Acepta JSON o multipart/form-data (con archivo opcional 'payment_proof').
     """
-    academic_period_id = _extract_form_or_json('academic_period_id')
-    notes = (_extract_form_or_json('notes') or '').strip() or None
-    force_raw = _extract_form_or_json('force', False)
-    force = str(force_raw).lower() in ('true', '1', 'yes', 'on') if not isinstance(force_raw, bool) else force_raw
+    body = parse_model(ConfirmEnrollmentIn, _form_or_json_body())
+    academic_period_id = body.academic_period_id
+    notes = body.notes
+    force = body.force
 
     if not academic_period_id:
         return jsonify({
@@ -183,7 +186,7 @@ def api_confirm_semester_enrollment(user_program_id):
 
         se = svc.confirm_semester_enrollment(
             user_program_id=user_program_id,
-            academic_period_id=int(academic_period_id),
+            academic_period_id=academic_period_id,
             coordinator_id=current_user.id,
             notes=notes,
             payment_proof_path=payment_proof_path,
@@ -243,8 +246,9 @@ def api_get_enrollment_overview(program_id):
 @permission_required('permanence.api.confirm_enrollment')
 def api_reinstate_from_leave(user_program_id):
     """Reincorpora a un estudiante en baja temporal creando un nuevo SE activo."""
-    academic_period_id = _extract_form_or_json('academic_period_id')
-    notes = (_extract_form_or_json('notes') or '').strip() or None
+    body = parse_model(ConfirmEnrollmentIn, _form_or_json_body())
+    academic_period_id = body.academic_period_id
+    notes = body.notes
 
     if not academic_period_id:
         return jsonify({
@@ -265,7 +269,7 @@ def api_reinstate_from_leave(user_program_id):
 
         se = svc.reinstate_from_leave(
             user_program_id=user_program_id,
-            academic_period_id=int(academic_period_id),
+            academic_period_id=academic_period_id,
             coordinator_id=current_user.id,
             notes=notes,
             payment_proof_path=payment_proof_path,
@@ -310,9 +314,9 @@ def api_reinstate_from_leave(user_program_id):
 @permission_required('permanence.api.confirm_enrollment')
 def api_update_enrollment_status(semester_enrollment_id):
     """Actualiza el estado de una inscripcion semestral."""
-    data = request.get_json() or {}
-    new_status = (data.get('status') or '').strip()
-    notes = (data.get('notes') or '').strip() or None
+    data = parse_json(EnrollmentStatusIn)
+    new_status = data.status
+    notes = data.notes
 
     if not new_status:
         return jsonify({
@@ -425,17 +429,16 @@ def api_get_deadlines(program_id):
 @program_scope_required(program_id_kwarg='program_id')
 def api_create_deadline(program_id):
     """Crea una ventana de entrega. Body: {archive_id, label, sequence, academic_period_id, opens_at?, closes_at?}"""
-    from datetime import datetime
-    data = request.get_json() or {}
+    data = parse_json(CreateDeadlineIn)
     # `archive_id` viaja en el cuerpo como UUID público; el servicio sigue
     # recibiendo el entero.
-    archive = Archive.by_uuid(data.get('archive_id'))
+    archive = Archive.by_uuid(data.archive_id)
     archive_id = archive.id if archive else None
-    label = (data.get('label') or '').strip()
-    sequence = data.get('sequence', 1)
-    academic_period_id = data.get('academic_period_id')
-    opens_at_raw = data.get('opens_at')
-    closes_at_raw = data.get('closes_at')
+    label = data.label
+    sequence = data.sequence
+    academic_period_id = data.academic_period_id
+    opens_at = data.opens_at
+    closes_at = data.closes_at
 
     if not archive_id or not label:
         return jsonify({
@@ -456,9 +459,6 @@ def api_create_deadline(program_id):
                 "meta": {}
             }), 400
         academic_period_id = period.id
-
-    opens_at = datetime.fromisoformat(opens_at_raw) if opens_at_raw else None
-    closes_at = datetime.fromisoformat(closes_at_raw) if closes_at_raw else None
 
     try:
         dl = svc.create_document_deadline(
@@ -493,8 +493,8 @@ def api_create_deadline(program_id):
 @permission_required('permanence.api.manage_deadlines')
 def api_toggle_deadline(deadline_id):
     """Abre/cierra manualmente una ventana. Body: {is_open: bool}"""
-    data = request.get_json() or {}
-    if 'is_open' not in data:
+    data = parse_json(ToggleDeadlineIn)
+    if 'is_open' not in data.model_fields_set:
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": "Campo is_open requerido"}],
@@ -512,7 +512,7 @@ def api_toggle_deadline(deadline_id):
     try:
         dl = svc.toggle_document_deadline(
             deadline_id=deadline_id,
-            is_open=bool(data['is_open']),
+            is_open=bool(data.is_open),
             coordinator_id=current_user.id,
         )
         state = 'abierta' if dl.is_open else 'cerrada'
@@ -534,8 +534,6 @@ def api_toggle_deadline(deadline_id):
 @permission_required('permanence.api.manage_deadlines')
 def api_update_deadline(deadline_id):
     """Edita una ventana: label / opens_at / closes_at / is_open."""
-    from datetime import datetime
-
     # Alcance: la ventana debe pertenecer a un programa del coordinador.
     denied = _guard_object_scope(
         svc.get_deadline_scope(deadline_id), "Ventana no encontrada"
@@ -543,23 +541,11 @@ def api_update_deadline(deadline_id):
     if denied:
         return denied
 
-    data = request.get_json() or {}
-
-    def _parse_dt(value):
-        if value in (None, ''):
-            return None
-        try:
-            # Acepta 'YYYY-MM-DD' (date input) o ISO string
-            if 'T' in value:
-                return datetime.fromisoformat(value.replace('Z', '+00:00'))
-            return datetime.strptime(value, '%Y-%m-%d')
-        except (TypeError, ValueError):
-            return None
-
-    label = data.get('label')
-    opens_at = _parse_dt(data.get('opens_at')) if 'opens_at' in data else None
-    closes_at = _parse_dt(data.get('closes_at')) if 'closes_at' in data else None
-    is_open = data.get('is_open') if 'is_open' in data else None
+    data = parse_json(UpdateDeadlineIn)
+    label = data.label
+    opens_at = data.opens_at
+    closes_at = data.closes_at
+    is_open = data.is_open
 
     try:
         dl = svc.update_document_deadline(
@@ -722,9 +708,9 @@ def api_get_pending_documents(program_id):
 @permission_required('permanence.api.review_doc')
 def api_review_permanence_document(submission_uuid):
     """Aprueba o rechaza un documento. Body: {status: 'approved'|'rejected', notes?: str}"""
-    data = request.get_json() or {}
-    status = (data.get('status') or '').strip()
-    notes = (data.get('notes') or '').strip() or None
+    data = parse_json(ReviewDocumentIn)
+    status = data.status
+    notes = data.notes
 
     if status not in ('approved', 'rejected'):
         return jsonify({
@@ -864,9 +850,9 @@ def api_submit_leave_request(user_program_id):
 @permission_required('permanence.api.review_doc')
 def api_process_leave_request(submission_uuid):
     """Aprueba o rechaza una solicitud de baja temporal. Body: {approve: bool, notes?: str}"""
-    data = request.get_json() or {}
-    approve = data.get('approve')
-    notes = (data.get('notes') or '').strip() or None
+    data = parse_json(LeaveDecisionIn)
+    approve = data.approve
+    notes = data.notes
 
     if approve is None:
         return jsonify({
@@ -921,8 +907,7 @@ def api_create_conacyt_monthly_deadlines(program_id):
     Body opcional: {academic_period_id: int}
     """
     from app.models.academic_period import AcademicPeriod
-    data = request.get_json() or {}
-    academic_period_id = data.get('academic_period_id')
+    academic_period_id = parse_json(MonthlyDeadlinesIn).academic_period_id
 
     if not academic_period_id:
         period = AcademicPeriod.get_active_period()
@@ -989,9 +974,9 @@ def api_toggle_conacyt_scholarship(user_program_id):
     if denied:
         return denied
 
-    data = request.get_json() or {}
+    data = parse_json(ConacytScholarshipIn)
     # Acepta valor explícito o simplemente alterna el valor actual
-    value = bool(data['value']) if 'value' in data else None
+    value = bool(data.value) if 'value' in data.model_fields_set else None
 
     try:
         result = svc.set_conacyt_scholarship(
@@ -1161,10 +1146,10 @@ def api_transition_execute():
         target_period_id (int) — requerido
         program_id       (int, opcional) — omitido → ejecuta en todos los programas
     """
-    data = request.get_json() or {}
-    source_period_id = data.get('source_period_id')
-    target_period_id = data.get('target_period_id')
-    program_id = data.get('program_id')
+    data = parse_json(TransitionExecuteIn)
+    source_period_id = data.source_period_id
+    target_period_id = data.target_period_id
+    program_id = data.program_id
 
     if not source_period_id or not target_period_id:
         return jsonify({
@@ -1174,29 +1159,10 @@ def api_transition_execute():
             "meta": {}
         }), 400
 
-    try:
-        source_period_id = int(source_period_id)
-        target_period_id = int(target_period_id)
-    except (TypeError, ValueError):
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Los IDs de periodo deben ser enteros"}],
-            "error": {"code": "INVALID_PARAM", "message": "source_period_id y target_period_id deben ser enteros"},
-            "meta": {}
-        }), 400
-
     # Capacidad + alcance. Sin program_id la transición corre sobre TODOS los
     # programas y exige la capacidad declarada `permanence.api.transition_all`.
     # Con program_id, el programa debe estar dentro del alcance del llamador.
     if program_id:
-        try:
-            program_id = int(program_id)
-        except (TypeError, ValueError):
-            return jsonify({
-                "data": None,
-                "error": {"code": "INVALID_PARAM", "message": "program_id debe ser un entero"},
-                "meta": {}
-            }), 400
         denied = guard_program_scope(program_id)
         if denied:
             return denied
@@ -1294,56 +1260,20 @@ def api_get_my_enrollment():
 
     Returns el SemesterEnrollment activo + datos del programa + referencia de pago (stub).
     """
-    from app.models.academic_period import AcademicPeriod
-    from app.models.semester_enrollment import SemesterEnrollment
-    from app.services.payment_reference_service import PaymentReferenceService
-
-    active_period = AcademicPeriod.get_active_period()
-    if not active_period:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NO_ACTIVE_PERIOD", "message": "No hay periodo académico activo"},
-            "meta": {}
-        }), 404
-
-    # Buscar UserProgram del usuario (puede estar en varios programas — usamos el enrolled)
-    up = (
-        UserProgram.query
-        .filter_by(user_id=current_user.id, admission_status='enrolled')
-        .first()
-    )
-    if not up:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NOT_FOUND", "message": "No tienes una inscripción activa"},
-            "meta": {}
-        }), 404
-
     try:
-        se = SemesterEnrollment.query.filter_by(
-            user_program_id=up.id,
-            academic_period_id=active_period.id,
-        ).first()
-
-        payment_ref = PaymentReferenceService.generate(up.id, active_period.id)
-
+        data = svc.get_my_enrollment(current_user.id)
+    except (svc.NoActivePeriod, svc.NoActiveEnrollment) as e:
+        # Sin flash: el dashboard del estudiante consulta esto en cada carga y
+        # "no hay inscripción" es un estado normal, no un aviso.
         return jsonify({
-            "data": {
-                "user_program": up.to_dict(),
-                "program": {
-                    "id": up.program.id,
-                    "name": up.program.name,
-                } if up.program else None,
-                "current_period": active_period.to_dict(),
-                "enrollment": se.to_dict() if se else None,
-                "payment_reference": payment_ref,
-            },
-            "error": None,
+            "data": None,
+            "error": {"code": e.code, "message": str(e)},
             "meta": {}
-        }), 200
-
+        }), 404
     except Exception as e:
         return api_server_error(e, context='api_get_my_enrollment')
+
+    return jsonify({"data": data, "error": None, "meta": {}}), 200
 
 
 @api_permanence.post('/my-enrollment/payment-proof')
@@ -1358,127 +1288,17 @@ def api_upload_my_payment_proof():
     NO marca enrollment_confirmed=True (eso lo hace el coordinador).
     Notifica al coordinador del programa.
     """
-    from app.models.academic_period import AcademicPeriod
-    from app.models.semester_enrollment import SemesterEnrollment
-    from app.utils.files import save_user_doc
-    from app.utils.datetime_utils import now_local as _now
-
-    file = request.files.get('payment_proof')
-    if not file or not file.filename:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "No se recibió ningún archivo"}],
-            "error": {"code": "MISSING_FILE", "message": "Campo 'payment_proof' requerido"},
-            "meta": {}
-        }), 400
-
-    if not file.filename.lower().endswith('.pdf'):
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "warning", "message": "El comprobante debe ser un archivo PDF"}],
-            "error": {"code": "INVALID_FILE", "message": "Solo se aceptan archivos PDF"},
-            "meta": {}
-        }), 400
-
-    active_period = AcademicPeriod.get_active_period()
-    if not active_period:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NO_ACTIVE_PERIOD", "message": "No hay periodo académico activo"},
-            "meta": {}
-        }), 404
-
-    up = (
-        UserProgram.query
-        .filter_by(user_id=current_user.id, admission_status='enrolled')
-        .first()
-    )
-    if not up:
-        return jsonify({
-            "data": None,
-            "error": {"code": "NOT_FOUND", "message": "No tienes una inscripción activa"},
-            "meta": {}
-        }), 404
-
     try:
-        se = SemesterEnrollment.query.filter_by(
-            user_program_id=up.id,
-            academic_period_id=active_period.id,
-        ).first()
-
-        if not se:
-            return jsonify({
-                "data": None,
-                "flash": [{"level": "warning", "message": "No tienes inscripción semestral en el periodo activo"}],
-                "error": {"code": "NOT_FOUND", "message": "SemesterEnrollment no encontrado para el periodo activo"},
-                "meta": {}
-            }), 404
-
-        if se.enrollment_confirmed:
-            return jsonify({
-                "data": None,
-                "flash": [{"level": "info", "message": "Tu inscripción ya fue confirmada por el coordinador"}],
-                "error": {"code": "ALREADY_CONFIRMED", "message": "La inscripción ya está confirmada"},
-                "meta": {}
-            }), 400
-
-        # Guardar archivo
-        file_path = save_user_doc(file, current_user.id, 'permanence', 'payment_proof')
-        se.payment_proof_path = file_path
-        se.updated_at = _now()
-
-        # Historial
-        from app.services.user_history_service import UserHistoryService
-        UserHistoryService.log_action(
-            user_id=current_user.id,
-            admin_id=current_user.id,
-            action='payment_proof_uploaded',
-            details=(
-                f'Subió comprobante de pago para semestre {se.semester_number} '
-                f'({active_period.name}) en {up.program.name if up.program else up.program_id}'
-            ),
-        )
-
-        # Notificar al coordinador del programa
-        try:
-            from app.services.notification_service import NotificationService
-            if up.program and up.program.coordinator_id:
-                student_name = (
-                    f"{current_user.first_name} {current_user.last_name}"
-                )
-                NotificationService.create_notification(
-                    user_id=up.program.coordinator_id,
-                    notification_type='payment_proof_uploaded',
-                    title='Comprobante de pago recibido',
-                    message=(
-                        f'{student_name} ha subido su comprobante de pago '
-                        f'para el semestre {se.semester_number} ({active_period.name}) '
-                        f'en {up.program.name}.'
-                    ),
-                    priority='normal',
-                    action_url='/coordinator/permanence',
-                    data={
-                        'student_id': current_user.id,
-                        'program_id': up.program_id,
-                        'semester_enrollment_id': se.id,
-                    },
-                )
-        except Exception as notify_err:
-            import logging as _log
-            _log.error(f"Error notificando coordinador de comprobante: {notify_err}")
-
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            raise
-
-        return jsonify({
-            "data": se.to_dict(),
-            "flash": [{"level": "success", "message": "Comprobante de pago enviado exitosamente. El coordinador lo revisará pronto."}],
-            "error": None,
-            "meta": {}
-        }), 200
-
+        data = svc.upload_my_payment_proof(current_user, request.files.get('payment_proof'))
+    except svc.PermanenceError:
+        # Errores de negocio: los renderiza el manejador global (envelope + flash).
+        raise
     except Exception as e:
         return api_server_error(e, context='api_upload_my_payment_proof')
+
+    return jsonify({
+        "data": data,
+        "flash": [{"level": "success", "message": "Comprobante de pago enviado exitosamente. El coordinador lo revisará pronto."}],
+        "error": None,
+        "meta": {}
+    }), 200

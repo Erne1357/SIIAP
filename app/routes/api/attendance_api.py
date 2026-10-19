@@ -1,12 +1,11 @@
 # app/routes/api/attendance_api.py
-from flask import Blueprint, request, current_app
+from flask import Blueprint, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
 from app.utils.api_response import api_ok, api_error, api_server_error
+from app.utils.validation import parse_json
+from app.schemas.attendance import RegisterToEventIn, MarkAttendanceIn
 from app.services.events_service import EventsService
-from app.services.user_history_service import UserHistoryService
-from app.models.event import Event
-from app import db
 
 api_attendance = Blueprint('api_attendance', __name__, url_prefix='/api/v1/attendance')
 
@@ -40,7 +39,7 @@ def _load_manageable_event(event_id: int):
     Returns:
         (event, None) si procede; (None, respuesta_error) si no.
     """
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event or not EventsService.user_may_manage_event(current_user, event):
         return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
     return event, None
@@ -67,7 +66,7 @@ def register_to_event(event_id: int):
     404, no 403: el evento que no se puede ver no debe poder confirmarse
     recorriendo ids.
     """
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event:
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
@@ -77,23 +76,22 @@ def register_to_event(event_id: int):
     ):
         return _deny("NOT_FOUND", "Evento no encontrado.", 404)
 
-    data = request.get_json() or {}
+    payload = parse_json(RegisterToEventIn)
     try:
         attendance = EventsService.register_to_event(
             event_id=event_id,
             user_id=current_user.id,
-            notes=data.get('notes')
+            notes=payload.notes
         )
         current_app.logger.info(f"Usuario {current_user.id} se registró a evento {event_id}")
 
         # Registrar en el historial
         try:
-            UserHistoryService.log_event_registration(
+            EventsService.log_registration_history(
                 user_id=current_user.id,
                 event_title=event.title,
                 event_type=event.type
             )
-            db.session.commit()
         except Exception as e:
             current_app.logger.error(f"Error al registrar registro de evento en historial: {e}")
 
@@ -106,7 +104,6 @@ def register_to_event(event_id: int):
         current_app.logger.warning(f"Error al registrar a evento {event_id} usuario {current_user.id}: {e}")
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(
             e, context=f"register_to_event (user {current_user.id}, event {event_id})"
         )
@@ -127,7 +124,6 @@ def unregister_from_event(event_id: int):
     except ValueError as e:
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='unregister_from_event')
 
 
@@ -197,16 +193,11 @@ def mark_attendance(event_id: int):
     if err:
         return err
 
-    data = request.get_json() or {}
+    payload = parse_json(MarkAttendanceIn)
     # `user_id` viaja en el CUERPO como UUID público; el servicio sigue
     # recibiendo el entero. Un UUID desconocido cae en el mismo 400 de
     # "user_id es requerido" que la ausencia del campo.
-    from app.models.user import User
-    _target = User.by_uuid(data.get('user_id'))
-    user_id = _target.id if _target else None
-    attended = data.get('attended')
-    notes = data.get('notes')
-    reset = data.get('reset', False)  # NUEVO
+    user_id = EventsService.resolve_user_ids_by_uuid([payload.user_id])[0]
 
     if not user_id:
         return api_error('VALIDATION_ERROR', "user_id es requerido", status=400)
@@ -215,9 +206,9 @@ def mark_attendance(event_id: int):
         attendance = EventsService.mark_attendance(
             event_id=event_id,
             user_id=user_id,
-            attended=attended if attended is not None else True,
-            notes=notes,
-            reset=reset  # NUEVO
+            attended=payload.attended if payload.attended is not None else True,
+            notes=payload.notes,
+            reset=payload.reset
         )
         
         return api_ok({
@@ -228,7 +219,6 @@ def mark_attendance(event_id: int):
     except ValueError as e:
         return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
         return api_server_error(e, context='mark_attendance')
 
 
@@ -236,23 +226,5 @@ def mark_attendance(event_id: int):
 @login_required
 def my_registrations():
     """Obtener eventos en los que el usuario está registrado"""
-    from app.models.event import EventAttendance
-    
-    registrations = db.session.query(EventAttendance, Event).join(
-        Event, EventAttendance.event_id == Event.id
-    ).filter(
-        EventAttendance.user_id == current_user.id
-    ).order_by(EventAttendance.registered_at.desc()).all()
-    
-    items = [{
-        'event_id': event.id,
-        'event_title': event.title,
-        'event_type': event.type,
-        'event_location': event.location,
-        'capacity_type': event.capacity_type,
-        'status': attendance.status,
-        'registered_at': attendance.registered_at.isoformat(),
-        'attended_at': attendance.attended_at.isoformat() if attendance.attended_at else None
-    } for attendance, event in registrations]
-    
+    items = EventsService.list_user_registrations(current_user.id)
     return api_ok({"registrations": items})

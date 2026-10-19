@@ -55,3 +55,37 @@ class AddWindowIn(BaseModel):
     end_time: dt.time
     slot_minutes: int
     timezone: str = 'America/Ciudad_Juarez'
+
+
+class UpdateEventIn(BaseModel):
+    """Body of PUT /api/v1/events/<id>.
+
+    Only `program_id` is typed (it drives the scope rule); every other key is
+    passed through untouched to `EventsService.update_event`, which whitelists
+    the mutable fields.
+    """
+
+    model_config = ConfigDict(extra='allow')
+
+    program_id: Optional[int] = None
+
+    @field_validator('program_id', mode='before')
+    @classmethod
+    def _blank_to_none(cls, value: Any):
+        return None if value == '' else value
+
+
+class UnarchiveEventIn(BaseModel):
+    """Body of POST /api/v1/events/<id>/unarchive (body optional)."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    new_status: str = 'published'
+
+
+class SetHostsIn(BaseModel):
+    """Body of PUT /api/v1/events/<id>/hosts."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    hosts: list[dict[str, Any]] = []

@@ -20,6 +20,10 @@ Alcance (permiso ≠ alcance):
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app.utils.api_response import api_server_error
+from app.utils.validation import parse_json, parse_model
+from app.schemas.deliberation import (
+    AcceptApplicantIn, RejectApplicantIn, ResetApplicantIn, ForceResetIn,
+)
 from app.utils.permissions import (
     permission_required,
     program_scope_required,
@@ -250,14 +254,13 @@ def api_accept_applicant(user_uuid, program_id):
 
     is_multipart = request.content_type and request.content_type.startswith('multipart/')
     if is_multipart:
-        notes = request.form.get('notes')
-        is_conditional = str(request.form.get('is_conditional', '')).lower() in ('true', '1', 'yes', 'on')
+        body = parse_model(AcceptApplicantIn, request.form.to_dict(flat=True))
         dictamen_file = request.files.get('dictamen_file')
     else:
-        data = request.get_json() or {}
-        notes = data.get('notes')
-        is_conditional = bool(data.get('is_conditional', False))
+        body = parse_json(AcceptApplicantIn)
         dictamen_file = None
+    notes = body.notes
+    is_conditional = body.is_conditional
 
     try:
         up = svc.accept_applicant(
@@ -308,14 +311,14 @@ def api_reject_applicant(user_uuid, program_id):
     if user_id is None:
         return _applicant_not_found()
 
-    data = request.get_json() or {}
-    rejection_type = data.get('rejection_type', 'full')
-    notes = data.get('notes')
+    data = parse_json(RejectApplicantIn)
+    rejection_type = data.rejection_type
+    notes = data.notes
     # `correction_required` puede ser un JSON {archive_id, archive_name, notes}.
     # El cliente manda el UUID público del Archive; la columna guarda el id
     # interno, como todo lo persistido.
     correction_required = public_id_service.correction_required_to_internal(
-        data.get('correction_required')
+        data.correction_required
     )
 
     try:
@@ -373,8 +376,7 @@ def api_reset_applicant(user_uuid, program_id):
     if user_id is None:
         return _applicant_not_found()
 
-    data = request.get_json() or {}
-    reason = data.get('reason')
+    reason = parse_json(ResetApplicantIn).reason
 
     try:
         up = svc.reset_to_in_progress(user_id, program_id, current_user.id, reason)
@@ -526,25 +528,7 @@ def api_get_user_deliberation_status(user_uuid, program_id):
 def api_get_program_admission_archives(program_id):
     """Obtiene los archivos uploadables de la fase de admisión de un programa (para rechazo parcial)."""
     try:
-        from app.models import Step, ProgramStep, Phase
-        from app.models.archive import Archive
-        from sqlalchemy import and_
-
-        archives = (
-            Archive.query
-            .join(Step, Archive.step_id == Step.id)
-            .join(ProgramStep, Step.id == ProgramStep.step_id)
-            .join(Phase, Step.phase_id == Phase.id)
-            .filter(
-                and_(
-                    ProgramStep.program_id == program_id,
-                    Phase.name == 'admission',
-                    Archive.is_uploadable == True  # noqa: E712
-                )
-            )
-            .order_by(ProgramStep.sequence, Archive.id)
-            .all()
-        )
+        archives = svc.list_admission_archives(program_id)
 
         # `id` is the Archive's public UUID handle — the frontend posts it
         # back in `correction_required`, so it must not be the integer.
@@ -570,8 +554,7 @@ def api_force_reset_applicant(user_uuid, program_id):
     if user_id is None:
         return _applicant_not_found()
 
-    data = request.get_json() or {}
-    reason = data.get('reason', 'Reinicio administrativo')
+    reason = parse_json(ForceResetIn).reason
 
     try:
         up = svc.force_reset_applicant(user_id, program_id, current_user.id, reason)

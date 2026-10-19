@@ -1990,3 +1990,439 @@ class EventsService:
         deleted_files = delete_all_event_files(event_id)
         db.session.commit()
         return {'db_rows_deleted': deleted_rows, 'files_deleted': deleted_files}
+
+    # ============================================================
+    # LECTURAS PARA LAS RUTAS (phase 4b: routes hold no queries)
+    # ============================================================
+
+    @staticmethod
+    def get_event_or_none(event_id: int):
+        """Event by primary key, or None."""
+        return db.session.get(Event, event_id)
+
+    @staticmethod
+    def get_event_id_of_window(window_id: int):
+        """Owning event id of a window, or None when the window does not exist."""
+        window = db.session.get(EventWindow, window_id)
+        return window.event_id if window else None
+
+    @staticmethod
+    def get_event_id_of_slot(slot_id: int):
+        """Owning event id of a slot (through its window), or None."""
+        slot = db.session.get(EventSlot, slot_id)
+        window = db.session.get(EventWindow, slot.event_window_id) if slot else None
+        return window.event_id if window else None
+
+    @staticmethod
+    def get_event_id_of_image(image_id: int):
+        """Owning event id of an image, or None when the image does not exist."""
+        from app.models.event import EventImage
+
+        image = db.session.get(EventImage, image_id)
+        return image.event_id if image else None
+
+    @staticmethod
+    def get_invitation_and_event(invitation_id: int):
+        """(invitation, event) for an invitation id, or (None, None)."""
+        from app.models.event import EventInvitation
+
+        invitation = db.session.get(EventInvitation, invitation_id)
+        if not invitation:
+            return None, None
+        return invitation, db.session.get(Event, invitation.event_id)
+
+    @staticmethod
+    def count_active_appointments(event_id: int) -> int:
+        """Scheduled appointments hanging from the event's slots."""
+        from app.models.appointment import Appointment
+
+        return db.session.query(Appointment).join(
+            EventSlot, EventSlot.id == Appointment.slot_id
+        ).join(
+            EventWindow, EventWindow.id == EventSlot.event_window_id
+        ).filter(
+            EventWindow.event_id == event_id,
+            Appointment.status == 'scheduled'
+        ).count()
+
+    @staticmethod
+    def delete_event(event_id: int) -> dict:
+        """
+        Delete an event (cascade removes windows, slots and appointments).
+
+        Returns {'program_id', 'title'} captured before the row disappears so
+        the caller can still notify. Rolls back and re-raises on failure.
+        """
+        event = db.session.get(Event, event_id)
+        if not event:
+            raise ValueError("Evento no encontrado")
+        info = {'program_id': event.program_id, 'title': event.title}
+        try:
+            db.session.delete(event)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+        return info
+
+    @staticmethod
+    def _event_counters(event_id: int) -> dict:
+        """Slot / registration / invitation counters shared by admin payloads."""
+        from app.models.event import EventInvitation
+
+        slots_query = db.session.query(EventSlot).join(
+            EventWindow, EventWindow.id == EventSlot.event_window_id
+        ).filter(EventWindow.event_id == event_id)
+        return {
+            'slots_total': slots_query.count(),
+            'slots_booked': slots_query.filter(EventSlot.status == 'booked').count(),
+            'registrations_count': EventAttendance.query.filter_by(event_id=event_id).count(),
+            'invitations_pending': EventInvitation.query.filter_by(
+                event_id=event_id, status='pending'
+            ).count(),
+        }
+
+    @staticmethod
+    def _program_and_period_labels(event) -> dict:
+        from app.models.program import Program
+
+        program = db.session.get(Program, event.program_id) if event.program_id else None
+        period = (
+            db.session.get(AcademicPeriod, event.academic_period_id)
+            if event.academic_period_id else None
+        )
+        return {
+            'program_name': program.name if program else None,
+            'academic_period_code': period.code if period else None,
+        }
+
+    @staticmethod
+    def build_admin_event_item(event) -> dict:
+        """Row of the admin events list (without the per-caller `can_manage`)."""
+        counters = EventsService._event_counters(event.id)
+        labels = EventsService._program_and_period_labels(event)
+        return {
+            "id": event.id,
+            "title": event.title,
+            "type": event.type,
+            "status": event.status,
+            "location": event.location,
+            "description": event.description,
+            "program_id": event.program_id,
+            "program_name": labels['program_name'],
+            "academic_period_id": event.academic_period_id,
+            "academic_period_code": labels['academic_period_code'],
+            "visible_to_students": event.visible_to_students,
+            "visibility": event.visibility,
+            "reminders_enabled": event.reminders_enabled,
+            "capacity_type": event.capacity_type,
+            "max_capacity": event.max_capacity,
+            "event_date": event.event_date.isoformat() if event.event_date else None,
+            "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
+            "windows_count": EventWindow.query.filter_by(event_id=event.id).count(),
+            "slots_total": counters['slots_total'],
+            "slots_booked": counters['slots_booked'],
+            "registrations_count": counters['registrations_count'],
+            "invitations_pending": counters['invitations_pending'],
+            "created_at": event.created_at.isoformat(),
+        }
+
+    @staticmethod
+    def build_admin_event_detail(event) -> dict:
+        """Full admin payload of one event, including its windows."""
+        windows = EventWindow.query.filter_by(event_id=event.id).all()
+        counters = EventsService._event_counters(event.id)
+        labels = EventsService._program_and_period_labels(event)
+        payload = event.to_dict()
+        payload.update({
+            "program_name": labels['program_name'],
+            "academic_period_code": labels['academic_period_code'],
+            "windows_count": len(windows),
+            "slots_total": counters['slots_total'],
+            "slots_booked": counters['slots_booked'],
+            "registrations_count": counters['registrations_count'],
+            "invitations_pending": counters['invitations_pending'],
+            "windows": [{
+                "id": w.id,
+                "date": w.date.isoformat(),
+                "start_time": w.start_time.isoformat(),
+                "end_time": w.end_time.isoformat(),
+                "slot_minutes": w.slot_minutes
+            } for w in windows]
+        })
+        return payload
+
+    @staticmethod
+    def list_windows_with_stats(event_id: int) -> list[dict]:
+        """Windows of an event ordered by date, each with slot counters."""
+        windows = EventWindow.query.filter_by(event_id=event_id).order_by(
+            EventWindow.date.asc(), EventWindow.start_time.asc()
+        ).all()
+        items = []
+        for window in windows:
+            items.append({
+                "id": window.id,
+                "date": window.date.isoformat(),
+                "start_time": window.start_time.isoformat(),
+                "end_time": window.end_time.isoformat(),
+                "slot_minutes": window.slot_minutes,
+                "slots_generated": window.slots_generated,
+                "slots_total": EventSlot.query.filter_by(event_window_id=window.id).count(),
+                "slots_free": EventSlot.query.filter_by(
+                    event_window_id=window.id, status='free'
+                ).count(),
+                "slots_booked": EventSlot.query.filter_by(
+                    event_window_id=window.id, status='booked'
+                ).count(),
+            })
+        return items
+
+    @staticmethod
+    def build_public_event_items(user_id: int) -> list[dict]:
+        """Cards of the participant-facing events list for `user_id`."""
+        from app.models.event import EventImage, EventHost
+        from app.models.program import Program
+        from app.models.user import User
+
+        annotated = EventsService.get_public_events_with_invitation_status(user_id)
+
+        items = []
+        for entry in annotated:
+            event = entry['event']
+            program = db.session.get(Program, event.program_id) if event.program_id else None
+            current_registrations = EventAttendance.query.filter_by(
+                event_id=event.id,
+                status='registered'
+            ).count()
+
+            # Cover path (elimina N+1 en frontend)
+            cover = EventImage.query.filter_by(event_id=event.id, is_cover=True).first()
+            cover_path = cover.path if cover else None
+
+            # Hosts summary: máximo 3 con URL de foto ya construida (sin N+1 frontend)
+            hosts_summary = []
+            hosts = EventHost.query.filter_by(event_id=event.id).order_by(
+                EventHost.display_order.asc()
+            ).limit(3).all()
+            for h in hosts:
+                if h.user_id:
+                    u = db.session.get(User, h.user_id)
+                    photo_url = None
+                    if u:
+                        try:
+                            photo_url = u.avatar_url
+                        except Exception:
+                            photo_url = None
+                    hosts_summary.append({
+                        'name': f"{u.first_name} {u.last_name}" if u else 'Ponente',
+                        'photo_url': photo_url,
+                        'is_external': False,
+                        'role_label': h.role_label,
+                    })
+                else:
+                    photo_url = None
+                    if h.external_photo_path:
+                        filename = h.external_photo_path.split('/')[-1]
+                        photo_url = f"/files/event/{event.id}/hosts/{filename}"
+                    hosts_summary.append({
+                        'name': h.external_name,
+                        'photo_url': photo_url,
+                        'is_external': True,
+                        'role_label': h.role_label,
+                    })
+
+            hosts_total = EventHost.query.filter_by(event_id=event.id).count()
+
+            # Es preview si es privado y NO tiene invitación (lo ve por ser creador/admin)
+            is_preview = (
+                event.visibility == 'private'
+                and not entry['my_invitation_status']
+            )
+
+            items.append({
+                "id": event.id,
+                "title": event.title,
+                "type": event.type,
+                "description": event.description,
+                "location": event.location,
+                "capacity_type": event.capacity_type,
+                "max_capacity": event.max_capacity,
+                "current_registrations": current_registrations,
+                "program_id": event.program_id,
+                "program_name": program.name if program else None,
+                "academic_period_id": event.academic_period_id,
+                "visibility": event.visibility,
+                "my_invitation_status": entry['my_invitation_status'],
+                "is_preview": is_preview,
+                "is_creator": event.created_by == user_id,
+                "event_date": event.event_date.isoformat() if event.event_date else None,
+                "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
+                "created_at": event.created_at.isoformat(),
+                "cover_path": cover_path,
+                "hosts_summary": hosts_summary,
+                "hosts_total": hosts_total,
+            })
+        return items
+
+    @staticmethod
+    def build_public_event_detail(event, user_id: int) -> dict:
+        """
+        Participant-facing detail of one event. Authorization is the caller's
+        job; this only assembles the payload for `user_id`.
+        """
+        from app.models.event import EventInvitation
+        from app.models.appointment import Appointment
+        from app.models.program import Program
+
+        program = db.session.get(Program, event.program_id) if event.program_id else None
+
+        # Registro actual del usuario en eventos multiple/unlimited
+        my_registration = None
+        if event.capacity_type in ('multiple', 'unlimited'):
+            att = EventAttendance.query.filter_by(
+                event_id=event.id, user_id=user_id
+            ).first()
+            if att:
+                my_registration = {
+                    'id': att.id,
+                    'status': att.status,
+                    'registered_at': att.registered_at.isoformat(),
+                    'attended_at': att.attended_at.isoformat() if att.attended_at else None,
+                }
+
+        # Invitación actual del usuario a este evento
+        my_invitation = None
+        inv = EventInvitation.query.filter_by(
+            event_id=event.id, user_id=user_id
+        ).first()
+        if inv:
+            my_invitation = {
+                'id': inv.id,
+                'status': inv.status,
+                'invited_at': inv.invited_at.isoformat() if inv.invited_at else None,
+                'responded_at': inv.responded_at.isoformat() if inv.responded_at else None,
+            }
+
+        # Cita actual del usuario en eventos single (1:1)
+        my_appointment = None
+        if event.capacity_type == 'single':
+            appt = Appointment.query.filter(
+                Appointment.event_id == event.id,
+                Appointment.applicant_id == user_id,
+                Appointment.status == 'scheduled',
+            ).first()
+            if appt:
+                slot = db.session.get(EventSlot, appt.slot_id)
+                my_appointment = {
+                    'id': appt.id,
+                    'slot_id': appt.slot_id,
+                    'status': appt.status,
+                    'starts_at': slot.starts_at.isoformat() if slot else None,
+                    'ends_at': slot.ends_at.isoformat() if slot else None,
+                }
+
+        # Ventanas con slots (solo para eventos 1:1)
+        windows = []
+        if event.capacity_type == 'single':
+            wins = EventWindow.query.filter_by(event_id=event.id).order_by(
+                EventWindow.date.asc(), EventWindow.start_time.asc()
+            ).all()
+            for w in wins:
+                slots = EventSlot.query.filter_by(event_window_id=w.id).order_by(
+                    EventSlot.starts_at.asc()
+                ).all()
+                windows.append({
+                    'id': w.id,
+                    'date': w.date.isoformat() if w.date else None,
+                    'start_time': w.start_time.isoformat() if w.start_time else None,
+                    'end_time': w.end_time.isoformat() if w.end_time else None,
+                    'slot_minutes': w.slot_minutes,
+                    'slots': [{
+                        'id': s.id,
+                        'starts_at': s.starts_at.isoformat(),
+                        'ends_at': s.ends_at.isoformat(),
+                        'status': s.status,
+                    } for s in slots],
+                })
+
+        # Conteo de registros (multiple/unlimited)
+        current_registrations = 0
+        if event.capacity_type in ('multiple', 'unlimited'):
+            current_registrations = EventAttendance.query.filter_by(
+                event_id=event.id, status='registered'
+            ).count()
+
+        return {
+            "event": {
+                "id": event.id,
+                "title": event.title,
+                "type": event.type,
+                "description": event.description,
+                "location": event.location,
+                "capacity_type": event.capacity_type,
+                "max_capacity": event.max_capacity,
+                "current_registrations": current_registrations,
+                "requires_registration": event.requires_registration,
+                "status": event.status,
+                "visibility": event.visibility,
+                "event_date": event.event_date.isoformat() if event.event_date else None,
+                "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
+                "program_id": event.program_id,
+                "program_name": program.name if program else None,
+                "is_creator": event.created_by == user_id,
+                "is_preview": event.visibility == 'private' and my_invitation is None,
+                "created_at": event.created_at.isoformat(),
+            },
+            "my_registration": my_registration,
+            "my_appointment": my_appointment,
+            "my_invitation": my_invitation,
+            "windows": windows,
+        }
+
+    @staticmethod
+    def list_user_registrations(user_id: int) -> list[dict]:
+        """Events the user is registered to (newest registration first)."""
+        registrations = db.session.query(EventAttendance, Event).join(
+            Event, EventAttendance.event_id == Event.id
+        ).filter(
+            EventAttendance.user_id == user_id
+        ).order_by(EventAttendance.registered_at.desc()).all()
+
+        return [{
+            'event_id': event.id,
+            'event_title': event.title,
+            'event_type': event.type,
+            'event_location': event.location,
+            'capacity_type': event.capacity_type,
+            'status': attendance.status,
+            'registered_at': attendance.registered_at.isoformat(),
+            'attended_at': attendance.attended_at.isoformat() if attendance.attended_at else None
+        } for attendance, event in registrations]
+
+    @staticmethod
+    def resolve_user_ids_by_uuid(public_ids: list) -> list:
+        """
+        Map public UUIDs to internal user ids, preserving order. A UUID that
+        does not resolve maps to None (callers decide how to treat it).
+        """
+        from app.models.user import User
+
+        resolved = [User.by_uuid(raw) for raw in public_ids]
+        return [row.id if row is not None else None for row in resolved]
+
+
+    @staticmethod
+    def log_registration_history(user_id: int, event_title: str, event_type: str) -> None:
+        """Write (and commit) the `event_registered` history row; rolls back on failure."""
+        from app.services.user_history_service import UserHistoryService
+
+        try:
+            UserHistoryService.log_event_registration(
+                user_id=user_id,
+                event_title=event_title,
+                event_type=event_type,
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise

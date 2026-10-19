@@ -200,7 +200,11 @@ def update_personal_info(user_id: int, coordinator_id: int, data: dict) -> User:
         action_url='/user/profile',
     )
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
     return user
 
 

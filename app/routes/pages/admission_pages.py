@@ -1,7 +1,7 @@
 # app/routes/pages/admission_pages.py
-from flask import Blueprint, render_template, redirect, url_for, flash
+from flask import Blueprint, render_template, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
-from app.models import Program, UserProgram
+from app.services import programs_service
 from app.services.admission_service import get_admission_state
 from app.utils.permissions import permission_required
 
@@ -12,8 +12,10 @@ admission_bp = Blueprint('admission', __name__, url_prefix='/admission')
 @permission_required('submissions.api.upload')
 def admission_dashboard(slug):
     # validar inscripción
-    program = Program.query.filter_by(slug=slug).first_or_404()
-    up = UserProgram.query.filter_by(program_id=program.id, user_id=current_user.id).first()
+    program = programs_service.find_program_by_slug(slug)
+    if program is None:
+        abort(404)
+    up = programs_service.find_user_program(current_user.id, program.id)
     if not up:
         flash('Debes inscribirte antes de subir documentos.', 'warning')
         return redirect(url_for('program.view_program', slug=slug))
