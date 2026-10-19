@@ -71,3 +71,15 @@ def test_error_tracking_disabled_under_testing(monkeypatch):
     application = Flask(__name__)
     application.testing = True
     assert init_error_tracking(application) is False
+
+
+def test_error_tracking_never_ships_applicant_data(monkeypatch):
+    import sentry_sdk
+    captured = {}
+    monkeypatch.setattr(sentry_sdk, 'init', lambda **kw: captured.update(kw))
+    monkeypatch.setenv('SENTRY_DSN', 'https://public@example.invalid/1')
+    assert init_error_tracking(Flask(__name__)) is True
+    assert captured['dsn'] == 'https://public@example.invalid/1'
+    assert captured['send_default_pii'] is False
+    assert captured['max_request_body_size'] == 'never'
+    assert captured['include_local_variables'] is False

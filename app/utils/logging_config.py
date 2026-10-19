@@ -92,8 +92,11 @@ def init_error_tracking(app: Flask) -> bool:
     """
     Enable Sentry when SENTRY_DSN is set. Returns True if it was enabled.
 
-    `send_default_pii` stays off: request bodies and user e-mails of
-    applicants must not leave the server.
+    Applicant data must not leave the server, so three defaults are turned
+    off: `send_default_pii` (cookies, IP, user), `max_request_body_size`
+    (form and JSON bodies, e.g. a registration form) and
+    `include_local_variables` (frame locals, which hold user rows and
+    e-mails). Events carry the stack trace, URL and exception message only.
     """
     dsn = (os.environ.get('SENTRY_DSN') or '').strip()
     if not dsn or app.testing:
@@ -108,6 +111,8 @@ def init_error_tracking(app: Flask) -> bool:
         release=app.config.get('STATIC_VERSION'),
         integrations=[FlaskIntegration(), CeleryIntegration()],
         send_default_pii=False,
+        max_request_body_size='never',
+        include_local_variables=False,
         traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0') or 0),
     )
     return True
