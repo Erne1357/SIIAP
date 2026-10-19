@@ -39,6 +39,14 @@ def create_app(test_config=None):
     else:
         app.config.update(test_config)
 
+    # Logging to stdout with a request id per line, plus Sentry when
+    # SENTRY_DSN is set. Tests keep pytest's own handlers (caplog).
+    from app.utils.logging_config import configure_logging, init_error_tracking, init_request_id
+    if not app.testing:
+        configure_logging()
+        init_error_tracking(app)
+    init_request_id(app)
+
     # ProxyFix para manejar headers de proxy reverso (HTTPS)
     if app.config.get('FLASK_ENV') == 'production':
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
