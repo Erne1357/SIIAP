@@ -17,11 +17,11 @@ class Submission(PublicUUIDMixin, db.Model):
     reviewer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
     reviewer_comment = db.Column(db.Text, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    archive_id = db.Column(db.Integer,db.ForeignKey('archive.id') , nullable = False)
-    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id') , nullable = False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    archive_id = db.Column(db.Integer,db.ForeignKey('archive.id') , nullable = False, index=True)
+    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id') , nullable = False, index=True)
     semester = db.Column(db.Integer, nullable=True)
-    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True)
+    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True, index=True)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     uploaded_by_role = db.Column(db.String(20))  # 'student' | 'coordinator'
     deadline_at = db.Column(db.DateTime)         # fecha límite efectiva (si hay prórroga)
@@ -29,7 +29,8 @@ class Submission(PublicUUIDMixin, db.Model):
 
     # FK nullable: solo submissions de permanencia con ventana configurada
     document_deadline_id = db.Column(
-        db.Integer, db.ForeignKey('document_deadline.id'), nullable=True
+        db.Integer, db.ForeignKey('document_deadline.id'), nullable=True,
+        index=True
     )
 
     user          = db.relationship('User',foreign_keys=[user_id],back_populates='submissions')

@@ -11,7 +11,7 @@ class Archive(PublicUUIDMixin, db.Model):
     is_downloadable = db.Column(db.Boolean, default=True)
     is_uploadable = db.Column(db.Boolean, default=True)
     file_path = db.Column(db.String(200))
-    step_id = db.Column(db.Integer, db.ForeignKey('step.id'), nullable=False)
+    step_id = db.Column(db.Integer, db.ForeignKey('step.id'), nullable=False, index=True)
     allow_coordinator_upload = db.Column(db.Boolean,default=False,nullable=False)
     allow_extension_request = db.Column(db.Boolean, default=False, nullable=False)
     # Meses de validez del documento; NULL = sin expiración (válido indefinidamente)

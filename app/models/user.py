@@ -80,7 +80,7 @@ class User(PublicUUIDMixin, db.Model, UserMixin):
     is_internal = db.Column(db.Boolean, default=False)
     scolarship_type = db.Column(db.String(50), nullable=True)
     registration_date = db.Column(db.DateTime, default=now_local, nullable=False)
-    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False, index=True)
     avatar = db.Column(db.String(255), default='default.jpg', nullable=True)
     must_change_password = db.Column(db.Boolean, default=True, nullable=False)
 

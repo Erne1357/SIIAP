@@ -7,9 +7,9 @@ class ExtensionRequest(db.Model):
     __tablename__ = 'extension_request'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    archive_id = db.Column(db.Integer, db.ForeignKey('archive.id', ondelete='CASCADE'), nullable=False)
-    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    archive_id = db.Column(db.Integer, db.ForeignKey('archive.id', ondelete='CASCADE'), nullable=False, index=True)
+    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id', ondelete='CASCADE'), nullable=False, index=True)
     
     # Información de la solicitud
     requested_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)

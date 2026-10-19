@@ -56,7 +56,8 @@ class PurgeRun(db.Model):
         db.Integer, db.ForeignKey('academic_period.id'), nullable=True
     )
     program_id = db.Column(
-        db.Integer, db.ForeignKey('program.id'), nullable=True
+        db.Integer, db.ForeignKey('program.id'), nullable=True,
+        index=True
     )
 
     target_user_program_ids = db.Column(db.JSON, nullable=False)

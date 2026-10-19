@@ -25,16 +25,25 @@ class UserProgram(db.Model):
     vacia para 'admission' — los archives historicos no aparecen como pendientes.
     """
     __tablename__ = 'user_program'
+    # A user may hold several programs, each one once.
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'program_id', name='uq_user_program_user_program'),
+        db.CheckConstraint(
+            "admission_status IN ('in_progress', 'interview_completed', 'deliberation', "
+            "'accepted', 'rejected', 'deferred', 'enrolled', 'expired')",
+            name='ck_user_program_admission_status',
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False)
+    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False, index=True)
     enrollment_date = db.Column(db.DateTime, default=now_local)
     current_semester = db.Column(db.Integer)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     # Relacion con periodo de admision
-    admission_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True)
+    admission_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True, index=True)
 
     # Campos de deliberacion (Fase 3)
     admission_status = db.Column(db.String(30), default='in_progress', nullable=False)

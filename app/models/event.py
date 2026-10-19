@@ -6,8 +6,8 @@ class Event(db.Model):
     __tablename__ = 'event'
 
     id = db.Column(db.Integer, primary_key=True)
-    program_id = db.Column(db.Integer, db.ForeignKey('program.id', ondelete='CASCADE', onupdate='CASCADE'))
-    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id', ondelete='SET NULL'), nullable=True)
+    program_id = db.Column(db.Integer, db.ForeignKey('program.id', ondelete='CASCADE', onupdate='CASCADE'), index=True)
+    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id', ondelete='SET NULL'), nullable=True, index=True)
     visibility = db.Column(db.String(20), nullable=False, default='public', server_default='public')
     # Values: 'public' | 'private'
     type = db.Column(db.String(50), nullable=False, default='interview')
@@ -66,7 +66,7 @@ class EventWindow(db.Model):
     __tablename__ = 'event_window'
 
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, index=True)
     date = db.Column(db.Date, nullable=False)
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
@@ -102,7 +102,7 @@ class EventSlot(db.Model):
     __tablename__ = 'event_slot'
 
     id = db.Column(db.Integer, primary_key=True)
-    event_window_id = db.Column(db.Integer, db.ForeignKey('event_window.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
+    event_window_id = db.Column(db.Integer, db.ForeignKey('event_window.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, index=True)
     starts_at = db.Column(db.DateTime, nullable=False)
     ends_at = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='free')
@@ -132,8 +132,8 @@ class EventAttendance(db.Model):
     __tablename__ = 'event_attendance'
 
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, index=True)
     status = db.Column(db.String(20), nullable=False, default='registered')  # registered|attended|no_show
     registered_at = db.Column(db.DateTime, nullable=False, default=now_local)
     attended_at = db.Column(db.DateTime, nullable=True)
@@ -165,8 +165,8 @@ class EventInvitation(db.Model):
     __tablename__ = 'event_invitation'
     
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
     invited_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending|accepted|rejected
     invited_at = db.Column(db.DateTime, nullable=False, default=now_local)
@@ -201,8 +201,8 @@ class EventHost(db.Model):
     __tablename__ = 'event_host'
 
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True, index=True)
     external_name = db.Column(db.String(150), nullable=True)
     external_bio = db.Column(db.Text, nullable=True)
     external_photo_path = db.Column(db.String(255), nullable=True)
@@ -251,7 +251,7 @@ class EventImage(db.Model):
     __tablename__ = 'event_image'
 
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE'), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE'), nullable=False, index=True)
     path = db.Column(db.String(500), nullable=False)
     caption = db.Column(db.String(200), nullable=True)
     is_cover = db.Column(db.Boolean, nullable=False, default=False)
@@ -285,8 +285,8 @@ class EventReminderLog(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id', ondelete='SET NULL'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id', ondelete='SET NULL'), nullable=True, index=True)
     reminder_type = db.Column(db.String(10), nullable=False)  # '24h' | '2h'
     sent_at = db.Column(db.DateTime, nullable=False, default=now_local)
 
