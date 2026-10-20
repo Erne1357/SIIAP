@@ -1,5 +1,13 @@
 """Infrastructure wiring: reverse proxy, DB engine options and Socket.IO."""
+import mimetypes
+
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+# Slim Python images ship without font types: the vendored Bootstrap Icons
+# fonts were served as application/octet-stream when Flask serves /static
+# itself (dev without nginx, E2E). nginx's mime.types already knows them.
+mimetypes.add_type('font/woff2', '.woff2')
+mimetypes.add_type('font/woff', '.woff')
 
 from app.extensions import socketio
 

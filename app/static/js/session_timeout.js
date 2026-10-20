@@ -159,6 +159,8 @@
     if (leaving) return;
     leaving = true;
     clearTimers();
+    // A keepalive finishing after the logout would restore the cookie.
+    await Promise.race([touchPromise, new Promise(r => setTimeout(r, 3000))]);
     try {
       await window.SIIAP.api.post(sessionLogoutUrl, null, { flash: false, onUnauthorized: false });
       // NO mostrar flash aqui - dejamos que el backend maneje los mensajes
@@ -211,6 +213,18 @@
   const SERVER_TOUCH_EVERY_MS = 5 * 60 * 1000;
   let touching = false;
 
+  // A keepalive that finishes AFTER the logout response would set the old,
+  // still-authenticated cookie again and resurrect the session (cookie
+  // sessions: the last response wins). So: never touch from a logout
+  // control, and expose the in-flight touch so the logout can wait for it.
+  const LOGOUT_CONTROLS = '.js-api-logout, #logoutBtn';
+  let touchPromise = Promise.resolve();
+  window.SIIAP = window.SIIAP || {};
+  window.SIIAP.session = {
+    settle: () => touchPromise,
+    beginLogout: () => { leaving = true; clearTimers(); },
+  };
+
   function maybeTouchServer() {
     if (touching || leaving || !sessionKeepaliveUrl) return;
     const now = Date.now();
@@ -219,12 +233,14 @@
     if (now - last < SERVER_TOUCH_EVERY_MS) return;
     try { localStorage.setItem(SERVER_TOUCH_KEY, String(now)); } catch (_) {}
     touching = true;
-    window.SIIAP.api.get(sessionKeepaliveUrl, { flash: false, onUnauthorized: false })
+    touchPromise = window.SIIAP.api.get(sessionKeepaliveUrl, { flash: false, onUnauthorized: false })
       .catch(() => {})
       .finally(() => { touching = false; });
   }
 
-  function onActivity() {
+  function onActivity(evt) {
+    const target = evt && evt.target;
+    if (target && typeof target.closest === 'function' && target.closest(LOGOUT_CONTROLS)) return;
     if (!activityArm || leaving) return;
     activityArm = false;
     setTimeout(() => (activityArm = true), 2000);

@@ -207,6 +207,14 @@
           if (bsOffcanvas) bsOffcanvas.hide();
         }
 
+        // Stop the idle timer's keepalive and wait for one already in flight:
+        // finishing after the logout, it would restore the session cookie.
+        const sess = window.SIIAP && window.SIIAP.session;
+        if (sess) {
+          sess.beginLogout();
+          await Promise.race([sess.settle(), new Promise(r => setTimeout(r, 3000))]);
+        }
+
         try {
           const res = await fetch(CFG.logoutUrl, {
             method: 'POST',
