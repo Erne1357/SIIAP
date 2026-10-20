@@ -184,6 +184,16 @@ class Config:
     REMEMBER_COOKIE_SAMESITE = "Lax"
     REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
 
+    # Two different clocks, on purpose:
+    # - SESSION_IDLE_SECONDS: inactivity window, enforced by the server against
+    #   session['last_activity'] (its own clock only).
+    # - SESSION_MAX_HOURS: absolute cap of the cookie. Flask uses it both for
+    #   the cookie's Expires (judged by the BROWSER's clock) and as the
+    #   signature max-age. It used to be 17 minutes, so a client clock a few
+    #   minutes fast, or a server clock correction, killed active sessions.
+    SESSION_IDLE_SECONDS = int(os.environ.get('SESSION_IDLE_SECONDS', 15 * 60))
+    SESSION_MAX_HOURS = int(os.environ.get('SESSION_MAX_HOURS', 12))
+
     # ===== ENTORNO =====
     FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
     DEBUG = _env_flag('FLASK_DEBUG', default=not _is_production())

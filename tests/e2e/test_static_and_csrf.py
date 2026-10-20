@@ -101,6 +101,35 @@ def test_static_version_fallback_is_not_in_use(page):
     assert FALLBACK_VERSION not in page.content()
 
 
+#: Third-party UI assets are self-hosted (app/static/vendor/README.md): the app must not
+#: depend on a CDN at runtime. path -> expected Content-Type prefix.
+VENDORED = {
+    'vendor/bootstrap/5.3.3/bootstrap.min.css': 'text/css',
+    'vendor/bootstrap/5.3.3/bootstrap.bundle.min.js': ('text/javascript', 'application/javascript'),
+    'vendor/bootstrap-icons/1.11.3/bootstrap-icons.css': 'text/css',
+    'vendor/bootstrap-icons/1.11.3/fonts/bootstrap-icons.woff2': 'font/woff2',
+    'vendor/bootstrap-icons/1.11.3/fonts/bootstrap-icons.woff': ('font/woff', 'application/font-woff'),
+    'vendor/socket.io/4.7.5/socket.io.min.js': ('text/javascript', 'application/javascript'),
+}
+
+
+@pytest.mark.parametrize('path', sorted(VENDORED))
+def test_vendored_assets_are_served_with_the_right_content_type(page, path):
+    response = page.request.get(f'/static/{path}?v={EXPECTED_VERSION}')
+    assert response.status == 200, path
+    expected = VENDORED[path]
+    expected = (expected,) if isinstance(expected, str) else expected
+    content_type = response.headers.get('content-type', '')
+    assert content_type.startswith(expected), f'{path}: {content_type}'
+    assert len(response.body()) > 10_000
+
+
+def test_pages_reference_no_cdn_for_ui_assets(page):
+    page.goto('/login')
+    html = page.content()
+    assert 'cdn.jsdelivr.net' not in html and 'cdn.socket.io' not in html
+
+
 def test_stylesheets_are_actually_applied(page):
     """200 is not enough: the sheets must parse (a broken @import or MIME would not)."""
     page.goto('/login')

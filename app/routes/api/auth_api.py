@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, session, redirect, url_for, curre
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
-from app.utils.api_response import api_server_error
+from app.utils.api_response import api_ok, api_server_error
 from app.services import auth_service
 from app.services.auth_audit_service import AuthAuditService
 from app.utils.csrf import generate_csrf_token
@@ -398,6 +398,27 @@ def api_me():
         "error": None, 
         "meta": {}
     }), 200
+
+
+@api_auth_bp.get("/session-status")
+@login_required
+def api_session_status():
+    """
+    Seconds of inactivity left, by the server's own record of activity.
+
+    Read-only: it does not count as activity (exempt from the session hook),
+    so an idle tab polling it can never keep the session alive. The browser
+    asks it before warning or logging out, because its own idle timer only
+    sees the events of one tab.
+    """
+    idle_limit = current_app.config.get('SESSION_IDLE_SECONDS', 15 * 60)
+    last = session.get('last_activity') or now_local().timestamp()
+    idle = max(0, now_local().timestamp() - last)
+    return api_ok({
+        'idle_seconds': int(idle),
+        'remaining_seconds': int(max(0, idle_limit - idle)),
+        'idle_limit_seconds': idle_limit,
+    })
 
 
 @api_auth_bp.get("/keepalive")

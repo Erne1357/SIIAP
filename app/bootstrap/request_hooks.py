@@ -2,7 +2,7 @@
 
 The registration order below is the execution order of the hooks.
 """
-from flask import flash, jsonify, redirect, request, session, url_for
+from flask import current_app, flash, jsonify, redirect, request, session, url_for
 from flask_login import current_user, logout_user
 
 from app.utils.datetime_utils import now_local
@@ -19,6 +19,7 @@ def register_request_hooks(app):
             'api_auth.api_login',
             'api_auth.api_logout',
             'api_auth.api_keepalive',
+            'api_auth.api_session_status',
             'api_health.health_check',
             'api_health.readiness_check',
             'static',
@@ -33,7 +34,7 @@ def register_request_hooks(app):
 
         if current_user.is_authenticated:
             if last_activity:
-                if now_ts - last_activity > 15 * 60:
+                if now_ts - last_activity > current_app.config.get('SESSION_IDLE_SECONDS', 15 * 60):
                     session.clear()
                     logout_user()
                     if wants_html_fragment():

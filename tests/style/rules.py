@@ -73,7 +73,7 @@ def _css_files():
 def _js_files():
     for p in _files(JS, ".js"):
         if "vendor" in p.relative_to(JS).parts:
-            continue  # third-party code (see app/static/js/vendor/README.md)
+            continue  # third-party code (see app/static/js/vendor/README.md; app/static/vendor/ is outside js/ and css/ so it is never scanned)
         yield _rel(p), _strip_js(_read(p))
 
 

@@ -59,4 +59,6 @@ def register_login_manager(app, login_manager):
             return None
         return user
 
-    app.permanent_session_lifetime = timedelta(minutes=17)
+    # Absolute cap only; inactivity is SESSION_IDLE_SECONDS, enforced in
+    # request_hooks against last_activity (see config.py for why they differ).
+    app.permanent_session_lifetime = timedelta(hours=app.config.get('SESSION_MAX_HOURS', 12))

@@ -85,6 +85,7 @@ KNOWN_ROUTES = frozenset({
     'GET /api/v1/attendance/event/<int:event_id>/registrations',
     'GET /api/v1/attendance/my-registrations',
     'GET /api/v1/auth/keepalive',
+    'GET /api/v1/auth/session-status',
     'GET /api/v1/auth/logout',
     'GET /api/v1/auth/me',
     'GET /api/v1/auth/reset-password/<token>/info',
