@@ -47,6 +47,13 @@
   color: var(--text-inverse);
 }
 
+/* Desplegable de la página actual: no es el destino (ése lleva .active), pero
+   se distingue del resto por peso y color (marca sobre gris claro, > 11:1). */
+.nav-link.nav-link--current {
+  color: var(--color-brand-primary);
+  font-weight: var(--fw-semibold);
+}
+
 /* El icono nunca se recolorea por separado: hereda del enlace */
 .nav-link .bi {
   color: inherit;

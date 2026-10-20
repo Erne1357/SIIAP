@@ -108,7 +108,7 @@ def test_each_role_signs_in_and_lands_on_its_dashboard(page, account):
     page.wait_for_url(re.compile(r'/user/dashboard$'))
     settle(page)
     expect(page.locator('html')).to_have_attribute('lang', 'es')
-    expect(page).to_have_title('Dashboard')
+    expect(page).to_have_title('Inicio - SIIAP')
     # The role badge in the sidebar is rendered from the permissions the role
     # holds, so it proves the right permission set reached the template.
     expect(page.locator('#sidebar .user-card')).to_contain_text(account.role_label)

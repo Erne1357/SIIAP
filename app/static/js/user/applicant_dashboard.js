@@ -22,10 +22,6 @@
     return (doc && doc.file_url) || '#';
   }
 
-  function getCsrf() {
-    return document.querySelector('meta[name="csrf-token"]')?.content || '';
-  }
-
   function escHtml(value) {
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -55,8 +51,8 @@
     if (!container) return;
     setBusy(container, true, 'Buscando tu carta de aceptación…');
     try {
-      const resp = await fetch(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`);
-      const result = await resp.json();
+      const resp = await window.SIIAP.api.get(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`, { flash: false });
+      const result = resp.body || { error: resp.error };
       if (result.error) {
         container.innerHTML = '';
         setBusy(container, false);
@@ -101,8 +97,8 @@
     if (!container) return;
     setBusy(container, true, 'Cargando tus documentos de aceptación…');
     try {
-      const resp = await fetch(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`);
-      const result = await resp.json();
+      const resp = await window.SIIAP.api.get(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`, { flash: false });
+      const result = resp.body || { error: resp.error };
 
       if (result.error) {
         container.innerHTML = acceptanceErrorState(result.error.message);
@@ -232,15 +228,13 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Subiendo...'; }
 
       try {
-        const resp = await fetch(
+        // flash:false — the server flashes are shown below with showSimpleToast.
+        const resp = await window.SIIAP.api.request(
+          'POST',
           `/api/v1/acceptance/user/${userId}/program/${userProgramId}/submit-receipt`,
-          {
-            method: 'POST',
-            headers: { 'X-CSRFToken': getCsrf() },
-            body: formData,
-          }
+          { body: formData, flash: false }
         );
-        const result = await resp.json();
+        const result = resp.body || { error: resp.error };
         if (result.flash) result.flash.forEach(f => showSimpleToast(f.message, f.level));
         if (!result.error) loadAcceptanceDocs();
       } catch (err) {

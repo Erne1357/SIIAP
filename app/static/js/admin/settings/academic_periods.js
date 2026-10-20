@@ -72,17 +72,13 @@ class AcademicPeriodsManager {
         `;
 
         try {
-            const response = await fetch(this.API_BASE, {
-                headers: {
-                    'X-CSRFToken': this.getCsrf()
-                }
-            });
+            const response = await window.SIIAP.api.get(this.API_BASE, { flash: false });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const result = await response.json();
+            const result = response.body || {};
 
             if (result.error) {
                 this.showFlash('danger', result.error.message);
@@ -281,16 +277,9 @@ class AcademicPeriodsManager {
         console.log(`Sending ${method} request to ${url} with data:`, data);
 
         try {
-            const response = await fetch(url, {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': this.getCsrf()
-                },
-                body: JSON.stringify(data)
-            });
+            const response = await window.SIIAP.api.request(method, url, { json: data, flash: false });
 
-            const result = await response.json();
+            const result = response.body || {};
 
             if (result.error) {
                 this.showFlash('danger', result.error.message);
@@ -312,14 +301,9 @@ class AcademicPeriodsManager {
 
     async activatePeriod(periodId) {
         try {
-            const response = await fetch(`${this.API_BASE}/${periodId}/activate`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': this.getCsrf()
-                }
-            });
+            const response = await window.SIIAP.api.post(`${this.API_BASE}/${periodId}/activate`, undefined, { flash: false });
 
-            const result = await response.json();
+            const result = response.body || {};
 
             if (result.error) {
                 this.showFlash('danger', result.error.message);
@@ -344,14 +328,9 @@ class AcademicPeriodsManager {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Eliminando…';
 
         try {
-            const response = await fetch(`${this.API_BASE}/${this.currentDeleteId}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRFToken': this.getCsrf()
-                }
-            });
+            const response = await window.SIIAP.api.delete(`${this.API_BASE}/${this.currentDeleteId}`, { flash: false });
 
-            const result = await response.json();
+            const result = response.body || {};
 
             if (result.error) {
                 this.showFlash('danger', result.error.message);
@@ -377,11 +356,6 @@ class AcademicPeriodsManager {
         window.dispatchEvent(new CustomEvent('flash', {
             detail: { level, message }
         }));
-    }
-
-    getCsrf() {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
     }
 }
 

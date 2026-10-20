@@ -54,6 +54,12 @@ function showFlash(level, message) {
 }
 
 /**
+ * Canonical toast API: SIIAP.flash(level, message). Equivalent to dispatching
+ * a 'flash' window event with {level, message}; there is no other toast.
+ */
+(window.SIIAP || (window.SIIAP = {})).flash = showFlash;
+
+/**
  * Escucha eventos de flash personalizados
  */
 window.addEventListener('flash', (event) => {

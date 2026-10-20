@@ -76,8 +76,9 @@
     setBusy(list, true, 'Verificando la configuración del sistema…');
 
     try {
-      const response = await fetch('/api/v1/emails/status');
-      const data = await response.json();
+      const response = await window.SIIAP.api.get('/api/v1/emails/status', { flash: false });
+      const data = response.body;
+      if (data === null) throw new Error('Respuesta inválida');
       const reminders = [];
 
       if (!data.data?.connected || !data.data?.account) {
@@ -144,7 +145,7 @@
     const scheduleReload = (msg) => {
       if (reloadScheduled) return;
       reloadScheduled = true;
-      if (typeof showFlash === 'function') showFlash('info', msg);
+      window.SIIAP.flash('info', msg);
       setTimeout(() => { window.location.reload(); }, 3000);
     };
 

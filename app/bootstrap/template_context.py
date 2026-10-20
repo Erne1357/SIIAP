@@ -1,7 +1,8 @@
 """Jinja context processors and Spanish display filters."""
-from flask import has_request_context
+from flask import g, has_request_context, request
 from flask_login import current_user
 
+from app.navigation import Navigation
 from app.utils.csrf import generate_csrf_token
 from app.utils.datetime_utils import format_date_es, format_datetime_es, now_local
 
@@ -61,6 +62,22 @@ def register_template_context(app):
 
         role_label, role_badge_class = _role_info()
 
+        def page_nav():
+            """
+            Menu, active link and breadcrumb for this request (see app/navigation.py).
+
+            Resolved once per request and shared by the desktop sidebar, the
+            offcanvas and the page header. Anonymous visitors and renders with
+            no request (Celery emails) get an empty menu.
+            """
+            if not _viewer_is_authenticated():
+                return Navigation.empty()
+            nav = getattr(g, '_page_nav', None)
+            if nav is None:
+                nav = Navigation.for_user(current_user, request.endpoint)
+                g._page_nav = nav
+            return nav
+
         return {
             "static_version": app.config.get("STATIC_VERSION", "1.0.0"),
             "csrf_token": generate_csrf_token,
@@ -68,6 +85,7 @@ def register_template_context(app):
             # (pie de página de base.html / auth_base.html).
             "now_local": now_local,
             "has_perm": has_perm,
+            "page_nav": page_nav,
             "role_label": role_label,
             "role_badge_class": role_badge_class,
         }

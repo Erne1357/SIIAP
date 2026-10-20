@@ -17,11 +17,15 @@ BASELINE = {
     'css_thick_side_borders': {},
     'fa_classes': {},
     'js_alert': {},
-    # js_console_log: total 6 in 4 files
+    # js_console_log: total 5 in 3 files
     'js_console_log': {
         'app/static/js/admin/settings/academic_periods.js': 2,
         'app/static/js/admin/settings/celery_worker.js': 2,
-        'app/static/js/admin/settings/data_cleanup.js': 1,
+        'app/static/js/force_password_change.js': 1,
+    },
+    # js_csrf_meta_reads: total 2 in 2 files
+    'js_csrf_meta_reads': {
+        'app/static/js/base.js': 1,
         'app/static/js/force_password_change.js': 1,
     },
     'js_mutation_without_csrf': {},

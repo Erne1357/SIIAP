@@ -9,8 +9,7 @@
     }
 
     function getCsrfToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        return meta ? meta.getAttribute('content') : '';
+        return window.SIIAP.api.csrfToken();
     }
 
     /**
@@ -61,27 +60,24 @@
      * judging the status / `error` is left to the caller.
      */
     async function fetchJson(url, options = {}) {
-        const defaultOptions = {
-            credentials: "same-origin",
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken(),
-                ...options.headers
-            }
-        };
-        const finalOptions = { ...defaultOptions, ...options };
-        const response = await fetch(url, finalOptions);
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
+        const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+                          ...options.headers };
+        const r = await window.SIIAP.api.request(options.method || 'GET', url, {
+            body: options.body,
+            headers,
+            signal: options.signal,
+            flash: false,          // callers show their own messages
+            onUnauthorized: false
+        });
+        if (r.contentType.includes('text/html')) {
             throw new Error('No tienes permisos para realizar esta acción');
         }
-        let body;
-        try {
-            body = await response.json();
-        } catch (jsonError) {
+        if (r.body === null) {
             throw new Error('Error al procesar la respuesta del servidor');
         }
-        return { response, body };
+        // Response-like view for the callers that read `.ok` / `.status`.
+        const response = { ok: r.status >= 200 && r.status < 300, status: r.status };
+        return { response, body: r.body };
     }
 
     /**

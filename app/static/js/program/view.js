@@ -12,11 +12,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const prefersReducedMotion = window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function getCsrf() {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  }
-
   // ── Desplazamiento suave hacia las anclas internas ──────────────────────
   // scrollIntoView respeta el contenedor con overflow (#main-content);
   // window.scrollTo no lo hacía y el salto quedaba a medias.
@@ -82,23 +77,13 @@ document.addEventListener('DOMContentLoaded', function () {
         '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Activando…';
 
       try {
-        const response = await fetch(
+        const response = await window.SIIAP.api.request(
+          'POST',
           `/api/v1/programs/${encodeURIComponent(programId)}/admission-interest`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': getCsrf()
-            }
-          }
+          { flash: false }
         );
 
-        let payload = null;
-        try {
-          payload = await response.json();
-        } catch (_) {
-          payload = null;
-        }
+        const payload = response.body;
 
         if (response.ok) {
           showFeedback(

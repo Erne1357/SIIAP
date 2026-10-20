@@ -81,6 +81,31 @@ def test_sidebar_is_role_specific(page, base_url, login_as):
     assert '/coordinator/dashboard' not in seen['social_service']
 
 
+def test_current_group_arrives_open_with_aria_current_and_breadcrumb(page, login_as):
+    """The group of the page being viewed is open server-side and survives outside clicks."""
+    login_as(acc.POSTGRAD)
+    page.goto('/admin/settings/users')
+    settle(page)
+    sidebar = page.locator('#sidebar')
+    toggle = sidebar.get_by_role('button', name='Configuración')
+    expect(toggle).to_have_attribute('aria-expanded', 'true')
+    expect(sidebar.get_by_role('link', name='Usuarios')).to_have_attribute('aria-current', 'page')
+    page.locator('main').click(position={'x': 5, 'y': 5})
+    expect(toggle).to_have_attribute('aria-expanded', 'true')
+    crumbs = page.get_by_role('navigation', name='Ruta de navegación')
+    expect(crumbs).to_contain_text('Configuración')
+    expect(crumbs.locator('[aria-current="page"]')).to_have_text('Usuarios')
+
+
+def test_header_has_one_logo_and_footer_the_institutional_ones(page, login_as):
+    login_as(acc.APPLICANT)
+    page.goto('/user/dashboard')
+    settle(page)
+    assert page.locator('#page-header img').count() == 1
+    for alt in ('SEP', 'TecNM', 'ITCJ', 'Posgrado'):
+        expect(page.locator('footer').get_by_alt_text(alt)).to_be_visible()
+
+
 # ── Mobile ───────────────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -125,8 +150,9 @@ def open_drawer(phone):
     drawer = phone.locator('#mobileSidebar')
     expect(drawer).to_be_visible()
     phone.wait_for_timeout(400)  # offcanvas slide-in transition
-    # Expand the collapsible groups so their links are measured too.
-    for toggle in drawer.locator('button.dropdown-toggle-custom').all():
+    # Expand the collapsed groups so their links are measured too (the group of
+    # the current page already arrives open from the server; clicking it would fold it).
+    for toggle in drawer.locator('button.dropdown-toggle-custom[aria-expanded="false"]').all():
         toggle.click()
     phone.wait_for_timeout(300)
     return drawer

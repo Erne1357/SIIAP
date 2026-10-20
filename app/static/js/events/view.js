@@ -26,11 +26,6 @@
         showFlash(level, message);
     }
 
-    function getCsrfToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        return meta ? meta.getAttribute('content') : '';
-    }
-
     function setBusy(busy, message) {
         if (!viewContainer) return;
         if (window.SIIAP?.setBusy) {
@@ -165,18 +160,15 @@
      * @returns {Promise<object>}
      */
     async function apiRequest(url, options = {}) {
-        const res = await fetch(url, {
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken(),
-                ...(options.headers || {}),
-            },
-            ...options,
+        // options: { method, json }. Server flashes are not shown here: callers
+        // report the outcome with their own Spanish messages.
+        const res = await window.SIIAP.api.request(options.method || 'GET', url, {
+            json: options.json,
+            flash: false,
         });
-        const data = await res.json();
+        const data = res.body || {};
         if (!res.ok || data.error) {
-            const msg = data.error?.message || data.error || 'Error en la solicitud';
+            const msg = data.error?.message || data.error || res.error?.message || 'Error en la solicitud';
             throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
         return data;
@@ -488,7 +480,7 @@
         try {
             await apiRequest(`${API}/invitations/${inv}/respond`, {
                 method: 'POST',
-                body: JSON.stringify({ accept: true }),
+                json: { accept: true },
             });
             flash('success', 'Has aceptado la invitación.');
             await loadEventDetail();
@@ -784,7 +776,7 @@
         try {
             await apiRequest(`${API}/attendance/event/${eventId}/register`, {
                 method: 'POST',
-                body: JSON.stringify({ notes: '' }),
+                json: { notes: '' },
             });
             flash('success', 'Te has inscrito exitosamente al evento.');
             await loadEventDetail();
@@ -805,7 +797,7 @@
         try {
             await apiRequest(`${API}/attendance/event/${eventId}/unregister`, {
                 method: 'POST',
-                body: JSON.stringify({}),
+                json: {},
             });
             flash('success', 'Inscripción cancelada exitosamente.');
             await loadEventDetail();
@@ -846,7 +838,7 @@
         try {
             await apiRequest(`${API}/appointments/${myAppt.id}/change-requests`, {
                 method: 'POST',
-                body: JSON.stringify({ reason, suggestions }),
+                json: { reason, suggestions },
             });
             modal?.hide();
             flash('success', 'Solicitud de cambio enviada. El coordinador te notificará la respuesta.');

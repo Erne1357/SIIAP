@@ -37,35 +37,21 @@
     }));
   }
 
-  function getCsrfToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta ? meta.getAttribute('content') : '';
-  }
-
   async function apiRequest(url, options = {}) {
-    const defaultOptions = {
-      credentials: "same-origin",
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
-        ...options.headers
-      }
-    };
-
-    const finalOptions = { ...defaultOptions, ...options };
-
     try {
-      const response = await fetch(url, finalOptions);
-      
-      const contentType = response.headers.get('content-type');
+      const response = await window.SIIAP.api.request(options.method || 'GET', url, {
+        body: options.body,
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        flash: false
+      });
+
+      const contentType = response.contentType;
       if (contentType && contentType.includes('text/html')) {
         throw new Error('No tienes permisos para realizar esta acción');
       }
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
+      const data = response.body;
+      if (data === null || data === undefined) {
         throw new Error('Error al procesar la respuesta del servidor');
       }
 

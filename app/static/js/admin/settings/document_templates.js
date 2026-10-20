@@ -6,7 +6,6 @@
   const PROGS = '/api/v1/programs';
   const IS_ADMIN = window.IS_POSTGRAD_ADMIN;
 
-  const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
 
   const alertsEl  = document.getElementById('alerts');
   const tbodyTpl  = document.getElementById('tbodyTemplates');
@@ -50,10 +49,9 @@
     if (filterActiveOnly.checked)     params.set('active_only', 'true');
 
     try {
-      const res  = await fetch(`${API}?${params}`, { credentials: 'same-origin' });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message || 'Error al cargar plantillas');
-      renderTemplates(data.data || []);
+      const res  = await window.SIIAP.api.get(`${API}?${params}`, { flash: false });
+      if (res.error) throw new Error(res.error.message || 'Error al cargar plantillas');
+      renderTemplates(res.data || []);
     } catch (e) {
       tbodyTpl.innerHTML = `<tr><td colspan="6">
         <div class="empty-state empty-state--inline empty-state--error">
@@ -141,10 +139,9 @@
   // ── Cargar variables ──────────────────────────────────────────────────────
   async function loadVariables() {
     try {
-      const res  = await fetch(`${API}/variables`, { credentials: 'same-origin' });
-      const data = await res.json();
-      if (data.error) return;
-      tbodyVars.innerHTML = (data.data || []).map(v =>
+      const res  = await window.SIIAP.api.get(`${API}/variables`, { flash: false });
+      if (res.error) return;
+      tbodyVars.innerHTML = (res.data || []).map(v =>
         `<tr><td><code>${SIIAP.escapeHtml(v.key)}</code></td><td class="text-muted">${SIIAP.escapeHtml(v.description)}</td></tr>`
       ).join('');
     } catch (_) { /* silencioso */ }
@@ -156,8 +153,8 @@
     const sel = document.getElementById('uploadProgramId');
     if (!sel) return;
     try {
-      const res  = await fetch(`${PROGS}/`, { credentials: 'same-origin' });
-      const data = await res.json();
+      const res  = await window.SIIAP.api.get(`${PROGS}/`, { flash: false });
+      const data = res.body || {};
       const list = data.programs || data.data || [];
       list.forEach(p => {
         const opt = new Option(p.name, p.id);
@@ -170,8 +167,8 @@
   async function loadPeriods() {
     const sel = document.getElementById('genPeriodId');
     try {
-      const res  = await fetch(`${AP}`, { credentials: 'same-origin' });
-      const data = await res.json();
+      const res  = await window.SIIAP.api.get(`${AP}`, { flash: false });
+      const data = res.body || {};
       const list = data.data || data.periods || [];
       list.forEach(p => {
         const opt = new Option(p.name, p.id);
@@ -208,14 +205,8 @@
       if (desc) fd.append('description', desc);
 
       try {
-        const res  = await fetch(API, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrfToken() },
-          body: fd,
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message || 'Error al subir');
+        const res  = await window.SIIAP.api.request('POST', API, { body: fd, flash: false });
+        if (res.error) throw new Error(res.error.message || 'Error al subir');
         flash('Plantilla subida exitosamente.');
         bootstrap.Modal.getInstance(document.getElementById('modalUpload'))?.hide();
         document.getElementById('formUpload').reset();
@@ -246,14 +237,8 @@
         is_active:   document.getElementById('editIsActive').checked,
       };
       try {
-        const res  = await fetch(`${API}/${id}`, {
-          method: 'PATCH',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message || 'Error al actualizar');
+        const res  = await window.SIIAP.api.patch(`${API}/${id}`, body, { flash: false });
+        if (res.error) throw new Error(res.error.message || 'Error al actualizar');
         flash('Plantilla actualizada.');
         bootstrap.Modal.getInstance(document.getElementById('modalEdit'))?.hide();
         await loadTemplates();
@@ -273,13 +258,8 @@
       });
       if (!ok) return;
       try {
-        const res  = await fetch(`${API}/${id}`, {
-          method: 'DELETE',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrfToken() },
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message || 'Error al eliminar');
+        const res  = await window.SIIAP.api.delete(`${API}/${id}`, { flash: false });
+        if (res.error) throw new Error(res.error.message || 'Error al eliminar');
         flash('Plantilla eliminada.', 'warning');
         bootstrap.Modal.getInstance(document.getElementById('modalEdit'))?.hide();
         await loadTemplates();
@@ -318,11 +298,11 @@
   async function searchStudents(q) {
     resultsBox.innerHTML = `<a class="list-group-item list-group-item-action disabled text-muted small">Buscando…</a>`;
     try {
-      const res  = await fetch(
+      const res  = await window.SIIAP.api.get(
         `${USERS}/?role=student&search=${encodeURIComponent(q)}&per_page=10`,
-        { credentials: 'same-origin' }
+        { flash: false }
       );
-      const data = await res.json();
+      const data = res.body || {};
       const users = data.data?.users || data.users || [];
       if (!users.length) {
         resultsBox.innerHTML = `<a class="list-group-item list-group-item-action disabled text-muted small">Sin resultados</a>`;
@@ -410,7 +390,7 @@
       const res = await fetch(`${API}/generate`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': window.SIIAP.api.csrfToken() },
         body: JSON.stringify(body),
       });
 

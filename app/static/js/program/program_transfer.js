@@ -2,11 +2,6 @@
 (function() {
   'use strict';
   
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  
   function flash(message, level = 'success') {
     window.dispatchEvent(new CustomEvent('flash', { 
       detail: { level: level, message: message } 
@@ -58,13 +53,11 @@
     }
 
     try {
-      const res = await fetch('/api/v1/programs', {
-        credentials: 'same-origin'
-      });
+      const res = await window.SIIAP.api.get('/api/v1/programs', { flash: false });
       
       if (!res.ok) throw new Error('Error cargando programas');
       
-      const json = await res.json();
+      const json = res.body;
       const programs = json.data || [];
       
       const container = document.getElementById('availableProgramsList');
@@ -189,20 +182,12 @@
     analysisModal.show();
     
     try {
-      const res = await fetch('/api/v1/program-changes/analyze', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrf()
-        },
-        body: JSON.stringify({
-          from_program_id: currentFromProgram.id,
-          to_program_id: currentToProgram.id
-        })
-      });
+      const res = await window.SIIAP.api.post('/api/v1/program-changes/analyze', {
+        from_program_id: currentFromProgram.id,
+        to_program_id: currentToProgram.id
+      }, { flash: false });
       
-      const json = await res.json();
+      const json = res.body || {};
       
       if (!res.ok || json.error) {
         throw new Error(json.error?.message || 'Error al analizar');
@@ -423,21 +408,13 @@
     confirmBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin me-2" aria-hidden="true"></i>Procesando...';
     
     try {
-      const res = await fetch('/api/v1/program-changes/execute', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrf()
-        },
-        body: JSON.stringify({
-          from_program_id: currentFromProgram.id,
-          to_program_id: currentToProgram.id,
-          reason: reason
-        })
-      });
+      const res = await window.SIIAP.api.post('/api/v1/program-changes/execute', {
+        from_program_id: currentFromProgram.id,
+        to_program_id: currentToProgram.id,
+        reason: reason
+      }, { flash: false });
       
-      const json = await res.json();
+      const json = res.body || {};
       
       if (!res.ok || json.error) {
         throw new Error(json.error?.message || 'Error al ejecutar el cambio');

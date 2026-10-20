@@ -4,11 +4,6 @@
 (function () {
   'use strict';
 
-  function getCsrf() {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  }
-
   let currentRoleId = null;
   let catalogAll = [];
 
@@ -54,8 +49,8 @@
 
   // ── Catálogo ────────────────────────────────────────────────────────────
   async function loadCatalog() {
-    const res = await fetch('/api/v1/permissions/catalog');
-    const { data } = await res.json();
+    const res = await window.SIIAP.api.get('/api/v1/permissions/catalog', { flash: false });
+    const { data } = res.body || {};
     catalogAll = data || [];
     populateCatalogSelect(catalogAll);
   }
@@ -85,8 +80,8 @@
       b.classList.toggle('active', parseInt(b.dataset.roleId) === roleId);
     });
 
-    const res = await fetch(`/api/v1/permissions/roles/${roleId}`);
-    const { data } = await res.json();
+    const res = await window.SIIAP.api.get(`/api/v1/permissions/roles/${roleId}`, { flash: false });
+    const { data } = res.body || {};
 
     renderSeed(data.seed_permissions || []);
     renderOverrides(data.overrides || []);
@@ -165,12 +160,9 @@
     const reason   = document.getElementById('overrideReason').value.trim();
     if (!codename) { showToast('Selecciona un permiso.', 'warning'); return; }
 
-    const res = await fetch(`/api/v1/permissions/roles/${currentRoleId}/override`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-      body: JSON.stringify({ codename, reason: reason || null }),
-    });
-    const body = await res.json();
+    const res = await window.SIIAP.api.post(`/api/v1/permissions/roles/${currentRoleId}/override`,
+      { codename, reason: reason || null }, { flash: false });
+    const body = res.body || {};
     if (res.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addOverrideModal')).hide();
       showToast(body.flash?.[0]?.[0] ?? 'Permiso agregado al rol.', 'success');
@@ -190,11 +182,8 @@
     if (!ok) return;
     // Contexto URL, no HTML: el codename viaja en la ruta y debe ir codificado.
     const path = `/api/v1/permissions/roles/${currentRoleId}/override/${encodeURIComponent(codename)}`;
-    const res = await fetch(path, {
-      method: 'DELETE',
-      headers: { 'X-CSRFToken': getCsrf() },
-    });
-    const body = await res.json();
+    const res = await window.SIIAP.api.delete(path, { flash: false });
+    const body = res.body || {};
     if (res.ok) {
       showToast(body.flash?.[0]?.[0] ?? 'Permiso revertido.', 'success');
       loadRole(currentRoleId, document.getElementById('currentRoleName').textContent);
@@ -206,8 +195,8 @@
   // ── Auditoría ───────────────────────────────────────────────────────────
   async function loadAudit() {
     const params = currentRoleId ? `?role_id=${currentRoleId}&per_page=20` : '?per_page=20';
-    const res = await fetch(`/api/v1/permissions/audit${params}`);
-    const { data } = await res.json();
+    const res = await window.SIIAP.api.get(`/api/v1/permissions/audit${params}`, { flash: false });
+    const { data } = res.body || {};
     const container = document.getElementById('auditLog');
     if (!data || !data.length) {
       container.innerHTML = `
@@ -250,23 +239,8 @@
   }
 
   // ── Toast ───────────────────────────────────────────────────────────────
-  // Fondos suaves de _tokens.css: .text-bg-success/.text-bg-warning ponen texto
-  // blanco sobre un tono demasiado claro (3.49:1 y 3.26:1) y no cumplen AA.
-  const TOAST_TONE = {
-    success: 'bg-success-soft',
-    danger:  'bg-danger-soft',
-    warning: 'bg-warning-soft',
-    info:    'bg-info-soft',
-    primary: 'bg-primary-soft',
-  };
-
   function showToast(msg, type = 'info') {
-    const el = document.getElementById('permToast');
-    el.className = `toast align-items-center ${TOAST_TONE[type] || TOAST_TONE.info}`;
-    document.getElementById('permToastBody').textContent = msg;
-    if (window.SIIAP && typeof window.SIIAP.announce === 'function') {
-      window.SIIAP.announce(msg);
-    }
-    bootstrap.Toast.getOrCreateInstance(el).show();
+    // Canonical toast (js/flash.js)
+    window.SIIAP.flash(type === 'primary' ? 'info' : type, msg);
   }
 })();

@@ -7,11 +7,6 @@
     return;
   }
 
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
   const getLoginUrl = () => {
     return (typeof loginPageUrl !== 'undefined' && loginPageUrl) ? loginPageUrl : '/login';
   };
@@ -67,11 +62,7 @@
 
   async function doApiLogout() {
     try {
-      await fetch(sessionLogoutUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'X-CSRFToken': csrf }
-      });
+      await window.SIIAP.api.post(sessionLogoutUrl, null, { flash: false, onUnauthorized: false });
       // NO mostrar flash aquí - dejamos que el backend maneje los mensajes
     } catch (e) {
       console.warn('[session] fallo logout API, redirigiendo igual.', e);
@@ -88,18 +79,7 @@
 
   async function doKeepalive() {
     try {
-      const res = await fetch(sessionKeepaliveUrl, {
-        method: 'GET',
-        credentials: 'same-origin',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRFToken': csrf
-        }
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json && json.flash) {
-        json.flash.forEach(f => window.dispatchEvent(new CustomEvent('flash', { detail: f })));
-      }
+      const res = await window.SIIAP.api.get(sessionKeepaliveUrl, { onUnauthorized: false });
       if (!res.ok) throw new Error('keepalive no OK');
       resetInactivityTimers(true);
       return true;

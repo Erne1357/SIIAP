@@ -1,11 +1,5 @@
 // static/js/coordinator/dashboard.js - FASE 2
 document.addEventListener('DOMContentLoaded', () => {
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
-
   function emitFlash(level, message) {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
@@ -22,13 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==================== CARGA DE PROGRAMAS ====================
   async function loadPrograms() {
     try {
-      const res = await fetch('/api/v1/coordinator/programs', {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get('/api/v1/coordinator/programs', { flash: false });
 
-      if (!res.ok) throw new Error('No se pudieron cargar los programas');
+      if (!r.ok) throw new Error('No se pudieron cargar los programas');
 
-      const data = await res.json();
+      const data = r.body;
       const programFilter = document.getElementById('programFilter');
       
       if (programFilter && data.data?.programs) {
@@ -46,13 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadStudents() {
     try {
       const params = new URLSearchParams(currentFilters);
-      const res = await fetch(`/api/v1/coordinator/students?${params}`, {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get(`/api/v1/coordinator/students?${params}`, { flash: false });
 
-      if (!res.ok) throw new Error('No se pudieron cargar los estudiantes');
+      if (!r.ok) throw new Error('No se pudieron cargar los estudiantes');
 
-      const data = await res.json();
+      const data = r.body;
       
 
       studentsData = data.data?.students || [];
@@ -439,16 +429,15 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.show();
 
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/details`, {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get(
+        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/details`,
+        { flash: false }
+      );
 
-      if (!res.ok) throw new Error('Error al cargar detalles');
+      if (r.status >= 400) throw new Error('Error al cargar detalles');
+      if (r.error) throw new Error(r.error.message || 'Error desconocido');
 
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message || 'Error desconocido');
-
-      renderStudentDetails(data.data);
+      renderStudentDetails(r.data);
 
     } catch (err) {
       console.error('Error loading student details:', err);
@@ -975,21 +964,18 @@ document.addEventListener('DOMContentLoaded', () => {
       submitBtn.disabled = true;
 
       try {
-        const res = await fetch('/api/v1/coordinator/upload-for-student', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrf },
-          body: formData
+        // flash:false -> this screen emits its own messages below
+        const r = await window.SIIAP.api.request('POST', '/api/v1/coordinator/upload-for-student', {
+          body: formData,
+          flash: false
         });
 
-        const json = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          emitFlash('danger', json.error?.message || 'No se pudo subir el documento');
+        if (!r.ok) {
+          emitFlash('danger', r.error?.message || 'No se pudo subir el documento');
           return;
         }
 
-        emitFlash('success', json.data?.message || 'Documento registrado exitosamente por coordinador');
+        emitFlash('success', r.data?.message || 'Documento registrado exitosamente por coordinador');
 
         // Cerrar modal y recargar datos
         const modal = bootstrap.Modal.getInstance(document.getElementById('uploadForStudentModal'));
@@ -1009,13 +995,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadStudentsList() {
     try {
-      const res = await fetch('/api/v1/coordinator/manageable-students', {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get('/api/v1/coordinator/manageable-students', { flash: false });
 
-      if (!res.ok) throw new Error('No se pudieron cargar estudiantes');
+      if (!r.ok) throw new Error('No se pudieron cargar estudiantes');
 
-      const data = await res.json();
+      const data = r.body;
       const select = document.getElementById('targetStudent');
 
       select.innerHTML = '<option value="">Seleccionar estudiante...</option>' +
@@ -1030,13 +1014,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadStudentArchives(studentId) {
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/uploadable-archives`, {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get(
+        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/uploadable-archives`,
+        { flash: false }
+      );
 
-      if (!res.ok) throw new Error('No se pudieron cargar archivos');
+      if (!r.ok) throw new Error('No se pudieron cargar archivos');
 
-      const data = await res.json();
+      const data = r.body;
       const select = document.getElementById('targetArchive');
 
       const archives = data.data?.archives || [];
@@ -1098,12 +1083,12 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.show();
 
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`, {
-        credentials: 'same-origin'
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error?.message || 'Error al cargar');
-      renderPermanenceModal(data.data);
+      const r = await window.SIIAP.api.get(
+        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`,
+        { flash: false }
+      );
+      if (!r.ok) throw new Error(r.error?.message || 'Error al cargar');
+      renderPermanenceModal(r.data);
     } catch (err) {
       document.getElementById('permModalSpinner').innerHTML = `
         <div class="alert alert-danger">
@@ -1304,16 +1289,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function toggleConacytScholarship(userProgramId, newValue) {
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-      const res = await fetch(`/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-        body: JSON.stringify({ value: newValue }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => emitFlash(f.level, f.message));
-      if (res.ok && !json.error) {
-        _permCurrentConacyt = json.data.has_conacyt_scholarship;
+      const r = await window.SIIAP.api.patch(
+        `/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`,
+        { value: newValue }
+      );
+      if (r.ok) {
+        _permCurrentConacyt = r.data.has_conacyt_scholarship;
         const badge = document.getElementById('permConacytBadge');
         badge.innerHTML = _permCurrentConacyt
           ? SIIAP.statusBadge('approved', 'Becario SECIHTI')

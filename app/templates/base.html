@@ -1,6 +1,10 @@
 {# app/templates/base.html #}
 {% from '_sidebar_nav.html' import user_card, sidebar_nav with context %}
 {% from '_macros.html' import icon_button, required_mark %}
+{# Migas del encabezado de página. Va a nivel raíz para que los bloques
+   (incluido {% block breadcrumb %}) la vean; una página la ajusta con
+   {% set breadcrumb_current = '…' %} a nivel raíz. #}
+{% set crumbs = page_nav().breadcrumbs(breadcrumb_current|default(none)) %}
 <!DOCTYPE html>
 <html lang="es">
 
@@ -9,7 +13,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
 
-  <title>{% block title %}SIIAP{% endblock %}</title>
+  {# Título por defecto: la etiqueta del enlace activo del menú. Las páginas
+     que lo sobrescriben escriben el título completo (sin super()). #}
+  <title>{% block title %}{% if page_nav().title %}{{ page_nav().title }} · SIIAP{% else %}SIIAP{% endif %}{% endblock %}</title>
 
   <!-- Tipografía institucional (Inter para body, Plus Jakarta Sans para display) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,19 +36,14 @@
   <link href="{{ url_for('static', filename='css/menu_colors.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/flash.css') }}?v={{ static_version }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/notifications.css') }}?v={{ static_version }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/layout/shell.css') }}?v={{ static_version }}" rel="stylesheet">
 
   <!-- Favicon -->
   <link rel="icon" href="{{ url_for('static', filename='assets/icons/favicon.ico') }}" type="image/x-icon">
 
-  <!-- Preload logos -->
+  <!-- Preload del logotipo de la cabecera (los demás viven en el pie) -->
   <link rel="preload" as="image"
     href="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}">
-  <link rel="preload" as="image"
-    href="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}?v={{ static_version }}">
-  <link rel="preload" as="image"
-    href="{{ url_for('static', filename='assets/images/logo_sep.png') }}?v={{ static_version }}">
-  <link rel="preload" as="image"
-    href="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}?v={{ static_version }}">
 
   {% block styles %}{% endblock %}
 </head>
@@ -53,10 +54,10 @@
   <!-- FLASH MESSAGES -->
   {% include '_flash.html' %}
 
-  <!-- HEADER -->
+  <!-- HEADER: un solo logotipo + nombre del sistema (los institucionales van en el pie) -->
   <header id="page-header" class="border-bottom shadow-sm">
     <div class="container-fluid px-3 py-2">
-      <div class="d-flex align-items-center justify-content-between gap-3">
+      <div class="app-header__inner">
 
         {# Las páginas que vacían {% block navbar %} (404/500) deben vaciar
            también este bloque: sin offcanvas el botón sería un control muerto. #}
@@ -68,21 +69,13 @@
         </button>
         {% endblock %}
 
-        <!-- Logos izquierda -->
-        <div class="header-logos header-logos-left d-none d-md-flex align-items-center gap-2 gap-lg-3">
-          <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}?v={{ static_version }}" alt="SEP"
-            class="header-logo logo-sep">
-          <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}?v={{ static_version }}" alt="TECNM"
-            class="header-logo logo-tecnm">
-        </div>
+        <a class="app-brand" href="{{ url_for('pages_user.dashboard') }}">
+          <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}"
+            alt="" class="app-brand__logo">
+          <span class="app-brand__name">SIIAP<span class="visually-hidden"> — ir al inicio</span></span>
+        </a>
 
-        <!-- SIIAP centrado -->
-        <div class="brand-container">
-          <span class="brand-text">SIIAP</span>
-        </div>
-
-        <!-- Logos derecha -->
-        <div class="header-logos header-logos-right d-none d-md-flex align-items-center gap-2 gap-lg-3">
+        <div class="app-header__actions d-none d-md-block">
           <!-- Notificaciones -->
           <div class="position-relative" id="notificationBellContainer">
             {# notifications.js reescribe [data-count] y el aria-label del botón:
@@ -97,12 +90,6 @@
               </span>
             </button>
           </div>
-
-          <img
-            src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}"
-            alt="ITCJ" class="header-logo logo-itcj">
-          <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}?v={{ static_version }}"
-            alt="Posgrado" class="header-logo logo-posgrado">
         </div>
       </div>
     </div>
@@ -160,13 +147,41 @@
 
     <!-- MAIN CONTENT -->
     <main class="flex-grow-1" id="main-content" tabindex="-1">
+      {# Encabezado de página: migas derivadas del grupo/enlace activo del menú.
+         Sobrescribir:  {% set breadcrumb_current = 'Detalle' %}  (última miga),
+         {% block breadcrumb %} (todo el trayecto) o {% block page_title %}
+         (un <h1 class="page-header__title"> opcional; las páginas que ya
+         traen su <h1> no lo declaran, para no duplicarlo). #}
+      {% block page_header %}
+      {% if crumbs %}
+      <div class="page-header">
+        {% block breadcrumb %}
+        <nav class="page-header__breadcrumb" aria-label="Ruta de navegación">
+          <ol class="breadcrumb">
+            {% for crumb in crumbs %}
+            {% if loop.last %}
+            <li class="breadcrumb-item active" aria-current="page">{{ crumb.label }}</li>
+            {% elif crumb.href %}
+            <li class="breadcrumb-item"><a href="{{ crumb.href }}">{{ crumb.label }}</a></li>
+            {% else %}
+            <li class="breadcrumb-item">{{ crumb.label }}</li>
+            {% endif %}
+            {% endfor %}
+          </ol>
+        </nav>
+        {% endblock %}
+        <div class="page-header__title-slot">{% block page_title %}{% endblock %}</div>
+      </div>
+      {% endif %}
+      {% endblock %}
+
       {% block content %}{% endblock %}
     </main>
   </div>
 
   <!-- FOOTER -->
   <footer class="d-none d-md-flex">
-    {% include '_footer.html' %}
+    {% with footer_logos = true %}{% include '_footer.html' %}{% endwith %}
   </footer>
 
   <!-- Dropdown de notificaciones -->
@@ -335,6 +350,7 @@
 
   <!-- Escapado canónico: PRIMERO, todo lo demás depende de SIIAP.escapeHtml/escapeAttr -->
   <script src="{{ url_for('static', filename='js/utils/escape.js') }}?v={{ static_version }}"></script>
+  <script src="{{ url_for('static', filename='js/utils/http.js') }}?v={{ static_version }}"></script>
 
   <!-- API Client + diálogos reutilizables + helpers UI -->
   <script src="{{ url_for('static', filename='js/utils/api.js') }}?v={{ static_version }}"></script>

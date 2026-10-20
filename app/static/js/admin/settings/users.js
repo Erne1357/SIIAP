@@ -20,12 +20,6 @@
         }
     };
 
-    // Función para obtener CSRF token
-    const getCsrf = () => {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
-    };
-
     // Silueta genérica. Nunca dejar `src=""`: el navegador lo resuelve contra la
     // URL de la página, vuelve a descargarla como imagen y pinta un icono roto.
     const DEFAULT_AVATAR = '/static/assets/images/default.jpg';
@@ -151,8 +145,8 @@
         });
         
         try {
-            const res = await fetch(`${API_BASE}?${params}`);
-            const json = await res.json();
+            const res = await window.SIIAP.api.get(`${API_BASE}?${params}`, { flash: false });
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message || 'Error al cargar usuarios');
 
@@ -500,8 +494,8 @@
         modal.show();
         
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`);
-            const json = await res.json();
+            const res = await window.SIIAP.api.get(`${API_BASE}/${encodeURIComponent(userId)}`, { flash: false });
+            const json = res.body || {};
 
             if (!res.ok) throw new Error(json.error?.message);
 
@@ -604,8 +598,8 @@
     // Editar usuario
     async function editUser(userId) {
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`);
-            const json = await res.json();
+            const res = await window.SIIAP.api.get(`${API_BASE}/${encodeURIComponent(userId)}`, { flash: false });
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message);
             
@@ -638,16 +632,9 @@
         };
         
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrf()
-                },
-                body: JSON.stringify(data)
-            });
+            const res = await window.SIIAP.api.request('PATCH', `${API_BASE}/${encodeURIComponent(userId)}`, { json: data, flash: false });
             
-            const json = await res.json();
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message);
             
@@ -675,14 +662,9 @@
         if (!ok) return;
         
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/reset-password`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCsrf()
-                }
-            });
+            const res = await window.SIIAP.api.request('POST', `${API_BASE}/${encodeURIComponent(userId)}/reset-password`, { flash: false });
             
-            const json = await res.json();
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message);
             
@@ -698,14 +680,9 @@
     // Toggle activo/inactivo
     async function toggleUserActive(userId) {
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/toggle-active`, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRFToken': getCsrf()
-                }
-            });
+            const res = await window.SIIAP.api.request('PATCH', `${API_BASE}/${encodeURIComponent(userId)}/toggle-active`, { flash: false });
             
-            const json = await res.json();
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message);
             
@@ -723,8 +700,8 @@
     // Asignar número de control
     async function assignControlNumber(userId) {
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}`);
-            const json = await res.json();
+            const res = await window.SIIAP.api.get(`${API_BASE}/${encodeURIComponent(userId)}`, { flash: false });
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message);
             
@@ -764,16 +741,9 @@
         }
         
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/assign-control-number`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrf()
-                },
-                body: JSON.stringify({ control_number: controlNumber })
-            });
+            const res = await window.SIIAP.api.request('POST', `${API_BASE}/${encodeURIComponent(userId)}/assign-control-number`, { json: { control_number: controlNumber }, flash: false });
             
-            const json = await res.json();
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message);
             
@@ -798,8 +768,8 @@
         modal.show();
         
         try {
-            const res = await fetch(`${API_BASE}/${encodeURIComponent(userId)}/history`);
-            const json = await res.json();
+            const res = await window.SIIAP.api.get(`${API_BASE}/${encodeURIComponent(userId)}/history`, { flash: false });
+            const json = res.body || {};
             
             if (!res.ok) throw new Error(json.error?.message);
             
@@ -849,8 +819,8 @@
      */
     async function loadScopePrograms() {
         if (scopeProgramsCache) return scopeProgramsCache;
-        const res = await fetch(SCOPE_PROGRAMS_API);
-        const json = await res.json();
+        const res = await window.SIIAP.api.get(SCOPE_PROGRAMS_API, { flash: false });
+        const json = res.body || {};
         if (!res.ok) throw new Error(json.error?.message || 'No se pudieron cargar los programas');
         scopeProgramsCache = json.data?.programs || [];
         return scopeProgramsCache;
@@ -936,8 +906,8 @@
 
         try {
             if (!delegatableCache) {
-                const res = await fetch(`${PERMISSIONS_API}/delegatable`);
-                const json = await res.json();
+                const res = await window.SIIAP.api.get(`${PERMISSIONS_API}/delegatable`, { flash: false });
+                const json = res.body || {};
                 if (!res.ok) throw new Error(json.error?.message || 'Error al cargar permisos');
                 delegatableCache = json.data || [];
             }
@@ -1066,15 +1036,8 @@
         if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creando…'; }
 
         try {
-            const res = await fetch(`${API_BASE}/social-service`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrf()
-                },
-                body: JSON.stringify(payload)
-            });
-            const json = await res.json();
+            const res = await window.SIIAP.api.post(`${API_BASE}/social-service`, payload, { flash: false });
+            const json = res.body || {};
             if (!res.ok) throw new Error(json.error?.message || 'Error al crear usuario');
 
             if (json.flash) json.flash.forEach(f => showFlash(f.level, f.message));
@@ -1100,8 +1063,8 @@
         if (!ctx.canViewDelegations) return '';
 
         try {
-            const res = await fetch(`${PERMISSIONS_API}/user/${encodeURIComponent(userId)}`);
-            const json = await res.json();
+            const res = await window.SIIAP.api.get(`${PERMISSIONS_API}/user/${encodeURIComponent(userId)}`, { flash: false });
+            const json = res.body || {};
             if (!res.ok) return '';
             const dels = json.data || [];
             if (!dels.length) {
@@ -1179,11 +1142,8 @@
         if (!ok) return;
 
         try {
-            const res = await fetch(`${PERMISSIONS_API}/delegation/${encodeURIComponent(upId)}`, {
-                method: 'DELETE',
-                headers: { 'X-CSRFToken': getCsrf() }
-            });
-            const json = await res.json();
+            const res = await window.SIIAP.api.delete(`${PERMISSIONS_API}/delegation/${encodeURIComponent(upId)}`, { flash: false });
+            const json = res.body || {};
             if (!res.ok) throw new Error(json.error?.message || 'Error al revocar');
             if (json.flash) json.flash.forEach(f => {
                 const level = Array.isArray(f) ? f[1] : f.level;

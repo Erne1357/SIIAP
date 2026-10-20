@@ -56,10 +56,9 @@ class AcceptanceManager {
         const ids = this._targetProgramIds();
         const tasks = ids.map(async (pid) => {
             try {
-                const res = await fetch(urlBuilder(pid));
-                const json = await res.json();
-                if (!res.ok || json.error) return { pid, data: null, error: json.error };
-                return { pid, data: json.data, error: null };
+                const r = await window.SIIAP.api.get(urlBuilder(pid), { flash: false });
+                if (!r.ok) return { pid, data: null, error: r.error };
+                return { pid, data: r.data, error: null };
             } catch (e) {
                 return { pid, data: null, error: { message: e.message } };
             }
@@ -532,26 +531,14 @@ class AcceptanceManager {
         btn.disabled = true;
 
         try {
-            const response = await fetch(
+            const r = await window.SIIAP.api.post(
                 `/api/v1/acceptance/user/${userId}/program/${programId}/assign-control-number`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                    },
-                    body: JSON.stringify({ control_number: controlNumber })
-                }
+                { control_number: controlNumber }
             );
 
-            const result = await response.json();
             bootstrap.Modal.getInstance(document.getElementById('assignControlNumberModal'))?.hide();
 
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadCurrentTab();
             }
@@ -618,25 +605,14 @@ class AcceptanceManager {
         formData.append('file', fileInput.files[0]);
 
         try {
-            const response = await fetch(
+            const r = await window.SIIAP.api.request(
+                'POST',
                 `/api/v1/acceptance/user/${userId}/program/${programId}/upload-doc`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                    },
-                    body: formData
-                }
+                { body: formData }
             );
-
-            const result = await response.json();
             this.uploadDocModal.hide();
 
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadCurrentTab();
             }
@@ -704,23 +680,13 @@ class AcceptanceManager {
         }
 
         try {
-            const response = await fetch(`/api/v1/acceptance/document/${docId}/review`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify({ status, notes })
-            });
-
-            const result = await response.json();
+            const r = await window.SIIAP.api.post(
+                `/api/v1/acceptance/document/${docId}/review`,
+                { status, notes }
+            );
             this.reviewReceiptModal.hide();
 
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadCurrentTab();
             }
@@ -873,21 +839,12 @@ class AcceptanceManager {
         spinner.classList.remove('d-none');
 
         try {
-            const response = await fetch(
+            const r = await window.SIIAP.api.post(
                 `/api/v1/acceptance/user/${userId}/program/${programId}/defer`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                    },
-                    body: JSON.stringify({ reason: reason || null })
-                }
+                { reason: reason || null }
             );
-            const result = await response.json();
             this.deferApplicantModal.hide();
-            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
-            if (!result.error) { this.loadStats(); this.loadCurrentTab(); }
+            if (r.ok) { this.loadStats(); this.loadCurrentTab(); }
         } catch (error) {
             console.error('Error deferring applicant:', error);
             showFlash('danger', 'Error al diferir la inscripción');
@@ -927,18 +884,9 @@ class AcceptanceManager {
             : `/api/v1/acceptance/deferral/${deferralId}/reject`;
 
         try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify({ notes: notes || null })
-            });
-            const result = await response.json();
+            const r = await window.SIIAP.api.post(endpoint, { notes: notes || null });
             this.reviewDeferralModal.hide();
-            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
-            if (!result.error) this.loadDeferredTab();
+            if (r.ok) this.loadDeferredTab();
         } catch (error) {
             console.error('Error reviewing deferral:', error);
             showFlash('danger', 'Error al procesar la solicitud');
@@ -966,20 +914,14 @@ class AcceptanceManager {
         spinner.classList.remove('d-none');
 
         try {
-            const response = await fetch(
+            // Empty JSON-typed POST, as before (the Content-Type header is kept on purpose)
+            const r = await window.SIIAP.api.request(
+                'POST',
                 `/api/v1/acceptance/user/${userId}/program/${programId}/reactivate`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                    }
-                }
+                { headers: { 'Content-Type': 'application/json' } }
             );
-            const result = await response.json();
             this.reactivateModal.hide();
-            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
-            if (!result.error) { this.loadStats(); this.loadDeferredTab(); }
+            if (r.ok) { this.loadStats(); this.loadDeferredTab(); }
         } catch (error) {
             console.error('Error reactivating applicant:', error);
             showFlash('danger', 'Error al reactivar al aspirante');

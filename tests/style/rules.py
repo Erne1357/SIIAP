@@ -320,6 +320,12 @@ def js_mutation_without_csrf():
     return _collect(_js_files(), counter)
 
 
+def js_csrf_meta_reads():
+    """Reads of the csrf meta tag outside SIIAP.api (utils/http.js owns it)."""
+    items = ((p, t) for p, t in _js_files() if not p.endswith("utils/http.js"))
+    return _collect(items, lambda t: _count(r"""meta\[name=["']csrf-token["']\]""", t))
+
+
 RULES = {
     "tpl_style_block": tpl_style_block,
     "tpl_inline_style": tpl_inline_style,
@@ -344,6 +350,7 @@ RULES = {
     "js_console_log": js_console_log,
     "js_alert": js_alert,
     "js_mutation_without_csrf": js_mutation_without_csrf,
+    "js_csrf_meta_reads": js_csrf_meta_reads,
 }
 
 

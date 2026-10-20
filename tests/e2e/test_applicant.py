@@ -64,7 +64,10 @@ def test_applicant_profile_renders(page, applicant):
 
 def test_applicant_sidebar_links_to_admission(page, applicant):
     page.goto('/user/dashboard')
-    page.locator('#sidebar').get_by_role('link', name='Admisión').click()
+    # Menu is organised by workflow: the Admisión group starts collapsed on the dashboard.
+    sidebar = page.locator('#sidebar')
+    sidebar.get_by_role('button', name='Admisión').click()
+    sidebar.get_by_role('link', name='Mi admisión').click()
     expect(page).to_have_url(re.compile(rf'/programs/admission/{acc.PROGRAM_SLUG}$'))
 
 

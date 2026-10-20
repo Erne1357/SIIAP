@@ -1,11 +1,5 @@
 // static/js/admin/admin_review.js - Versión con gestión de prórrogas
 document.addEventListener('DOMContentLoaded', () => {
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
-
   function emitFlash(level, message) {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
@@ -77,16 +71,12 @@ document.addEventListener('DOMContentLoaded', () => {
       setDecisionBusy(true, 'Enviando decisión…');
 
       try {
-        const res = await fetch(`/api/v1/admin/review/submissions/${subId}/decision`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrf
-          },
-          body: JSON.stringify({ action: pendingAction, comment })
-        });
-        const json = await res.json().catch(() => ({}));
+        const res = await window.SIIAP.api.post(
+          `/api/v1/admin/review/submissions/${subId}/decision`,
+          { action: pendingAction, comment },
+          { flash: false }
+        );
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo aplicar la acción.';
@@ -183,13 +173,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (programId) params.append('program_id', programId);
       if (userId) params.append('user_id', userId);
 
-      const res = await fetch(`/api/v1/extensions/requests?${params}`, {
-        credentials: 'same-origin'
-      });
+      const res = await window.SIIAP.api.get(`/api/v1/extensions/requests?${params}`, { flash: false });
 
       if (!res.ok) throw new Error('Error al cargar solicitudes');
 
-      const json = await res.json();
+      const json = res.body || {};
       
       extensionRequests = json.data?.items || [];
 
@@ -374,17 +362,9 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.granted_until = grantedUntil;
       }
 
-      const res = await fetch(`/api/v1/extensions/requests/${extId}/decision`, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf
-        },
-        body: JSON.stringify(payload)
-      });
+      const res = await window.SIIAP.api.put(`/api/v1/extensions/requests/${extId}/decision`, payload, { flash: false });
 
-      const json = await res.json();
+      const json = res.body || {};
 
       if (!res.ok || json.error) {
         emitFlash('danger', json.error?.message || 'No se pudo procesar la decisión');

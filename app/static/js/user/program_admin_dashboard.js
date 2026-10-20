@@ -13,7 +13,7 @@
   }
 
   function toast(level, message) {
-    if (typeof showFlash === 'function') showFlash(level, message);
+    window.SIIAP.flash(level, message);
   }
 
   // Estrategia: reload tras toast con delay largo (3s) para no interrumpir al

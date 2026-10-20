@@ -3,12 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const profileForm = document.querySelector('form[data-profile-update="true"]');
   const completeProfileForm = document.querySelector('form[data-complete-profile="true"]');
 
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
-
   function emitFlash(level, message) {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
@@ -31,17 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       try {
-        const res = await fetch('/api/v1/users/me', {
-          method: 'PATCH',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrf
-          },
-          body: JSON.stringify(payload)
-        });
+        // flash:false — this handler emits or persists the server flashes itself.
+        const res = await window.SIIAP.api.patch('/api/v1/users/me', payload, { flash: false });
 
-        const json = await res.json().catch(() => ({}));
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo actualizar el perfil.';
@@ -114,17 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
       submitBtn.disabled = true;
 
       try {
-        const res = await fetch('/api/v1/users/me/complete-profile', {
-          method: 'PATCH',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrf
-          },
-          body: JSON.stringify(payload)
-        });
+        // flash:false — this handler emits or persists the server flashes itself.
+        const res = await window.SIIAP.api.patch('/api/v1/users/me/complete-profile', payload, { flash: false });
 
-        const json = await res.json().catch(() => ({}));
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo guardar la información.';
@@ -174,13 +154,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadProfileCompletionStatus() {
     try {
-      const res = await fetch('/api/v1/users/me/profile-completion', {
-        credentials: 'same-origin'
-      });
+      const res = await window.SIIAP.api.get('/api/v1/users/me/profile-completion', { flash: false });
 
       if (!res.ok) return;
 
-      const json = await res.json();
+      const json = res.body;
       const completion = json.data;
 
       // Actualizar indicador de completitud en la UI

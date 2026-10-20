@@ -1,12 +1,6 @@
 // static/js/program/admission.js - Flash corregido
 document.addEventListener('DOMContentLoaded', () => {
 
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
-
   // FUNCIÓN FLASH CORRECTA
   function flash(message, level = 'success') {
     window.dispatchEvent(new CustomEvent('flash', {
@@ -168,20 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
         reason: reason
       };
 
-      const res = await fetch('/api/v1/extensions/requests', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const json = await res.json().catch(() => ({}));
+      const res = await window.SIIAP.api.post('/api/v1/extensions/requests', payload, { flash: false });
 
       if (!res.ok) {
-        const msg = json?.error?.message || 'No se pudo enviar la solicitud de prórroga.';
+        const msg = res.body?.error?.message || 'No se pudo enviar la solicitud de prórroga.';
         flash(msg, 'danger');
         return;
       }
@@ -246,13 +230,9 @@ document.addEventListener('DOMContentLoaded', () => {
       submitBtn.disabled = true;
 
       try {
-        const res = await fetch('/api/v1/submissions', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrf },
-          body: fd
-        });
-        const json = await res.json().catch(() => ({}));
+        // flash:false — this handler shows or persists the server flashes itself.
+        const res = await window.SIIAP.api.request('POST', '/api/v1/submissions', { body: fd, flash: false });
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo subir el documento.';
@@ -310,12 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!ok) return;
 
       try {
-        const res = await fetch(`/api/v1/submissions/${subId}`, {
-          method: 'DELETE',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrf }
-        });
-        const json = await res.json().catch(() => ({}));
+        // flash:false — this handler shows or persists the server flashes itself.
+        const res = await window.SIIAP.api.delete(`/api/v1/submissions/${subId}`, { flash: false });
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo eliminar.';
@@ -392,21 +369,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!panel) return;
 
     try {
-      const res = await fetch('/api/v1/appointments/mine/active', {
-        credentials: 'same-origin'
-      });
+      const res = await window.SIIAP.api.get('/api/v1/appointments/mine/active', { flash: false });
 
       if (!res.ok) throw new Error('appointments-request-failed');
 
-      const json = await res.json();
+      const json = res.body;
       const appointments = json.data?.appointments || [];
       if (!json.error && appointments.length > 0) {
         renderInterviewPanel('', '');
         appointments.forEach(appt => showInterviewCard(appt));
       } else if (!json.error && !appointments.length) {
         // Sin cita asignada: informar si falta completar el perfil.
-        const meRes = await fetch('/api/v1/users/me', { credentials: 'same-origin' });
-        const userInfo = await meRes.json();
+        const meRes = await window.SIIAP.api.get('/api/v1/users/me', { flash: false });
+        const userInfo = meRes.body;
 
         if (meRes.ok && !userInfo.data.user.profile_completed) {
           renderInterviewPanel('alert alert-warning', `
@@ -551,20 +526,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = { reason };
       if (suggestions) payload.suggestions = suggestions;
 
-      const res = await fetch(`/api/v1/appointments/${appointmentId}/change-requests`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf
-        },
-        body: JSON.stringify(payload)
-      });
+      const res = await window.SIIAP.api.post(`/api/v1/appointments/${appointmentId}/change-requests`, payload, { flash: false });
 
-      const json = await res.json();
-
-      if (!res.ok || json.error) {
-        flash(json.error?.message || 'No se pudo enviar la solicitud', 'danger');
+      if (!res.ok) {
+        flash(res.body?.error?.message || 'No se pudo enviar la solicitud', 'danger');
         return;
       }
 
@@ -676,12 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.innerHTML = '<i class="bi bi-upload me-1" aria-hidden="true"></i>Subir carta';
     };
 
-    fetch(`/api/v1/acceptance/user/${cfg.userId}/program/${cfg.programId}/submit-receipt`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrf },
-      body: formData
-    })
-      .then(r => r.json())
+    window.SIIAP.api.request('POST', `/api/v1/acceptance/user/${cfg.userId}/program/${cfg.programId}/submit-receipt`, { body: formData, flash: false })
       .then(res => {
         if (res.error) {
           statusDiv.innerHTML = '<div class="alert alert-danger py-1 small mb-0">' + SIIAP.escapeHtml(res.error.message || 'No se pudo subir el archivo.') + '</div>';

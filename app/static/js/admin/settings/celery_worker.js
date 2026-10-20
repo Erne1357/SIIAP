@@ -613,17 +613,14 @@ function getDisplayName(taskName) {
 }
 
 async function apiFetch(url, options = {}) {
-  const defaults = {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken':  CSRF_TOKEN,
-    },
-  };
-  const merged = { ...defaults, ...options };
-  if (options.headers) merged.headers = { ...defaults.headers, ...options.headers };
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
 
-  const res = await fetch(url, merged);
-  const json = await res.json();
+  const res = await window.SIIAP.api.request(options.method || 'GET', url, {
+    body: options.body,
+    headers,
+    flash: false,
+  });
+  const json = res.body;
 
   if (!res.ok) {
     throw new Error(json?.error?.message || `HTTP ${res.status}`);
@@ -632,33 +629,6 @@ async function apiFetch(url, options = {}) {
 }
 
 function showToast(message, type = 'info') {
-  // Si ya existe un contenedor de toasts, usarlo; si no, crearlo
-  let container = document.getElementById('toastContainer');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'toastContainer';
-    container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-    document.body.appendChild(container);
-  }
-
-  const bgClass = {
-    success: 'bg-success text-white',
-    danger:  'bg-danger text-white',
-    warning: 'bg-warning',
-    info:    'bg-info text-white',
-  }[type] || 'bg-secondary text-white';
-
-  const id = `toast-${Date.now()}`;
-  container.insertAdjacentHTML('beforeend', `
-    <div id="${id}" class="toast align-items-center ${bgClass} border-0" role="alert" aria-live="assertive">
-      <div class="d-flex">
-        <div class="toast-body">${SIIAP.escapeHtml(message)}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                data-bs-dismiss="toast"></button>
-      </div>
-    </div>`);
-
-  const el = document.getElementById(id);
-  new bootstrap.Toast(el, { delay: 4000 }).show();
-  el.addEventListener('hidden.bs.toast', () => el.remove());
+  // Canonical toast (js/flash.js)
+  window.SIIAP.flash(type, message);
 }

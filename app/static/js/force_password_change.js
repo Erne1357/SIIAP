@@ -7,12 +7,6 @@
 (function() {
     'use strict';
 
-    // Función para obtener el CSRF token
-    const getCsrf = () => {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
-    };
-
     // Función para mostrar mensajes flash desde JS
     const showFlash = (level, message) => {
         window.dispatchEvent(new CustomEvent('flash', {
@@ -38,15 +32,9 @@
 
         async checkPasswordChangeRequired() {
             try {
-                const response = await fetch('/api/v1/auth/me', {
-                    method: 'GET',
-                    credentials: 'same-origin',
-                    headers: {
-                        'X-CSRFToken': getCsrf()
-                    }
-                });
+                const response = await window.SIIAP.api.get('/api/v1/auth/me', { flash: false, onUnauthorized: false });
 
-                const json = await response.json();
+                const json = response.body || {};
                 
                 // Sincronizar token CSRF si el servidor devuelve uno diferente
                 if (json.data && json.data.csrf_token) {
@@ -197,22 +185,8 @@
             };
 
             try {
-                const response = await fetch('/api/v1/auth/change-password', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCsrf()
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                const json = await response.json();
-
-                // Mostrar mensajes flash
-                if (json.flash && Array.isArray(json.flash)) {
-                    json.flash.forEach(f => showFlash(f.level, f.message));
-                }
+                // The client dispatches the server flash messages (default flash: true).
+                const response = await window.SIIAP.api.post('/api/v1/auth/change-password', data, { onUnauthorized: false });
 
                 if (response.ok) {
                     // Contraseña cambiada exitosamente

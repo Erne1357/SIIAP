@@ -63,10 +63,7 @@ class EmailConfigManager {
         if (!ok) return;
 
         try {
-            const res = await fetch('/admin/emails/logout', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': this.getCsrf() }
-            });
+            const res = await window.SIIAP.api.post('/admin/emails/logout', undefined, { flash: false });
             if (res.ok) {
                 window.location.reload();
             } else {
@@ -85,11 +82,8 @@ class EmailConfigManager {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
 
         try {
-            const res = await fetch('/admin/emails/process-queue', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': this.getCsrf() }
-            });
-            const json = await res.json();
+            const res = await window.SIIAP.api.post('/admin/emails/process-queue', undefined, { flash: false });
+            const json = res.body || {};
             if (res.ok && !json.error) {
                 const r = json.data.result;
                 this.showFlash('success', `Procesados: ${r.processed}, Enviados: ${r.sent}, Fallidos: ${r.failed}`);
@@ -113,11 +107,8 @@ class EmailConfigManager {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Reintentando...';
 
         try {
-            const res = await fetch('/admin/emails/retry-failed', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': this.getCsrf() }
-            });
-            const json = await res.json();
+            const res = await window.SIIAP.api.post('/admin/emails/retry-failed', undefined, { flash: false });
+            const json = res.body || {};
             if (res.ok && !json.error) {
                 const r = json.data.result;
                 this.showFlash('success', `Reintentados: ${r.processed}, Enviados: ${r.sent}`);
@@ -143,11 +134,8 @@ class EmailConfigManager {
         }
 
         try {
-            const res = await fetch('/api/v1/emails/test', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': this.getCsrf() }
-            });
-            const json = await res.json();
+            const res = await window.SIIAP.api.post('/api/v1/emails/test', undefined, { flash: false });
+            const json = res.body || {};
             // El backend devuelve { data, flash:[{level,message}] }.
             const f = (json.flash || [])[0];
             if (res.ok && json.data && json.data.sent) {
@@ -185,8 +173,8 @@ class EmailConfigManager {
         `;
 
         try {
-            const res = await fetch('/admin/emails/queue?per_page=20');
-            const json = await res.json();
+            const res = await window.SIIAP.api.get('/admin/emails/queue?per_page=20', { flash: false });
+            const json = res.body;
 
             if (!res.ok) throw new Error('Error al cargar correos');
 
@@ -291,11 +279,6 @@ class EmailConfigManager {
 
     showFlash(level, message) {
         window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
-    }
-
-    getCsrf() {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
     }
 }
 

@@ -7,6 +7,20 @@
    (base.css colapsa --footer-h a 0 en ese tramo), mientras que en las
    pantallas sin sesión está siempre visible con --auth-footer-h. Lo que sí
    comparten es el texto, y ese vive aquí una sola vez. #}
-<div class="container-fluid d-flex justify-content-center align-items-center px-4 small">
-  <span>ITCJ &middot; TECNM &middot; &copy; {{ now_local().year }} SIIAP</span>
+{# footer_logos: base.html lo activa. Las pantallas de auth ya muestran los
+   cuatro logotipos en su cabecera y no lo pasan. #}
+<div class="container-fluid app-footer px-4 small">
+  {% if footer_logos %}
+  <div class="app-footer__logos">
+    <img src="{{ url_for('static', filename='assets/images/logo_sep.png') }}?v={{ static_version }}"
+         alt="SEP" class="app-footer__logo" loading="lazy">
+    <img src="{{ url_for('static', filename='assets/images/logo_tecnm.png') }}?v={{ static_version }}"
+         alt="TecNM" class="app-footer__logo" loading="lazy">
+    <img src="{{ url_for('static', filename='assets/images/escudo_itcj_rojo_completo.png') }}?v={{ static_version }}"
+         alt="ITCJ" class="app-footer__logo" loading="lazy">
+    <img src="{{ url_for('static', filename='assets/images/logo_posgrado.png') }}?v={{ static_version }}"
+         alt="Posgrado" class="app-footer__logo" loading="lazy">
+  </div>
+  {% endif %}
+  <span class="app-footer__text">ITCJ &middot; TECNM &middot; &copy; {{ now_local().year }} SIIAP</span>
 </div>

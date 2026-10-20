@@ -35,11 +35,6 @@
         window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
     }
 
-    function getCsrfToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        return meta ? meta.getAttribute('content') : '';
-    }
-
     /**
      * Performs a fetch and returns parsed JSON.
      * Throws on non-ok responses.
@@ -48,18 +43,15 @@
      * @returns {Promise<object>}
      */
     async function apiRequest(url, options = {}) {
-        const res = await fetch(url, {
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken(),
-                ...(options.headers || {}),
-            },
-            ...options,
+        // options: { method, json }. Server flashes are not shown here: callers
+        // report the outcome with their own Spanish messages.
+        const res = await window.SIIAP.api.request(options.method || 'GET', url, {
+            json: options.json,
+            flash: false,
         });
-        const data = await res.json();
+        const data = res.body || {};
         if (!res.ok || data.error) {
-            const msg = data.error?.message || data.error || 'Error en la solicitud';
+            const msg = data.error?.message || data.error || res.error?.message || 'Error en la solicitud';
             throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
         return data;
@@ -698,7 +690,7 @@
         try {
             await apiRequest(`${API}/invitations/${invitationId}/respond`, {
                 method: 'POST',
-                body: JSON.stringify({ accept }),
+                json: { accept },
             });
             flash('success', accept ? 'Invitación aceptada.' : 'Invitación rechazada.');
             await loadEvents();
@@ -713,9 +705,9 @@
      */
     async function refreshGlobalInvitationsBadge() {
         try {
-            const res = await fetch(`${API}/invitations/my-invitations`, { credentials: 'same-origin' });
+            const res = await window.SIIAP.api.get(`${API}/invitations/my-invitations`, { flash: false });
             if (!res.ok) return;
-            const data = await res.json();
+            const data = res.body;
             const count = Number(data.data?.total || 0);
             window.dispatchEvent(new CustomEvent('siiap:invitations:count_changed', {
                 detail: { count }
@@ -750,7 +742,7 @@
         try {
             await apiRequest(`${API}/attendance/event/${eventId}/register`, {
                 method: 'POST',
-                body: JSON.stringify({ notes: '' }),
+                json: { notes: '' },
             });
             flash('success', 'Te has registrado exitosamente al evento.');
             await loadEvents();
@@ -777,7 +769,7 @@
         try {
             await apiRequest(`${API}/attendance/event/${eventId}/unregister`, {
                 method: 'POST',
-                body: JSON.stringify({}),
+                json: {},
             });
             flash('success', 'Registro cancelado exitosamente.');
             await loadEvents();
@@ -846,14 +838,7 @@
      */
     async function markEventsSeen() {
         try {
-            await fetch(`${API}/events/mark-seen`, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'X-CSRFToken': getCsrfToken(),
-                    'Content-Type': 'application/json',
-                },
-            });
+            await window.SIIAP.api.post(`${API}/events/mark-seen`, undefined, { flash: false });
             sessionStorage.removeItem('eventsPromoShown');
         } catch (err) {
             console.warn('[events/list] mark-seen fallo:', err);

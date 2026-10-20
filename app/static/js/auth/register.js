@@ -45,11 +45,6 @@
     }));
   }
 
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-
   /** Muestra u oculta el error de un campo y refleja aria-invalid. */
   function setFieldError(input, invalid, message) {
     if (!input) return;
@@ -127,26 +122,19 @@
     setLoading(true, 'Registrando…');
 
     try {
-      const response = await fetch(form.action || window.location.href, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'X-CSRFToken': getCsrf(),
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: new FormData(form)
+      const response = await window.SIIAP.api.request('POST', form.action || window.location.href, {
+        body: new FormData(form),
+        flash: false,
+        onUnauthorized: false
       });
 
-      const contentType = response.headers.get('Content-Type');
-
-      if (!contentType || !contentType.includes('application/json')) {
-        const htmlText = await response.text();
-        console.error('Respuesta inesperada del servidor:', htmlText.substring(0, 500));
+      if (!response.contentType.includes('application/json') || response.body === null) {
+        console.error('Respuesta inesperada del servidor (HTTP ' + response.status + ')');
         flash('El servidor devolvió una respuesta inesperada. Espera un momento e inténtalo de nuevo.', 'danger');
         return;
       }
 
-      const json = await response.json();
+      const json = response.body;
 
       if (!response.ok || json.error) {
         const errorMsg = json?.error?.message || json?.message

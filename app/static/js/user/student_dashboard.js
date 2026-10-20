@@ -11,8 +11,6 @@
   const UP_ID = CFG.upId;
   if (!UP_ID) return;
 
-  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
   // ── Utils ────────────────────────────────────────────────────────────────
   function escHtml(str) {
     return String(str || '')
@@ -21,7 +19,7 @@
   }
 
   function flashMsg(level, message) {
-    if (typeof showFlash === 'function') showFlash(level, message);
+    window.SIIAP.flash(level, message);
   }
 
   /** Marca la región asíncrona como ocupada/lista y lo anuncia (WCAG 4.1.3). */
@@ -63,8 +61,8 @@
     if (!container) return;
     setBusy(container, true, 'Cargando documentos del semestre…');
     try {
-      const res = await fetch(`/api/v1/permanence/user-program/${UP_ID}/documents`);
-      const json = await res.json();
+      const res = await window.SIIAP.api.get(`/api/v1/permanence/user-program/${UP_ID}/documents`, { flash: false });
+      const json = res.body || {};
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       renderStudentDocs(json.data || []);
     } catch (e) {
@@ -158,13 +156,8 @@
         const fd = new FormData();
         fd.append('file', fileInput.files[0]);
         try {
-          const res = await fetch(`/api/v1/permanence/user-program/${upId}/documents/${dlId}`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken },
-            body: fd,
-          });
-          const json = await res.json();
-          if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
+          const res = await window.SIIAP.api.request('POST', `/api/v1/permanence/user-program/${upId}/documents/${dlId}`, { body: fd });
+          const json = res.body || {};
           if (res.ok && !json.error) loadStudentDocs();
           else btn.disabled = false;
         } catch (err) {
@@ -197,10 +190,8 @@
     setBusy(container, true, 'Verificando tu inscripción…');
 
     try {
-      const res = await fetch('/api/v1/permanence/my-enrollment');
-      const json = await res.json();
-
-      if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
+      const res = await window.SIIAP.api.get('/api/v1/permanence/my-enrollment');
+      const json = res.body || {};
 
       if (!res.ok || json.error) {
         if (res.status === 404) {
@@ -327,14 +318,8 @@
       fd.append('payment_proof', fileInput.files[0]);
 
       try {
-        const res = await fetch('/api/v1/permanence/my-enrollment/payment-proof', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrfToken },
-          body: fd,
-        });
-        const json = await res.json();
-
-        if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
+        const res = await window.SIIAP.api.request('POST', '/api/v1/permanence/my-enrollment/payment-proof', { body: fd });
+        const json = res.body || {};
 
         if (res.ok && !json.error) {
           // Cerrar modal
@@ -368,8 +353,8 @@
     if (!container) return;
     setBusy(container, true, 'Verificando tu solicitud de baja temporal…');
     try {
-      const res = await fetch(`/api/v1/permanence/user-program/${UP_ID}/leave-request`);
-      const json = await res.json();
+      const res = await window.SIIAP.api.get(`/api/v1/permanence/user-program/${UP_ID}/leave-request`, { flash: false });
+      const json = res.body || {};
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       renderLeaveRequest(json.data);
     } catch (e) {
@@ -472,13 +457,8 @@
       const fd = new FormData();
       fd.append('file', file);
       try {
-        const res = await fetch(`/api/v1/permanence/user-program/${UP_ID}/leave-request`, {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrfToken },
-          body: fd,
-        });
-        const json = await res.json();
-        if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
+        const res = await window.SIIAP.api.request('POST', `/api/v1/permanence/user-program/${UP_ID}/leave-request`, { body: fd });
+        const json = res.body || {};
         if (res.ok && !json.error) loadLeaveRequest();
         else btn.disabled = false;
       } catch (err) {
@@ -498,7 +478,7 @@
 
   // ── Tiempo real ──────────────────────────────────────────────────────────
   function toast(level, message) {
-    if (typeof showFlash === 'function') showFlash(level, message);
+    window.SIIAP.flash(level, message);
   }
 
   window.addEventListener('siiap:permanence:status_changed', (e) => {

@@ -52,8 +52,8 @@
       return;
     }
     try {
-      const res = await fetch(`/api/v1/auth/reset-password/${encodeURIComponent(TOKEN)}/info`);
-      const json = await res.json();
+      const res = await window.SIIAP.api.get(`/api/v1/auth/reset-password/${encodeURIComponent(TOKEN)}/info`, { flash: false, onUnauthorized: false });
+      const json = res.body || { error: res.error };
       if (!res.ok || json.error) {
         const code = json.error?.code || 'TOKEN_NOT_FOUND';
         const map = {
@@ -121,21 +121,13 @@
 
     setLoading(true, 'Estableciendo…');
     try {
-      const res = await fetch(`/api/v1/auth/reset-password/${encodeURIComponent(TOKEN)}`, {
-        method: 'POST',
-        // The CSRF guard covers every /api mutation; without the header this
-        // request always failed with 400 and the password was never set.
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '',
-        },
-        body: JSON.stringify({
-          new_password: newPw.value,
-          confirm_password: confirmPw.value,
-        }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
+      // SIIAP.api sends the CSRF header; the guard covers every /api mutation.
+      // Server flashes are dispatched by the client (default flash: true).
+      const res = await window.SIIAP.api.post(`/api/v1/auth/reset-password/${encodeURIComponent(TOKEN)}`, {
+        new_password: newPw.value,
+        confirm_password: confirmPw.value,
+      }, { onUnauthorized: false });
+      const json = res.body || { error: res.error };
       if (res.ok && !json.error) {
         setTimeout(() => { window.location.href = LOGIN_URL; }, 1200);
         return;

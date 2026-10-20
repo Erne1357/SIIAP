@@ -73,12 +73,6 @@
     }));
   }
 
-  // Función helper para obtener CSRF token
-  function getCsrfToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta ? meta.getAttribute('content') : '';
-  }
-
   // Validación de archivos
   function validateFile(file) {
     const maxSize = 3 * 1024 * 1024; // 3MB
@@ -130,38 +124,28 @@
 
   // Función helper para hacer peticiones con manejo de errores mejorado
   async function apiRequest(url, options = {}) {
-    const defaultHeaders = {
-      'X-CSRFToken': getCsrfToken()
-    };
+    const headers = { ...options.headers };
 
     // Solo agregar Content-Type para JSON, no para FormData
     if (options.body && typeof options.body === 'string') {
-      defaultHeaders['Content-Type'] = 'application/json';
+      headers['Content-Type'] = 'application/json';
     }
 
-    const defaultOptions = {
-      credentials: "same-origin",
-      headers: {
-        ...defaultHeaders,
-        ...options.headers
-      }
-    };
-
-    const finalOptions = { ...defaultOptions, ...options };
-
     try {
-      const response = await fetch(url, finalOptions);
-      
+      const response = await window.SIIAP.api.request(options.method || 'GET', url, {
+        body: options.body,
+        headers,
+        flash: false
+      });
+
       // Verificar si la respuesta es HTML (redirección o error de permisos)
-      const contentType = response.headers.get('content-type');
+      const contentType = response.contentType;
       if (contentType && contentType.includes('text/html')) {
         throw new Error('No tienes permisos para realizar esta acción o la sesión ha expirado');
       }
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
+      const data = response.body;
+      if (data === null || data === undefined) {
         throw new Error('Error al procesar la respuesta del servidor');
       }
 
@@ -602,21 +586,18 @@
     const force = delForce.checked ? "?force=true" : "";
     
     try {
-      const response = await fetch(`${API}/archives/${id}${force}`, {
-        method: "DELETE",
-        credentials: "same-origin",
-        headers: {
-          'X-CSRFToken': getCsrfToken()
-        }
-      });
+      const response = await window.SIIAP.api.delete(`${API}/archives/${id}${force}`, { flash: false });
 
       // Verificar si es HTML en lugar de JSON
-      const contentType = response.headers.get('content-type');
+      const contentType = response.contentType;
       if (contentType && contentType.includes('text/html')) {
         throw new Error('No tienes permisos para realizar esta acción');
       }
 
-      const data = await response.json();
+      const data = response.body;
+      if (data === null || data === undefined) {
+        throw new Error('Unexpected token in JSON');
+      }
       
       if (response.status === 409 && data.error?.code === 'CONFLICT') {
         flash(errorMessage(data, "Tiene entregas; marca 'Eliminar forzado' para continuar"), "warning");

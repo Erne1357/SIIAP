@@ -6,27 +6,14 @@
   const widget = document.getElementById('eventsWidget');
   if (!widget) return;
 
-  function getCsrfToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta ? meta.getAttribute('content') : '';
-  }
-
   function flash(level, message) {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
 
   async function respond(invitationId, accept) {
     try {
-      const res = await fetch(`/api/v1/invitations/${invitationId}/respond`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
-        },
-        body: JSON.stringify({ accept }),
-      });
-      const body = await res.json().catch(() => ({}));
+      const res = await window.SIIAP.api.post(`/api/v1/invitations/${invitationId}/respond`, { accept }, { flash: false });
+      const body = res.body || {};
       if (!res.ok || body.error) {
         flash('danger', body.error?.message || 'No se pudo registrar tu respuesta.');
         return;

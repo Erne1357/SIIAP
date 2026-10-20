@@ -40,10 +40,9 @@ class DeliberationManager {
         const ids = this._targetProgramIds();
         return Promise.all(ids.map(async (pid) => {
             try {
-                const res = await fetch(urlBuilder(pid));
-                const json = await res.json();
-                if (!res.ok || json.error) return { pid, data: null, meta: null };
-                return { pid, data: json.data, meta: json.meta };
+                const r = await window.SIIAP.api.get(urlBuilder(pid), { flash: false });
+                if (!r.ok) return { pid, data: null, meta: null };
+                return { pid, data: r.data, meta: r.meta };
             } catch (e) {
                 return { pid, data: null, meta: null };
             }
@@ -366,21 +365,14 @@ class DeliberationManager {
 
     async _doMarkInterviewCompleted(userId, programId) {
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/interview-completed`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                }
-            });
+            // Empty JSON-typed POST, as before (the Content-Type header is kept on purpose)
+            const r = await window.SIIAP.api.request(
+                'POST',
+                `/api/v1/deliberation/user/${userId}/program/${programId}/interview-completed`,
+                { headers: { 'Content-Type': 'application/json' } }
+            );
 
-            const result = await response.json();
-
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadPendingInterview();
             }
@@ -646,10 +638,12 @@ class DeliberationManager {
         select.disabled = true;
 
         try {
-            const response = await fetch(`/api/v1/deliberation/program/${programId}/admission-archives`);
-            const result = await response.json();
+            const result = await window.SIIAP.api.get(
+                `/api/v1/deliberation/program/${programId}/admission-archives`,
+                { flash: false }
+            );
 
-            if (result.error || !result.data) {
+            if (!result.ok || !result.data) {
                 select.innerHTML = '<option value="">Error al cargar documentos</option>';
                 return;
             }
@@ -681,23 +675,16 @@ class DeliberationManager {
         const programId = document.getElementById('startDelibProgramId').value;
 
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/start`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                }
-            });
-
-            const result = await response.json();
+            // Empty JSON-typed POST, as before (the Content-Type header is kept on purpose)
+            const r = await window.SIIAP.api.request(
+                'POST',
+                `/api/v1/deliberation/user/${userId}/program/${programId}/start`,
+                { headers: { 'Content-Type': 'application/json' } }
+            );
 
             this.startDeliberationModal.hide();
 
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('interview_completed');
             }
@@ -793,15 +780,9 @@ class DeliberationManager {
                 fd.append('is_conditional', 'true');
                 fd.append('dictamen_file', dictamenFile);
                 try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
-                        body: fd,
-                    });
-                    const result = await response.json();
+                    const r = await window.SIIAP.api.request('POST', endpoint, { body: fd });
                     this.decisionModal.hide();
-                    if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
-                    if (!result.error) {
+                    if (r.ok) {
                         this.loadStats();
                         this.loadApplicants('deliberation');
                     }
@@ -839,24 +820,11 @@ class DeliberationManager {
         }
 
         try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify(body)
-            });
-
-            const result = await response.json();
+            const r = await window.SIIAP.api.post(endpoint, body);
 
             this.decisionModal.hide();
 
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('deliberation');
             }
@@ -877,22 +845,12 @@ class DeliberationManager {
 
     async _doResetApplicant(userId, programId) {
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/reset`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify({ reason: 'Correcciones completadas' })
-            });
+            const r = await window.SIIAP.api.post(
+                `/api/v1/deliberation/user/${userId}/program/${programId}/reset`,
+                { reason: 'Correcciones completadas' }
+            );
 
-            const result = await response.json();
-
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('rejected');
             }
@@ -913,17 +871,11 @@ class DeliberationManager {
 
     async _doForceResetApplicant(userId, programId, applicantName) {
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/force-reset`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify({ reason: 'Reinicio administrativo desde panel de deliberación' })
-            });
-            const result = await response.json();
-            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
-            if (!result.error) {
+            const r = await window.SIIAP.api.post(
+                `/api/v1/deliberation/user/${userId}/program/${programId}/force-reset`,
+                { reason: 'Reinicio administrativo desde panel de deliberación' }
+            );
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('accepted');
             }
