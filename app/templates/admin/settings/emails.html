@@ -21,64 +21,10 @@
   </header>
 
   <!-- Estado de conexión -->
-  {% if ms_account %}
-  {# Barra de una sola línea: el estado y las cuatro acciones comparten fila.
-     La tarjeta con cabecera, alerta y botonera aparte gastaba 224px de pliegue
-     en un portátil, donde el presupuesto útil completo son ~604px. #}
-  <section class="card email-connection mb-4" aria-labelledby="msConnectionTitle">
-    <div class="card-body email-connection__body">
-      <h2 class="h6 mb-0 email-connection__status" id="msConnectionTitle">
-        <i class="bi bi-check-circle-fill text-success-strong flex-shrink-0" aria-hidden="true"></i>
-        <span>
-          Conexión con Microsoft:
-          <span class="fw-normal">conectada como {{ ms_account.name }} ({{ ms_account.username }})</span>
-        </span>
-      </h2>
-      <div class="email-connection__actions">
-        <button type="button" class="btn btn-sm btn-primary" id="btnProcessQueue">
-          <i class="bi bi-send me-1" aria-hidden="true"></i>Procesar cola
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-primary" id="btnRetryFailed">
-          <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Reintentar fallidos
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSendTest">
-          <i class="bi bi-envelope-check me-1" aria-hidden="true"></i>Correo de prueba
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-danger" id="btnDisconnect">
-          <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Desconectar
-        </button>
-      </div>
-    </div>
-  </section>
-  {% else %}
-  <section class="card mb-4" aria-labelledby="msConnectionTitle">
-    <div class="card-header">
-      <h2 class="h5 mb-0" id="msConnectionTitle">
-        <i class="bi bi-link-45deg me-2" aria-hidden="true"></i>Conexión con Microsoft
-      </h2>
-    </div>
-    <div class="card-body">
-      <div class="alert alert-warning" role="alert">
-        <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
-        <strong>No conectado.</strong> Debes iniciar sesión con una cuenta de Microsoft para enviar correos.
-      </div>
-
-      <a href="{{ url_for('pages_admin.pages_emails.ms_login') }}" class="btn btn-primary">
-        <i class="bi bi-microsoft me-2" aria-hidden="true"></i>Conectar con Microsoft
-      </a>
-
-      <div class="alert alert-info mt-3">
-        <h3 class="h6"><i class="bi bi-info-circle me-2" aria-hidden="true"></i>Instrucciones</h3>
-        <ol class="mb-0">
-          <li>Haz clic en «Conectar con Microsoft».</li>
-          <li>Inicia sesión con tu cuenta institucional (@cdjuarez.tecnm.mx).</li>
-          <li>Otorga los permisos necesarios para enviar correos.</li>
-          <li>Volverás a esta pantalla y los correos pendientes se enviarán automáticamente.</li>
-        </ol>
-      </div>
-    </div>
-  </section>
-  {% endif %}
+  {# Always rendered: swap target of GET /admin/emails/connection after disconnecting. #}
+  <div id="msConnection">
+    {% include 'admin/settings/_partials/_email_connection.html' %}
+  </div>
 
   <!-- Estadísticas de la cola -->
   <section class="mb-4 email-queue-stats" aria-labelledby="queueStatsTitle">

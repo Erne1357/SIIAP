@@ -7,6 +7,7 @@ from app.models.user import User
 from app.utils.permissions import permission_required, guard_program_scope
 from app.services import review_service
 from app.services.review_service import SubmissionNotFound
+from app.utils.htmx import is_htmx, render_fragment
 
 pages_review = Blueprint("pages_review", __name__, url_prefix="/review")
 
@@ -84,7 +85,11 @@ def submissions():
         'is_program_admin': False,
         'managed_program_ids': [p.id for p in scoped_programs],
     }
-    return render_template("admin/review/submissions_list.html", **context)
+    # Realtime refresh (siiap:submission:* -> hx-get on this same URL): only the
+    # rows plus the out-of-band counters, never the whole page.
+    if is_htmx():
+        return render_fragment("admin/review/_partials/_submissions_refresh.html", **context)
+    return render_fragment("admin/review/submissions_list.html", **context)
 
 
 @pages_review.route("/submission/<uuid:sub_uuid>")

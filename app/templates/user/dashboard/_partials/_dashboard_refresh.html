@@ -1,0 +1,12 @@
+{# user/dashboard/_partials/_dashboard_refresh.html
+   Answer to the dashboard's HX refresh. The postgraduate dashboard has Bootstrap
+   tabs, so it is NOT swapped as a whole: it sends only the data regions, which
+   #dashboard-content picks up out-of-band (hx-select-oob). Every other role is
+   morphed into #dashboard-content as a whole. #}
+{% if dashboard_kind == 'postgraduate' %}
+  {% include 'user/dashboard/_partials/_postgraduate_banner.html' %}
+  {% include 'user/dashboard/_partials/_postgraduate_overview_data.html' %}
+  {% include 'user/dashboard/_partials/_postgraduate_program_stats.html' %}
+{% else %}
+  {% include 'user/dashboard/_partials/_dashboard_body.html' %}
+{% endif %}

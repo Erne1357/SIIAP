@@ -1,0 +1,26 @@
+{# user/dashboard/_partials/_dashboard_body.html
+   Role dashboard body. Context: dashboard_kind + the role context from
+   DashboardService.build_dashboard_context. Included by dashboard.html and sent
+   alone as the htmx fragment of GET /user/dashboard (realtime refresh). #}
+{% from '_macros.html' import empty_state %}
+{% if dashboard_kind == 'applicant' %}
+  {% include 'user/dashboard/applicant_dashboard.html' %}
+{% elif dashboard_kind == 'student' %}
+  {% include 'user/dashboard/student_dashboard.html' %}
+{% elif dashboard_kind == 'program_admin' %}
+  {% include 'user/dashboard/program_admin_dashboard.html' %}
+{% elif dashboard_kind == 'postgraduate' %}
+  {% include 'user/dashboard/postgraduate_admin_dashboard.html' %}
+{% else %}
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      {{ empty_state(
+           icon='hourglass-split',
+           title='Tu panel aún no está disponible',
+           description='El tablero para tu rol estará disponible próximamente. Mientras tanto puedes consultar tu perfil.',
+           action_label='Ir a mi perfil',
+           action_url=url_for('pages_user.profile')
+         ) }}
+    </div>
+  </div>
+{% endif %}

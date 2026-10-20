@@ -65,7 +65,11 @@ class EmailConfigManager {
         try {
             const res = await window.SIIAP.api.post('/admin/emails/logout', undefined, { flash: false });
             if (res.ok) {
-                window.location.reload();
+                // Only the connection card changes: re-render it, keep the page (queue, list, scroll).
+                await window.htmx.ajax('GET', '/admin/emails/connection', {
+                    target: '#msConnection', swap: 'innerHTML'
+                });
+                if (window.SIIAP?.announce) window.SIIAP.announce('Cuenta de Microsoft desconectada.');
             } else {
                 this.showFlash('error', 'Error al desconectar');
             }

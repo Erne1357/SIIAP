@@ -29,6 +29,7 @@ BASELINE = {
         'app/static/js/base.js': 1,
         'app/static/js/force_password_change.js': 1,
     },
+    'js_location_reload': {},
     'js_mutation_without_csrf': {},
     'prefers_color_scheme': {},
     'py_db_in_routes': {},

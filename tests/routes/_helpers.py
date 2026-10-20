@@ -116,6 +116,7 @@ CSRF_EXEMPT = frozenset({'POST /api/v1/auth/login'})
 # a user with zero grants legitimately reaches them.
 LOGIN_ONLY = frozenset({
     'GET /', 'GET /events/', 'GET /programs/', 'GET /user/dashboard', 'GET /user/profile',
+    'GET /user/dashboard/events-widget', 'GET /user/profile/summary',
     'GET /api/v1/appointments/mine/active', 'GET /api/v1/archives', 'GET /api/v1/archives/steps',
     'POST /api/v1/attendance/event/<int:event_id>/unregister', 'GET /api/v1/attendance/my-registrations',
     'POST /api/v1/auth/change-password', 'GET /api/v1/auth/keepalive', 'GET /api/v1/auth/logout',

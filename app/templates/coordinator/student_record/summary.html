@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import status_badge, empty_state %}
+
+{% set breadcrumb_current = summary.full_name %}
+
+{% block title %}Resumen · {{ summary.full_name }}{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page" id="studentSummaryPage">
+  <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 coord-page__header">
+    <a href="{{ url_for('pages_coordinator.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver
+    </a>
+    <div class="flex-grow-1">
+      <h1 class="coord-page__title">{{ summary.full_name }}</h1>
+      <p class="coord-page__subtitle small">{{ summary.email }}</p>
+    </div>
+  </div>
+
+  <div class="alert alert-info d-flex align-items-start gap-2">
+    <i class="bi bi-shield-lock-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Información limitada.</strong>
+      Esta persona pertenece a un programa que no gestionas. Solo puedes
+      consultar su nombre, su correo y su avance general.
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Avance general</h2>
+      <p class="text-secondary small mb-3">
+        <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>{{ summary.program_name }}
+        {% if summary.admission_status %}
+          &middot; {{ status_badge(summary.admission_status, none, 'sm') }}
+        {% endif %}
+      </p>
+      {% set progress = (summary.progress_percentage or 0)|int %}
+      <div class="progress progress--lg mb-4" role="progressbar"
+           aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"
+           aria-label="Progreso general del expediente">
+        <div class="progress-bar progress-bar--dynamic bg-success" style="--progress: {{ progress }}%">{{ progress }}%</div>
+      </div>
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <div class="stat-card stat-card--success h-100">
+            <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ summary.approved_docs or 0 }}</p>
+            <p class="stat-card__label">Aprobados</p>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-card stat-card--warning h-100">
+            <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ summary.pending_docs or 0 }}</p>
+            <p class="stat-card__label">Pendientes</p>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-card stat-card--danger h-100">
+            <i class="bi bi-x-circle-fill stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ summary.rejected_docs or 0 }}</p>
+            <p class="stat-card__label">Rechazados</p>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-card stat-card--info h-100">
+            <i class="bi bi-clock-history stat-card__icon" aria-hidden="true"></i>
+            <p class="stat-card__value">{{ summary.extended_docs or 0 }}</p>
+            <p class="stat-card__label">En prórroga</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{ empty_state('shield-lock', 'Datos reservados a su programa',
+                 'Los datos personales, los documentos, la entrevista y el historial solo los consulta quien coordina el programa de esta persona.',
+                 compact=true) }}
+</div>
+{% endblock %}

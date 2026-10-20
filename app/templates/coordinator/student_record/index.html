@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 {% from '_macros.html' import required_mark %}
 
+{# Migas: Inicio / Expedientes / Estudiantes / <nombre> #}
+{% set breadcrumb_current = target_user.first_name ~ ' ' ~ target_user.last_name %}
+
 {% block title %}Expediente · {{ target_user.first_name }} {{ target_user.last_name }}{% endblock %}
 
 {% block styles %}
@@ -44,6 +47,12 @@
       <button class="nav-link active" id="tab-info-btn" data-bs-toggle="tab" data-bs-target="#tab-info"
               type="button" role="tab" aria-controls="tab-info" aria-selected="true">
         <i class="bi bi-person" aria-hidden="true"></i>Información
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-admission-btn" data-bs-toggle="tab" data-bs-target="#tab-admission"
+              type="button" role="tab" aria-controls="tab-admission" aria-selected="false">
+        <i class="bi bi-clipboard-check" aria-hidden="true"></i>Admisión
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -132,6 +141,21 @@
       </div>
     </div>
 
+    <div class="tab-pane fade" id="tab-admission" role="tabpanel" aria-labelledby="tab-admission-btn">
+      <div class="card shadow-sm">
+        <div class="card-body" aria-live="polite">
+          {# Carga bajo demanda al activar la pestaña (o al refrescar tras una
+             subida). hx-history=false: el fragmento lleva datos personales. #}
+          <div id="recordAdmission"
+               hx-get="{{ url_for('pages_student_record.record_admission', user_uuid=target_user.uuid) }}"
+               hx-trigger="shown.bs.tab from:#tab-admission-btn"
+               hx-swap="innerHTML" hx-history="false" hx-sync="this:replace">
+            <div class="text-center py-3 text-secondary small">Cargando admisión…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="tab-pane fade" id="tab-academic" role="tabpanel" aria-labelledby="tab-academic-btn">
       <div class="card shadow-sm" id="recordAcademic">
         <div class="card-body text-secondary small">Cargando…</div>
@@ -198,6 +222,51 @@
 {% endblock %}
 
 {% block modals %}
+<!-- Modal: subir o validar un documento de admisión por el estudiante -->
+<div class="modal fade" id="admissionUploadModal" tabindex="-1"
+     aria-labelledby="admissionUploadModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <form class="modal-content" id="admissionUploadForm"
+          hx-post="{{ url_for('pages_student_record.record_admission_upload', user_uuid=target_user.uuid) }}"
+          hx-target="#recordAdmission" hx-swap="innerHTML" hx-encoding="multipart/form-data"
+          hx-history="false">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="admissionUploadModalTitle">Subir documento por el estudiante</h2>
+        <button type="button" class="btn-close tap-target" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="archive_id" id="admissionUploadArchiveId">
+        <p class="mb-3">Documento: <strong id="admissionUploadArchiveName">—</strong></p>
+        <div class="mb-3">
+          <label class="form-label" for="admissionUploadFile">Archivo (PDF, máximo 3 MB)</label>
+          <input type="file" class="form-control" id="admissionUploadFile" name="file"
+                 accept="application/pdf" aria-describedby="admissionUploadFileHelp">
+          <div class="form-text" id="admissionUploadFileHelp">
+            Opcional: si no adjuntas archivo, el comentario es obligatorio.
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="admissionUploadDecision">Decisión</label>
+          <select class="form-select" id="admissionUploadDecision" name="decision">
+            <option value="approve" selected>Aprobar</option>
+            <option value="reject">Rechazar</option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label" for="admissionUploadNotes">Comentario</label>
+          <textarea class="form-control" id="admissionUploadNotes" name="notes" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-upload me-1" aria-hidden="true"></i>Registrar documento
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Modal: editar información personal -->
 <div class="modal fade" id="editPersonalInfoModal" tabindex="-1"
      aria-labelledby="editPersonalInfoModalTitle" aria-hidden="true">
@@ -322,6 +391,8 @@
   window.SIIAP_RECORD = {
     {# Identificador PÚBLICO: es el que viaja en /api/v1/students/<uuid>/… #}
     userId: {{ (target_user.uuid|string) | tojson }},
+    {# Pestaña pedida por el enlace (?tab=admision); el JS sólo la activa. #}
+    initialTab: {{ (initial_tab|default(''))|tojson }},
   };
 </script>
 <script src="{{ url_for('static', filename='js/coordinator/student_record/index.js') }}?v={{ static_version }}"></script>

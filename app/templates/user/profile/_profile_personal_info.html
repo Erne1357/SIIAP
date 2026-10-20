@@ -1,0 +1,32 @@
+{# user/profile/_profile_personal_info.html - "Información personal" card.
+   Context: role_label (+ current_user). Included by _profile_info.html and re-sent
+   by GET /user/profile/summary. #}
+<section class="card mb-4 shadow-sm" aria-labelledby="personalInfoTitle">
+    <div class="card-header">
+        <h2 class="h5 mb-0" id="personalInfoTitle">Información personal</h2>
+    </div>
+    <div class="card-body">
+        <dl class="mb-0">
+            <div class="profile-data-list">
+                <dt class="profile-data-list__term">Nombre completo</dt>
+                <dd class="profile-data-list__value">{{ current_user.first_name }} {{ current_user.last_name }} {{ current_user.mother_last_name }}</dd>
+            </div>
+            <div class="profile-data-list">
+                <dt class="profile-data-list__term">Nombre de usuario</dt>
+                <dd class="profile-data-list__value">{{ current_user.username }}</dd>
+            </div>
+            <div class="profile-data-list">
+                <dt class="profile-data-list__term">Correo electrónico</dt>
+                <dd class="profile-data-list__value">{{ current_user.email }}</dd>
+            </div>
+            <div class="profile-data-list">
+                <dt class="profile-data-list__term">Fecha de registro</dt>
+                <dd class="profile-data-list__value">{{ current_user.registration_date|fechahora_es('short') }}</dd>
+            </div>
+            <div class="profile-data-list mb-0">
+                <dt class="profile-data-list__term">Último acceso</dt>
+                <dd class="profile-data-list__value">{{ current_user.last_login|fechahora_es('short') }}</dd>
+            </div>
+        </dl>
+    </div>
+</section>

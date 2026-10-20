@@ -192,9 +192,12 @@
                     // Contraseña cambiada exitosamente
                     this.modal.hide();
                     
-                    // Recargar página después de 1 segundo para aplicar cambios
+                    // Kept as a full navigation (not a fragment swap): clearing
+                    // must_change_password lifts the server-side block on every
+                    // other page, so the whole session state changes. `assign`
+                    // on the same URL = fresh page without the modal.
                     setTimeout(() => {
-                        window.location.reload();
+                        window.location.assign(window.location.href);
                     }, 1000);
                 } else {
                     // Error al cambiar contraseña

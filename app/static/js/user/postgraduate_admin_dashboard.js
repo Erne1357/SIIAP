@@ -9,7 +9,12 @@
 
   const CFG = window.SIIAP_POSTGRAD_DASH || {};
   const EMAIL_CONFIG_URL = CFG.emailConfigUrl || '#';
-  const PENDING_REVIEWS = Number(CFG.pendingReviews || 0);
+  // Read at the point of use: the KPI region is re-rendered by the realtime refresh.
+  function pendingReviews() {
+    const region = document.getElementById('postgradOverviewData');
+    const fresh = region ? Number(region.dataset.pendingReviews) : NaN;
+    return Number.isNaN(fresh) ? Number(CFG.pendingReviews || 0) : fresh;
+  }
 
   const ALERT_CLASSES = {
     success: 'alert-success',
@@ -99,12 +104,12 @@
         });
       }
 
-      if (PENDING_REVIEWS > 0) {
+      if (pendingReviews() > 0) {
         reminders.push({
           type: 'info',
           icon: 'bi-hourglass-split',
           title: 'Documentos pendientes de revisión',
-          message: `Hay ${PENDING_REVIEWS} documentos esperando revisión en todos los programas.`,
+          message: `Hay ${pendingReviews()} documentos esperando revisión en todos los programas.`,
           action: null,
         });
       }
@@ -141,12 +146,12 @@
     //   - submission:new (role:coordinator — postgrad también tiene coordinator.page.view)
     //   - acceptance:updated, deliberation:updated (idem)
     //   - email:queue_update (role:postgraduate_admin) → refresca recordatorios
-    let reloadScheduled = false;
+    // The tabbed dashboard is never swapped whole: #dashboard-content only
+    // replaces its data regions (banner, KPIs, program stats), so the active tab survives.
     const scheduleReload = (msg) => {
-      if (reloadScheduled) return;
-      reloadScheduled = true;
       window.SIIAP.flash('info', msg);
-      setTimeout(() => { window.location.reload(); }, 3000);
+      const el = document.getElementById('dashboard-content');
+      if (el && window.htmx) window.htmx.trigger(el, 'siiap:dashboard:refresh');
     };
 
     window.addEventListener('siiap:submission:new',       () => scheduleReload('Nuevo documento pendiente de revisión. Actualizando...'));

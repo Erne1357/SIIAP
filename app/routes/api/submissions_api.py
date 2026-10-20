@@ -27,21 +27,7 @@ def upload_submission():
         request.files.get("file"),
     )
 
-    # WebSocket: notificar a coordinadores en tiempo real
-    try:
-        # Sólo a los coordinadores con alcance sobre el programa: el payload ata
-        # un user_id al nombre de un documento suyo y eso no cruza de programa.
-        from app.sockets.emitters import emit_to_coordinators
-        emit_to_coordinators('submission:new', {
-            # Identificadores públicos: el navegador los compara con los `id`
-            # que publican los payloads REST, que también son UUID.
-            'user_id': str(current_user.uuid) if current_user.uuid else None,
-            'submission_id': str(sub.uuid) if sub.uuid else None,
-            'archive_name': archive.name,
-            'program_id': program.id,
-        }, program.id)
-    except Exception:
-        pass
+    submissions_service.notify_new_submission(current_user, sub, archive, program)
 
     return api_ok(
         {

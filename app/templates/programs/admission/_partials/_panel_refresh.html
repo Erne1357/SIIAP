@@ -1,0 +1,8 @@
+{# programs/admission/_partials/_panel_refresh.html
+   Respuesta del refresco en tiempo real: el cuerpo completo (banner de estado o
+   pestañas) para hx-swap="morph:innerHTML" sobre #admission-body, más el stepper
+   fuera de banda. #}
+{% include 'programs/admission/_partials/_body.html' %}
+{% with oob=true %}
+{% include 'programs/admission/_partials/_stepper.html' %}
+{% endwith %}

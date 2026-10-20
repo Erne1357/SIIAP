@@ -1,0 +1,254 @@
+{#
+  Pestaña «Admisión» del expediente (sustituye al modal de detalle del tablero).
+
+  Contexto explícito: target_user, detail (dict de student_admission_detail_service
+  o None) y program. El fragmento se carga bajo demanda y NO entra en el
+  historial del navegador: lleva datos personales.
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
+
+{% macro archive_badge(status) %}
+  {%- set meta = {
+    'approved': ['approved', 'Aprobado'],
+    'rejected': ['rejected', 'Rechazado'],
+    'pending':  ['pending', 'Pendiente'],
+    'review':   ['review', 'En revisión'],
+    'extended': ['deliberation', 'En prórroga'],
+  }.get(status, ['pending', 'Pendiente']) -%}
+  {{ status_badge(meta[0], meta[1], 'sm') }}
+{% endmacro %}
+
+{% if detail is none %}
+  {{ empty_state('folder2-open', 'Sin proceso de admisión',
+                 'Esta cuenta no tiene una inscripción a un programa dentro de tu alcance, así que no hay documentos que revisar.',
+                 compact=true) }}
+{% else %}
+  {% set metrics = detail.metrics %}
+  {% set interview = detail.interview %}
+  {% set eligibility = interview.eligibility or {} %}
+  {% set appt = interview.appointment %}
+  {% set interview_done = appt and appt.status in ('done', 'no_show') %}
+  {% set progress = metrics.progress_percentage|int %}
+
+  <p class="text-secondary small mb-3">
+    <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>{{ program.name }}
+  </p>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="stat-card stat-card--success h-100">
+        <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value">{{ metrics.approved }}</p>
+        <p class="stat-card__label">Aprobados</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card stat-card--warning h-100">
+        <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value">{{ metrics.pending }}</p>
+        <p class="stat-card__label">Pendientes</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card stat-card--danger h-100">
+        <i class="bi bi-x-circle-fill stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value">{{ metrics.rejected }}</p>
+        <p class="stat-card__label">Rechazados</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card stat-card--info h-100">
+        <i class="bi bi-clock-history stat-card__icon" aria-hidden="true"></i>
+        <p class="stat-card__value">{{ metrics.extended }}</p>
+        <p class="stat-card__label">En prórroga</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <h3 class="h6 mb-2">Progreso general</h3>
+    <div class="progress progress--lg" role="progressbar"
+         aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"
+         aria-label="Progreso general del expediente">
+      <div class="progress-bar progress-bar--dynamic bg-success" style="--progress: {{ progress }}%">{{ progress }}%</div>
+    </div>
+  </div>
+
+  <div class="alert {{ 'alert-success' if target_user.profile_completed else 'alert-warning' }} mb-4">
+    <h3 class="h6 mb-2">
+      <i class="bi bi-person-check-fill me-2" aria-hidden="true"></i>Estado del perfil
+    </h3>
+    <p class="mb-0">
+      {% if target_user.profile_completed %}
+        <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Perfil completo: elegible para entrevista.
+      {% else %}
+        <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Perfil incompleto: debe completar sus datos personales.
+      {% endif %}
+    </p>
+  </div>
+
+  {% if detail.missing_documents %}
+    <div class="mb-4">
+      <h3 class="h6 mb-2">
+        <i class="bi bi-exclamation-circle-fill text-warning-strong me-2" aria-hidden="true"></i>
+        Documentos pendientes ({{ detail.missing_documents|length }})
+      </h3>
+      <ul class="list-group">
+        {% for item in detail.missing_documents %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ item.archive }}</strong>
+              <small class="d-block text-muted">{{ item.step }}</small>
+            </div>
+            {{ archive_badge(item.status) }}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% else %}
+    <div class="alert alert-success mb-4">
+      <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Todos los documentos están en orden.
+    </div>
+  {% endif %}
+
+  <h3 class="h5 mb-3">Documentos por etapa</h3>
+  {% for step in detail.documents %}
+    <section class="mb-4" aria-labelledby="adm-step-{{ step.step_id }}">
+      <h4 class="h6 d-flex align-items-center gap-2 mb-2" id="adm-step-{{ step.step_id }}">
+        <span>{{ step.sequence }}. {{ step.step_name }}</span>
+        {{ archive_badge(step.state) }}
+      </h4>
+      {{ data_table_open('Documentos de la etapa ' ~ step.step_name, table_class='table-sm table-hover') }}
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Documento</th>
+            <th scope="col" class="text-center">Estado</th>
+            <th scope="col">Fecha</th>
+            <th scope="col">Observaciones</th>
+            <th scope="col" class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for arch in step.archives %}
+            <tr>
+              <td>
+                <strong>{{ arch.name }}</strong>
+                {% if arch.uploaded_by_role == 'program_admin' %}
+                  <i class="bi bi-person-vcard-fill text-brand-primary ms-1" title="Subido por coordinador" aria-hidden="true"></i>
+                  <span class="visually-hidden">Subido por el coordinador</span>
+                {% endif %}
+              </td>
+              <td class="text-center">{{ archive_badge(arch.status) }}</td>
+              <td>{{ (arch.uploaded_at|fecha_es('numeric')) or '—' }}</td>
+              <td><small class="text-secondary">{{ arch.reviewer_comment or '—' }}</small></td>
+              <td class="text-center">
+                <div class="btn-group btn-group-sm" role="group">
+                  {% if arch.has_submission and arch.file_url %}
+                    <a href="{{ arch.file_url }}" target="_blank" rel="noopener"
+                       class="btn btn-outline-primary tap-target"
+                       title="Ver documento"
+                       aria-label="Ver documento {{ arch.name }} (se abre en una pestaña nueva)">
+                      <i class="bi bi-eye" aria-hidden="true"></i>
+                    </a>
+                  {% endif %}
+                  {% if arch.allow_coordinator_upload %}
+                    <button type="button" class="btn btn-outline-success tap-target"
+                            data-bs-toggle="modal" data-bs-target="#admissionUploadModal"
+                            data-archive-id="{{ arch.id }}" data-archive-name="{{ arch.name }}"
+                            title="Subir documento"
+                            aria-label="Subir documento {{ arch.name }}">
+                      <i class="bi bi-upload" aria-hidden="true"></i>
+                    </button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {{ data_table_close() }}
+    </section>
+  {% else %}
+    {{ empty_state('file-earmark-text', 'Sin etapas de admisión',
+                   'El programa no tiene documentos de admisión configurados.', compact=true) }}
+  {% endfor %}
+
+  <h3 class="h5 mb-3">Entrevista</h3>
+  {% if not interview_done %}
+    <div class="alert {{ 'alert-success' if eligibility.eligible else 'alert-warning' }} mb-3">
+      <h4 class="h6 mb-2">
+        <i class="bi {{ 'bi-check-circle-fill' if eligibility.eligible else 'bi-exclamation-triangle-fill' }} me-2" aria-hidden="true"></i>
+        Estado de elegibilidad
+      </h4>
+      <p class="mb-0">
+        {% if eligibility.eligible %}
+          El estudiante cumple con todos los requisitos para la entrevista.
+        {% else %}
+          El estudiante NO cumple con los requisitos para la entrevista.
+        {% endif %}
+      </p>
+      {% if not eligibility.eligible and eligibility.missing_items %}
+        <hr>
+        <p class="mb-2 small"><strong>Elementos faltantes:</strong></p>
+        <ul class="small mb-0">
+          {% for item in eligibility.missing_items %}
+            <li>
+              {% if item.type == 'profile' %}{{ item.description }}
+              {% else %}{{ item.step }}: {{ item.archive }} ({{ item.current_status }}){% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if interview.has_interview and appt %}
+    {% set appt_meta = {
+      'scheduled': ['in_progress', 'Programada', 'bg-primary-soft'],
+      'done':      ['approved', 'Realizada', 'bg-success-soft'],
+      'no_show':   ['rejected', 'No se presentó', 'bg-danger-soft'],
+    }.get(appt.status, ['pending', 'Pendiente', 'bg-info-soft']) %}
+    <div class="card">
+      <div class="card-header {{ appt_meta[2] }}">
+        <h4 class="h6 mb-0">
+          <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
+          {{ 'Entrevista completada' if interview_done else 'Entrevista asignada' }}
+        </h4>
+      </div>
+      <div class="card-body">
+        <dl class="row g-3 mb-0">
+          <div class="col-md-6">
+            <dt class="small text-secondary fw-normal">Evento</dt>
+            <dd class="mb-0"><strong>{{ appt.event.title }}</strong></dd>
+          </div>
+          <div class="col-md-6">
+            <dt class="small text-secondary fw-normal">Fecha y hora</dt>
+            <dd class="mb-0">
+              {{ appt.slot.starts_at|fecha_es }}
+              <small class="d-block text-secondary">{{ appt.slot.starts_at|hora_es }} – {{ appt.slot.ends_at|hora_es }}</small>
+            </dd>
+          </div>
+          <div class="col-md-6">
+            <dt class="small text-secondary fw-normal">Lugar</dt>
+            <dd class="mb-0">{{ appt.event.location or 'Por confirmar' }}</dd>
+          </div>
+          <div class="col-md-6">
+            <dt class="small text-secondary fw-normal">Estado</dt>
+            <dd class="mb-0">{{ status_badge(appt_meta[0], appt_meta[1], 'sm') }}</dd>
+          </div>
+          {% if appt.notes %}
+            <div class="col-12">
+              <dt class="small text-secondary fw-normal">Notas</dt>
+              <dd class="mb-0 small">{{ appt.notes }}</dd>
+            </div>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle-fill me-2" aria-hidden="true"></i>
+      El estudiante no tiene entrevista asignada aún.
+      {% if eligibility.eligible %} Sin embargo, cumple con los requisitos y puede ser asignado.{% endif %}
+    </div>
+  {% endif %}
+{% endif %}

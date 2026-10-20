@@ -8,7 +8,6 @@
 {% endblock %}
 
 {% block content %}
-{% from '_macros.html' import empty_state %}
 <div class="dashboard-page container-fluid">
   {# El saludo personalizado y el próximo paso los da role_banner dentro de cada
      dashboard, así que este h1 sería una tercera repetición del mismo mensaje.
@@ -16,27 +15,18 @@
      pero sin ocupar alto propio: eran 58px del presupuesto vertical. #}
   <h1 class="visually-hidden">Panel de control</h1>
 
-  {% if has_perm('programs.api.enroll') %}
-    {% include 'user/dashboard/applicant_dashboard.html' %}
-  {% elif has_perm('permanence.api.view_status') %}
-    {% include 'user/dashboard/student_dashboard.html' %}
-  {% elif has_perm('coordinator.page.view') and not has_perm('academic_periods.api.create') %}
-    {% include 'user/dashboard/program_admin_dashboard.html' %}
-  {% elif has_perm('academic_periods.api.create') %}
-    {% include 'user/dashboard/postgraduate_admin_dashboard.html' %}
-  {% else %}
-    <div class="row justify-content-center">
-      <div class="col-md-8">
-        {{ empty_state(
-             icon='hourglass-split',
-             title='Tu panel aún no está disponible',
-             description='El tablero para tu rol estará disponible próximamente. Mientras tanto puedes consultar tu perfil.',
-             action_label='Ir a mi perfil',
-             action_url=url_for('pages_user.profile')
-           ) }}
-      </div>
-    </div>
-  {% endif %}
+  {# Realtime refresh without navigating: the page scripts fire
+     `siiap:dashboard:refresh` on this node (after their own toast/filter) and
+     htmx re-requests this URL. Morph keeps focus, scroll and open widgets; the
+     postgraduate dashboard (Bootstrap tabs) only swaps its data regions OOB. #}
+  <div id="dashboard-content" hx-ext="morph"
+       hx-get="{{ url_for('pages_user.dashboard', program_id=request.args.get('program_id')) }}"
+       hx-trigger="siiap:dashboard:refresh delay:300ms"
+       hx-sync="this:replace"
+       {% if dashboard_kind == 'postgraduate' %}hx-swap="none" hx-select-oob="#postgradBanner,#postgradOverviewData,#postgradProgramStats"
+       {% else %}hx-swap="morph:innerHTML"{% endif %}>
+    {% include 'user/dashboard/_partials/_dashboard_body.html' %}
+  </div>
 </div>
 {% endblock %}
 

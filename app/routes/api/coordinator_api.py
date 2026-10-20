@@ -8,9 +8,9 @@ from app.utils.permissions import (
     guard_user_scope,
 )
 from app.routes._public_id import resolved_id
-from app.services import file_access_service
 from app.services import program_scope_service as scope_service
 from app.services import coordinator_service
+from app.services import student_admission_detail_service as student_detail_service
 from app.services.errors import DomainError
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
@@ -574,8 +574,6 @@ def get_student_details(student_uuid):
     Obtiene detalles completos de un estudiante para el modal del coordinador.
     Incluye: perfil, documentos, entrevista, métricas
     """
-    from app.services.interview_service import InterviewEligibilityService
-    
     # 1. Obtener estudiante
     student = _resolve_student(student_uuid)
     if student is None:
@@ -603,68 +601,10 @@ def get_student_details(student_uuid):
                              status=403)
         return api_ok(_restricted_details_payload(student, program, admission_state))
 
-    # 4. Organizar documentos por paso
-    documents_by_step = []
-    for item in admission_state['processed_steps']:
-        if item['sequence'] == 0:
-            continue
-        if item['is_combined']:
-            # Paso combinado
-            step_data = {
-                "step_id": item['id'],
-                "step_name": item['name'],
-                "sequence": item['sequence'],
-                "is_combined": True,
-                "locked": item['locked'],
-                "state": item['state'],
-                "archives": []
-            }
-            
-            # Archivos del step1
-            for arch in item['step1'].archives:
-                step_data['archives'].append(_format_archive_status(
-                    arch, 
-                    admission_state['subs'], 
-                    admission_state['all_extensions']
-                ))
-            
-            # Archivos del step2
-            for arch in item['step2'].archives:
-                step_data['archives'].append(_format_archive_status(
-                    arch, 
-                    admission_state['subs'], 
-                    admission_state['all_extensions']
-                ))
-            
-            documents_by_step.append(step_data)
-        else:
-            # Paso normal
-            step = item['step']
-            step_data = {
-                "step_id": step.id,
-                "step_name": step.name,
-                "sequence": item['sequence'],
-                "is_combined": False,
-                "locked": item['locked'],
-                "state": item['state'],
-                "archives": []
-            }
-            
-            for arch in step.archives:
-                step_data['archives'].append(_format_archive_status(
-                    arch, 
-                    admission_state['subs'], 
-                    admission_state['all_extensions']
-                ))
-            
-            documents_by_step.append(step_data)
-    
-    # 5. Estado de entrevista
-    interview_status = coordinator_service.get_interview_status(student_id, program.id)
-    
-    # 6. Verificar elegibilidad
-    eligibility = InterviewEligibilityService.check_student_eligibility(student_id, program.id)
-    
+    # 4-6. Documentos por paso, entrevista, elegibilidad y métricas: un solo
+    # constructor compartido con la ficha de admisión del expediente.
+    detail = student_detail_service.build_admission_detail(student, user_program, program)
+
     # 7. Construir respuesta
     return api_ok({
         "student": {
@@ -695,63 +635,13 @@ def get_student_details(student_uuid):
                 }
             }
         },
-        "documents": documents_by_step,
-        "interview": {
-            **interview_status,
-            "eligibility": eligibility
-        },
-        "metrics": {
-            "total_documents": len([a for step in documents_by_step for a in step['archives']]),
-            "approved": admission_state['status_count'].get('approved', 0),
-            "pending": admission_state['status_count'].get('pending', 0),
-            "rejected": admission_state['status_count'].get('rejected', 0),
-            "extended": admission_state['status_count'].get('extended', 0),
-            "in_review": admission_state['status_count'].get('review', 0),
-            "progress_percentage": admission_state['progress_pct']
-        },
-        "missing_documents": _get_missing_documents(documents_by_step),
+        "documents": detail["documents"],
+        "interview": detail["interview"],
+        "metrics": detail["metrics"],
+        "missing_documents": detail["missing_documents"],
         "can_manage": can_manage
     })
 
-def _format_archive_status(archive, subs, all_extensions):
-    """Formatea el estado de un archivo para el modal"""
-    sub = subs.get(archive.id)
-    ext = all_extensions.get(archive.id)
-    
-    return {
-        # Public handle — the browser posts it back as `archive_id`.
-        "id": str(archive.uuid) if archive.uuid else None,
-        "name": archive.name,
-        "description": archive.description,
-        "has_submission": bool(sub),
-        "status": sub.status if sub else "pending",
-        "uploaded_at": sub.upload_date.isoformat() if sub and sub.upload_date else None,
-        "uploaded_by_role": sub.uploaded_by_role if sub else None,
-        "reviewer_comment": sub.reviewer_comment if sub else None,
-        "review_date": sub.review_date.isoformat() if sub and sub.review_date else None,
-        # URL opaco: nombra la fila. El anterior reconstruía
-        # `<user_id>/admission/<archivo>`, o sea que publicaba el id entero del
-        # alumno en cada tarjeta del modal.
-        "file_url": file_access_service.submission_file_url(sub),
-        "has_extension": bool(ext),
-        "extension_status": ext.status if ext else None,
-        "extension_until": ext.granted_until.isoformat() if ext and ext.granted_until else None,
-        "is_uploadable": archive.is_uploadable,
-        "allow_coordinator_upload": archive.allow_coordinator_upload
-    }
-
-def _get_missing_documents(documents_by_step):
-    """Lista de documentos faltantes o rechazados"""
-    missing = []
-    for step in documents_by_step:
-        for arch in step['archives']:
-            if arch['status'] in ['pending', 'rejected']:
-                missing.append({
-                    "step": step['step_name'],
-                    "archive": arch['name'],
-                    "status": arch['status']
-                })
-    return missing
 # ==================== FUNCIONES AUXILIARES ====================
 
 def _determine_current_phase(admission_state, user_program, perm):

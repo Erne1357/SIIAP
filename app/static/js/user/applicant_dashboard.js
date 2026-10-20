@@ -273,6 +273,19 @@
     loadAcceptanceDocs();   // sólo actúa si existe #acceptanceDocsContent
   });
 
+  /** Re-render the dashboard body in place (htmx, see #dashboard-content in dashboard.html). */
+  function refreshDashboard() {
+    const el = document.getElementById('dashboard-content');
+    if (el && window.htmx) window.htmx.trigger(el, 'siiap:dashboard:refresh');
+  }
+
+  // The refresh morphs the server markup over the JS-built regions: load them again.
+  document.addEventListener('htmx:afterSettle', (e) => {
+    if (e.detail?.target?.id !== 'dashboard-content') return;
+    loadDeferralLetter();
+    loadAcceptanceDocs();
+  });
+
   // Tiempo real: recargar documentos de aceptación cuando hay cambios
   window.addEventListener('siiap:acceptance:updated', () => {
     loadAcceptanceDocs();
@@ -285,7 +298,7 @@
     const data = e.detail || {};
     const action = data.status === 'approved' ? 'aprobado' : 'rechazado';
     showSimpleToast(`Un documento ha sido ${action}. Actualizando...`, data.status === 'approved' ? 'success' : 'warning');
-    setTimeout(() => { window.location.reload(); }, 2000);
+    refreshDashboard();
   });
 
   // Tiempo real: decisión de prórroga
@@ -299,7 +312,7 @@
     const m = messages[data.status];
     if (!m) return;
     showSimpleToast(`${m.text} Actualizando...`, m.type);
-    setTimeout(() => { window.location.reload(); }, 2000);
+    refreshDashboard();
   });
 
   // Tiempo real: cambio de estado de admisión → banners y timeline cambian
@@ -316,6 +329,6 @@
     const m = messages[data.new_status];
     if (!m) return;
     showSimpleToast(`${m.text} Actualizando...`, m.type);
-    setTimeout(() => { window.location.reload(); }, 2500);
+    refreshDashboard();
   });
 })();

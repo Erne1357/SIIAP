@@ -31,6 +31,23 @@ class DashboardService:
         return {}
 
     @staticmethod
+    def dashboard_kind(user):
+        """Which dashboard variant the template renders (same precedence as the template).
+
+        Returns ``applicant`` | ``student`` | ``program_admin`` | ``postgraduate`` | ``none``.
+        """
+        if user.has_permission('programs.api.enroll'):
+            return 'applicant'
+        if user.has_permission('permanence.api.view_status'):
+            return 'student'
+        can_create_period = user.has_permission('academic_periods.api.create')
+        if user.has_permission('coordinator.page.view') and not can_create_period:
+            return 'program_admin'
+        if can_create_period:
+            return 'postgraduate'
+        return 'none'
+
+    @staticmethod
     def _applicant_context(user):
         from app.services.admission_service import get_admission_state
 
@@ -70,6 +87,15 @@ class DashboardService:
             "deferral_status": deferral_status,
             "events_widget": events_widget,
         }
+
+    @staticmethod
+    def events_widget_for(user):
+        """Events widget data for the dashboards (``None`` when it cannot be built)."""
+        from app.services.events_service import EventsService
+        try:
+            return EventsService.get_dashboard_widget(user.id)
+        except Exception:
+            return None
 
     @staticmethod
     def _student_context(user):

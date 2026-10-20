@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required
 from markupsafe import escape
 from app.utils.permissions import permission_required
+from app.utils.htmx import render_fragment
 from app.utils.api_response import api_ok, api_error, api_server_error
 from app.utils.ms_graph import build_auth_url, process_auth_code, clear_account_and_cache, read_account_info
 from app.services.email_service import EmailService
@@ -30,6 +31,15 @@ def email_config():
     return render_template('admin/settings/emails.html', 
                          ms_account=account,
                          stats=stats)
+
+
+@pages_emails.get('/emails/connection')
+@login_required
+@permission_required('admin_emails.api.manage')
+def email_connection():
+    """Fragmento HTML: tarjeta de conexión con Microsoft (tras desconectar)."""
+    return render_fragment('admin/settings/_partials/_email_connection.html',
+                           ms_account=read_account_info())
 
 
 @pages_emails.route('/emails/login')

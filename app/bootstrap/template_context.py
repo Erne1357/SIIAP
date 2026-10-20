@@ -4,7 +4,9 @@ from flask_login import current_user
 
 from app.navigation import Navigation
 from app.utils.csrf import generate_csrf_token
-from app.utils.datetime_utils import format_date_es, format_datetime_es, now_local
+from app.utils.datetime_utils import (
+    format_date_es, format_datetime_es, format_time_es, now_local,
+)
 
 
 def register_template_context(app):
@@ -149,6 +151,11 @@ def register_template_context(app):
     def _fecha_es_filter(value, style='long'):
         """Render a date in Spanish: 'long' | 'short' | 'numeric'."""
         return format_date_es(value, style)
+
+    @app.template_filter('hora_es')
+    def _hora_es_filter(value):
+        """Render the time of a datetime as 24h 'HH:MM' (empty when absent)."""
+        return format_time_es(value)
 
     @app.template_filter('fechahora_es')
     def _fechahora_es_filter(value, style='long', include_time=True):

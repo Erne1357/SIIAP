@@ -7,10 +7,22 @@ document.addEventListener('DOMContentLoaded', () => {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
   
-  function persistFlashes(flashes) {
+  /**
+   * Re-render only what a saved profile changes (header data column + personal-info
+   * card) from the server, instead of reloading the page. The active tab, scroll
+   * and the photo controls stay untouched.
+   */
+  async function refreshProfileSummary() {
+    if (!window.htmx) return;
     try {
-      sessionStorage.setItem('flashQueue', JSON.stringify(flashes || []));
-    } catch (_) {}
+      await window.htmx.ajax('GET', '/user/profile/summary', {
+        target: '#profileHeaderMain', swap: 'innerHTML'
+      });
+      if (window.SIIAP?.announce) window.SIIAP.announce('Perfil actualizado.');
+    } catch (err) {
+      // The save succeeded; a failed refresh is reported by the htmx bridge.
+      console.error('profile summary refresh error:', err);
+    }
   }
 
   // ========== FORMULARIO BÁSICO DE PERFIL ==========
@@ -52,8 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
           ? json.flash
           : [{ level: 'success', message: 'Perfil actualizado exitosamente.' }];
 
-        persistFlashes(flashes);
-        window.location.reload();
+        flashes.forEach(f => emitFlash(f.level || 'success', f.message));
+        await refreshProfileSummary();
 
       } catch (err) {
         console.error('profile update error:', err);
@@ -136,8 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
 
-        persistFlashes(flashes);
-        window.location.reload();
+        flashes.forEach(f => emitFlash(f.level || 'success', f.message));
+        await refreshProfileSummary();
 
       } catch (err) {
         console.error('complete profile error:', err);

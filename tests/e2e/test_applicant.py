@@ -22,14 +22,12 @@ def mark_page(page):
     page.evaluate('() => { window.__e2e_marker = true; }')
 
 
-def wait_for_reload(page):
+def assert_no_reload(page):
     """
-    admission.js sets location.hash and then calls location.reload(). The hash
-    change alone already satisfies expect_navigation(), so wait for the marker
-    set by mark_page() to disappear: that only happens on the real reload.
+    The admission screen swaps fragments with htmx: the document must be the same
+    one. The marker set by mark_page() is lost on any real navigation or reload.
     """
-    page.wait_for_function('() => window.__e2e_marker === undefined')
-    settle(page)
+    assert page.evaluate('() => window.__e2e_marker !== undefined'), 'the page reloaded'
 
 
 @pytest.fixture
@@ -104,10 +102,12 @@ def test_upload_replace_and_delete_a_pdf(page, applicant, no_submission):
         {'name': 'acta.pdf', 'mimeType': 'application/pdf', 'buffer': TINY_PDF})
     mark_page(page)
     dialog.get_by_role('button', name='Subir').click()
-    wait_for_reload(page)  # the page reloads after a successful upload
     row = page.get_by_role('row', name=re.compile(acc.ARCHIVE_NAME))
     try:
+        # htmx swaps the pane in place: no reload, the dialog closes on success
         expect(row.get_by_text('En revisión')).to_be_visible()
+        expect(dialog).to_be_hidden()
+        assert_no_reload(page)
         expect(row.get_by_role('link', name=re.compile('Ver el documento'))).to_be_visible()
 
         # --- the uploaded file is served back to its owner ------------------
@@ -120,9 +120,9 @@ def test_upload_replace_and_delete_a_pdf(page, applicant, no_submission):
         row.get_by_role('button', name=f'Eliminar el archivo de {acc.ARCHIVE_NAME}').click()
         mark_page(page)
         page.get_by_role('button', name='Sí, eliminar').click()
-        wait_for_reload(page)
     row = page.get_by_role('row', name=re.compile(acc.ARCHIVE_NAME))
     expect(row.get_by_text('Pendiente')).to_be_visible()
+    assert_no_reload(page)
 
 
 def test_upload_rejects_non_pdf_files_in_spanish(page, applicant, no_submission):

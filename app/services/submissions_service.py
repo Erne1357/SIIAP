@@ -134,16 +134,43 @@ def upload_submission(user, archive_uuid, program_id, program_slug, file):
     return sub, archive, program, ps
 
 
-def delete_own_submission(user_id: int, sub_uuid) -> None:
+def notify_new_submission(user, sub, archive, program) -> None:
+    """Tell the program's coordinators (WebSocket) that a document arrived. Best effort."""
+    try:
+        # Only coordinators with scope over the program: the payload ties a
+        # user_id to the name of one of their documents and that must not
+        # cross programs.
+        from app.sockets.emitters import emit_to_coordinators
+        emit_to_coordinators('submission:new', {
+            # Public identifiers: the browser compares them with the `id`s the
+            # REST payloads publish, which are UUIDs too.
+            'user_id': str(user.uuid) if user.uuid else None,
+            'submission_id': str(sub.uuid) if sub.uuid else None,
+            'archive_name': archive.name,
+            'program_id': program.id,
+        }, program.id)
+    except Exception:
+        pass
+
+
+def delete_own_submission(user_id: int, sub_uuid, program_id: int | None = None):
     """Delete the caller's own submission and log it in the history.
 
-    "Does not exist" and "is not yours" raise the SAME NotFoundError (same
-    status, same message) so the endpoint is not an enumeration oracle.
+    "Does not exist", "is not yours" and (when ``program_id`` is given) "belongs
+    to another program" raise the SAME NotFoundError (same status, same
+    message) so the endpoint is not an enumeration oracle.
+
+    Returns the id of the Step the document belonged to (None if unknown), so a
+    page fragment can re-render the right pane.
     """
     sub = Submission.by_uuid(sub_uuid)
     if not sub or sub.user_id != user_id:
         raise NotFoundError(SUBMISSION_NOT_FOUND_MESSAGE)
+    if program_id is not None and (
+            not sub.program_step or sub.program_step.program_id != program_id):
+        raise NotFoundError(SUBMISSION_NOT_FOUND_MESSAGE)
 
+    step_id = sub.archive.step_id if sub.archive else None
     archive_name = sub.archive.name if sub.archive else "Desconocido"
     program_name = "Desconocido"
     if sub.program_step and sub.program_step.program:
@@ -162,3 +189,5 @@ def delete_own_submission(user_id: int, sub_uuid) -> None:
         db.session.commit()
     except Exception as e:
         logger.error(f"Error al registrar eliminación de documento en historial: {e}")
+
+    return step_id

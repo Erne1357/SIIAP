@@ -305,6 +305,11 @@ def js_console_log():
     return _collect(_js_files(), lambda t: _count(r"\bconsole\.log\(", t))
 
 
+def js_location_reload():
+    """location.reload( left in JS: re-render the region with an htmx fragment instead."""
+    return _collect(_js_files(), lambda t: _count(r"location\.reload\(", t))
+
+
 def js_alert():
     """Blocking alert( calls."""
     return _collect(_js_files(), lambda t: _count(r"(?<![\w.$])alert\(", t))
@@ -362,6 +367,7 @@ RULES = {
     "css_thick_side_borders": css_thick_side_borders,
     "py_flash_not_spanish": py_flash_not_spanish,
     "js_console_log": js_console_log,
+    "js_location_reload": js_location_reload,
     "js_alert": js_alert,
     "js_mutation_without_csrf": js_mutation_without_csrf,
     "js_csrf_meta_reads": js_csrf_meta_reads,

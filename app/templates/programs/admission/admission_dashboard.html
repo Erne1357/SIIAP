@@ -1,6 +1,4 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import stepper, data_table_open, data_table_close %}
-{% from 'programs/admission/_archive_rows.html' import render_archive_row, archive_table_head %}
 
 {% block title %}Admisión – {{ program.name }}{% endblock %}
 
@@ -9,398 +7,29 @@
 {% endblock %}
 
 {% block content %}
-<div class="container admission-panel">
+<div class="container admission-panel" hx-ext="morph" hx-history="false">
 
   <h1 class="admission-panel__title">Proceso de admisión</h1>
   <p class="text-secondary admission-panel__subtitle">{{ program.name }}</p>
 
   {# ── Dónde está el aspirante dentro del proceso completo ── #}
-  {% set admission_stages = [
-       {'label': 'Documentos'},
-       {'label': 'Entrevista'},
-       {'label': 'Deliberación'},
-       {'label': 'Resultado'}
-     ] %}
-  {% set stage_map = {
-       'in_progress': 1,
-       'interview_completed': 3,
-       'deliberation': 3,
-       'accepted': 4,
-       'rejected': 4,
-       'deferred': 4,
-       'enrolled': 4
-     } %}
-  <div class="admission-panel__stepper">
-    {{ stepper(admission_stages, current=stage_map.get(admission_status, 1)) }}
+  {% set oob = false %}
+  {% include 'programs/admission/_partials/_stepper.html' %}
+
+  {# Refresco en tiempo real: el socket re-emite estos eventos en window y htmx
+     vuelve a pedir el cuerpo (el servidor es el dueño del estado). El retardo y
+     hx-sync evitan la doble petición cuando una mutación propia coincide con el
+     evento. `siiap:admission-refresh` lo dispara admission.js tras una prórroga
+     o la carta de asignación. #}
+  <div id="admission-refresh" aria-hidden="true"
+       hx-get="{{ url_for('program.admission.admission_panel', slug=program.slug) }}"
+       hx-trigger="siiap:submission:reviewed from:window delay:300ms, siiap:extension:decided from:window delay:300ms, siiap:admission:status_changed from:window delay:300ms, siiap:admission-refresh delay:300ms"
+       hx-target="#admission-body" hx-swap="morph:innerHTML" hx-sync="this:replace"
+       data-admission-ctx="true"></div>
+
+  <div id="admission-body">
+    {% include 'programs/admission/_partials/_body.html' %}
   </div>
-
-  {# ── Banner de estado cuando el proceso ya pasó la etapa de documentos ── #}
-  {% if admission_status in ['interview_completed', 'deliberation', 'accepted', 'rejected'] %}
-
-  <div class="mb-4">
-    {% if admission_status == 'interview_completed' %}
-    <div class="alert alert-info shadow-sm" role="alert">
-      <div class="d-flex align-items-start gap-3">
-        <i class="bi bi-hourglass-split fs-2 flex-shrink-0" aria-hidden="true"></i>
-        <div>
-          <h2 class="h5 alert-heading mb-1">Entrevista completada — En espera de deliberación</h2>
-          <p class="mb-0">Tu entrevista ha sido registrada como completada. Los coordinadores del programa
-            comenzarán el proceso de deliberación en breve. Te notificaremos cuando haya una decisión.</p>
-        </div>
-      </div>
-    </div>
-
-    {% elif admission_status == 'deliberation' %}
-    <div class="alert alert-warning shadow-sm" role="alert">
-      <div class="d-flex align-items-start gap-3">
-        <i class="bi bi-chat-square-dots fs-2 flex-shrink-0" aria-hidden="true"></i>
-        <div>
-          <h2 class="h5 alert-heading mb-1">Tu expediente está en deliberación</h2>
-          <p class="mb-0">El comité de admisión está evaluando tu expediente.
-            {% if deliberation_started_at %}Proceso iniciado el {{ deliberation_started_at|fecha_es }}.{% endif %}
-            Te notificaremos cuando haya una resolución.</p>
-        </div>
-      </div>
-    </div>
-
-    {% elif admission_status == 'accepted' %}
-    {# ── Vista del aspirante aceptado ── #}
-    {% set letter = acceptance_docs.get('acceptance_letter') if acceptance_docs else None %}
-    {% set schedule = acceptance_docs.get('course_schedule') if acceptance_docs else None %}
-    {% set receipt = acceptance_docs.get('enrollment_receipt') if acceptance_docs else None %}
-    {% set dictamen = acceptance_docs.get('acceptance_opinion') if acceptance_docs else None %}
-    {% set both_docs_ready = (letter and letter.status == 'uploaded') and (schedule and schedule.status == 'uploaded') %}
-
-    <div class="card border-success shadow-sm mb-3">
-      {# bg-success con texto blanco da 3.49:1 y falla AA: se usa la superficie
-         suave de la marca (success-100 / success-700 = 5.63:1). #}
-      <div class="card-header bg-success-soft d-flex align-items-center gap-2 flex-wrap">
-        <i class="bi bi-trophy-fill fs-5" aria-hidden="true"></i>
-        <h2 class="h6 mb-0 fw-bold">¡Felicidades! Has sido aceptado al programa</h2>
-        {% if decision_at %}<span class="ms-auto small">Decisión: {{ decision_at|fecha_es('numeric') }}</span>{% endif %}
-      </div>
-      <div class="card-body">
-        {% if decision_notes %}
-        <div class="alert alert-success mb-3 py-2">
-          <i class="bi bi-chat-quote me-1" aria-hidden="true"></i><strong>Notas del comité:</strong> {{ decision_notes }}
-        </div>
-        {% endif %}
-
-        {# — Documentos para descargar — #}
-        <h3 class="h6 fw-bold mb-2">
-          <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Documentos de aceptación
-        </h3>
-        <div class="row g-2 mb-3">
-          <div class="col-sm-6">
-            <div class="acceptance-doc{% if letter %} acceptance-doc--ready{% endif %}">
-              <i class="bi bi-file-earmark-text fs-4 {% if letter %}text-success-strong{% else %}text-muted{% endif %}" aria-hidden="true"></i>
-              <div class="flex-grow-1">
-                <p class="acceptance-doc__title">Carta de aceptación</p>
-                {% if letter %}
-                {# `file_url` lo construye AcceptanceDocument.to_dict(): nombra
-                   la fila, nunca la ruta en disco. #}
-                <a href="{{ letter.file_url }}" target="_blank" rel="noopener"
-                   class="btn btn-sm btn-outline-success mt-1">
-                  <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
-                  <span class="visually-hidden">carta de aceptación (se abre en una pestaña nueva)</span>
-                </a>
-                {% else %}
-                <span class="small text-muted fst-italic">Próximamente disponible</span>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-6">
-            <div class="acceptance-doc{% if schedule %} acceptance-doc--ready{% endif %}">
-              <i class="bi bi-calendar3 fs-4 {% if schedule %}text-success-strong{% else %}text-muted{% endif %}" aria-hidden="true"></i>
-              <div class="flex-grow-1">
-                <p class="acceptance-doc__title">Tira de materias</p>
-                {% if schedule %}
-                <a href="{{ schedule.file_url }}" target="_blank" rel="noopener"
-                   class="btn btn-sm btn-outline-success mt-1">
-                  <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar
-                  <span class="visually-hidden">tira de materias (se abre en una pestaña nueva)</span>
-                </a>
-                {% else %}
-                <span class="small text-muted fst-italic">Próximamente disponible</span>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-          {% if dictamen and dictamen.file_path %}
-          <div class="col-12">
-            <div class="acceptance-doc acceptance-doc--conditional">
-              <i class="bi bi-file-earmark-medical fs-4 text-warning-strong" aria-hidden="true"></i>
-              <div class="flex-grow-1">
-                <p class="acceptance-doc__title">
-                  Dictamen de aceptación
-                  <span class="badge bg-warning ms-1">Aceptación condicionada</span>
-                </p>
-                <p class="small mb-2">
-                  Tu admisión es condicionada. Revisa el dictamen para conocer las condiciones que debes cumplir.
-                  {% if dictamen.review_notes %}
-                  <br><em>{{ dictamen.review_notes }}</em>
-                  {% endif %}
-                </p>
-                <a href="{{ dictamen.file_url }}" target="_blank" rel="noopener"
-                   class="btn btn-sm btn-outline-warning">
-                  <i class="bi bi-download me-1" aria-hidden="true"></i>Descargar dictamen
-                  <span class="visually-hidden">(se abre en una pestaña nueva)</span>
-                </a>
-              </div>
-            </div>
-          </div>
-          {% endif %}
-        </div>
-
-        {% if both_docs_ready %}
-        {# — Instrucciones para Servicios Escolares — #}
-        <div class="alert alert-info mb-3">
-          <h3 class="h6 alert-heading fw-bold">
-            <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>Próximos pasos — Servicios Escolares
-          </h3>
-          <ol class="mb-0 ps-3 small">
-            <li>Descarga tu <strong>carta de aceptación</strong> y <strong>tira de materias</strong> desde arriba.</li>
-            <li>
-              Reúne los siguientes documentos (original y copia) para Servicios Escolares:
-              <ul class="mt-1 mb-2 ps-3">
-                <li>Solicitud de admisión con fotografía.</li>
-                <li>Carta de aceptación.</li>
-                <li>Comprobante de dominio del idioma inglés.</li>
-                <li>Currículum.</li>
-                <li>Acta de nacimiento.</li>
-                <li>
-                  CURP
-                  (<a href="https://www.gob.mx/curp/" target="_blank" rel="noopener">Descargar<span class="visually-hidden"> la CURP en gob.mx (se abre en una pestaña nueva)</span></a>).
-                </li>
-                <li>Título de licenciatura.</li>
-                <li>Cédula profesional de licenciatura.</li>
-                <li>Certificado de licenciatura.</li>
-                <li>Tira de materias con firmas autorizadas.</li>
-              </ul>
-            </li>
-            <li>Acude a <strong>Servicios Escolares</strong> con todos tus documentos.</li>
-            <li>Realiza el pago de inscripción que te indiquen en Servicios Escolares.</li>
-            <li>Recibirás una <strong>carta de asignación de número de control</strong>; súbela en el formulario de abajo.</li>
-          </ol>
-        </div>
-
-        {# — Subida de la carta de asignación de número de control — #}
-        <h3 class="h6 fw-bold mb-2">
-          <i class="bi bi-upload me-1" aria-hidden="true"></i>Carta de asignación de número de control
-        </h3>
-        {% if receipt and receipt.status == 'approved' %}
-        <div class="alert alert-success py-2">
-          <i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>
-          <strong>Documento aprobado.</strong> Tu número de control ha sido asignado por el coordinador.
-          {% if receipt.review_notes %}<br><span class="small">Notas: {{ receipt.review_notes }}</span>{% endif %}
-        </div>
-        {% elif receipt and receipt.status == 'uploaded' %}
-        <div class="alert alert-warning py-2">
-          <i class="bi bi-hourglass-split me-2" aria-hidden="true"></i>
-          Tu documento está siendo revisado por el coordinador. Te notificaremos cuando haya una respuesta.
-        </div>
-        {% else %}
-        {% if receipt and receipt.status == 'rejected' %}
-        <div class="alert alert-danger py-2 mb-3">
-          <i class="bi bi-x-circle-fill me-2" aria-hidden="true"></i>
-          <strong>Documento rechazado.</strong>
-          {% if receipt.review_notes %} Motivo: {{ receipt.review_notes }}{% endif %}
-          <br><span class="small">Por favor sube una versión corregida.</span>
-        </div>
-        {% else %}
-        <p class="text-muted small mb-2">Una vez que Servicios Escolares te entregue la carta, súbela aquí.</p>
-        {% endif %}
-        <div>
-          <label class="form-label" for="receiptFileInput">
-            Carta de asignación de número de control (PDF)
-          </label>
-          <input type="file" class="form-control mb-2 receipt-upload-input" id="receiptFileInput"
-                 accept=".pdf" aria-describedby="receiptFileHelp">
-          <div class="form-text mb-2" id="receiptFileHelp">Solo PDF. Tamaño máximo: 3 MB.</div>
-          <button type="button" class="btn btn-primary btn-sm" id="receiptUploadBtn">
-            <i class="bi bi-upload me-1" aria-hidden="true"></i>Subir carta
-          </button>
-          <div id="receiptUploadStatus" class="mt-2" role="status" aria-live="polite" aria-atomic="true"></div>
-        </div>
-        {% endif %}
-
-        {% else %}
-        <div class="alert alert-secondary py-2">
-          <i class="bi bi-clock me-2" aria-hidden="true"></i>
-          Cuando el coordinador cargue tus documentos de aceptación, podrás descargarlos y ver los próximos pasos de inscripción.
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    {% elif admission_status == 'rejected' %}
-      {% if rejection_type == 'partial' %}
-      <div class="alert alert-warning shadow-sm" role="alert">
-        <div class="d-flex align-items-start gap-3">
-          <i class="bi bi-exclamation-triangle-fill fs-2 flex-shrink-0" aria-hidden="true"></i>
-          <div>
-            <h2 class="h5 alert-heading mb-1">Se requieren correcciones en tu expediente</h2>
-            {% if decision_at %}<p class="mb-1 small">Notificado el {{ decision_at|fecha_es }}</p>{% endif %}
-            {% if correction_required %}
-              {# Detectar si es JSON estructurado (trae archive_name) o texto plano #}
-              {% if '"archive_name"' in correction_required %}
-                {% set corr_str = correction_required %}
-                {% set start = corr_str.find('"archive_name": "') + 17 %}
-                {% set end = corr_str.find('"', start) %}
-                {% set doc_name = corr_str[start:end] if start > 17 else '' %}
-                {% if doc_name %}
-                <p class="mb-1"><i class="bi bi-file-earmark-x-fill me-1" aria-hidden="true"></i><strong>Documento a corregir:</strong> {{ doc_name }}</p>
-                {% endif %}
-                {% set ns = corr_str.find('"notes": "') + 10 %}
-                {% set ne = corr_str.find('"', ns) %}
-                {% set notes_text = corr_str[ns:ne] if ns > 10 else '' %}
-                {% if notes_text %}
-                <p class="mb-1">{{ notes_text }}</p>
-                {% endif %}
-              {% else %}
-              <p class="mb-1"><strong>Correcciones requeridas:</strong> {{ correction_required }}</p>
-              {% endif %}
-            {% endif %}
-            {% if decision_notes %}
-            <p class="mb-1"><strong>Notas del comité:</strong> {{ decision_notes }}</p>
-            {% endif %}
-            <hr class="my-2">
-            <p class="mb-0 small">Un coordinador habilitará tu expediente para que puedas realizar las correcciones. Espera la notificación.</p>
-          </div>
-        </div>
-      </div>
-      {% else %}
-      <div class="alert alert-danger shadow-sm" role="alert">
-        <div class="d-flex align-items-start gap-3">
-          <i class="bi bi-x-circle-fill fs-2 flex-shrink-0" aria-hidden="true"></i>
-          <div>
-            <h2 class="h5 alert-heading mb-1">Tu solicitud no fue aceptada</h2>
-            {% if decision_at %}<p class="mb-1 small">Decisión tomada el {{ decision_at|fecha_es }}</p>{% endif %}
-            {% if decision_notes %}
-            <p class="mb-0"><strong>Motivo:</strong> {{ decision_notes }}</p>
-            {% else %}
-            <p class="mb-0">Lamentamos informarte que tu solicitud de admisión no fue aprobada en este periodo.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      {% endif %}
-    {% endif %}
-  </div>
-
-  {# Fin del bloque de estado — no se muestran las pestañas de documentos #}
-  {% else %}
-  {# ── Vista normal de documentos ── #}
-
-  {# El botón va en línea con el texto, no en una fila propia: la fila
-     aparte costaba 47px de alto sobre el pliegue en cada visita. #}
-  <div class="alert alert-info shadow-sm admission-intro" role="alert">
-    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
-      <div class="admission-intro__text">
-        <h2 class="h6 mb-1">Sube tus documentos</h2>
-        <p class="mb-0">
-          Sube los documentos requeridos en cada paso. Los siguientes pasos se
-          desbloquearán cuando todos los archivos del paso anterior estén aprobados.
-          <strong>Para ver la descripción de un archivo, haz clic en su nombre.</strong>
-        </p>
-      </div>
-      <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" id="btnRequestProgramChange"
-        data-program-id="{{ program.id }}" data-program-slug="{{ program.slug }}">
-        <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>
-        Cambiar de programa
-      </button>
-    </div>
-  </div>
-
-  <!-- Pestañas de pasos -->
-  <ul class="nav nav-tabs" id="stepTab" role="tablist">
-    {% for item in processed_steps %}
-    {% set pane_id = 'pane-' ~ (item.id if item.is_combined else item.step.id) %}
-    {% set tab_id = 'tab-' ~ (item.id if item.is_combined else item.step.id) %}
-    {% set label = item.name if item.is_combined else item.step.name %}
-    {% set seq = item.sequence if item.is_combined else (item.sequence if item.sequence <= 2 else item.sequence - 1) %}
-    <li class="nav-item" role="presentation">
-      <button class="nav-link{% if loop.first %} active{% endif %}{% if item.locked %} disabled{% endif %}"
-              id="{{ tab_id }}" data-bs-toggle="tab" data-bs-target="#{{ pane_id }}"
-              type="button" role="tab" aria-controls="{{ pane_id }}"
-              aria-selected="{{ 'true' if loop.first else 'false' }}"
-              {% if item.locked %}aria-disabled="true" tabindex="-1"{% endif %}>
-        {{ seq }}. {{ label }}
-        {# El estado nunca se comunica sólo con color o icono #}
-        {% if item.locked %}
-        <i class="bi bi-lock-fill ms-1" aria-hidden="true"></i>
-        <span class="visually-hidden">(bloqueado: completa el paso anterior)</span>
-        {% elif item.state == 'approved' %}
-        <i class="bi bi-check-circle-fill ms-1 text-success-strong" aria-hidden="true"></i>
-        <span class="visually-hidden">(aprobado)</span>
-        {% elif item.state == 'rejected' %}
-        <i class="bi bi-x-circle-fill ms-1 text-danger-strong" aria-hidden="true"></i>
-        <span class="visually-hidden">(rechazado)</span>
-        {% elif item.state == 'pending' %}
-        <i class="bi bi-exclamation-circle-fill ms-1 text-warning-strong" aria-hidden="true"></i>
-        <span class="visually-hidden">(pendiente)</span>
-        {% elif item.state == 'extended' %}
-        <i class="bi bi-clock ms-1 text-warning-strong" aria-hidden="true"></i>
-        <span class="visually-hidden">(en prórroga)</span>
-        {% elif item.state == 'review' %}
-        <i class="bi bi-eye-fill ms-1 text-warning-strong" aria-hidden="true"></i>
-        <span class="visually-hidden">(en revisión)</span>
-        {% endif %}
-      </button>
-    </li>
-    {% endfor %}
-  </ul>
-
-  <!-- Contenido de las pestañas -->
-  <div class="tab-content">
-    {% for item in processed_steps %}
-    {% if item.is_combined %}
-    {# Paso combinado: una sola tabla con los archivos de los dos pasos #}
-    <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="pane-{{ item.id }}"
-         role="tabpanel" aria-labelledby="tab-{{ item.id }}" tabindex="0">
-      {% if item.locked %}
-      <div class="alert alert-warning" role="alert">Completa y aprueba el paso anterior.</div>
-      {% else %}
-        {% if item.step1.name == 'Entrevista' or item.step1.name == 'Defensa de Protocolo/Propuesta' %}
-        <div class="interview-info" role="status" aria-live="polite" aria-busy="true">
-          <div class="skeleton skeleton-card skeleton-card--sm"></div>
-        </div>
-        {% else %}
-        {% set informative_1 = item.step1.program_steps and item.step1.program_steps[0].sequence == 0 %}
-        {% set informative_2 = item.step2.program_steps and item.step2.program_steps[0].sequence == 0 %}
-        {{ data_table_open('Documentos requeridos de ' ~ item.name,
-                           id='archiveTable-' ~ item.id,
-                           table_class='table-hover align-middle archive-table') }}
-          {{ archive_table_head() }}
-          <tbody>
-            {% for arch in item.step1.archives %}
-              {{ render_archive_row(arch, item.step1, subs, all_extensions, current_user, informative_1) }}
-            {% endfor %}
-            {% for arch in item.step2.archives %}
-              {{ render_archive_row(arch, item.step2, subs, all_extensions, current_user, informative_2) }}
-            {% endfor %}
-          </tbody>
-        {{ data_table_close() }}
-        {% endif %}
-      {% endif %}
-    </div>
-    {% else %}
-    {# Paso normal #}
-    <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="pane-{{ item.step.id }}"
-         role="tabpanel" aria-labelledby="tab-{{ item.step.id }}" tabindex="0">
-      {% if item.locked %}
-      <div class="alert alert-warning" role="alert">Completa y aprueba el paso anterior.</div>
-      {% else %}
-      {% set step = item.step %}
-      {% include 'programs/admission/_archive_table.html' %}
-      {% endif %}
-    </div>
-    {% endif %}
-    {% endfor %}
-  </div>
-
-  {% endif %}{# fin del else de admission_status normal #}
 
 </div>
 {% endblock %}
@@ -410,14 +39,19 @@
 <!-- Modal para subir archivos -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <form method="POST" enctype="multipart/form-data" class="modal-content" data-admission-upload="true">
+    {# htmx: la respuesta trae su propio HX-Retarget / HX-Reswap (el panel que cambió)
+       y sus swaps fuera de banda; aquí no se cambia nada (hx-swap="none"). #}
+    <form id="uploadForm" method="POST" enctype="multipart/form-data" class="modal-content"
+          hx-post="{{ url_for('program.admission.upload_document', slug=program.slug) }}"
+          hx-encoding="multipart/form-data" hx-swap="none" hx-sync="this:drop"
+          hx-indicator="#uploadSubmitBtn" hx-disabled-elt="#uploadSubmitBtn"
+          data-admission-ctx="true">
       <div class="modal-header">
         <h2 class="modal-title h5" id="uploadLabel">Subir documento</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" name="archive_id" id="archiveIdInput">
-        <input type="hidden" name="program_id" id="programIdInput" value="{{ program.id }}">
 
         <div id="existingFileInfo" class="d-none">
           <div class="alert alert-info">
@@ -448,6 +82,7 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" class="btn btn-primary" id="uploadSubmitBtn">
           <span id="uploadBtnText">Subir</span>
+          <span class="spinner-border spinner-border-sm htmx-indicator ms-1" aria-hidden="true"></span>
         </button>
       </div>
     </form>

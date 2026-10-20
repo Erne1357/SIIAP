@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required, current_user
 from app.services.admission_service import get_admission_state
 from app.services.dashboard_service import DashboardService
+from app.utils.htmx import is_htmx, render_fragment
 
 pages_user = Blueprint("pages_user", __name__, url_prefix="/user")
 
@@ -14,7 +15,28 @@ def dashboard():
         current_user,
         program_id_param=request.args.get('program_id'),
     )
-    return render_template("user/dashboard/dashboard.html", **context)
+    context["dashboard_kind"] = DashboardService.dashboard_kind(current_user)
+    # Realtime refresh (hx-get on #dashboard-content): the body only, never the shell.
+    if is_htmx():
+        return render_fragment("user/dashboard/_partials/_dashboard_refresh.html", **context)
+    return render_fragment("user/dashboard/dashboard.html", **context)
+
+
+@pages_user.route("/dashboard/events-widget", methods=["GET"])
+@login_required
+def events_widget():
+    """Fragmento HTML: cuerpo del widget de eventos (tras responder una invitación)."""
+    return render_fragment(
+        "partials/_events_widget_body.html",
+        events_widget=DashboardService.events_widget_for(current_user),
+    )
+
+
+@pages_user.route("/profile/summary", methods=["GET"])
+@login_required
+def profile_summary():
+    """Fragmento HTML: columna de datos de la cabecera del perfil + tarjeta de información personal."""
+    return render_fragment("user/profile/_profile_summary_refresh.html")
 
 
 @pages_user.route("/profile", methods=["GET"])

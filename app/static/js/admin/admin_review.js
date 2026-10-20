@@ -389,13 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('siiap:submission:new', (e) => {
     const data = e.detail;
     if (!data) return;
-    emitFlash('info', `Nuevo documento recibido: "${data.archive_name || 'documento'}". Recarga para verlo.`);
-
-    // Si hay una tabla de submissions visible, recargarla automáticamente
-    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
-    if (submissionsTable) {
-      setTimeout(() => { window.location.reload(); }, 3000);
-    }
+    // La lista se refresca sola (hx-trigger de #submissions-body): sin ella, el aviso invita a recargar.
+    const hasList = !!document.getElementById('submissions-body');
+    emitFlash('info', `Nuevo documento recibido: "${data.archive_name || 'documento'}".${hasList ? '' : ' Recarga para verlo.'}`);
   });
 
   // ==================== TIEMPO REAL: DOCUMENTO REVISADO POR OTRO ADMIN ====================
@@ -422,12 +418,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Caso 2: estamos en la lista → reload para eliminar la fila resuelta
-    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
-    if (submissionsTable) {
+    // Caso 2: estamos en la lista → #submissions-body se re-pide solo (hx-trigger) y retira la fila resuelta
+    if (document.getElementById('submissions-body')) {
       const action = data.status === 'approved' ? 'aprobado' : 'rechazado';
       emitFlash('info', `Un documento fue ${action} por otro revisor. Actualizando...`);
-      setTimeout(() => { window.location.reload(); }, 1500);
     }
   });
 });

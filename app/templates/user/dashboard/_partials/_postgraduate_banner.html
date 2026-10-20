@@ -1,0 +1,17 @@
+{# user/dashboard/_partials/_postgraduate_banner.html - role banner
+   Context: metrics (+ current_user). Included by postgraduate_admin_dashboard.html and
+   re-sent alone as an out-of-band source by GET /user/dashboard (HX). #}
+{% from '_macros.html' import role_banner, empty_state, async_region, skeleton_text_block, data_table_open, data_table_close, icon_button %}
+<div id="postgradBanner">
+
+{{ role_banner(
+  user=current_user,
+  role_key='postgraduate_admin',
+  context_line=(metrics.total_programs ~ ' programa(s) activo(s)' if metrics else 'Administración de posgrado'),
+  next_action=(
+    'Tienes ' ~ metrics.pending_reviews ~ ' documento(s) por revisar en todos los programas'
+    if metrics and metrics.pending_reviews and metrics.pending_reviews > 0
+    else 'Sin documentos pendientes de revisión. Revisa los recordatorios del sistema.'
+  )
+) }}
+</div>

@@ -605,8 +605,50 @@
     }
   }
 
+  // ── Deep links and the admission tab (server-rendered fragment) ─────────
+  const TAB_BUTTONS = { admision: 'tab-admission-btn' };
+
+  function setupTabs() {
+    const wanted = TAB_BUTTONS[CFG.initialTab];
+    const btn = wanted && document.getElementById(wanted);
+    if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+
+    // Keep the address bar shareable: ?tab=<name> follows the active tab.
+    const reverse = Object.fromEntries(Object.entries(TAB_BUTTONS).map(([k, v]) => [v, k]));
+    document.getElementById('recordTabs')?.addEventListener('shown.bs.tab', (e) => {
+      const url = new URL(window.location.href);
+      const name = reverse[e.target.id];
+      if (name) url.searchParams.set('tab', name);
+      else url.searchParams.delete('tab');
+      window.history.replaceState(null, '', url);
+    });
+  }
+
+  function setupAdmissionUpload() {
+    const modalEl = document.getElementById('admissionUploadModal');
+    const form = document.getElementById('admissionUploadForm');
+    if (!modalEl || !form) return;
+
+    // The trigger button lives in the swapped fragment and carries the archive.
+    modalEl.addEventListener('show.bs.modal', (e) => {
+      const src = e.relatedTarget;
+      if (!src) return;
+      document.getElementById('admissionUploadArchiveId').value = src.dataset.archiveId || '';
+      document.getElementById('admissionUploadArchiveName').textContent = src.dataset.archiveName || '—';
+    });
+
+    // Success swaps the fragment (server answered 200): close and clear.
+    form.addEventListener('htmx:afterRequest', (e) => {
+      if (e.target !== form || !e.detail.successful) return;
+      bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      form.reset();
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     setupBackLink();
+    setupTabs();
+    setupAdmissionUpload();
     loadRecord();
   });
 })();

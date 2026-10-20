@@ -477,6 +477,20 @@
   });
 
   // ── Tiempo real ──────────────────────────────────────────────────────────
+  /** Re-render the dashboard body in place (htmx, see #dashboard-content in dashboard.html). */
+  function refreshDashboard() {
+    const el = document.getElementById('dashboard-content');
+    if (el && window.htmx) window.htmx.trigger(el, 'siiap:dashboard:refresh');
+  }
+
+  // The refresh morphs the server markup over the JS-built regions: load them again.
+  document.addEventListener('htmx:afterSettle', (e) => {
+    if (e.detail?.target?.id !== 'dashboard-content') return;
+    loadEnrollmentPayment();
+    loadStudentDocs();
+    loadLeaveRequest();
+  });
+
   function toast(level, message) {
     window.SIIAP.flash(level, message);
   }
@@ -497,14 +511,14 @@
     const m = messages[data.action];
     if (!m) return;
     toast(m.level, `${m.text} Actualizando...`);
-    setTimeout(() => { window.location.reload(); }, 2000);
+    refreshDashboard();
   });
 
   window.addEventListener('siiap:submission:reviewed', (e) => {
     const data = e.detail || {};
     const action = data.status === 'approved' ? 'aprobado' : 'rechazado';
     toast(data.status === 'approved' ? 'success' : 'warning', `Un documento ha sido ${action}. Actualizando...`);
-    setTimeout(() => { window.location.reload(); }, 2000);
+    refreshDashboard();
   });
 
   window.addEventListener('siiap:extension:decided', (e) => {
@@ -517,6 +531,6 @@
     const m = messages[data.status];
     if (!m) return;
     toast(m.level, `${m.text} Actualizando...`);
-    setTimeout(() => { window.location.reload(); }, 2000);
+    refreshDashboard();
   });
 })();
