@@ -150,12 +150,27 @@ def open_drawer(phone):
     drawer = phone.locator('#mobileSidebar')
     expect(drawer).to_be_visible()
     phone.wait_for_timeout(400)  # offcanvas slide-in transition
-    # Expand the collapsed groups so their links are measured too (the group of
-    # the current page already arrives open from the server; clicking it would fold it).
-    for toggle in drawer.locator('button.dropdown-toggle-custom[aria-expanded="false"]').all():
-        toggle.click()
-    phone.wait_for_timeout(300)
     return drawer
+
+
+def drawer_small_targets(phone, selector):
+    """
+    Small targets in the drawer with every group expanded in turn.
+
+    Opening one group may fold another, so each group is expanded and
+    measured on its own. Toggles are addressed by index over the UNFILTERED
+    list: a locator filtered on aria-expanded shrinks as groups open.
+    """
+    drawer = phone.locator('#mobileSidebar')
+    toggles = drawer.locator('button.dropdown-toggle-custom')
+    found = set(small_targets(phone, selector))
+    for i in range(toggles.count()):
+        toggle = toggles.nth(i)
+        if toggle.get_attribute('aria-expanded') == 'false':
+            toggle.click()
+            phone.wait_for_timeout(300)
+        found.update(small_targets(phone, selector))
+    return sorted(found)
 
 
 @pytest.mark.parametrize('account', ROLES, ids=ROLE_IDS)
@@ -164,7 +179,7 @@ def test_mobile_drawer_links_meet_the_44px_target(phone, login_as, account):
     phone.goto('/user/dashboard')
     settle(phone)
     open_drawer(phone)
-    small = small_targets(phone, '#mobileSidebar .nav-link, #mobileSidebar .js-api-logout')
+    small = drawer_small_targets(phone, '#mobileSidebar .nav-link, #mobileSidebar .js-api-logout')
     assert not small, 'controls under 44px in the mobile drawer: ' + '; '.join(small)
 
 
