@@ -223,6 +223,8 @@
         } catch (e) {
           console.error(e);
         } finally {
+          // htmx snapshots rendered pages under this key; never leave them behind.
+          try { localStorage.removeItem('htmx-history-cache'); } catch (_) { /* storage blocked */ }
           window.location.href = CFG.loginUrl;
         }
       });

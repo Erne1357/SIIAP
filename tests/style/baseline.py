@@ -16,6 +16,7 @@ BASELINE = {
     'css_keyframes_prefix': {},
     'css_thick_side_borders': {},
     'fa_classes': {},
+    'htmx_inline_js': {},
     'js_alert': {},
     # js_console_log: total 5 in 3 files
     'js_console_log': {

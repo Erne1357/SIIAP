@@ -2,6 +2,7 @@
 from flask import flash, jsonify, redirect, render_template, request, url_for
 
 from app.utils.csrf import CSRFError, csrf_error_message
+from app.utils.htmx import hx_error, hx_redirect, wants_html_fragment
 
 
 def register_error_handlers(app, login_manager):
@@ -21,6 +22,8 @@ def register_error_handlers(app, login_manager):
         must be indistinguishable. Routes that need to say something more
         specific return their own 404 body from inside the view.
         """
+        if wants_html_fragment():
+            return hx_error(404, "Recurso no encontrado.")
         if request.path.startswith('/api/') or request.is_json or \
                 request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             message = "Recurso no encontrado."
@@ -55,6 +58,8 @@ def register_error_handlers(app, login_manager):
     def internal_server_error(e):
         # API callers parse JSON; an HTML 500 page made `response.json()` throw
         # in the frontend and hid the failure behind a parse error.
+        if wants_html_fragment():
+            return hx_error(500, "Ocurrió un error interno. Intenta de nuevo más tarde.")
         if _wants_json():
             return _error_envelope(500, "SERVER_ERROR", "Ocurrió un error interno. Intenta de nuevo más tarde.")
         return render_template('500.html', error=e), 500
@@ -63,6 +68,10 @@ def register_error_handlers(app, login_manager):
     def unauthorized_error(e):
         # abort(401) from permission_required/any_permission_required had no
         # handler: API callers received Werkzeug's English HTML page.
+        if wants_html_fragment():
+            # htmx would follow a 302 and inject the login page into the target.
+            flash(login_manager.login_message, login_manager.login_message_category)
+            return hx_redirect(url_for(login_manager.login_view), status=401)
         if _wants_json():
             return _error_envelope(401, "UNAUTHORIZED", "No autenticado")
         flash(login_manager.login_message, login_manager.login_message_category)
@@ -73,6 +82,10 @@ def register_error_handlers(app, login_manager):
         # RFC 9110: a 405 MUST list the allowed methods; Werkzeug's default
         # response did, so the custom one has to carry it over.
         allow = {'Allow': ', '.join(sorted(e.valid_methods or []))}
+        if wants_html_fragment():
+            resp = hx_error(405, "Método no permitido para este recurso.")
+            resp.headers.update(allow)
+            return resp
         if _wants_json():
             body, status = _error_envelope(405, "METHOD_NOT_ALLOWED", "Método no permitido para este recurso.")
             return body, status, allow
@@ -82,6 +95,8 @@ def register_error_handlers(app, login_manager):
     def payload_too_large(e):
         limit_mb = (app.config.get('MAX_CONTENT_LENGTH') or 0) // (1024 * 1024)
         message = f"El archivo excede el tamaño máximo permitido ({limit_mb} MB)."
+        if wants_html_fragment():
+            return hx_error(413, message)
         if _wants_json():
             return _error_envelope(413, "PAYLOAD_TOO_LARGE", message)
         flash(message, "danger")
@@ -89,6 +104,8 @@ def register_error_handlers(app, login_manager):
 
     @app.errorhandler(403)
     def forbidden(e):
+        if wants_html_fragment():
+            return hx_error(403, "No tienes permiso para acceder a este recurso.")
         if request.path.startswith('/api/') or request.is_json or \
                 request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
@@ -109,6 +126,8 @@ def register_error_handlers(app, login_manager):
         message = e.description
         if not message or message == BadRequest.description:
             message = "La solicitud no es válida."
+        if wants_html_fragment():
+            return hx_error(400, message)
         if _wants_json():
             return _error_envelope(400, "BAD_REQUEST", message)
         flash(message, "danger")
@@ -133,6 +152,8 @@ def register_error_handlers(app, login_manager):
         inheriting DomainError (InvalidAdmissionTransition, ValidationFailed,
         the per-service bases) lands here with its own status and code.
         """
+        if wants_html_fragment():
+            return hx_error(e.status_code, e.message or str(e), level=e.level)
         if _wants_json():
             return domain_error_response(e)
         flash(e.message or str(e), e.level)

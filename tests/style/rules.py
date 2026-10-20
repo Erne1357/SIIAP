@@ -72,6 +72,8 @@ def _css_files():
 
 def _js_files():
     for p in _files(JS, ".js"):
+        if "vendor" in p.relative_to(JS).parts:
+            continue  # third-party code (see app/static/js/vendor/README.md)
         yield _rel(p), _strip_js(_read(p))
 
 
@@ -326,6 +328,17 @@ def js_csrf_meta_reads():
     return _collect(items, lambda t: _count(r"""meta\[name=["']csrf-token["']\]""", t))
 
 
+# --------------------------------------------------------------------------- 16 htmx
+_HX_INLINE_JS = re.compile(
+    r"""\bhx-on(?:[:\-][\w:.\-]*)?\s*=|\bhx-[a-z-]+\s*=\s*(["'])\s*js:""", re.I
+)
+
+
+def htmx_inline_js():
+    """hx-on* attributes and `js:` expressions in hx-vals/hx-headers (allowEval is off)."""
+    return _collect(_tpls(), lambda t: len(_HX_INLINE_JS.findall(t)))
+
+
 RULES = {
     "tpl_style_block": tpl_style_block,
     "tpl_inline_style": tpl_inline_style,
@@ -343,6 +356,7 @@ RULES = {
     "py_roles_required": py_roles_required,
     "py_db_in_routes": py_db_in_routes,
     "py_print": py_print,
+    "htmx_inline_js": htmx_inline_js,
     "css_gradient_text": css_gradient_text,
     "css_bounce_easing": css_bounce_easing,
     "css_thick_side_borders": css_thick_side_borders,

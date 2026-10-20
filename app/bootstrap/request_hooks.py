@@ -6,6 +6,7 @@ from flask import flash, jsonify, redirect, request, session, url_for
 from flask_login import current_user, logout_user
 
 from app.utils.datetime_utils import now_local
+from app.utils.htmx import hx_redirect, wants_html_fragment
 
 
 def register_request_hooks(app):
@@ -35,6 +36,11 @@ def register_request_hooks(app):
                 if now_ts - last_activity > 15 * 60:
                     session.clear()
                     logout_user()
+                    if wants_html_fragment():
+                        # A 302 would be followed by htmx and the login page
+                        # injected into the swap target; navigate instead.
+                        flash("Tu sesión ha expirado por inactividad.", "warning")
+                        return hx_redirect(url_for('pages_auth.login_page'), status=401)
                     if request.endpoint != 'pages_auth.login_page' and \
                             not request.path.startswith('/api/'):
                         flash("Tu sesión ha expirado por inactividad.", "warning")
@@ -159,6 +165,10 @@ def register_request_hooks(app):
         for allowed in allowed_paths:
             if path == allowed.rstrip('/') or path.startswith(allowed.rstrip('/') + '/'):
                 return None
+
+        if wants_html_fragment():
+            flash("Debes cambiar tu contraseña antes de continuar.", "warning")
+            return hx_redirect(url_for('pages_user.dashboard'), status=403)
 
         if request.path.startswith('/api/') or request.is_json or \
                 request.headers.get('X-Requested-With') == 'XMLHttpRequest':

@@ -757,7 +757,9 @@ class DeliberationManager {
         const action = document.getElementById('decisionAction').value;
         const notes = document.getElementById('decisionNotes').value;
 
-        if (!userId || !programId || !/^\d+$/.test(userId) || !/^\d+$/.test(programId)) {
+        // userId is the PUBLIC identifier (UUID); programId is still an integer.
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!userId || !programId || !UUID_RE.test(userId) || !/^\d+$/.test(programId)) {
             showFlash('danger', 'Aspirante o programa inválido — recarga la página e intenta de nuevo.');
             return;
         }

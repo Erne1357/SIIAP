@@ -3,6 +3,8 @@ from datetime import timedelta
 
 from flask import flash, jsonify, redirect, request, url_for
 
+from app.utils.htmx import hx_redirect, wants_html_fragment
+
 
 def register_login_manager(app, login_manager):
     # Login manager
@@ -13,6 +15,10 @@ def register_login_manager(app, login_manager):
 
     @login_manager.unauthorized_handler
     def unauthorized():
+        if wants_html_fragment():
+            # login_required on a fragment route: htmx must navigate, not follow a 302.
+            flash(login_manager.login_message, login_manager.login_message_category)
+            return hx_redirect(url_for(login_manager.login_view), status=401)
         if request.path.startswith('/api/'):
             return jsonify({
                 "data": None,

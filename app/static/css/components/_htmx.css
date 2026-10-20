@@ -1,0 +1,35 @@
+/*
+ * htmx — estados de petición.
+ *
+ * htmx.config.includeIndicatorStyles = false (ver utils/htmx-bridge.js): la
+ * librería inyectaría un <style> en tiempo de ejecución, y la regla 6 del
+ * sistema de diseño prohíbe estilos fuera de hojas. Este archivo es su
+ * sustituto, con tokens.
+ *
+ * Uso:
+ *   <span class="htmx-indicator spinner-border spinner-border-sm" aria-hidden="true"></span>
+ *   El indicador es decorativo: el estado ocupado lo transmite aria-busy en la
+ *   región (WCAG 1.4.1), nunca el color ni la animación.
+ */
+
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity var(--duration-fast, 150ms) ease-in;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  opacity: 1;
+}
+
+/* Mientras se espera la respuesta, el control que la originó no admite un
+   segundo disparo (el servidor también se protege con hx-sync). */
+.htmx-request:is(button, [type="submit"], [type="button"]) {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .htmx-indicator {
+    transition: none;
+  }
+}

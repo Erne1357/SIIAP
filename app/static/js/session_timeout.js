@@ -71,6 +71,10 @@
       try {
         sessionStorage.clear();
       } catch (_) {}
+      // htmx snapshots rendered pages under this key; never leave them behind.
+      try {
+        localStorage.removeItem('htmx-history-cache');
+      } catch (_) {}
       
       // Usar replace() para forzar recarga completa sin caché
       window.location.replace(getLoginUrl());
