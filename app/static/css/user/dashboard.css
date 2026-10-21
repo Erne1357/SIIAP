@@ -34,7 +34,8 @@
 /* Ancho de lectura del dashboard del estudiante. Antes era .col-lg-9, un
    porcentaje: 895px en el portátil (donde la línea de contexto del banner se
    parte) y 1664px en un 27" (demasiado ancho para leer). */
-.student-dashboard {
+.student-dashboard,
+.teacher-dashboard {
   width: 100%;
   max-width: 68.75rem;
   margin-inline: auto;

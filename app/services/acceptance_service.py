@@ -116,6 +116,15 @@ class DocumentDebtError(AcceptanceError):
         super().__init__("Existen documentos con prórroga vencida sin entregar.")
 
 
+def _set_current_plan(up) -> None:
+    """Tie an enrolled student to the program's current study plan (if any)."""
+    if up.curriculum_plan_id is None:
+        from app.services import curriculum_service
+        plan = curriculum_service.current_plan(up.program_id)
+        if plan is not None:
+            up.curriculum_plan_id = plan.id
+
+
 def _get_user_program(user_id: int, program_id: int) -> UserProgram:
     up = UserProgram.query.filter_by(user_id=user_id, program_id=program_id).first()
     if not up:
@@ -793,6 +802,7 @@ def assign_control_number(user_id: int, program_id: int,
 
     # 3. Actualizar estado de inscripción
     admission_status_service.transition(up, 'enrolled')
+    _set_current_plan(up)
     academic_status_service.transition(up, 'active', actor_id=coordinator_id)
     up.current_semester = 1
 
@@ -907,6 +917,7 @@ def assign_control_number_admin(user_id: int, program_id: int,
     #    inscrito se conserva el estado: solo se reasigna el número de control.
     if up.admission_status != 'enrolled':
         admission_status_service.transition(up, 'enrolled', override=True)
+    _set_current_plan(up)
     if up.academic_status is None:
         academic_status_service.transition(up, 'active', actor_id=admin_id)
     if not up.current_semester or up.current_semester < 1:

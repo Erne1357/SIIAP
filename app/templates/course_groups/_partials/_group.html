@@ -1,0 +1,112 @@
+{#
+  Detalle de un grupo: datos, lista de inscritos (con intento), alta de
+  estudiantes y edición del grupo. Se carga dentro de #courseLoadRoot.
+
+  Contexto explícito: group, program, period, periods, roster
+  ([{enrollment, full_name, control_number, attempt_label, attempt_badge}]),
+  enrolled, full, candidates ([{id, name, control_number, attempt_label}]),
+  slots (huecos de optativa del plan; vacío si la materia no es optativa),
+  subjects, teachers, teacher_name.
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
+
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+  <div>
+    <button type="button" class="btn btn-link px-0 tap-target"
+            hx-get="{{ url_for('pages_course_groups.program_groups', program_id=program.id, period=period.id) }}"
+            hx-target="#courseLoadRoot" hx-swap="innerHTML" hx-history="false">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver a los grupos
+    </button>
+    <h3 class="h5 mb-1">{{ group.subject.name }} — grupo {{ group.group_code }}</h3>
+    <p class="text-secondary mb-0">
+      {{ period.name }} · Docente: {{ teacher_name or 'sin asignar' }} ·
+      Inscritos {{ enrolled }}/{{ group.capacity }}
+      {% if full %}{{ status_badge('deferred', 'Lleno', 'sm') }}{% endif %}
+    </p>
+    {% if group.location or group.schedule %}
+      <p class="text-secondary mb-0">{{ group.location or '' }}{{ ' · ' if group.location and group.schedule }}{{ group.schedule or '' }}</p>
+    {% endif %}
+  </div>
+  <button type="button" class="btn btn-outline-primary tap-target" data-bs-toggle="modal"
+          data-bs-target="#groupEditModal">
+    <i class="bi bi-pencil me-1" aria-hidden="true"></i>Editar grupo
+  </button>
+</div>
+
+<h4 class="h6">Lista del grupo</h4>
+{% if roster %}
+  {{ data_table_open('Estudiantes inscritos en el grupo', id='groupRosterTable',
+                     table_class='table-hover align-middle') }}
+    <thead>
+      <tr>
+        <th scope="col">Estudiante</th>
+        <th scope="col">No. de control</th>
+        <th scope="col">Intento</th>
+        <th scope="col"><span class="visually-hidden">Acciones</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in roster %}
+        <tr id="enrollment-{{ r.enrollment.id }}">
+          <th scope="row">{{ r.full_name }}</th>
+          <td>{{ r.control_number or '—' }}</td>
+          <td>{{ status_badge(r.attempt_badge, r.attempt_label, 'sm') }}</td>
+          <td>
+            <button type="button" class="btn btn-sm btn-outline-danger tap-target"
+                    hx-post="{{ url_for('pages_course_groups.drop_student', group_uuid=group.uuid, enrollment_id=r.enrollment.id) }}"
+                    hx-target="#courseLoadRoot" hx-swap="innerHTML" hx-history="false"
+                    hx-confirm="¿Quitar a {{ r.full_name }} del grupo?"
+                    data-confirm-title="Quitar del grupo" data-confirm-type="warning"
+                    data-confirm-label="Sí, quitar">
+              <i class="bi bi-person-dash me-1" aria-hidden="true"></i>Quitar
+              <span class="visually-hidden">a {{ r.full_name }}</span>
+            </button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  {{ data_table_close() }}
+{% else %}
+  {{ empty_state('people', 'Sin estudiantes inscritos',
+                 'Agrega estudiantes con el formulario de abajo.', compact=true) }}
+{% endif %}
+
+<h4 class="h6 mt-4">Agregar estudiante</h4>
+{% if full %}
+  <p class="text-secondary">El grupo está lleno: sube el cupo desde «Editar grupo» para agregar más.</p>
+{% elif not candidates %}
+  <p class="text-secondary">No hay estudiantes activos de este programa disponibles para esta materia.</p>
+{% else %}
+  <form id="groupEnrollForm" class="row g-2 align-items-end"
+        hx-post="{{ url_for('pages_course_groups.enroll_student', group_uuid=group.uuid) }}"
+        hx-target="#courseLoadRoot" hx-swap="innerHTML" hx-history="false">
+    <div class="col-md-6">
+      <label class="form-label" for="enrollStudent">Estudiante</label>
+      <select class="form-select tap-target" id="enrollStudent" name="user_program_id" required>
+        <option value="">Elige un estudiante</option>
+        {% for c in candidates %}
+          <option value="{{ c.id }}">{{ c.name }}{% if c.control_number %} ({{ c.control_number }}){% endif %} — {{ c.attempt_label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if slots %}
+      <div class="col-md-4">
+        <label class="form-label" for="enrollSlot">Hueco de optativa</label>
+        <select class="form-select tap-target" id="enrollSlot" name="slot_subject_id">
+          <option value="">El primero libre</option>
+          {% for s in slots %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+    {% endif %}
+    <div class="col-md-2">
+      <button class="btn btn-primary tap-target w-100" type="submit">
+        <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Inscribir
+      </button>
+    </div>
+  </form>
+{% endif %}
+
+{% with modal_id='groupEditModal', form_group=group,
+        form_action=url_for('pages_course_groups.edit_group', group_uuid=group.uuid) %}
+  {% include 'course_groups/_partials/_group_form.html' %}
+{% endwith %}

@@ -71,6 +71,13 @@ class UserProgram(db.Model):
     withdrawn_at = db.Column(db.DateTime, nullable=True)
     withdrawal_reason = db.Column(db.Text, nullable=True)
 
+    # Curriculum version the student follows (set on enrollment; phase 6B1).
+    curriculum_plan_id = db.Column(
+        db.Integer, db.ForeignKey('curriculum_plan.id', ondelete='SET NULL'),
+        nullable=True, index=True
+    )
+    curriculum_plan = db.relationship('CurriculumPlan')
+
     # Relaciones
     user = db.relationship('User', foreign_keys=[user_id], back_populates='user_program')
     program = db.relationship('Program', back_populates='user_program')

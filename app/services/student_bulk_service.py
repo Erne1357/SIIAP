@@ -655,6 +655,10 @@ def create_student_individual(payload: dict, created_by_id: int,
             has_conacyt_scholarship=normalized['has_conacyt'],
             enrollment_date=now_local(),
         )
+        from app.services import curriculum_service
+        plan = curriculum_service.current_plan(program.id)
+        if plan is not None:
+            up.curriculum_plan_id = plan.id
         db.session.add(up)
         db.session.flush()  # obtener up.id
         academic_status_service.transition(up, 'active', actor_id=created_by_id)

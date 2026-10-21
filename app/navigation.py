@@ -151,6 +151,15 @@ MENU: tuple[NavGroup, ...] = (
         ),
     ),
     NavGroup(
+        key='docencia', label='Docencia', icon='bi-easel',
+        items=(
+            NavItem('my-groups', 'Mis grupos', 'bi-people',
+                    'pages_teaching.my_groups',
+                    any_of=('teaching.page.my_groups',),
+                    active_prefixes=('pages_teaching.',)),
+        ),
+    ),
+    NavGroup(
         key='configuracion', label='Configuración', icon='bi-gear',
         items=(
             NavItem('files', 'Archivos', 'bi-folder',
@@ -175,6 +184,10 @@ MENU: tuple[NavGroup, ...] = (
                     'program.list_programs',
                     any_of=('academic_periods.api.create',),
                     active_endpoints=('pages_admin.pages_settings.config_program',)),
+            NavItem('curriculum', 'Planes de estudio', 'bi-journal-bookmark',
+                    'pages_curriculum.index',
+                    any_of=('curriculum.page.manage',),
+                    active_prefixes=('pages_curriculum.',)),
             NavItem('periods', 'Periodos académicos', 'bi-calendar3',
                     'pages_admin.pages_settings.academic_periods',
                     any_of=('academic_periods.api.create',)),

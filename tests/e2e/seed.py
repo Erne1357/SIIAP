@@ -80,6 +80,11 @@ STAFF = (
     # The archives settings page also loads the retention policies panel.
     | _codes('admin_retention', 'api.manage')
     | _codes('academic_periods', 'api.list')
+    # Phase 6B1: study plans, academic load and the teacher view.
+    | _codes('curriculum', 'page.manage')
+    | _codes('course_groups', 'page.manage')
+    | _codes('teachers', 'page.create')
+    | _codes('teaching', 'page.my_groups')
 )
 
 #: Institution-wide administration, on top of STAFF. academic_periods.api.create
@@ -110,6 +115,7 @@ def permission_sets() -> dict:
     }
     student = (self_service | SHELL | OWN_PROFILE
                | _codes('permanence', 'api.upload_my_payment', 'api.view_my_enrollment')
+               | _codes('course_enrollment', 'page.view_own')
                ) - {'programs.api.enroll'}
 
     coordinator = SHELL | OWN_PROFILE | STAFF

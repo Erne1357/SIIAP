@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from '_macros.html' import modal_shell, empty_state %}
+
+{% block title %}Planes de estudio - SIIAP{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/curriculum/curriculum.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 mt-3 mt-md-4">
+  <header class="mb-4">
+    <h1 class="h3 mb-1">
+      <i class="bi bi-journal-bookmark me-2" aria-hidden="true"></i>Planes de estudio
+    </h1>
+    <p class="text-muted mb-0">
+      Versiones de la retícula de cada programa y sus materias. Los estudiantes siguen la versión con la que ingresaron.
+    </p>
+  </header>
+
+  {% if not programs %}
+    {{ empty_state('journal-x', 'Sin programas a tu cargo',
+                   'No tienes programas dentro de tu alcance, así que no hay planes de estudio que administrar.') }}
+  {% else %}
+    <form class="curriculum-program-form mb-4" method="get" action="{{ url_for('pages_curriculum.index') }}">
+      <label class="form-label" for="curriculumProgram">Programa</label>
+      <div class="d-flex flex-wrap gap-2">
+        <select class="form-select tap-target curriculum-program-form__select" id="curriculumProgram" name="program">
+          {% for p in programs %}
+            <option value="{{ p.id }}" {{ 'selected' if p.id == program.id }}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-primary tap-target">
+          <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>Ver programa
+        </button>
+      </div>
+    </form>
+
+    <div id="curriculumWorkspace">
+      {% include 'curriculum/_partials/_workspace.html' %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block modals %}
+{% if programs %}
+{% call(section) modal_shell('modalSubject', 'Materia', icon='journal-text') %}
+  {% if section == 'body' %}
+    <form id="curriculumSubjectForm" method="post" hx-post="{{ url_for('pages_curriculum.index') }}"
+          hx-target="#curriculumWorkspace" hx-swap="innerHTML" hx-history="false">
+      <div class="row g-3">
+        <div class="col-sm-4">
+          <label class="form-label" for="subjectKey">Clave</label>
+          <input class="form-control tap-target" type="text" id="subjectKey" name="key" maxlength="20" autocomplete="off">
+        </div>
+        <div class="col-sm-8">
+          <label class="form-label" for="subjectName">Nombre</label>
+          <input class="form-control tap-target" type="text" id="subjectName" name="name" maxlength="200" required>
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="subjectCredits">Créditos</label>
+          <input class="form-control tap-target" type="number" id="subjectCredits" name="credits" min="0" max="99">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="subjectSemester">Semestre sugerido</label>
+          <input class="form-control tap-target" type="number" id="subjectSemester" name="suggested_semester" min="1" max="20">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="subjectKind">Tipo</label>
+          <select class="form-select tap-target" id="subjectKind" name="kind">
+            {% for value, label in kinds %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="form-text mt-2 mb-0">Una optativa del banco no lleva semestre sugerido. Los huecos de optativa no necesitan clave ni créditos.</p>
+    </form>
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary tap-target" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-primary tap-target" form="curriculumSubjectForm">
+      <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Guardar materia
+    </button>
+  {% endif %}
+{% endcall %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/curriculum/curriculum.js') }}?v={{ static_version }}"></script>
+{% endblock %}

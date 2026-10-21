@@ -20,6 +20,7 @@ COORDINATOR = (
     'permanence.page.view', 'admin_review.page.view', 'events.page.view',
     'archives.api.list', 'admin_users.page.view', 'admin_emails.api.manage',
     'admin_templates.page.view', 'student_bulk.page.view',
+    'curriculum.page.manage', 'teaching.page.my_groups',
 )
 POSTGRAD = COORDINATOR + (
     'academic_periods.api.create', 'admin_celery.api.manage',
@@ -51,7 +52,8 @@ def _group_keys(nav):
 
 def test_groups_follow_the_workflow_order():
     assert [g.key for g in MENU] == [
-        'inicio', 'admision', 'permanencia', 'eventos', 'expedientes', 'configuracion']
+        'inicio', 'admision', 'permanencia', 'eventos', 'expedientes', 'docencia',
+        'configuracion']
 
 
 def test_keys_are_unique():
@@ -131,9 +133,10 @@ def test_coordinator_sees_staff_groups_but_not_global_settings(app):
     db.session.commit()
     nav = _nav(app, user)
     assert _group_keys(nav) == [
-        'inicio', 'admision', 'permanencia', 'eventos', 'expedientes', 'configuracion']
+        'inicio', 'admision', 'permanencia', 'eventos', 'expedientes', 'docencia',
+        'configuracion']
     links = _links(nav)
-    assert {'review', 'deliberation', 'acceptance', 'permanence', 'events-admin',
+    assert {'curriculum', 'my-groups', 'review', 'deliberation', 'acceptance', 'permanence', 'events-admin',
             'students', 'bulk-import', 'files', 'users', 'emails', 'templates',
             'program-config'} <= links
     assert not links & {'periods', 'celery', 'permissions', 'cleanup', 'programs-config'}

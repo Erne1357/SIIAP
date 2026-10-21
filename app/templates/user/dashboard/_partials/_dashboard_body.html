@@ -11,6 +11,8 @@
   {% include 'user/dashboard/program_admin_dashboard.html' %}
 {% elif dashboard_kind == 'postgraduate' %}
   {% include 'user/dashboard/postgraduate_admin_dashboard.html' %}
+{% elif dashboard_kind == 'teacher' %}
+  {% include 'user/dashboard/teacher_dashboard.html' %}
 {% else %}
   <div class="row justify-content-center">
     <div class="col-md-8">

@@ -17,7 +17,7 @@ from flask_login import login_required, current_user
 from app.models.user import User
 from app.services import student_record_service as svc
 from app.services import student_admission_detail_service as detail_svc
-from app.services import permanence_service
+from app.services import course_enrollment_service, curriculum_service, permanence_service
 from app.services.errors import ValidationFailed
 from app.utils.htmx import hx_flash, is_htmx, render_fragment
 from app.utils.permissions import permission_required
@@ -30,6 +30,7 @@ pages_student_record = Blueprint(
 
 _ADMISSION_PARTIAL = 'coordinator/student_record/_partials/_admission.html'
 _TRAJECTORY_PARTIAL = 'coordinator/student_record/_partials/_trajectory.html'
+_LOAD_PARTIAL = 'coordinator/student_record/_partials/_load.html'
 
 
 def _log_denial(error: svc.StudentRecordError, user_id, action: str) -> None:
@@ -202,6 +203,52 @@ def record_trajectory_revert_withdrawal(user_uuid):
         up.id, (request.form.get('reason') or '').strip(), current_user.id)
     return hx_flash(_trajectory_fragment(user, up), 'success',
                     'Baja definitiva revertida.')
+
+
+def _load_fragment(user: User, up=None):
+    """Render the load (Carga) fragment for `up` (None: the empty state)."""
+    return render_fragment(
+        _LOAD_PARTIAL,
+        target_user=user,
+        up=up,
+        load=course_enrollment_service.load_for(up.id) if up is not None else [],
+        plan=up.curriculum_plan if up is not None else None,
+        plan_options=curriculum_service.plans_for_program(up.program_id) if up is not None else [],
+        can_change_plan=current_user.has_permission('curriculum.page.manage'),
+        program_options=svc.trajectory_options(current_user, user),
+        selected_program_id=up.program_id if up is not None else None,
+    )
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/load')
+@login_required
+@permission_required('students.page.view_record')
+def record_load(user_uuid):
+    """Load tab (enrolled subjects by period, plan version) as a fragment."""
+    user = _load_target_or_404(user_uuid, 'load')
+    if not is_htmx():
+        return redirect(url_for('.student_record', user_uuid=user.uuid, tab='carga'))
+    if not svc.trajectory_options(current_user, user):
+        return _load_fragment(user)
+    return _load_fragment(user, _resolve_trajectory_up(user, 'load'))
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/load/plan', methods=['POST'])
+@login_required
+@permission_required('students.page.view_record')
+@permission_required('curriculum.page.manage')
+def record_load_plan(user_uuid):
+    """Move the student to another version of the program's study plan (reason required)."""
+    user = _load_target_or_404(user_uuid, 'load_plan')
+    up = _resolve_trajectory_up(user, 'load_plan')
+    try:
+        plan_id = int((request.form.get('plan_id') or '').strip())
+    except ValueError:
+        raise ValidationFailed('Selecciona una versión del plan.')
+    curriculum_service.change_student_plan(
+        up.id, plan_id, request.form.get('reason') or '', current_user.id)
+    return hx_flash(_load_fragment(user, up), 'success',
+                    'Versión del plan actualizada.')
 
 
 @pages_student_record.route('/<uuid:user_uuid>/summary')

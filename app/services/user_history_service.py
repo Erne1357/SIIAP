@@ -1083,6 +1083,9 @@ class UserHistoryService:
         'semester_enrollment_status_updated': 'Actualizó estado de inscripción semestral',
         'semester_enrollment_reinstated': 'Reincorporó estudiante de baja temporal',
         'academic_status_changed': 'Cambió el estado académico (activo, baja, egreso)',
+        'curriculum_plan_changed': 'Cambió la versión del plan de estudios del estudiante',
+        'course_enrolled': 'Inscribió al estudiante en un grupo',
+        'course_dropped': 'Dio de baja al estudiante de un grupo',
 
         # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
         'semester_advanced': 'Avanzó al siguiente semestre',

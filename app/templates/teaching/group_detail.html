@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import empty_state, data_table_open, data_table_close %}
+
+{% set breadcrumb_current = group.subject.name ~ ' · ' ~ group.group_code %}
+
+{% block title %}{{ group.subject.name }} · Grupo {{ group.group_code }}{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 coord-page__header">
+    <a href="{{ url_for('pages_teaching.my_groups', period=group.academic_period_id) }}"
+       class="btn btn-outline-secondary btn-sm tap-target">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver
+    </a>
+    <div class="flex-grow-1">
+      <h1 class="coord-page__title">{{ group.subject.name }} · Grupo {{ group.group_code }}</h1>
+      <p class="coord-page__subtitle small">{{ group.academic_period.name }}</p>
+    </div>
+  </div>
+
+  <dl class="row mb-3">
+    <dt class="col-sm-3">Inscritos</dt>
+    <dd class="col-sm-9">{{ enrolled }} de {{ group.capacity }}</dd>
+    <dt class="col-sm-3">Horario</dt>
+    <dd class="col-sm-9">{{ group.schedule or '—' }}</dd>
+    <dt class="col-sm-3">Lugar</dt>
+    <dd class="col-sm-9">{{ group.location or '—' }}</dd>
+  </dl>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {% if roster %}
+        {{ data_table_open('Estudiantes inscritos en el grupo', id='groupRoster') }}
+          <thead>
+            <tr>
+              <th scope="col">Nombre</th>
+              <th scope="col">Número de control</th>
+              <th scope="col">Intento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in roster %}
+              <tr>
+                <td>{{ r.full_name }}</td>
+                <td>{{ r.control_number or '—' }}</td>
+                <td>{{ attempt_labels.get(r.attempt_type, r.attempt_type) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        {{ data_table_close() }}
+      {% else %}
+        {{ empty_state('people', 'Sin estudiantes inscritos',
+                       'Este grupo todavía no tiene inscripciones.', compact=true) }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
