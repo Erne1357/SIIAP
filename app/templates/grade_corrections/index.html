@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Correcciones de calificaciones{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="coord-page__header">
+    <div class="flex-grow-1">
+      <h1 class="coord-page__title">Correcciones de calificaciones</h1>
+      <p class="coord-page__subtitle small">
+        Solicitudes de los docentes para cambiar una calificación de un acta cerrada.
+      </p>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div id="gradeCorrectionsList">
+        {% include 'grade_corrections/_partials/_list.html' %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

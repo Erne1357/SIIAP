@@ -25,6 +25,10 @@ class AcademicPeriod(db.Model):
     admission_start_date = db.Column(db.Date, nullable=False)
     admission_end_date = db.Column(db.Date, nullable=False)
 
+    # Grade capture window (phase 6B2). Both empty = no restriction.
+    grade_capture_start = db.Column(db.Date, nullable=True)
+    grade_capture_end = db.Column(db.Date, nullable=True)
+
     # Estado
     is_active = db.Column(db.Boolean, default=False, nullable=False)
     status = db.Column(db.String(20), default='upcoming', nullable=False)
@@ -57,6 +61,8 @@ class AcademicPeriod(db.Model):
             'end_date': self.end_date.isoformat() if self.end_date else None,
             'admission_start_date': self.admission_start_date.isoformat() if self.admission_start_date else None,
             'admission_end_date': self.admission_end_date.isoformat() if self.admission_end_date else None,
+            'grade_capture_start': self.grade_capture_start.isoformat() if self.grade_capture_start else None,
+            'grade_capture_end': self.grade_capture_end.isoformat() if self.grade_capture_end else None,
             'is_active': self.is_active,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,

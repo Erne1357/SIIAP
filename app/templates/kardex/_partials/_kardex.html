@@ -1,0 +1,128 @@
+{#
+  Kardex compartido (página «Mi kardex» y pestaña «Kardex» del expediente).
+
+  Contexto explícito: kd (kardex_service.kardex o None), program_options
+  (vínculos inscritos), selected_program_id, select_url (URL del selector) y
+  htmx_target (selector CSS del contenedor, o none para un GET normal).
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
+
+{% set _BADGE = {'passed': 'approved', 'failed': 'rejected', 'enrolled': 'in_progress', 'pending': 'pending'} %}
+
+{% if kd is none %}
+  {{ empty_state('journal-text', 'Sin programa inscrito',
+                 'No hay un programa inscrito para mostrar un kardex.', compact=true) }}
+{% else %}
+  {% if program_options|length > 1 %}
+    <form class="mb-3" method="get" action="{{ select_url }}" id="kardexProgramForm"
+          {% if htmx_target %}hx-get="{{ select_url }}" hx-trigger="change" hx-target="{{ htmx_target }}"
+          hx-swap="innerHTML" hx-history="false"{% endif %}>
+      <label class="form-label" for="kardexProgram">Programa</label>
+      <div class="d-flex flex-wrap gap-2">
+        <select class="form-select w-auto tap-target" id="kardexProgram" name="program">
+          {% for opt in program_options %}
+            <option value="{{ opt.program_id }}" {{ 'selected' if opt.program_id == selected_program_id }}>{{ opt.program.name }}</option>
+          {% endfor %}
+        </select>
+        {% if not htmx_target %}
+          <button type="submit" class="btn btn-outline-primary tap-target">Ver kardex</button>
+        {% endif %}
+      </div>
+    </form>
+  {% else %}
+    <p class="text-secondary small mb-3">
+      <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>{{ kd.user_program.program.name }}
+    </p>
+  {% endif %}
+
+  {% if not kd.plan or not kd.total_count %}
+    {{ empty_state('journal-x', 'Sin plan de estudios',
+                   'Aún no hay un plan de estudios con materias asignado, así que no hay kardex que mostrar.',
+                   compact=true) }}
+  {% else %}
+    <p class="mb-3">
+      Plan de estudios: <strong>Versión {{ kd.plan.version }}</strong>
+      {% if kd.complete %}
+        {{ status_badge('approved', 'Plan cubierto', 'sm') }}
+      {% endif %}
+    </p>
+
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+          <i class="bi bi-bar-chart-fill stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="kardexProgress">{{ kd.progress }}%</p>
+          <p class="stat-card__label">Avance</p>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+          <i class="bi bi-journal-check stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="kardexSubjects">{{ kd.passed_count }} de {{ kd.total_count }}</p>
+          <p class="stat-card__label">Materias aprobadas</p>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+          <i class="bi bi-award-fill stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="kardexCredits">{{ kd.credits_earned }} de {{ kd.credits_total }}</p>
+          <p class="stat-card__label">Créditos</p>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card h-100">
+          <i class="bi bi-calculator-fill stat-card__icon" aria-hidden="true"></i>
+          <p class="stat-card__value" id="kardexAverage">{{ '%.2f'|format(kd.average) if kd.average is not none else '—' }}</p>
+          <p class="stat-card__label">Promedio</p>
+        </div>
+      </div>
+    </div>
+
+    {% for sem in kd.semesters %}
+      <h3 class="h5 mb-2">{{ 'Semestre ' ~ sem.number if sem.number else 'Sin semestre sugerido' }}</h3>
+      {{ data_table_open('Materias de ' ~ ('semestre ' ~ sem.number if sem.number else 'sin semestre sugerido'),
+                         id='kardexSemester' ~ sem.number, wrapper_class='mb-4') }}
+        <thead>
+          <tr>
+            <th scope="col">Clave</th>
+            <th scope="col">Materia</th>
+            <th scope="col">Créditos</th>
+            <th scope="col">Intentos</th>
+            <th scope="col">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in sem.rows %}
+            <tr>
+              <td>{{ (row.taken_subject or row.subject).key or '—' }}</td>
+              <td>
+                {% if row.slot %}
+                  {{ row.slot.name }}{% if row.taken_subject %} — {{ row.taken_subject.name }}{% endif %}
+                {% else %}
+                  {{ row.subject.name }}
+                {% endif %}
+              </td>
+              <td>{{ row.credits if row.credits is not none else '—' }}</td>
+              <td>
+                {% if row.attempts %}
+                  <ul class="kardex-attempts">
+                    {% for a in row.attempts %}
+                      <li class="kardex-attempts__item">
+                        {{ a.period_name }} · {{ a.attempt_label }} ·
+                        {% if a.in_progress %}<span class="text-secondary">Cursando</span>
+                        {% else %}<strong class="{{ 'kardex-attempts__grade--failed' if a.result == 'failed' }}">{{ a.value or '—' }}</strong>{% endif %}
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="text-secondary">—</span>
+                {% endif %}
+              </td>
+              <td>{{ status_badge(_BADGE[row.status], row.status_label, 'sm') }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {{ data_table_close() }}
+    {% endfor %}
+  {% endif %}
+{% endif %}

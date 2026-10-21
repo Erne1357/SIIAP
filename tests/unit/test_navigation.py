@@ -23,6 +23,7 @@ COORDINATOR = (
     'curriculum.page.manage', 'teaching.page.my_groups',
 )
 POSTGRAD = COORDINATOR + (
+    'grades.page.decide_correction',
     'academic_periods.api.create', 'admin_celery.api.manage',
     'permissions.page.manage_roles', 'admin.page.purge',
 )
@@ -139,7 +140,8 @@ def test_coordinator_sees_staff_groups_but_not_global_settings(app):
     assert {'curriculum', 'my-groups', 'review', 'deliberation', 'acceptance', 'permanence', 'events-admin',
             'students', 'bulk-import', 'files', 'users', 'emails', 'templates',
             'program-config'} <= links
-    assert not links & {'periods', 'celery', 'permissions', 'cleanup', 'programs-config'}
+    assert not links & {'periods', 'celery', 'permissions', 'cleanup', 'programs-config',
+                        'grade-corrections'}
     mine = next(i for g in nav.groups for i in g.items if i.key == 'program-config')
     assert mine.href.endswith('/settings/program/mi-programa')
 
@@ -155,7 +157,7 @@ def test_postgraduate_admin_sees_everything_and_no_coordinator_program_link(app)
     nav = _nav(app, _user('postgraduate_admin', POSTGRAD))
     links = _links(nav)
     every_key = {i.key for _, i in ALL_ITEMS}
-    assert links == every_key - {'my-admission', 'program-config'}
+    assert links == every_key - {'my-admission', 'program-config', 'my-kardex'}
 
 
 def test_user_without_permissions_gets_only_the_open_links(app):

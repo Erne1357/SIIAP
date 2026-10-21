@@ -17,7 +17,9 @@ from flask_login import login_required, current_user
 from app.models.user import User
 from app.services import student_record_service as svc
 from app.services import student_admission_detail_service as detail_svc
-from app.services import course_enrollment_service, curriculum_service, permanence_service
+from app.services import (
+    course_enrollment_service, curriculum_service, kardex_service, permanence_service,
+)
 from app.services.errors import ValidationFailed
 from app.utils.htmx import hx_flash, is_htmx, render_fragment
 from app.utils.permissions import permission_required
@@ -31,6 +33,7 @@ pages_student_record = Blueprint(
 _ADMISSION_PARTIAL = 'coordinator/student_record/_partials/_admission.html'
 _TRAJECTORY_PARTIAL = 'coordinator/student_record/_partials/_trajectory.html'
 _LOAD_PARTIAL = 'coordinator/student_record/_partials/_load.html'
+_KARDEX_PARTIAL = 'kardex/_partials/_kardex.html'
 
 
 def _log_denial(error: svc.StudentRecordError, user_id, action: str) -> None:
@@ -280,3 +283,28 @@ def student_summary(user_uuid):
         'coordinator/student_record/summary.html',
         summary=summary,
     )
+
+
+def _kardex_fragment(user: User, up=None):
+    """Render the kardex fragment for `up` (None: the empty state)."""
+    return render_fragment(
+        _KARDEX_PARTIAL,
+        kd=kardex_service.kardex(up.id) if up is not None else None,
+        program_options=svc.trajectory_options(current_user, user),
+        selected_program_id=up.program_id if up is not None else None,
+        select_url=url_for('.record_kardex', user_uuid=user.uuid),
+        htmx_target='#recordKardex',
+    )
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/kardex')
+@login_required
+@permission_required('students.page.view_record')
+def record_kardex(user_uuid):
+    """Kardex tab (subjects by semester, attempts, average) as a fragment."""
+    user = _load_target_or_404(user_uuid, 'kardex')
+    if not is_htmx():
+        return redirect(url_for('.student_record', user_uuid=user.uuid, tab='kardex'))
+    if not svc.trajectory_options(current_user, user):
+        return _kardex_fragment(user)
+    return _kardex_fragment(user, _resolve_trajectory_up(user, 'kardex'))

@@ -6,12 +6,14 @@ Rules live in `course_group_service` and `course_enrollment_service`; the read
 side lives in `course_load_service`. Every route answers an HTML fragment that
 the permanence page swaps into `#courseLoadRoot`.
 """
+from datetime import date
+
 from flask import Blueprint, abort, request
 from flask_login import current_user, login_required
 
 from app.schemas.curriculum import CourseGroupIn, TeacherIn
 from app.services import (
-    course_enrollment_service, course_group_service, course_load_service,
+    course_enrollment_service, course_group_service, course_load_service, grading_service,
     program_scope_service, teacher_service,
 )
 from app.services.errors import ValidationFailed
@@ -56,7 +58,13 @@ def _program_fragment(program, period_raw, *, summary=None):
 
 
 def _group_fragment(group):
-    return render_fragment(_GROUP_PARTIAL, **course_load_service.group_view(group))
+    ctx = course_load_service.group_view(group)
+    ctx.update(
+        acta=grading_service.acta_rows(group.id),
+        capture_is_open=grading_service.capture_open(group),
+        capture_text=grading_service.capture_window_text(group),
+    )
+    return render_fragment(_GROUP_PARTIAL, **ctx)
 
 
 @pages_course_groups.route('/program/<int:program_id>')
@@ -125,6 +133,22 @@ def drop_student(group_uuid, enrollment_id):
         abort(404)
     course_enrollment_service.drop(enrollment.id, current_user.id)
     return hx_flash(_group_fragment(group), 'success', 'Estudiante quitado del grupo.')
+
+
+@pages_course_groups.route('/<uuid:group_uuid>/extend-capture', methods=['POST'])
+@login_required
+@permission_required('course_groups.page.manage')
+@permission_required('grades.page.extend_capture')
+def extend_capture(group_uuid):
+    """Let a group capture grades past the period window, until a date and with a reason."""
+    group = _group_or_404(group_uuid)
+    try:
+        until = date.fromisoformat((request.form.get('until') or '').strip())
+    except ValueError:
+        raise ValidationFailed('Indica una fecha válida para ampliar la captura.')
+    grading_service.extend_capture(group.id, until, request.form.get('reason', ''),
+                                  current_user.id)
+    return hx_flash(_group_fragment(group), 'success', 'Captura ampliada.')
 
 
 @pages_course_groups.route('/program/<int:program_id>/enroll-semester', methods=['POST'])

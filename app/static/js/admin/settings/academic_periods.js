@@ -140,6 +140,14 @@ class AcademicPeriodsManager {
             card.querySelector('.class-dates').textContent =
                 `${this.formatDate(period.start_date)} - ${this.formatDate(period.end_date)}`;
 
+            // Ventana de captura de calificaciones (sólo si está definida)
+            if (period.grade_capture_start || period.grade_capture_end) {
+                const start = this.formatDate(period.grade_capture_start) || '—';
+                const end = this.formatDate(period.grade_capture_end) || '—';
+                card.querySelector('.capture-dates').textContent = `${start} - ${end}`;
+                card.querySelector('.capture-dates-row').classList.remove('d-none');
+            }
+
             // Indicador y estado
             const indicator = card.querySelector('.period-indicator');
             const badge = card.querySelector('.period-status-badge');
@@ -242,6 +250,8 @@ class AcademicPeriodsManager {
         document.getElementById('endDate').value = period.end_date;
         document.getElementById('admissionStartDate').value = period.admission_start_date;
         document.getElementById('admissionEndDate').value = period.admission_end_date;
+        document.getElementById('gradeCaptureStart').value = period.grade_capture_start || '';
+        document.getElementById('gradeCaptureEnd').value = period.grade_capture_end || '';
         this.modalPeriod.show();
     }
 
@@ -266,7 +276,9 @@ class AcademicPeriodsManager {
             start_date: document.getElementById('startDate').value,
             end_date: document.getElementById('endDate').value,
             admission_start_date: document.getElementById('admissionStartDate').value,
-            admission_end_date: document.getElementById('admissionEndDate').value
+            admission_end_date: document.getElementById('admissionEndDate').value,
+            grade_capture_start: document.getElementById('gradeCaptureStart').value || null,
+            grade_capture_end: document.getElementById('gradeCaptureEnd').value || null
         };
 
         console.log('Saving period data:', data);

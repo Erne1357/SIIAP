@@ -36,6 +36,11 @@ class CourseGroup(PublicUUIDMixin, db.Model):
     location = db.Column(db.String(120), nullable=True)
     schedule = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(10), nullable=False, default='open')
+    # Grading (phase 6B2): closing the acta makes its grades final.
+    closed_at = db.Column(db.DateTime, nullable=True)
+    closed_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    capture_until = db.Column(db.Date, nullable=True)
+    capture_extension_reason = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=now_local)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
 

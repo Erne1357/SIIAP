@@ -779,9 +779,17 @@ def register_graduation(user_program_id: int, on_date, actor_id: int) -> UserPro
 
 
 def graduation_suggested(up: UserProgram) -> bool:
-    """Activo y con los semestres del plan completados (o cursando el último)."""
+    """
+    Activo y con el plan cubierto: el kardex completo cuando su versión del plan
+    tiene materias; si no, los semestres del plan completados (o cursando el último).
+    """
+    if up.academic_status != academic_status_service.ACTIVE:
+        return False
+    if up.curriculum_plan is not None and up.curriculum_plan.subjects:
+        from app.services import kardex_service
+        return kardex_service.kardex(up.id)['complete']
     duration = up.program.duration_semesters if up.program else None
-    if up.academic_status != academic_status_service.ACTIVE or not duration:
+    if not duration:
         return False
     last = academic_progress.last_enrollment(up.id)
     return academic_progress.next_semester_number(up.id, closing=last) > duration

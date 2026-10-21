@@ -9,6 +9,7 @@
 {% block styles %}
 <link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/coordinator/student_record/index.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/kardex/kardex.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -65,6 +66,12 @@
       <button class="nav-link" id="tab-load-btn" data-bs-toggle="tab" data-bs-target="#tab-load"
               type="button" role="tab" aria-controls="tab-load" aria-selected="false">
         <i class="bi bi-journal-bookmark-fill" aria-hidden="true"></i>Carga
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-kardex-btn" data-bs-toggle="tab" data-bs-target="#tab-kardex"
+              type="button" role="tab" aria-controls="tab-kardex" aria-selected="false">
+        <i class="bi bi-journal-text" aria-hidden="true"></i>Kardex
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -189,6 +196,19 @@
                hx-trigger="shown.bs.tab from:#tab-load-btn"
                hx-swap="innerHTML" hx-history="false" hx-sync="this:replace">
             <div class="text-center py-3 text-secondary small">Cargando carga…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-kardex" role="tabpanel" aria-labelledby="tab-kardex-btn">
+      <div class="card shadow-sm">
+        <div class="card-body" aria-live="polite">
+          <div id="recordKardex"
+               hx-get="{{ url_for('pages_student_record.record_kardex', user_uuid=target_user.uuid) }}"
+               hx-trigger="shown.bs.tab from:#tab-kardex-btn"
+               hx-swap="innerHTML" hx-history="false" hx-sync="this:replace">
+            <div class="text-center py-3 text-secondary small">Cargando kardex…</div>
           </div>
         </div>
       </div>

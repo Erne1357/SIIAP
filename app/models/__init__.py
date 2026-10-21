@@ -33,3 +33,4 @@ from .curriculum_plan import CurriculumPlan
 from .subject import Subject
 from .course_group import CourseGroup
 from .course_enrollment import CourseEnrollment
+from .grade_correction import GradeCorrection

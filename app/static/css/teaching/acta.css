@@ -1,0 +1,25 @@
+/* Acta de calificaciones (Docencia → Mis grupos → grupo). */
+
+.acta__grade {
+  width: calc(var(--space-16) + var(--space-2));
+  min-height: var(--tap-min);
+  text-align: center;
+  font-weight: var(--fw-semibold);
+}
+
+.acta__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.acta__notice {
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 576px) {
+  .acta__actions .btn {
+    flex: 1 1 100%;
+  }
+}

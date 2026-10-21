@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import empty_state, data_table_open, data_table_close %}
 
 {% set breadcrumb_current = group.subject.name ~ ' · ' ~ group.group_code %}
 
@@ -7,6 +6,7 @@
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/teaching/acta.css') }}?v={{ static_version }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -32,31 +32,14 @@
   </dl>
 
   <div class="card shadow-sm">
-    <div class="card-body">
-      {% if roster %}
-        {{ data_table_open('Estudiantes inscritos en el grupo', id='groupRoster') }}
-          <thead>
-            <tr>
-              <th scope="col">Nombre</th>
-              <th scope="col">Número de control</th>
-              <th scope="col">Intento</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in roster %}
-              <tr>
-                <td>{{ r.full_name }}</td>
-                <td>{{ r.control_number or '—' }}</td>
-                <td>{{ attempt_labels.get(r.attempt_type, r.attempt_type) }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        {{ data_table_close() }}
-      {% else %}
-        {{ empty_state('people', 'Sin estudiantes inscritos',
-                       'Este grupo todavía no tiene inscripciones.', compact=true) }}
-      {% endif %}
+    <div class="card-body" id="actaRoot">
+      {% include "teaching/_partials/_acta.html" %}
     </div>
   </div>
 </div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/teaching/acta.js') }}?v={{ static_version }}"></script>
 {% endblock %}

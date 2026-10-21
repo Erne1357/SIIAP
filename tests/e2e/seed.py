@@ -85,6 +85,7 @@ STAFF = (
     | _codes('course_groups', 'page.manage')
     | _codes('teachers', 'page.create')
     | _codes('teaching', 'page.my_groups')
+    | _codes('grades', 'page.capture', 'page.request_correction')
 )
 
 #: Institution-wide administration, on top of STAFF. academic_periods.api.create
@@ -98,6 +99,7 @@ POSTGRAD_ONLY = (
     | _codes('permissions', 'page.manage_roles', 'api.delegate', 'api.list_role_permissions',
              'api.list_user_permissions', 'api.override_role_permission', 'api.revert_override',
              'api.revoke_delegation', 'api.view_audit')
+    | _codes('grades', 'page.decide_correction', 'page.extend_capture')
     | _codes('admin', 'page.purge', 'api.purge_archive', 'api.purge_confirm', 'api.purge_view')
 )
 
@@ -116,6 +118,7 @@ def permission_sets() -> dict:
     student = (self_service | SHELL | OWN_PROFILE
                | _codes('permanence', 'api.upload_my_payment', 'api.view_my_enrollment')
                | _codes('course_enrollment', 'page.view_own')
+               | _codes('kardex', 'page.view_own')
                ) - {'programs.api.enroll'}
 
     coordinator = SHELL | OWN_PROFILE | STAFF

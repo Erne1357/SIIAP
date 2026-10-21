@@ -175,6 +175,10 @@ def create_academic_period(data: dict, created_by: int = None):
     if admission_end > start_date:
         raise InvalidDateRange("El periodo de admisión debe terminar antes de que inicien las clases")
 
+    capture_start = _parse_optional_date(data.get('grade_capture_start'))
+    capture_end = _parse_optional_date(data.get('grade_capture_end'))
+    _validate_capture_window(capture_start, capture_end)
+
     # Crear periodo
     period = AcademicPeriod(
         code=code,
@@ -183,6 +187,8 @@ def create_academic_period(data: dict, created_by: int = None):
         end_date=end_date,
         admission_start_date=admission_start,
         admission_end_date=admission_end,
+        grade_capture_start=capture_start,
+        grade_capture_end=capture_end,
         is_active=False,
         status='upcoming',
         created_by=created_by
@@ -243,6 +249,13 @@ def update_academic_period(period_id: int, data: dict):
 
     if 'admission_end_date' in data:
         period.admission_end_date = _parse_date(data['admission_end_date'])
+
+    # Ventana de captura de calificaciones (opcional; vacío = sin restricción)
+    if 'grade_capture_start' in data:
+        period.grade_capture_start = _parse_optional_date(data['grade_capture_start'])
+    if 'grade_capture_end' in data:
+        period.grade_capture_end = _parse_optional_date(data['grade_capture_end'])
+    _validate_capture_window(period.grade_capture_start, period.grade_capture_end)
 
     # Validar rangos de fechas después de actualizar
     if period.admission_start_date >= period.admission_end_date:
@@ -377,6 +390,22 @@ def _parse_date(value):
         return date.fromisoformat(value)
 
     raise ValueError(f"Formato de fecha inválido: {value}")
+
+
+def _parse_optional_date(value):
+    """Blank/None -> None; ISO string or date -> date; anything else -> InvalidDateRange."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        return _parse_date(value.strip() if isinstance(value, str) else value)
+    except ValueError:
+        raise InvalidDateRange("La fecha de captura de calificaciones no es válida")
+
+
+def _validate_capture_window(start, end):
+    if start and end and start > end:
+        raise InvalidDateRange(
+            "El inicio de la captura de calificaciones debe ser anterior o igual al fin")
 
 
 def list_periods_newest_first():

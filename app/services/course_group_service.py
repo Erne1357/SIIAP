@@ -40,7 +40,8 @@ def lock_group(group_id: int) -> CourseGroup:
 
 def enrolled_count(group_id: int) -> int:
     return (db.session.query(db.func.count(CourseEnrollment.id))
-            .filter_by(course_group_id=group_id, status='enrolled').scalar()) or 0
+            .filter(CourseEnrollment.course_group_id == group_id,
+                    CourseEnrollment.status.in_(('enrolled', 'graded'))).scalar()) or 0
 
 
 def enrolled_counts(group_ids: Iterable[int]) -> dict[int, int]:
@@ -50,7 +51,7 @@ def enrolled_counts(group_ids: Iterable[int]) -> dict[int, int]:
         return {}
     rows = (db.session.query(CourseEnrollment.course_group_id, db.func.count(CourseEnrollment.id))
             .filter(CourseEnrollment.course_group_id.in_(ids),
-                    CourseEnrollment.status == 'enrolled')
+                    CourseEnrollment.status.in_(('enrolled', 'graded')))
             .group_by(CourseEnrollment.course_group_id).all())
     return {gid: n for gid, n in rows}
 

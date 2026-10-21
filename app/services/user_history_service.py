@@ -1086,6 +1086,11 @@ class UserHistoryService:
         'curriculum_plan_changed': 'Cambió la versión del plan de estudios del estudiante',
         'course_enrolled': 'Inscribió al estudiante en un grupo',
         'course_dropped': 'Dio de baja al estudiante de un grupo',
+        'grade_published': 'Publicó la calificación (cierre de acta)',
+        'grade_corrected': 'Corrigió una calificación definitiva',
+        'grade_correction_requested': 'Solicitó corregir una calificación definitiva',
+        'grade_correction_rejected': 'Rechazó la corrección de una calificación',
+        'grade_capture_extended': 'Amplió la captura de calificaciones de un grupo',
 
         # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
         'semester_advanced': 'Avanzó al siguiente semestre',

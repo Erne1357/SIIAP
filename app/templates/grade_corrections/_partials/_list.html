@@ -1,0 +1,78 @@
+{#
+  Solicitudes de corrección pendientes. Se carga dentro de #gradeCorrectionsList
+  y cada decisión la reemplaza completa.
+
+  Contexto explícito: corrections ([GradeCorrection] con enrollment, requester).
+#}
+{% from '_macros.html' import empty_state, data_table_open, data_table_close %}
+
+{% if corrections %}
+  {{ data_table_open('Solicitudes de corrección de calificaciones pendientes',
+                     id='gradeCorrectionsTable', table_class='table-hover align-middle') }}
+    <thead>
+      <tr>
+        <th scope="col">Estudiante</th>
+        <th scope="col">Programa</th>
+        <th scope="col">Materia</th>
+        <th scope="col">Grupo y periodo</th>
+        <th scope="col">Docente</th>
+        <th scope="col">Cambio</th>
+        <th scope="col">Motivo</th>
+        <th scope="col">Solicitada</th>
+        <th scope="col">Decisión</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in corrections %}
+        {% set e = c.enrollment %}
+        {% set student = e.user_program.user %}
+        <tr id="correction-{{ c.id }}">
+          <th scope="row">
+            {{ student.first_name }} {{ student.last_name }} {{ student.mother_last_name or '' }}
+            {% if student.control_number %}<br><span class="text-secondary small">{{ student.control_number }}</span>{% endif %}
+          </th>
+          <td>{{ e.user_program.program.name }}</td>
+          <td>{{ e.subject.name }}</td>
+          <td>{{ e.course_group.group_code if e.course_group else '—' }} · {{ e.academic_period.name }}</td>
+          <td>{% if c.requester %}{{ c.requester.first_name }} {{ c.requester.last_name }}{% else %}—{% endif %}</td>
+          <td>
+            <span class="text-nowrap">{{ c.display(c.old_grade, c.old_mark) or '—' }}
+              <i class="bi bi-arrow-right mx-1" aria-hidden="true"></i><span class="visually-hidden">cambia a</span>
+              <strong>{{ c.display(c.new_grade, c.new_mark) or '—' }}</strong></span>
+          </td>
+          <td>{{ c.reason }}</td>
+          <td>{{ c.created_at|fecha_es('short') }}</td>
+          <td>
+            <label class="form-label small mb-1" for="notes-{{ c.id }}">Notas de la decisión</label>
+            <input type="text" class="form-control form-control-sm tap-target w-px-200 mb-2"
+                   id="notes-{{ c.id }}" name="notes" maxlength="500"
+                   placeholder="Obligatorias al rechazar">
+            <div class="d-flex flex-wrap gap-2">
+              <button type="button" class="btn btn-sm btn-success tap-target"
+                      hx-post="{{ url_for('pages_grade_corrections.decide', correction_id=c.id) }}"
+                      hx-vals='{"decision": "approve"}' hx-include="#notes-{{ c.id }}"
+                      hx-target="#gradeCorrectionsList" hx-swap="innerHTML" hx-history="false"
+                      hx-confirm="¿Aprobar el cambio de {{ c.display(c.old_grade, c.old_mark) or 'sin calificación' }} a {{ c.display(c.new_grade, c.new_mark) }} en {{ e.subject.name }}?"
+                      data-confirm-title="Aprobar corrección" data-confirm-type="warning"
+                      data-confirm-label="Sí, aprobar">
+                <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Aprobar
+                <span class="visually-hidden">corrección de {{ student.first_name }} {{ student.last_name }}</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger tap-target"
+                      hx-post="{{ url_for('pages_grade_corrections.decide', correction_id=c.id) }}"
+                      hx-vals='{"decision": "reject"}' hx-include="#notes-{{ c.id }}"
+                      hx-target="#gradeCorrectionsList" hx-swap="innerHTML" hx-history="false">
+                <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Rechazar
+                <span class="visually-hidden">corrección de {{ student.first_name }} {{ student.last_name }}</span>
+              </button>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  {{ data_table_close() }}
+{% else %}
+  {{ empty_state('check2-circle', 'Sin solicitudes pendientes',
+                 'Cuando un docente solicite corregir una calificación, aparecerá aquí.',
+                 compact=true) }}
+{% endif %}

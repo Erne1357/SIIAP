@@ -91,6 +91,8 @@ MENU: tuple[NavGroup, ...] = (
         items=(
             NavItem('home', 'Inicio', 'bi-house-door', 'pages_user.dashboard'),
             NavItem('profile', 'Perfil', 'bi-person', 'pages_user.profile'),
+            NavItem('my-kardex', 'Mi kardex', 'bi-journal-check', 'pages_kardex.my_kardex',
+                    any_of=('kardex.page.view_own',)),
         ),
     ),
     NavGroup(
@@ -188,6 +190,10 @@ MENU: tuple[NavGroup, ...] = (
                     'pages_curriculum.index',
                     any_of=('curriculum.page.manage',),
                     active_prefixes=('pages_curriculum.',)),
+            NavItem('grade-corrections', 'Correcciones de calificaciones', 'bi-pencil-square',
+                    'pages_grade_corrections.index',
+                    any_of=('grades.page.decide_correction',),
+                    active_prefixes=('pages_grade_corrections.',)),
             NavItem('periods', 'Periodos académicos', 'bi-calendar3',
                     'pages_admin.pages_settings.academic_periods',
                     any_of=('academic_periods.api.create',)),

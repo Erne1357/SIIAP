@@ -5,6 +5,8 @@
   Contexto explícito: group, program, period, periods, roster
   ([{enrollment, full_name, control_number, attempt_label, attempt_badge}]),
   enrolled, full, candidates ([{id, name, control_number, attempt_label}]),
+  acta ([{full_name, control_number, value, final, result, ...}]),
+  capture_is_open, capture_text,
   slots (huecos de optativa del plan; vacío si la materia no es optativa),
   subjects, teachers, teacher_name.
 #}
@@ -69,6 +71,73 @@
 {% else %}
   {{ empty_state('people', 'Sin estudiantes inscritos',
                  'Agrega estudiantes con el formulario de abajo.', compact=true) }}
+{% endif %}
+
+<h4 class="h6 mt-4" id="groupActaHeading">Acta y calificaciones</h4>
+<p class="mb-2">
+  {% if group.status == 'closed' %}
+    {{ status_badge('accepted', 'Acta cerrada', 'sm') }}
+    {% if group.closed_at %}<span class="text-secondary">el {{ group.closed_at|fecha_es }}</span>{% endif %}
+  {% else %}
+    {{ status_badge('in_progress', 'Acta abierta', 'sm') }}
+    <span class="text-secondary">
+      {{ 'La captura está abierta.' if capture_is_open else 'La captura está cerrada por fechas.' }}
+    </span>
+  {% endif %}
+</p>
+{% if capture_text %}<p class="text-secondary small mb-2">{{ capture_text }}</p>{% endif %}
+{% if group.capture_extension_reason %}
+  <p class="text-secondary small mb-2">Motivo de la ampliación: {{ group.capture_extension_reason }}</p>
+{% endif %}
+{% if acta %}
+  {{ data_table_open('Calificaciones de los estudiantes del grupo', id='groupActaTable',
+                     table_class='table-hover align-middle') }}
+    <thead>
+      <tr>
+        <th scope="col">Estudiante</th>
+        <th scope="col">Calificación</th>
+        <th scope="col">Resultado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in acta %}
+        <tr id="acta-{{ a.enrollment.id }}">
+          <th scope="row">{{ a.full_name }}</th>
+          <td>{{ a.value or 'Sin capturar' }}{% if not a.final and a.value %} <span class="text-secondary small">(borrador)</span>{% endif %}</td>
+          <td>
+            {% if a.result == 'passed' %}{{ status_badge('approved', 'Aprobada', 'sm') }}
+            {% elif a.result == 'failed' %}{{ status_badge('rejected', 'Reprobada', 'sm') }}
+            {% else %}<span class="text-secondary">—</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  {{ data_table_close() }}
+{% else %}
+  {{ empty_state('journal-text', 'Sin calificaciones',
+                 'Aún no hay estudiantes inscritos en el grupo.', compact=true) }}
+{% endif %}
+
+{% if group.status == 'open' and has_perm('grades.page.extend_capture') %}
+  <h4 class="h6 mt-3">Ampliar captura</h4>
+  <form id="groupExtendForm" class="row g-2 align-items-end"
+        hx-post="{{ url_for('pages_course_groups.extend_capture', group_uuid=group.uuid) }}"
+        hx-target="#courseLoadRoot" hx-swap="innerHTML" hx-history="false">
+    <div class="col-md-3">
+      <label class="form-label" for="extendUntil">Ampliar captura hasta</label>
+      <input type="date" class="form-control tap-target" id="extendUntil" name="until" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="extendReason">Motivo</label>
+      <input type="text" class="form-control tap-target" id="extendReason" name="reason"
+             maxlength="500" required>
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-outline-primary tap-target w-100" type="submit">
+        <i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Ampliar captura
+      </button>
+    </div>
+  </form>
 {% endif %}
 
 <h4 class="h6 mt-4">Agregar estudiante</h4>

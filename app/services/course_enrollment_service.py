@@ -95,6 +95,9 @@ def enroll(group_id: int, user_program_id: int, actor_id: int, *,
     existing = CourseEnrollment.query.filter_by(
         user_program_id=up.id, subject_id=group.subject_id,
         academic_period_id=group.academic_period_id).first()
+    from app.services import kardex_service
+    if kardex_service.has_passed(up.id, group.subject_id):
+        raise EnrollmentRuleError('La materia ya está aprobada.')
     if existing is not None and existing.status != 'dropped':
         raise EnrollmentRuleError('El estudiante ya está inscrito en esa materia en este periodo.')
     if course_group_service.enrolled_count(group.id) >= group.capacity:
