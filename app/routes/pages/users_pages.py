@@ -42,7 +42,7 @@ def profile_summary():
 @pages_user.route("/profile", methods=["GET"])
 @login_required
 def profile():
-    up = current_user.user_program[0] if current_user.user_program else None
+    up = current_user.current_user_program()
     program = up.program if up else None
 
     if program:

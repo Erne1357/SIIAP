@@ -337,6 +337,16 @@ def api_update_enrollment_status(semester_enrollment_id):
     if denied:
         return denied
 
+    # 'dropped' es la baja definitiva: exige su propio permiso además del de
+    # confirmar inscripciones.
+    if new_status == 'dropped' and not current_user.has_permission('permanence.api.withdraw'):
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": "No tienes permiso para registrar bajas definitivas."}],
+            "error": {"code": "FORBIDDEN", "message": "Permiso requerido: permanence.api.withdraw"},
+            "meta": {}
+        }), 403
+
     try:
         se = svc.update_enrollment_status(
             semester_enrollment_id=semester_enrollment_id,

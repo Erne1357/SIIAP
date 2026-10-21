@@ -52,7 +52,8 @@ class ExtensionsService:
             requested_by=requested_by,
             reason=reason,
             requested_until=requested_until,
-            role=role
+            role=role,
+            user_program_id=user_program.id,
         )
         
         db.session.add(er)

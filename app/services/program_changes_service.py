@@ -14,6 +14,7 @@ from app.models.submission import Submission
 from app.models.archive import Archive
 from app.models.program_step import ProgramStep
 from app.models.step import Step
+from app.services.user_program_links import resolve_user_program_id
 
 class ProgramChangesService:
     @staticmethod
@@ -150,7 +151,8 @@ class ProgramChangesService:
                     semester=src.semester,
                     review_date=src.review_date,
                     reviewer_id=src.reviewer_id,
-                    reviewer_comment=src.reviewer_comment
+                    reviewer_comment=src.reviewer_comment,
+                    user_program_id=resolve_user_program_id(src.user_id, dest_ps.id),
                 )
                 db.session.add(copy)
             elif m.mapping_rule == 'needs_update':

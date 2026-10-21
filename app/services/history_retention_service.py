@@ -139,15 +139,14 @@ class HistoryRetentionService:
         """
         Clasifica usuarios según su estado actual.
 
-        UserProgram has no graduation date, so "graduated" is derived from
-        data that does exist: a program counts as concluded when the student
-        has a `completed` SemesterEnrollment whose semester_number reaches the
-        program's `duration_semesters`. Programs without a duration can never
-        be classed as concluded.
+        A user is "graduated" when at least one of their UserProgram rows has
+        academic_status == 'graduated' (the date of record is
+        UserProgram.graduated_at). The old semester_number >= duration_semesters
+        heuristic no longer applies.
 
         Rules, first match wins:
           1. account deactivated (User.is_active False)  -> inactive
-          2. at least one concluded program              -> graduated
+          2. some UserProgram academic_status 'graduated'   -> graduated
           3. linked to at least one program (any status) -> active
           4. no program at all                           -> inactive
 
@@ -155,8 +154,6 @@ class HistoryRetentionService:
             Diccionario con listas de user_ids por categoría
         """
         from sqlalchemy import func
-        from app.models.program import Program
-        from app.models.semester_enrollment import SemesterEnrollment
 
         program_counts = db.session.query(
             User.id,
@@ -166,13 +163,7 @@ class HistoryRetentionService:
 
         concluded_user_ids = {
             row.user_id for row in db.session.query(UserProgram.user_id)
-            .join(Program, Program.id == UserProgram.program_id)
-            .join(SemesterEnrollment, SemesterEnrollment.user_program_id == UserProgram.id)
-            .filter(
-                Program.duration_semesters.isnot(None),
-                SemesterEnrollment.status == 'completed',
-                SemesterEnrollment.semester_number >= Program.duration_semesters,
-            )
+            .filter(UserProgram.academic_status == 'graduated')
             .distinct()
             .all()
         }

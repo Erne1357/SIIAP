@@ -7,6 +7,8 @@ record loads lazily (the admission tab, which replaced the dashboard's student
 detail modal) and the cross-program summary page: the reduced tier (name,
 e-mail, progress) of a student the viewer does not manage.
 """
+from datetime import date
+
 from flask import (
     Blueprint, abort, current_app, redirect, render_template, request, url_for,
 )
@@ -15,6 +17,8 @@ from flask_login import login_required, current_user
 from app.models.user import User
 from app.services import student_record_service as svc
 from app.services import student_admission_detail_service as detail_svc
+from app.services import permanence_service
+from app.services.errors import ValidationFailed
 from app.utils.htmx import hx_flash, is_htmx, render_fragment
 from app.utils.permissions import permission_required
 
@@ -25,6 +29,7 @@ pages_student_record = Blueprint(
 )
 
 _ADMISSION_PARTIAL = 'coordinator/student_record/_partials/_admission.html'
+_TRAJECTORY_PARTIAL = 'coordinator/student_record/_partials/_trajectory.html'
 
 
 def _log_denial(error: svc.StudentRecordError, user_id, action: str) -> None:
@@ -105,6 +110,98 @@ def record_admission_upload(user_uuid):
         **detail_svc.admission_context(current_user, user),
     )
     return hx_flash(response, 'success', message)
+
+
+def _program_arg() -> int | None:
+    """`program` from the query string or the form; malformed means no such program."""
+    raw = (request.values.get('program') or '').strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        abort(404)
+
+
+def _resolve_trajectory_up(user: User, action: str):
+    """The UserProgram the request targets, or the shared 404."""
+    try:
+        return svc.trajectory_user_program(current_user, user, _program_arg())
+    except svc.StudentRecordError as e:
+        _log_denial(e, user.id, action)
+        abort(404)
+
+
+def _trajectory_fragment(user: User, up=None):
+    """Render the trajectory fragment for `up` (None: the empty state)."""
+    options = svc.trajectory_options(current_user, user)
+    trajectory = permanence_service.get_trajectory(up.id) if up is not None else None
+    return render_fragment(
+        _TRAJECTORY_PARTIAL,
+        target_user=user,
+        trajectory=trajectory,
+        program_options=options,
+        selected_program_id=up.program_id if up is not None else None,
+    )
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/trajectory')
+@login_required
+@permission_required('students.page.view_record')
+def record_trajectory(user_uuid):
+    """Trajectory tab (academic status, semesters, withdrawal, graduation) as a fragment."""
+    user = _load_target_or_404(user_uuid, 'trajectory')
+    if not is_htmx():
+        return redirect(url_for('.student_record', user_uuid=user.uuid, tab='trayectoria'))
+    if not svc.trajectory_options(current_user, user):
+        return _trajectory_fragment(user)
+    return _trajectory_fragment(user, _resolve_trajectory_up(user, 'trajectory'))
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/trajectory/graduate', methods=['POST'])
+@login_required
+@permission_required('students.page.view_record')
+@permission_required('permanence.api.register_graduation')
+def record_trajectory_graduate(user_uuid):
+    """Register the student's graduation on the given date."""
+    user = _load_target_or_404(user_uuid, 'trajectory_graduate')
+    up = _resolve_trajectory_up(user, 'trajectory_graduate')
+    raw = (request.form.get('graduated_at') or '').strip()
+    try:
+        on_date = date.fromisoformat(raw) if raw else None
+    except ValueError:
+        raise ValidationFailed('La fecha de egreso no es válida.')
+    permanence_service.register_graduation(up.id, on_date, current_user.id)
+    return hx_flash(_trajectory_fragment(user, up), 'success', 'Egreso registrado.')
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/trajectory/withdraw', methods=['POST'])
+@login_required
+@permission_required('students.page.view_record')
+@permission_required('permanence.api.withdraw')
+def record_trajectory_withdraw(user_uuid):
+    """Definitive withdrawal (baja definitiva) with a mandatory reason."""
+    user = _load_target_or_404(user_uuid, 'trajectory_withdraw')
+    up = _resolve_trajectory_up(user, 'trajectory_withdraw')
+    permanence_service.withdraw(
+        up.id, (request.form.get('reason') or '').strip(), current_user.id)
+    return hx_flash(_trajectory_fragment(user, up), 'success',
+                    'Baja definitiva registrada.')
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/trajectory/revert-withdrawal',
+                            methods=['POST'])
+@login_required
+@permission_required('students.page.view_record')
+@permission_required('permanence.api.revert_withdrawal')
+def record_trajectory_revert_withdrawal(user_uuid):
+    """Undo a definitive withdrawal captured by mistake (reason mandatory)."""
+    user = _load_target_or_404(user_uuid, 'trajectory_revert')
+    up = _resolve_trajectory_up(user, 'trajectory_revert')
+    permanence_service.revert_withdrawal(
+        up.id, (request.form.get('reason') or '').strip(), current_user.id)
+    return hx_flash(_trajectory_fragment(user, up), 'success',
+                    'Baja definitiva revertida.')
 
 
 @pages_student_record.route('/<uuid:user_uuid>/summary')

@@ -91,9 +91,12 @@ def upload_submission(user, archive_uuid, program_id, program_slug, file):
         semester=0,
         uploaded_by=user.id,
         uploaded_by_role=user.role.name,
-        status='pending'
+        status='pending',
+        user_program_id=up.id,
     )
     sub.program_step_id = ps.id
+    if sub.user_program_id is None:
+        sub.user_program_id = up.id
     sub.upload_date = db.func.now()
     sub.file_path = rel
     sub.status = 'pending'

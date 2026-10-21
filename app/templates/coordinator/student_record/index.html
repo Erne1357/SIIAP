@@ -56,6 +56,12 @@
       </button>
     </li>
     <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-trajectory-btn" data-bs-toggle="tab" data-bs-target="#tab-trajectory"
+              type="button" role="tab" aria-controls="tab-trajectory" aria-selected="false">
+        <i class="bi bi-signpost-split" aria-hidden="true"></i>Trayectoria
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
       <button class="nav-link" id="tab-academic-btn" data-bs-toggle="tab" data-bs-target="#tab-academic"
               type="button" role="tab" aria-controls="tab-academic" aria-selected="false">
         <i class="bi bi-mortarboard" aria-hidden="true"></i>Académico
@@ -151,6 +157,19 @@
                hx-trigger="shown.bs.tab from:#tab-admission-btn"
                hx-swap="innerHTML" hx-history="false" hx-sync="this:replace">
             <div class="text-center py-3 text-secondary small">Cargando admisión…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-trajectory" role="tabpanel" aria-labelledby="tab-trajectory-btn">
+      <div class="card shadow-sm">
+        <div class="card-body" aria-live="polite">
+          <div id="recordTrajectory"
+               hx-get="{{ url_for('pages_student_record.record_trajectory', user_uuid=target_user.uuid) }}"
+               hx-trigger="shown.bs.tab from:#tab-trajectory-btn"
+               hx-swap="innerHTML" hx-history="false" hx-sync="this:replace">
+            <div class="text-center py-3 text-secondary small">Cargando trayectoria…</div>
           </div>
         </div>
       </div>

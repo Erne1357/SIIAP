@@ -298,6 +298,7 @@ class TestAssignControlNumber:
         up = svc.assign_control_number(acc.applicant.id, acc.program.id, ' M21111182 ', acc.coord.id)
         user = User.query.get(acc.applicant.id)
         assert up.admission_status == 'enrolled' and up.current_semester == 1
+        assert up.academic_status == 'active'
         assert user.control_number == 'M21111182' and user.username == 'M21111182'
         assert user.role.name == 'student'
         assert user.control_number_assigned_at is not None

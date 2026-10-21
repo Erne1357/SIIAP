@@ -27,6 +27,12 @@ class Submission(PublicUUIDMixin, db.Model):
     deadline_at = db.Column(db.DateTime)         # fecha límite efectiva (si hay prórroga)
     is_in_extension = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Owning student program. Nullable until every writer fills it (expand).
+    user_program_id = db.Column(
+        db.Integer, db.ForeignKey('user_program.id', ondelete='SET NULL'),
+        nullable=True, index=True
+    )
+
     # FK nullable: solo submissions de permanencia con ventana configurada
     document_deadline_id = db.Column(
         db.Integer, db.ForeignKey('document_deadline.id'), nullable=True,
@@ -44,8 +50,9 @@ class Submission(PublicUUIDMixin, db.Model):
         backref=db.backref('submissions', lazy='dynamic')
     )
 
-    def __init__(self, file_path, status, user_id, archive_id, program_step_id, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
+    def __init__(self, file_path, status, user_id, archive_id, program_step_id, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False, user_program_id=None):
         self.file_path = file_path
+        self.user_program_id = user_program_id
         self.status = status
         self.user_id = user_id
         self.archive_id = archive_id

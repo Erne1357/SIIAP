@@ -30,6 +30,7 @@ from app.services.admission_status_service import (
     regular_periods_between,
     transition,
 )
+from app.services import academic_progress, academic_status_service
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.services.payment_reference_service import PaymentReferenceService
@@ -139,6 +140,17 @@ def evaluate_student(
 
     blockers = []
 
+    # ── Regla 0: trayectoria cerrada (baja definitiva o egreso) ──
+    if up.academic_status in (academic_status_service.WITHDRAWN,
+                              academic_status_service.GRADUATED):
+        code = 'dropped' if up.academic_status == academic_status_service.WITHDRAWN else 'graduated'
+        blockers.append({
+            'code': code,
+            'message': (f"Estado académico: "
+                        f"{academic_status_service.STATUS_LABELS_ES[up.academic_status]}"),
+        })
+        return {'can_advance': False, 'blockers': blockers}
+
     # ── Regla 1: Debe existir SE en periodo origen con enrollment_confirmed=True ──
     source_se = SemesterEnrollment.query.filter_by(
         user_program_id=user_program_id,
@@ -152,22 +164,12 @@ def evaluate_student(
         })
         return {'can_advance': False, 'blockers': blockers}
 
-    # ── Regla nueva: Límite máximo de semestres (duration_semesters + 4) ──
+    # ── Límite de permanencia (duration_semesters + 4) en periodos calendario ──
     # Maestrías: 4 normal → 8 máx. Doctorado: 6 normal → 10 máx.
-    # Bajas temporales NO descuentan: el contador sigue creciendo.
-    program = up.program
-    if program and program.duration_semesters:
-        max_allowed = program.duration_semesters + 4
-        next_sem = (source_se.semester_number or 0) + 1
-        if next_sem > max_allowed:
-            blockers.append({
-                'code': 'semester_limit_exceeded',
-                'message': (
-                    f'Excede el límite de semestres del programa '
-                    f'(máx {max_allowed}: duración {program.duration_semesters} + 4). '
-                    f'Avanzaría al semestre {next_sem}.'
-                ),
-            })
+    # Las bajas temporales cuentan; el verano no (ver academic_progress).
+    limit_message = academic_progress.limit_exceeded_message(up, target_period_id)
+    if limit_message:
+        blockers.append({'code': 'semester_limit_exceeded', 'message': limit_message})
 
     if not source_se.enrollment_confirmed:
         blockers.append({
@@ -280,13 +282,8 @@ def _build_student_row(up: UserProgram, source_period_id: int, target_period_id:
         academic_period_id=source_period_id,
     ).first()
 
-    # Calcular el siguiente número de semestre
-    max_sem = (
-        db.session.query(db.func.max(SemesterEnrollment.semester_number))
-        .filter_by(user_program_id=up.id)
-        .scalar()
-    ) or 0
-    next_semester_number = max_sem + 1
+    # Siguiente semestre académico (el SE origen se cerrará como completado)
+    next_semester_number = academic_progress.next_semester_number(up.id, closing=source_se)
 
     program = up.program
     return {
@@ -790,13 +787,8 @@ def execute_program_transition(
                     source_se.status = 'completed'
                     source_se.updated_at = now
 
-                # ── Calcular nuevo número de semestre ──
-                max_sem = (
-                    db.session.query(db.func.max(SemesterEnrollment.semester_number))
-                    .filter_by(user_program_id=up.id)
-                    .scalar()
-                ) or 0
-                new_semester_number = max_sem + 1
+                # ── Nuevo semestre académico (completados + 1) ──
+                new_semester_number = academic_progress.next_semester_number(up.id)
 
                 # ── Crear nuevo SE en target_period ──
                 new_se = SemesterEnrollment(

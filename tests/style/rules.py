@@ -230,6 +230,11 @@ def py_db_in_routes():
     return _collect(_py_files("routes"), lambda t: _count(r"\bdb\.session\b|\.query\b", t))
 
 
+def py_user_program_index_zero():
+    """`user_program[0]` in app/: use User.current_user_program() instead."""
+    return _collect(_py_files(), lambda t: _count(r"user_program\[0\]", t))
+
+
 def py_print():
     """print( calls in app/."""
     return _collect(_py_files(), lambda t: _count(r"(?<![\w.])print\(", t))
@@ -361,6 +366,7 @@ RULES = {
     "py_roles_required": py_roles_required,
     "py_db_in_routes": py_db_in_routes,
     "py_print": py_print,
+    "py_user_program_index_zero": py_user_program_index_zero,
     "htmx_inline_js": htmx_inline_js,
     "css_gradient_text": css_gradient_text,
     "css_bounce_easing": css_bounce_easing,

@@ -33,6 +33,10 @@ class UserProgram(db.Model):
             "'accepted', 'rejected', 'deferred', 'enrolled', 'expired')",
             name='ck_user_program_admission_status',
         ),
+        db.CheckConstraint(
+            "academic_status IN ('active', 'on_leave', 'withdrawn', 'graduated')",
+            name='ck_user_program_academic_status',
+        ),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -58,6 +62,14 @@ class UserProgram(db.Model):
 
     # Beca CONACyT — True si el estudiante es becario activo (Módulo C, Permanencia)
     has_conacyt_scholarship = db.Column(db.Boolean, default=False, nullable=False)
+
+    # Academic trajectory once enrolled; NULL before. Written only by
+    # academic_status_service.transition() (admission and trajectory never mix).
+    academic_status = db.Column(db.String(20), nullable=True)
+    academic_status_changed_at = db.Column(db.DateTime, nullable=True)
+    graduated_at = db.Column(db.Date, nullable=True)
+    withdrawn_at = db.Column(db.DateTime, nullable=True)
+    withdrawal_reason = db.Column(db.Text, nullable=True)
 
     # Relaciones
     user = db.relationship('User', foreign_keys=[user_id], back_populates='user_program')

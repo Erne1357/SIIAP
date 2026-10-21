@@ -71,7 +71,7 @@ import io
 import logging
 
 from app import db
-from app.services import public_id_service
+from app.services import academic_status_service, public_id_service
 from app.models import (
     User, UserProgram, Program, AcademicPeriod, Role
 )
@@ -657,6 +657,7 @@ def create_student_individual(payload: dict, created_by_id: int,
         )
         db.session.add(up)
         db.session.flush()  # obtener up.id
+        academic_status_service.transition(up, 'active', actor_id=created_by_id)
 
         # 4. Backfill semestral
         sems_created = _backfill_history(

@@ -51,7 +51,7 @@ class DashboardService:
     def _applicant_context(user):
         from app.services.admission_service import get_admission_state
 
-        up = user.user_program[0] if user.user_program else None
+        up = user.current_user_program()
         program = up.program if up else None
 
         if program:
@@ -99,7 +99,7 @@ class DashboardService:
 
     @staticmethod
     def _student_context(user):
-        up = user.user_program[0] if user.user_program else None
+        up = user.current_user_program()
         program = up.program if up else None
 
         permanence_data = None

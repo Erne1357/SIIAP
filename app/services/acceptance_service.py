@@ -23,7 +23,7 @@ from app.utils.files import save_user_doc
 from app.utils.datetime_utils import now_local, to_local_timezone
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
-from app.services import admission_status_service
+from app.services import admission_status_service, academic_status_service
 
 
 VALID_DOC_TYPES = {'acceptance_letter', 'course_schedule', 'enrollment_receipt', 'acceptance_opinion'}
@@ -793,6 +793,7 @@ def assign_control_number(user_id: int, program_id: int,
 
     # 3. Actualizar estado de inscripción
     admission_status_service.transition(up, 'enrolled')
+    academic_status_service.transition(up, 'active', actor_id=coordinator_id)
     up.current_semester = 1
 
     # 3b. Crear SemesterEnrollment para semestre 1 ya confirmado.
@@ -906,6 +907,8 @@ def assign_control_number_admin(user_id: int, program_id: int,
     #    inscrito se conserva el estado: solo se reasigna el número de control.
     if up.admission_status != 'enrolled':
         admission_status_service.transition(up, 'enrolled', override=True)
+    if up.academic_status is None:
+        academic_status_service.transition(up, 'active', actor_id=admin_id)
     if not up.current_semester or up.current_semester < 1:
         up.current_semester = 1
 

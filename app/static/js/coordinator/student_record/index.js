@@ -606,7 +606,7 @@
   }
 
   // ── Deep links and the admission tab (server-rendered fragment) ─────────
-  const TAB_BUTTONS = { admision: 'tab-admission-btn' };
+  const TAB_BUTTONS = { admision: 'tab-admission-btn', trayectoria: 'tab-trajectory-btn' };
 
   function setupTabs() {
     const wanted = TAB_BUTTONS[CFG.initialTab];

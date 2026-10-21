@@ -121,6 +121,42 @@ def load_record_target(user_id: int, requester: User) -> User:
     return user
 
 
+def trajectory_options(viewer: User, target: User) -> list[UserProgram]:
+    """
+    The target's enrolled links the viewer may act on (the trajectory tab's
+    program selector). Ordered by program name so the selector is stable.
+    """
+    links = [up for up in (target.user_program or [])
+             if up.admission_status == 'enrolled'
+             and program_scope_service.program_in_scope(viewer, up.program_id)]
+    return sorted(links, key=lambda up: (up.program.name if up.program else '', up.id))
+
+
+def trajectory_user_program(viewer: User, target: User,
+                            program_id: Optional[int] = None) -> UserProgram:
+    """
+    Resolve the UserProgram the trajectory tab works on.
+
+    `program_id` picks that program's link; without it the target's
+    `current_user_program()` is used when it is among the viewer's options,
+    else the first option. Anything outside the viewer's scope (or not
+    enrolled) raises `StudentNotFound`, which the route answers with the
+    shared 404.
+    """
+    options = trajectory_options(viewer, target)
+    if program_id is not None:
+        for up in options:
+            if up.program_id == program_id:
+                return up
+        raise StudentNotFound("Programa no encontrado para este estudiante.")
+    current = target.current_user_program()
+    if current is not None and current in options:
+        return current
+    if options:
+        return options[0]
+    raise StudentNotFound("El estudiante no tiene un programa inscrito en tu alcance.")
+
+
 def get_full_record(user_id: int, requester: User) -> dict:
     user = load_record_target(user_id, requester)
 

@@ -78,6 +78,9 @@ KNOWN_KIND_MISMATCHES = [
     ('app/routes/pages/admission_pages.py', 'upload_document', 'submissions.api.create'),
     ('app/routes/pages/programs_pages.py', 'inscription_program', 'programs.api.enroll'),
     ('app/routes/pages/student_record_pages.py', 'record_admission_upload', 'coordinator.api.upload_for_student'),
+    ('app/routes/pages/student_record_pages.py', 'record_trajectory_graduate', 'permanence.api.register_graduation'),
+    ('app/routes/pages/student_record_pages.py', 'record_trajectory_revert_withdrawal', 'permanence.api.revert_withdrawal'),
+    ('app/routes/pages/student_record_pages.py', 'record_trajectory_withdraw', 'permanence.api.withdraw'),
 ]
 
 

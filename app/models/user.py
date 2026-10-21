@@ -441,6 +441,38 @@ class User(PublicUUIDMixin, db.Model, UserMixin):
         
         return not has_submissions  # and not has_appointments
 
+    # Admission states in which the user is still "in" an admission flow.
+    _IN_FLIGHT_ADMISSION = ('in_progress', 'interview_completed', 'deliberation', 'accepted', 'deferred')
+
+    def current_user_program(self):
+        """The UserProgram that represents the user right now, or None.
+
+        (a) the most recent link (enrollment_date, then id) with an admission in
+        flight; else (b) an `enrolled` link whose academic_status is active or
+        on_leave (NULL, i.e. legacy rows, ranks after those), most recent first;
+        else (c) the most recent link of any kind.
+        """
+        from datetime import datetime as _dt
+
+        links = list(self.user_program or [])
+        if not links:
+            return None
+
+        def recency(up):
+            return (up.enrollment_date or _dt.min, up.id or 0)
+
+        in_flight = [up for up in links if up.admission_status in self._IN_FLIGHT_ADMISSION]
+        if in_flight:
+            return max(in_flight, key=recency)
+
+        enrolled = [up for up in links
+                    if up.admission_status == 'enrolled'
+                    and up.academic_status in ('active', 'on_leave', None)]
+        if enrolled:
+            return max(enrolled, key=lambda up: (up.academic_status is not None, *recency(up)))
+
+        return max(links, key=recency)
+
     def to_dict(self, include_sensitive=False):
         # `id` is the public UUID handle, never the integer primary key —
         # the integer stays internal (foreign keys, service arguments, history
@@ -463,15 +495,16 @@ class User(PublicUUIDMixin, db.Model, UserMixin):
             'profile_completed': self.profile_completed
         }
         if include_sensitive:
+            current_up = self.current_user_program()
             user_data.update({
                 'is_active': self.is_active,
                 'control_number': self.control_number,
                 'control_number_assigned_at': self.control_number_assigned_at.isoformat() if self.control_number_assigned_at else None,
                 'program' : {
-                    'id': self.user_program[0].program.id,
-                    'name': self.user_program[0].program.name,
-                    'slug': self.user_program[0].program.slug
-                } if self.user_program else None,
+                    'id': current_up.program.id,
+                    'name': current_up.program.name,
+                    'slug': current_up.program.slug
+                } if current_up else None,
                 'histories': [h.to_dict() for h in (self.histories or [])]
             })
 

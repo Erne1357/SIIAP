@@ -45,6 +45,14 @@ class NotificationService:
     }
     
     @staticmethod
+    def _email_program_slug(user, program_slug: str = None) -> str:
+        """Slug for e-mail dashboard links: explicit, else the user's current program, else 'general'."""
+        if program_slug:
+            return program_slug
+        up = user.current_user_program()
+        return up.program.slug if up and up.program else 'general'
+
+    @staticmethod
     def create_notification(
         user_id: int,
         notification_type: str,
@@ -126,7 +134,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.document_approved(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -170,7 +178,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.document_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -210,7 +218,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.coordinator_uploaded(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -252,7 +260,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.extension_approved(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -296,7 +304,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.extension_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -698,7 +706,8 @@ class NotificationService:
         return notification
     
     @staticmethod
-    def notify_program_changed(user_id: int, from_program: str, to_program: str) -> Notification:
+    def notify_program_changed(user_id: int, from_program: str, to_program: str,
+                               program_slug: str = None) -> Notification:
         """Notifica cuando hay un cambio de programa"""
         notification = NotificationService.create_notification(
             user_id=user_id,
@@ -720,7 +729,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.program_changed(
                     user_name=f"{user.first_name} {user.last_name}",

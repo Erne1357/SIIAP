@@ -41,7 +41,8 @@ class UserHistoryService:
         user_id: int, 
         action: str, 
         details: Optional[str | Dict[str, Any]] = None, 
-        admin_id: Optional[int] = None
+        admin_id: Optional[int] = None,
+        user_program_id: Optional[int] = None,
     ) -> UserHistory:
         """
         Registra una acción en el historial del usuario.
@@ -51,6 +52,7 @@ class UserHistoryService:
             action: Tipo de acción realizada (ver ACTIONS para valores válidos)
             details: Detalles adicionales de la acción (string o dict)
             admin_id: ID del administrador que realizó la acción (opcional, usa current_user si no se especifica)
+            user_program_id: UserProgram al que se refiere la acción (opcional)
             
         Returns:
             UserHistory: La entrada de historial creada
@@ -93,7 +95,8 @@ class UserHistoryService:
             user_id=user_id,
             admin_id=admin_id,
             action=action,
-            details=details
+            details=details,
+            user_program_id=user_program_id,
         )
         
         db.session.add(history_entry)
@@ -969,6 +972,7 @@ class UserHistoryService:
         'control_number_assigned_admin',  # Asignación administrativa de matrícula (alta legacy)
         'program_transferred',      # Cambios de programa oficiales
         'program_enrolled',         # Inscripciones iniciales
+        'academic_status_changed',  # Baja definitiva, egreso y reversiones
         
         # Decisiones administrativas importantes
         'extension_decided',        # Decisiones de prórrogas (pueden ser legales)
@@ -1078,6 +1082,7 @@ class UserHistoryService:
         'semester_enrollment_confirmed': 'Confirmó inscripción semestral del estudiante',
         'semester_enrollment_status_updated': 'Actualizó estado de inscripción semestral',
         'semester_enrollment_reinstated': 'Reincorporó estudiante de baja temporal',
+        'academic_status_changed': 'Cambió el estado académico (activo, baja, egreso)',
 
         # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
         'semester_advanced': 'Avanzó al siguiente semestre',

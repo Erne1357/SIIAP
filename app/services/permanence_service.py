@@ -26,6 +26,7 @@ if TYPE_CHECKING:  # string annotations only; imported lazily at runtime
 
 
 from app.services.errors import DomainError, NotFoundError
+from app.services import academic_progress, academic_status_service
 
 
 class PermanenceError(DomainError):
@@ -285,6 +286,7 @@ def confirm_semester_enrollment(
             f"Solo estudiantes inscritos pueden tener permanencia semestral. "
             f"Estado actual: '{up.admission_status}'"
         )
+    _require_current_trajectory(up)
 
     period = AcademicPeriod.query.get(academic_period_id)
     if not period:
@@ -305,12 +307,7 @@ def confirm_semester_enrollment(
 
     if is_new:
         # ── Buscar el último SE del estudiante para validar y cerrarlo ──
-        last_se = (
-            SemesterEnrollment.query
-            .filter_by(user_program_id=user_program_id)
-            .order_by(SemesterEnrollment.semester_number.desc())
-            .first()
-        )
+        last_se = academic_progress.last_enrollment(user_program_id)
 
         # Validación: el periodo destino debe ser el inmediato siguiente al último SE
         # Permite saltar solo si force=True (coordinador confirma explícitamente)
@@ -339,23 +336,13 @@ def confirm_semester_enrollment(
             last_se.status = 'completed'
             last_se.updated_at = now_local()
 
-        # Calcular el numero de semestre: uno mas que el maximo registrado
-        max_sem = db.session.query(
-            db.func.max(SemesterEnrollment.semester_number)
-        ).filter_by(user_program_id=user_program_id).scalar() or 0
-
-        semester_number = max_sem + 1
-
-        # Validar límite de semestres del programa (duration_semesters + 4)
-        program = up.program
-        if program and program.duration_semesters:
-            max_allowed = program.duration_semesters + 4
-            if semester_number > max_allowed:
-                raise InvalidStateTransition(
-                    f"No se puede confirmar: el estudiante excedería el límite de "
-                    f"{max_allowed} semestres del programa "
-                    f"(duración oficial {program.duration_semesters} + 4 de gracia)."
-                )
+        # Semestre académico = semestres completados + 1 (una baja temporal
+        # no avanza el semestre); el límite se mide en periodos calendario.
+        semester_number = academic_progress.next_semester_number(user_program_id)
+        academic_progress.assert_within_permanence_limit(up, academic_period_id)
+        if up.academic_status == academic_status_service.ON_LEAVE:
+            academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                               actor_id=coordinator_id)
 
         se = SemesterEnrollment(
             user_program_id=user_program_id,
@@ -437,7 +424,9 @@ def update_enrollment_status(
     """
     Actualiza el estado de una inscripcion semestral.
 
-    Estados validos: active, completed, on_leave, dropped
+    Estados validos: active, completed, on_leave, dropped. Los cambios siguen
+    `academic_progress.SE_ALLOWED_TRANSITIONS`; 'dropped' es la baja
+    definitiva y se delega en `withdraw()` (motivo = `notes`).
     """
     VALID_STATUSES = {'active', 'completed', 'on_leave', 'dropped'}
     if new_status not in VALID_STATUSES:
@@ -447,7 +436,17 @@ def update_enrollment_status(
     if not se:
         raise StudentNotFound(f"Inscripcion semestral {semester_enrollment_id} no encontrada")
 
+    if new_status == 'dropped':
+        withdraw(se.user_program_id, notes, coordinator_id)
+        return se
+
     old_status = se.status
+    if not academic_progress.can_change_enrollment_status(old_status, new_status):
+        raise InvalidStateTransition(
+            f"No se puede cambiar la inscripción de "
+            f"'{STATUS_LABELS.get(old_status, old_status)}' a "
+            f"'{STATUS_LABELS.get(new_status, new_status)}'."
+        )
     se.status = new_status
     if notes:
         se.notes = notes
@@ -458,12 +457,14 @@ def update_enrollment_status(
     program = up.program
     period = se.academic_period
 
-    STATUS_LABELS = {
-        'active': 'Activo',
-        'completed': 'Completado',
-        'on_leave': 'Baja temporal',
-        'dropped': 'Baja definitiva',
-    }
+    # La trayectoria acompaña a la inscripción vigente.
+    if new_status == 'on_leave' and up.academic_status == academic_status_service.ACTIVE:
+        academic_status_service.transition(up, academic_status_service.ON_LEAVE,
+                                           actor_id=coordinator_id)
+    elif (new_status == 'active' and old_status == 'on_leave'
+          and up.academic_status == academic_status_service.ON_LEAVE):
+        academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                           actor_id=coordinator_id)
 
     UserHistoryService.log_action(
         user_id=coordinator_id,
@@ -474,8 +475,25 @@ def update_enrollment_status(
             f'{user.first_name} {user.last_name} en {program.name} '
             f'({period.name}): {STATUS_LABELS.get(old_status, old_status)} → '
             f'{STATUS_LABELS.get(new_status, new_status)}'
-        )
+        ),
+        user_program_id=up.id,
     )
+
+    _notify_enrollment_status(se, new_status)
+
+    db.session.commit()
+    return se
+
+
+STATUS_LABELS = academic_progress.SE_STATUS_LABELS_ES
+
+
+def _notify_enrollment_status(se: SemesterEnrollment, new_status: str) -> None:
+    """Notificación (y correo para bajas) al estudiante por un cambio de estado."""
+    up = se.user_program
+    user = up.user
+    program = up.program
+    period = se.academic_period
 
     # Notificar al estudiante solo en estados finales significativos
     NOTIFY_STATUSES = {
@@ -518,9 +536,6 @@ def update_enrollment_status(
                 import logging as _log
                 _log.error(f"Error queueing email for enrollment_status_changed: {e}")
 
-    db.session.commit()
-    return se
-
 
 def reinstate_from_leave(
     user_program_id: int,
@@ -532,8 +547,8 @@ def reinstate_from_leave(
     """
     Reincorpora a un estudiante que estaba en baja temporal.
 
-    Crea un nuevo SemesterEnrollment activo+confirmado en el periodo dado,
-    incrementando el semester_number a max+1. El SE 'on_leave' previo
+    Crea un nuevo SemesterEnrollment activo+confirmado en el periodo dado con
+    el mismo semestre académico que dejó (completados + 1). El SE 'on_leave' previo
     permanece sin cambios para preservar el historial.
 
     Reglas:
@@ -553,12 +568,9 @@ def reinstate_from_leave(
     if not period:
         raise StudentNotFound(f"Periodo académico {academic_period_id} no encontrado")
 
-    last_se = (
-        SemesterEnrollment.query
-        .filter_by(user_program_id=user_program_id)
-        .order_by(SemesterEnrollment.semester_number.desc())
-        .first()
-    )
+    _require_current_trajectory(up)
+
+    last_se = academic_progress.last_enrollment(user_program_id)
     if not last_se or last_se.status != 'on_leave':
         raise InvalidStateTransition(
             "El estudiante no está en baja temporal — no aplica reincorporación."
@@ -572,11 +584,13 @@ def reinstate_from_leave(
         raise InvalidStateTransition(
             f"Ya existe inscripción para el periodo {period.name}."
         )
+    academic_progress.assert_within_permanence_limit(up, academic_period_id)
 
     new_se = SemesterEnrollment(
         user_program_id=user_program_id,
         academic_period_id=academic_period_id,
-        semester_number=last_se.semester_number + 1,
+        # Repite el semestre que dejó: la baja temporal no lo avanza.
+        semester_number=academic_progress.next_semester_number(user_program_id),
         status='active',
         enrollment_confirmed=True,
         confirmed_by=coordinator_id,
@@ -586,6 +600,9 @@ def reinstate_from_leave(
     )
     db.session.add(new_se)
     up.current_semester = new_se.semester_number
+    if up.academic_status == academic_status_service.ON_LEAVE:
+        academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                           actor_id=coordinator_id)
 
     user = up.user
     program = up.program
@@ -631,6 +648,187 @@ def reinstate_from_leave(
 
     return new_se
 
+
+
+# ── Trayectoria académica: baja definitiva, egreso y su reversión ─────────────
+#
+# El estado vive en `UserProgram.academic_status` y sólo lo cambia
+# `academic_status_service.transition()`. Aquí se orquesta: fila bloqueada,
+# inscripción semestral vigente, notificación, commit y evento en tiempo real.
+
+def _require_current_trajectory(up: UserProgram) -> None:
+    """Rechaza inscribir/reincorporar a quien ya egresó o tiene baja definitiva."""
+    if up.academic_status in (academic_status_service.WITHDRAWN,
+                              academic_status_service.GRADUATED):
+        label = academic_status_service.STATUS_LABELS_ES[up.academic_status]
+        raise InvalidStateTransition(
+            f"El estudiante tiene estado académico '{label}': no puede inscribirse a otro semestre."
+        )
+
+
+def _locked_user_program(user_program_id: int) -> UserProgram:
+    """
+    `SELECT ... FOR UPDATE` that also refreshes the row: a double submit
+    waits on the lock and must then see the status the first one wrote.
+    """
+    up = (
+        UserProgram.query
+        .filter_by(id=user_program_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+    return up
+
+
+def _emit_trajectory(up: UserProgram, action: str) -> None:
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'permanence:status_changed',
+        {
+            'user_id': public_id_service.user_uuid(up.user_id),
+            'user_program_id': up.id,
+            'program_id': up.program_id,
+            'action': action,
+            'academic_status': up.academic_status,
+        },
+        user_id=up.user_id,
+        program_id=up.program_id,
+    )
+
+
+def withdraw(user_program_id: int, reason: str, actor_id: int) -> UserProgram:
+    """
+    Baja definitiva: la inscripción vigente pasa a 'dropped' y el programa
+    queda cerrado (`academic_status='withdrawn'`). El motivo es obligatorio.
+    """
+    up = _locked_user_program(user_program_id)
+    academic_status_service.transition(up, academic_status_service.WITHDRAWN,
+                                       actor_id=actor_id, reason=reason)
+
+    se = academic_progress.last_enrollment(up.id)
+    if se is not None and academic_progress.can_change_enrollment_status(se.status, 'dropped'):
+        se.status = 'dropped'
+        se.notes = up.withdrawal_reason
+        se.updated_at = now_local()
+        _notify_enrollment_status(se, 'dropped')
+    else:
+        NotificationService.create_notification(
+            user_id=up.user_id,
+            notification_type='enrollment_status_changed',
+            title='Baja definitiva registrada',
+            message=(f'Se ha registrado tu baja definitiva en {up.program.name}. '
+                     f'Contacta al coordinador si crees que esto es un error.'),
+            priority='high',
+            action_url='/user/dashboard',
+        )
+
+    db.session.commit()
+    _emit_trajectory(up, 'withdrawn')
+    return up
+
+
+def revert_withdrawal(user_program_id: int, reason: str, actor_id: int) -> UserProgram:
+    """
+    Revierte una baja definitiva capturada por error (sólo postgraduate_admin:
+    lo garantiza el permiso de la ruta). La inscripción 'dropped' se conserva
+    como historia; el estudiante se reinscribe con el flujo normal.
+    """
+    up = _locked_user_program(user_program_id)
+    academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                       actor_id=actor_id, reason=reason, allow_revert=True)
+    NotificationService.create_notification(
+        user_id=up.user_id,
+        notification_type='enrollment_status_changed',
+        title='Baja definitiva revertida',
+        message=f'Tu baja definitiva en {up.program.name} fue revertida. Ya puedes reinscribirte.',
+        priority='high',
+        action_url='/user/dashboard',
+    )
+    db.session.commit()
+    _emit_trajectory(up, 'withdrawal_reverted')
+    return up
+
+
+def register_graduation(user_program_id: int, on_date, actor_id: int) -> UserProgram:
+    """Registra el egreso con su fecha. La inscripción vigente activa se cierra como 'completed'."""
+    if on_date is not None and on_date > now_local().date():
+        raise InvalidStateTransition('La fecha de egreso no puede ser futura.')
+    up = _locked_user_program(user_program_id)
+    academic_status_service.transition(up, academic_status_service.GRADUATED,
+                                       actor_id=actor_id, on_date=on_date)
+
+    se = academic_progress.last_enrollment(up.id)
+    if se is not None and se.status == 'active':
+        se.status = 'completed'
+        se.updated_at = now_local()
+
+    NotificationService.create_notification(
+        user_id=up.user_id,
+        notification_type='enrollment_status_changed',
+        title='Egreso registrado',
+        message=f'Se registró tu egreso de {up.program.name}. ¡Felicidades!',
+        priority='high',
+        action_url='/user/dashboard',
+    )
+    db.session.commit()
+    _emit_trajectory(up, 'graduated')
+    return up
+
+
+def graduation_suggested(up: UserProgram) -> bool:
+    """Activo y con los semestres del plan completados (o cursando el último)."""
+    duration = up.program.duration_semesters if up.program else None
+    if up.academic_status != academic_status_service.ACTIVE or not duration:
+        return False
+    last = academic_progress.last_enrollment(up.id)
+    return academic_progress.next_semester_number(up.id, closing=last) > duration
+
+
+def get_trajectory(user_program_id: int) -> dict:
+    """Datos de la pestaña 'Trayectoria' del expediente."""
+    up = db.session.get(UserProgram, user_program_id)
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+
+    enrollments = (
+        academic_progress.chronological_enrollments(up.id)
+        .order_by(AcademicPeriod.start_date.asc(), SemesterEnrollment.id.asc())
+        .all()
+    )
+    last = enrollments[-1] if enrollments else None
+    duration = up.program.duration_semesters if up.program else None
+    status = up.academic_status
+    return {
+        'user_program': up,
+        'program': up.program,
+        'academic_status': status,
+        'academic_status_label': academic_status_service.STATUS_LABELS_ES.get(status, status),
+        'graduated_at': up.graduated_at,
+        'withdrawn_at': up.withdrawn_at,
+        'withdrawal_reason': up.withdrawal_reason,
+        'current_semester': last.semester_number if last else None,
+        'completed_semesters': academic_progress.completed_semesters(up.id),
+        'duration_semesters': duration,
+        'periods_used': (academic_progress.regular_periods_elapsed(up.id, last.academic_period_id)
+                         if last else 0),
+        'permanence_limit': academic_progress.permanence_limit(up),
+        'graduation_suggested': graduation_suggested(up),
+        'can_withdraw': status in academic_status_service.CURRENT_STATUSES,
+        'can_graduate': status == academic_status_service.ACTIVE,
+        'can_revert_withdrawal': status == academic_status_service.WITHDRAWN,
+        'enrollments': [
+            {
+                'semester_number': se.semester_number,
+                'period_name': se.academic_period.name if se.academic_period else None,
+                'status': se.status,
+                'status_label': STATUS_LABELS.get(se.status, se.status),
+            }
+            for se in enrollments
+        ],
+    }
 
 def get_enrollment_overview(program_id: int) -> dict:
     """
@@ -1156,6 +1354,7 @@ def submit_permanence_document(
         uploaded_by=student_id,
         uploaded_by_role='student',
         deadline_at=dl.closes_at,
+        user_program_id=up.id,
     )
     sub.document_deadline_id = dl.id
     sub.academic_period_id = dl.academic_period_id
@@ -1462,6 +1661,7 @@ def submit_leave_request(
         semester=up.current_semester,
         uploaded_by=student_id,
         uploaded_by_role='student',
+        user_program_id=up.id,
     )
     sub.academic_period_id = active_period.id
     db.session.add(sub)
@@ -1622,6 +1822,9 @@ def process_leave_request(
                 ).first()
                 if active_se:
                     active_se.status = 'on_leave'
+                    if up.academic_status == academic_status_service.ACTIVE:
+                        academic_status_service.transition(
+                            up, academic_status_service.ON_LEAVE, actor_id=coordinator_id)
 
         NotificationService.create_notification(
             user_id=sub.user_id,

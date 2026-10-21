@@ -55,7 +55,9 @@ class TestClassification:
         assert c['graduated'] == []
 
     @freeze_time(NOW)
-    def test_completed_final_semester_counts_as_graduated(self, people):
+    def test_only_registered_graduation_counts_as_graduated(self, people):
+        """Phase 6A: completing the plan's semesters is not graduating; the
+        coordinator's registration (academic_status) is."""
         from app.models.semester_enrollment import SemesterEnrollment
         from app.models.user_program import UserProgram
         from tests.support.factories import make_academic_period
@@ -72,6 +74,10 @@ class TestClassification:
         next_period = make_academic_period(is_active=False)
         db.session.add(SemesterEnrollment(user_program_id=up.id, academic_period_id=next_period.id,
                                           semester_number=2, status='completed'))
+        db.session.commit()
+        assert people.graduate.id in HR._classify_users()['active']   # plan done, not registered
+
+        UserProgram.query.filter_by(id=up.id).update({'academic_status': 'graduated'})
         db.session.commit()
         c = HR._classify_users()
         assert c['graduated'] == [people.graduate.id]

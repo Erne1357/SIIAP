@@ -253,6 +253,7 @@ def upload_for_student(*, student_id: int, user_program: UserProgram,
             semester=None,
             uploaded_by=uploader_id,
             uploaded_by_role='program_admin',
+            user_program_id=user_program.id,
         )
         submission.reviewer_id = uploader_id
 
