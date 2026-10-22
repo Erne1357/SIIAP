@@ -16,6 +16,7 @@ CSS = APP / "static" / "css"
 JS = APP / "static" / "js"
 
 PDF_TEMPLATE = "app/templates/coordinator/student_record/_pdf.html"
+PDF_DIR = "app/templates/pdf/"
 EMAIL_DIR = "app/templates/emails/"
 TOKENS_CSS = "app/static/css/_tokens.css"
 
@@ -60,7 +61,7 @@ def _tpls(include_emails=False, include_pdf=False):
         r = _rel(p)
         if not include_emails and r.startswith(EMAIL_DIR):
             continue
-        if not include_pdf and r == PDF_TEMPLATE:
+        if not include_pdf and (r == PDF_TEMPLATE or r.startswith(PDF_DIR)):
             continue
         yield r, _strip_tpl(_read(p))
 

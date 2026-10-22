@@ -20,7 +20,7 @@ COORDINATOR = (
     'permanence.page.view', 'admin_review.page.view', 'events.page.view',
     'archives.api.list', 'admin_users.page.view', 'admin_emails.api.manage',
     'admin_templates.page.view', 'student_bulk.page.view',
-    'curriculum.page.manage', 'teaching.page.my_groups',
+    'curriculum.page.manage', 'teaching.page.my_groups', 'grades.page.import_history',
 )
 POSTGRAD = COORDINATOR + (
     'grades.page.decide_correction',
@@ -137,7 +137,7 @@ def test_coordinator_sees_staff_groups_but_not_global_settings(app):
         'inicio', 'admision', 'permanencia', 'eventos', 'expedientes', 'docencia',
         'configuracion']
     links = _links(nav)
-    assert {'curriculum', 'my-groups', 'review', 'deliberation', 'acceptance', 'permanence', 'events-admin',
+    assert {'curriculum', 'grade-import', 'my-groups', 'review', 'deliberation', 'acceptance', 'permanence', 'events-admin',
             'students', 'bulk-import', 'files', 'users', 'emails', 'templates',
             'program-config'} <= links
     assert not links & {'periods', 'celery', 'permissions', 'cleanup', 'programs-config',

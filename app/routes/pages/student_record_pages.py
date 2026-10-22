@@ -18,7 +18,8 @@ from app.models.user import User
 from app.services import student_record_service as svc
 from app.services import student_admission_detail_service as detail_svc
 from app.services import (
-    course_enrollment_service, curriculum_service, kardex_service, permanence_service,
+    academic_documents_service, course_enrollment_service, curriculum_service, grading_service,
+    kardex_service, permanence_service,
 )
 from app.services.errors import ValidationFailed
 from app.utils.htmx import hx_flash, is_htmx, render_fragment
@@ -294,6 +295,11 @@ def _kardex_fragment(user: User, up=None):
         selected_program_id=up.program_id if up is not None else None,
         select_url=url_for('.record_kardex', user_uuid=user.uuid),
         htmx_target='#recordKardex',
+        can_correct=current_user.has_permission('grades.page.request_correction'),
+        correction_url=url_for('.record_kardex_correction', user_uuid=user.uuid),
+        pdf_scope='record',
+        target_user=user,
+        report_periods=academic_documents_service.periods_of(up.id) if up is not None else [],
     )
 
 
@@ -308,3 +314,22 @@ def record_kardex(user_uuid):
     if not svc.trajectory_options(current_user, user):
         return _kardex_fragment(user)
     return _kardex_fragment(user, _resolve_trajectory_up(user, 'kardex'))
+
+
+@pages_student_record.route('/<uuid:user_uuid>/record/kardex/corrections', methods=['POST'])
+@login_required
+@permission_required('students.page.view_record')
+@permission_required('grades.page.request_correction')
+def record_kardex_correction(user_uuid):
+    """Request a correction of an imported (group-less) grade of this student."""
+    user = _load_target_or_404(user_uuid, 'kardex_correction')
+    up = _resolve_trajectory_up(user, 'kardex_correction')
+    try:
+        enrollment_id = int((request.form.get('enrollment_id') or '').strip())
+    except ValueError:
+        abort(404)
+    grading_service.request_correction(
+        enrollment_id, request.form.get('new_value'), request.form.get('reason'),
+        current_user.id, user_program_id=up.id)
+    return hx_flash(_kardex_fragment(user, up), 'success',
+                    'Solicitud de corrección enviada al jefe de posgrado.')

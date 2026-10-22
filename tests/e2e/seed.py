@@ -85,7 +85,9 @@ STAFF = (
     | _codes('course_groups', 'page.manage')
     | _codes('teachers', 'page.create')
     | _codes('teaching', 'page.my_groups')
-    | _codes('grades', 'page.capture', 'page.request_correction')
+    | _codes('grades', 'page.capture', 'page.request_correction', 'page.import_history',
+             'page.export_acta')
+    | _codes('kardex', 'page.export_pdf')
 )
 
 #: Institution-wide administration, on top of STAFF. academic_periods.api.create
@@ -118,7 +120,7 @@ def permission_sets() -> dict:
     student = (self_service | SHELL | OWN_PROFILE
                | _codes('permanence', 'api.upload_my_payment', 'api.view_my_enrollment')
                | _codes('course_enrollment', 'page.view_own')
-               | _codes('kardex', 'page.view_own')
+               | _codes('kardex', 'page.view_own', 'page.export_own_pdf')
                ) - {'programs.api.enroll'}
 
     coordinator = SHELL | OWN_PROFILE | STAFF

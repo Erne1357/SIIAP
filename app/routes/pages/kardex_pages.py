@@ -7,7 +7,7 @@ The record's "Kardex" tab lives with the other record fragments in
 from flask import Blueprint, abort, render_template, request
 from flask_login import current_user, login_required
 
-from app.services import kardex_service
+from app.services import academic_documents_service, kardex_service
 from app.utils.permissions import permission_required
 
 pages_kardex = Blueprint('pages_kardex', __name__, url_prefix='/kardex')
@@ -44,4 +44,7 @@ def my_kardex():
         kd=kardex_service.kardex(up.id) if up is not None else None,
         program_options=options,
         selected_program_id=up.program_id if up is not None else None,
+        pdf_scope='own',
+        report_periods=(academic_documents_service.periods_of(up.id)
+                        if up is not None else []),
     )

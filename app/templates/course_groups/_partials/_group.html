@@ -89,6 +89,14 @@
 {% if group.capture_extension_reason %}
   <p class="text-secondary small mb-2">Motivo de la ampliación: {{ group.capture_extension_reason }}</p>
 {% endif %}
+{% if group.status == 'closed' and has_perm('grades.page.export_acta') %}
+  <p class="mb-2">
+    <a class="btn btn-outline-primary btn-sm tap-target"
+       href="{{ url_for('pages_academic_documents.acta_pdf', group_uuid=group.uuid) }}">
+      <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Descargar acta (PDF)
+    </a>
+  </p>
+{% endif %}
 {% if acta %}
   {{ data_table_open('Calificaciones de los estudiantes del grupo', id='groupActaTable',
                      table_class='table-hover align-middle') }}

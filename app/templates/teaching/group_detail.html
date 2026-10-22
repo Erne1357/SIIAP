@@ -20,6 +20,12 @@
       <h1 class="coord-page__title">{{ group.subject.name }} · Grupo {{ group.group_code }}</h1>
       <p class="coord-page__subtitle small">{{ group.academic_period.name }}</p>
     </div>
+    {% if group.status == 'closed' and has_perm('grades.page.export_acta') %}
+      <a class="btn btn-outline-primary btn-sm tap-target"
+         href="{{ url_for('pages_academic_documents.acta_pdf', group_uuid=group.uuid) }}">
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Descargar acta (PDF)
+      </a>
+    {% endif %}
   </div>
 
   <dl class="row mb-3">

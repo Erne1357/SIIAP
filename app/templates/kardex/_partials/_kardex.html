@@ -4,8 +4,10 @@
   Contexto explícito: kd (kardex_service.kardex o None), program_options
   (vínculos inscritos), selected_program_id, select_url (URL del selector) y
   htmx_target (selector CSS del contenedor, o none para un GET normal).
+  Sólo el expediente añade can_correct (permiso para solicitar correcciones) y
+  correction_url; «Mi kardex» no los recibe y nunca muestra el botón.
 #}
-{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close, modal_shell, field %}
 
 {% set _BADGE = {'passed': 'approved', 'failed': 'rejected', 'enrolled': 'in_progress', 'pending': 'pending'} %}
 
@@ -40,6 +42,7 @@
                    'Aún no hay un plan de estudios con materias asignado, así que no hay kardex que mostrar.',
                    compact=true) }}
   {% else %}
+    {% include 'kardex/_partials/_pdf_actions.html' %}
     <p class="mb-3">
       Plan de estudios: <strong>Versión {{ kd.plan.version }}</strong>
       {% if kd.complete %}
@@ -111,6 +114,18 @@
                         {{ a.period_name }} · {{ a.attempt_label }} ·
                         {% if a.in_progress %}<span class="text-secondary">Cursando</span>
                         {% else %}<strong class="{{ 'kardex-attempts__grade--failed' if a.result == 'failed' }}">{{ a.value or '—' }}</strong>{% endif %}
+                        {% if a.imported %}
+                          {{ status_badge('review', 'Historial', 'sm') }}
+                          {% if can_correct and htmx_target == '#recordKardex' %}
+                            <button type="button" class="btn btn-sm btn-outline-primary tap-target"
+                                    data-bs-toggle="modal" data-bs-target="#kardexCorrectionModal"
+                                    data-enrollment-id="{{ a.id }}"
+                                    data-subject="{{ (row.taken_subject or row.subject).name }}"
+                                    data-current="{{ a.value or '—' }}">
+                              <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Solicitar corrección
+                            </button>
+                          {% endif %}
+                        {% endif %}
                       </li>
                     {% endfor %}
                   </ul>
@@ -124,5 +139,35 @@
         </tbody>
       {{ data_table_close() }}
     {% endfor %}
+  {% endif %}
+
+  {% if can_correct and htmx_target == '#recordKardex' and correction_url %}
+    <form id="kardexCorrectionForm" method="post" action="{{ correction_url }}"
+          hx-post="{{ correction_url }}" hx-target="#recordKardex" hx-swap="innerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="enrollment_id" id="kardexCorrectionEnrollment">
+      <input type="hidden" name="program" value="{{ selected_program_id }}">
+    </form>
+    {% call(section) modal_shell('kardexCorrectionModal', 'Solicitar corrección de calificación', icon='pencil-square') %}
+      {% if section == 'body' %}
+        <p class="text-secondary small">
+          <strong id="kardexCorrectionSubject"></strong> · calificación actual:
+          <strong id="kardexCorrectionCurrent"></strong>. El jefe de posgrado decidirá la solicitud.
+        </p>
+        <div class="mb-3">
+          <label class="form-label" for="kardexCorrectionValue">Calificación correcta (0–100 o NP)</label>
+          <input class="form-control" id="kardexCorrectionValue" name="new_value" form="kardexCorrectionForm"
+                 required maxlength="3" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="kardexCorrectionReason">Motivo</label>
+          <textarea class="form-control" id="kardexCorrectionReason" name="reason" form="kardexCorrectionForm"
+                    rows="3" required></textarea>
+        </div>
+      {% elif section == 'footer' %}
+        <button type="button" class="btn btn-outline-secondary tap-target" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary tap-target" form="kardexCorrectionForm">Enviar solicitud</button>
+      {% endif %}
+    {% endcall %}
   {% endif %}
 {% endif %}

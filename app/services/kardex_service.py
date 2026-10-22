@@ -57,6 +57,9 @@ def _row(subject: Subject, attempts: list[CourseEnrollment], *, slot: Subject = 
         'taken_subject': taken if slot is not None else None,
         'credits': credits,
         'attempts': [{
+            'id': a.id,
+            'imported': a.course_group_id is None and a.status == 'graded',
+            'period_id': a.academic_period_id,
             'period_name': a.academic_period.name,
             'attempt_label': ATTEMPT_LABELS.get(a.attempt_type, a.attempt_type),
             'value': display(a.grade, a.grade_mark) if a.status == 'graded' else '',

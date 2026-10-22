@@ -237,15 +237,29 @@ def extend_capture(group_id: int, until: date, reason: str, actor_id: int) -> Co
 
 # ── Corrections ──────────────────────────────────────────────────────────────
 
+def _may_request(enrollment: CourseEnrollment, actor_id: int,
+                 group_id: Optional[int]) -> bool:
+    """The group's teacher asks for an acta grade; a coordinator in scope for an imported one."""
+    if enrollment.course_group is not None:
+        return (enrollment.course_group.teacher_id == actor_id
+                and (group_id is None or enrollment.course_group_id == group_id))
+    if group_id is not None:
+        return False
+    from app.models.user import User
+    from app.services import program_scope_service
+    return program_scope_service.program_in_scope(
+        db.session.get(User, actor_id), enrollment.user_program.program_id)
+
+
 def request_correction(enrollment_id: int, new_value, reason: str,
-                       actor_id: int, *, group_id: Optional[int] = None) -> GradeCorrection:
+                       actor_id: int, *, group_id: Optional[int] = None,
+                       user_program_id: Optional[int] = None) -> GradeCorrection:
     reason = (reason or '').strip()
     if not reason:
         raise GradingError('El motivo es obligatorio.')
     enrollment = db.session.get(CourseEnrollment, enrollment_id)
-    if (enrollment is None or enrollment.course_group is None
-            or enrollment.course_group.teacher_id != actor_id
-            or (group_id is not None and enrollment.course_group_id != group_id)):
+    if (enrollment is None or not _may_request(enrollment, actor_id, group_id)
+            or (user_program_id is not None and enrollment.user_program_id != user_program_id)):
         raise NotFoundError('Calificación no encontrada.')
     if enrollment.status != 'graded':
         raise GradingError('Sólo se corrigen calificaciones de actas cerradas.')
@@ -332,7 +346,9 @@ def decide_correction(correction_id: int, approve: bool, notes: str,
             user_id=correction.requested_by, notification_type='grade_correction_decided',
             title='Solicitud de corrección ' + ('aprobada' if approve else 'rechazada'),
             message=f'{e.subject.name}: ' + (notes or 'sin comentarios.'),
-            priority='medium', action_url='/teaching/',
+            priority='medium',
+            action_url=('/teaching/' if e.course_group_id else
+                        f'/students/{e.user_program.user.uuid}/record?tab=kardex'),
         )
     db.session.commit()
     return {'correction': correction, 'review_withdrawal': review_withdrawal,

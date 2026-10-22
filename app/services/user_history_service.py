@@ -1091,6 +1091,7 @@ class UserHistoryService:
         'grade_correction_requested': 'Solicitó corregir una calificación definitiva',
         'grade_correction_rejected': 'Rechazó la corrección de una calificación',
         'grade_capture_extended': 'Amplió la captura de calificaciones de un grupo',
+        'grade_imported': 'Importó historial de calificaciones',
 
         # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
         'semester_advanced': 'Avanzó al siguiente semestre',

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Kardex · {{ student.full_name }}</title>
+{% from 'pdf/_letterhead.html' import letterhead, letterhead_styles, student_block %}
+<style>{{ letterhead_styles() }}</style>
+</head>
+<body>
+  {{ letterhead('Kardex', student.program_name, issued_at) }}
+  {{ student_block(student) }}
+
+  {% for sem in kd.semesters %}
+    <table class="data">
+      <caption>{{ 'Semestre ' ~ sem.number if sem.number else 'Optativas y otras materias' }}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Clave</th><th scope="col">Materia</th>
+          <th scope="col" class="num">Créditos</th><th scope="col">Periodo</th>
+          <th scope="col">Intento</th><th scope="col" class="num">Calificación</th>
+          <th scope="col">Resultado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in sem.rows %}
+          {% set subj = row.taken_subject or row.subject %}
+          {% if row.attempts %}
+            {% for a in row.attempts %}
+              <tr>
+                <td>{{ subj.key or '—' }}</td>
+                <td>{{ subj.name }}{% if row.slot %} <span class="muted">({{ row.slot.name }})</span>{% endif %}</td>
+                <td class="num">{{ row.credits if row.credits is not none else '—' }}</td>
+                <td>{{ a.period_name }}</td>
+                <td>{{ a.attempt_label }}</td>
+                <td class="num">{{ 'En captura' if a.in_progress else (a.value or '—') }}</td>
+                <td>{{ 'Aprobada' if a.result == 'passed' else ('Reprobada' if a.result == 'failed' else '—') }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td>{{ row.subject.key or '—' }}</td>
+              <td>{{ row.subject.name }}</td>
+              <td class="num">{{ row.credits if row.credits is not none else '—' }}</td>
+              <td colspan="4" class="muted">Pendiente</td>
+            </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+
+  <h2>Resumen</h2>
+  <table class="id">
+    <tr><td>Materias aprobadas: <strong>{{ kd.passed_count }} de {{ kd.total_count }}</strong></td>
+        <td>Créditos: <strong>{{ kd.credits_earned }} de {{ kd.credits_total }}</strong></td></tr>
+    <tr><td>Promedio: <strong>{{ '%.2f'|format(kd.average) if kd.average is not none else '—' }}</strong></td>
+        <td>Avance: <strong>{{ kd.progress }}%</strong>{% if kd.complete %} · Plan completo{% endif %}</td></tr>
+  </table>
+</body>
+</html>
