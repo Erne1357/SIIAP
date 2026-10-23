@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from werkzeug.datastructures import FileStorage
 
+from app.utils.datetime_utils import now_local
 from app import db
 from app.models import Archive, Phase, ProgramStep, Step, Submission
 from app.models.admission_condition import AdmissionCondition
@@ -104,7 +105,7 @@ def ctx(app):
 
 def _schedule_past(ctx, when, place='Sala'):
     """Schedule an exam (future, as the service demands) and move it to `when`."""
-    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, datetime.now() + timedelta(days=2), place)
+    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, now_local().replace(tzinfo=None) + timedelta(days=2), place)
     exam.scheduled_at = when
     db.session.commit()
     return exam
@@ -129,7 +130,7 @@ def _ready_for_exam(ctx):
 def test_register_and_update_thesis_logs_history(ctx):
     thesis = svc.register_thesis(ctx.coordinator, ctx.up.id, '  Mi tesis  ', 'Logística')
     assert thesis.title == 'Mi tesis'
-    assert thesis.registered_at == date.today()
+    assert thesis.registered_at == now_local().date()
 
     svc.update_thesis(ctx.coordinator, ctx.up.id, title='Otra tesis')
     actions = [h.action for h in UserHistory.query.filter_by(user_id=ctx.student.id)]
@@ -310,7 +311,7 @@ def test_exam_blockers_list_what_is_missing(ctx):
 
 def test_schedule_requires_no_blockers(ctx):
     with pytest.raises(DomainError, match='No se puede agendar'):
-        svc.schedule_exam(ctx.coordinator, ctx.up.id, datetime.now() + timedelta(days=7), 'Sala')
+        svc.schedule_exam(ctx.coordinator, ctx.up.id, now_local().replace(tzinfo=None) + timedelta(days=7), 'Sala')
 
 
 def test_full_flow_schedule_approve_and_revert(ctx):
@@ -318,12 +319,12 @@ def test_full_flow_schedule_approve_and_revert(ctx):
     assert svc.exam_blockers(ctx.up) == []
     assert svc.progress(ctx.up)['stage'] == 'ready'
 
-    when = datetime.now().replace(microsecond=0) - timedelta(days=1)
+    when = now_local().replace(tzinfo=None).replace(microsecond=0) - timedelta(days=1)
     exam = _schedule_past(ctx, when, 'Auditorio')
     assert svc.progress(ctx.up) == {'stage': 'exam_scheduled', 'label': 'Examen agendado',
                                     'percent': 90}
     with pytest.raises(ConflictError):
-        svc.schedule_exam(ctx.coordinator, ctx.up.id, datetime.now() + timedelta(days=9),
+        svc.schedule_exam(ctx.coordinator, ctx.up.id, now_local().replace(tzinfo=None) + timedelta(days=9),
                           'Otra sala')
     with pytest.raises(ConflictError, match='sínodo'):
         svc.add_member(ctx.coordinator, ctx.up.id, 'exam', 'substitute', external_name='S')
@@ -352,7 +353,7 @@ def test_full_flow_schedule_approve_and_revert(ctx):
 
 def test_suspended_exam_keeps_graduated_and_allows_rescheduling(ctx):
     _ready_for_exam(ctx)
-    when = datetime.now().replace(microsecond=0) - timedelta(days=2)
+    when = now_local().replace(tzinfo=None).replace(microsecond=0) - timedelta(days=2)
     exam = _schedule_past(ctx, when, 'Sala 1')
     svc.record_exam_result(ctx.coordinator, ctx.up.id, exam.uuid, 'suspended', verdict='unanimous',
                            honorific_mention=True)
@@ -371,7 +372,7 @@ def test_suspended_exam_keeps_graduated_and_allows_rescheduling(ctx):
 
 def test_exam_of_another_program_is_not_found(ctx):
     _ready_for_exam(ctx)
-    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, datetime.now() + timedelta(days=1), 'Sala')
+    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, now_local().replace(tzinfo=None) + timedelta(days=1), 'Sala')
     outsider = make_user('program_admin')
     db.session.commit()
     with pytest.raises(NotFoundError, match=svc.EXAM_NOT_FOUND_MESSAGE):
@@ -466,13 +467,13 @@ def _types(user_id):
 def test_schedule_refuses_a_past_datetime(ctx):
     _ready_for_exam(ctx)
     with pytest.raises(DomainError, match='pasado'):
-        svc.schedule_exam(ctx.coordinator, ctx.up.id, datetime.now() - timedelta(days=3), 'Sala')
+        svc.schedule_exam(ctx.coordinator, ctx.up.id, now_local().replace(tzinfo=None) - timedelta(days=3), 'Sala')
     assert svc.current_exam(ctx.up) is None
 
 
 def test_approved_result_rechecks_blockers(ctx):
     _ready_for_exam(ctx)
-    exam = _schedule_past(ctx, datetime.now().replace(microsecond=0) - timedelta(days=1))
+    exam = _schedule_past(ctx, now_local().replace(tzinfo=None).replace(microsecond=0) - timedelta(days=1))
     svc.create_condition(ctx.coordinator, ctx.up.id, 'Constancia pendiente')
 
     with pytest.raises(DomainError, match='No se puede titular') as err:
@@ -486,14 +487,14 @@ def test_approved_result_rechecks_blockers(ctx):
 
 def test_held_on_is_neither_future_nor_before_the_scheduled_date(ctx):
     _ready_for_exam(ctx)
-    when = datetime.now().replace(microsecond=0) - timedelta(days=2)
+    when = now_local().replace(tzinfo=None).replace(microsecond=0) - timedelta(days=2)
     exam = _schedule_past(ctx, when)
     with pytest.raises(DomainError, match='anterior a la fecha agendada'):
         svc.record_exam_result(ctx.coordinator, ctx.up.id, exam.uuid, 'suspended',
                                held_on=when.date() - timedelta(days=1))
     with pytest.raises(DomainError, match='futura'):
         svc.record_exam_result(ctx.coordinator, ctx.up.id, exam.uuid, 'suspended',
-                               held_on=date.today() + timedelta(days=5))
+                               held_on=now_local().date() + timedelta(days=5))
 
 
 def test_condition_and_exam_are_bound_to_the_user_program(ctx):
@@ -506,7 +507,7 @@ def test_condition_and_exam_are_bound_to_the_user_program(ctx):
     assert foreign.status == 'pending'
 
     _ready_for_exam(ctx)
-    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, datetime.now() + timedelta(days=1), 'Sala')
+    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, now_local().replace(tzinfo=None) + timedelta(days=1), 'Sala')
     with pytest.raises(NotFoundError, match=svc.EXAM_NOT_FOUND_MESSAGE):
         svc.cancel_exam(ctx.coordinator, other_up.id, exam.uuid)
     with pytest.raises(NotFoundError, match=svc.EXAM_NOT_FOUND_MESSAGE):
@@ -577,7 +578,7 @@ def test_student_is_notified_of_conclusion_changes(ctx):
 
 def test_cancel_uses_its_own_notification_type(ctx):
     _ready_for_exam(ctx)
-    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, datetime.now() + timedelta(days=4), 'Sala')
+    exam = svc.schedule_exam(ctx.coordinator, ctx.up.id, now_local().replace(tzinfo=None) + timedelta(days=4), 'Sala')
     svc.cancel_exam(ctx.coordinator, ctx.up.id, exam.uuid, 'Sinodal enfermo')
     types = _types(ctx.student.id)
     assert types.count('grade_exam_scheduled') == 1

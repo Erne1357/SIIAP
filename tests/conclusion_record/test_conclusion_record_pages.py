@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from flask import g
 
+from app.utils.datetime_utils import now_local
 from app import db
 from app.models import Archive, Phase, ProgramStep, Step, Submission
 from app.models.admission_condition import AdmissionCondition
@@ -231,7 +232,7 @@ def test_institution_upload_ok_and_student_document_refused(world, login):
 
 def test_schedule_blocked_then_ok_then_result_titles(world, login):
     c = login(world.coord)
-    when = (datetime.now() + timedelta(days=10)).strftime('%Y-%m-%dT%H:%M')
+    when = (now_local().replace(tzinfo=None) + timedelta(days=10)).strftime('%Y-%m-%dT%H:%M')
     blocked = c.post(_base(world) + '/exam', headers=HX, data={'scheduled_at': when, 'place': 'Sala 1'})
     assert blocked.status_code == 400
 
@@ -242,14 +243,14 @@ def test_schedule_blocked_then_ok_then_result_titles(world, login):
     html = res.get_data(as_text=True)
     assert 'conclusionResultForm' in html and 'Sala 1' in html
     exam = GradeExam.query.one()
-    exam.scheduled_at = datetime.now() - timedelta(hours=1)  # the exam was held
+    exam.scheduled_at = now_local().replace(tzinfo=None) - timedelta(hours=1)  # the exam was held
     db.session.commit()
 
     bad = c.post(f'{_base(world)}/exam/{exam.uuid}/result', headers=HX, data={'result': 'approved'})
     assert bad.status_code == 400
     ok = c.post(f'{_base(world)}/exam/{exam.uuid}/result', headers=HX,
                 data={'result': 'approved', 'verdict': 'unanimous', 'acta_folio': 'F-12',
-                      'held_on': date.today().isoformat(), 'honorific_mention': '1'})
+                      'held_on': now_local().date().isoformat(), 'honorific_mention': '1'})
     assert ok.status_code == 200
     db.session.expire_all()
     assert db.session.get(UserProgram, world.up.id).academic_status == 'titled'
@@ -266,7 +267,7 @@ def test_bad_datetime(world, login):
 
 def test_cancel_exam(world, login):
     _ready(world)
-    exam = svc.schedule_exam(world.coord, world.up.id, datetime.now() + timedelta(days=5), 'Sala')
+    exam = svc.schedule_exam(world.coord, world.up.id, now_local().replace(tzinfo=None) + timedelta(days=5), 'Sala')
     c = login(world.coord)
     res = c.post(f'{_base(world)}/exam/{exam.uuid}/cancel', headers=HX,
                  data={'reason': 'Cambio de fecha'})
@@ -281,11 +282,11 @@ def test_cancel_exam(world, login):
 
 def test_revert_titled(world, login):
     _ready(world)
-    exam = svc.schedule_exam(world.coord, world.up.id, datetime.now() + timedelta(days=3), 'Sala')
-    exam.scheduled_at = datetime.now() - timedelta(days=1)
+    exam = svc.schedule_exam(world.coord, world.up.id, now_local().replace(tzinfo=None) + timedelta(days=3), 'Sala')
+    exam.scheduled_at = now_local().replace(tzinfo=None) - timedelta(days=1)
     db.session.commit()
     svc.record_exam_result(world.coord, world.up.id, exam.uuid, 'approved', verdict='majority',
-                           acta_folio='F-1', held_on=date.today())
+                           acta_folio='F-1', held_on=now_local().date())
     assert login(world.coord).post(_base(world) + '/revert-titled', headers=HX,
                                    data={'reason': 'x'}).status_code == 403
     g.pop('_login_user', None)  # the test app context caches the logged-in user
@@ -321,7 +322,7 @@ def test_condition_of_another_student_is_404_through_this_url(world, login):
 
 def test_exam_of_another_student_is_404_through_this_url(world, login):
     _ready(world)
-    exam = svc.schedule_exam(world.coord, world.up.id, datetime.now() + timedelta(days=5), 'Sala')
+    exam = svc.schedule_exam(world.coord, world.up.id, now_local().replace(tzinfo=None) + timedelta(days=5), 'Sala')
     other_up = _classmate(world)
     other_base = f'/students/{other_up.user.uuid}/record/conclusion'
     c = login(world.coord)
