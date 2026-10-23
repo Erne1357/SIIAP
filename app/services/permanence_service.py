@@ -658,8 +658,7 @@ def reinstate_from_leave(
 
 def _require_current_trajectory(up: UserProgram) -> None:
     """Rechaza inscribir/reincorporar a quien ya egresó o tiene baja definitiva."""
-    if up.academic_status in (academic_status_service.WITHDRAWN,
-                              academic_status_service.GRADUATED):
+    if up.academic_status in academic_status_service.CLOSED_STATUSES:
         label = academic_status_service.STATUS_LABELS_ES[up.academic_status]
         raise InvalidStateTransition(
             f"El estudiante tiene estado académico '{label}': no puede inscribirse a otro semestre."

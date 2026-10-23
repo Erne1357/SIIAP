@@ -1,11 +1,34 @@
 """Request models for /api/v1/deliberation (shape and type checks only)."""
 from __future__ import annotations
 
-from typing import Any, Optional
+import json
+from datetime import date
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 _TRUE_STRINGS = ('true', '1', 'yes', 'on')
+
+
+class AdmissionConditionIn(BaseModel):
+    """One condition of a conditional acceptance (phase 6C)."""
+
+    description: str = Field(min_length=1, max_length=2000)
+    #: archive_key of the conclusion requirement that fulfils it (optional).
+    archive_key: Optional[str] = None
+    due_date: Optional[date] = None
+
+    @field_validator('description', mode='before')
+    @classmethod
+    def _strip(cls, value: Any):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator('archive_key', 'due_date', mode='before')
+    @classmethod
+    def _blank_is_none(cls, value: Any):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 class AcceptApplicantIn(BaseModel):
@@ -13,6 +36,20 @@ class AcceptApplicantIn(BaseModel):
 
     notes: Optional[str] = None
     is_conditional: bool = False
+    #: Only used when `is_conditional`. Multipart sends it as a JSON string.
+    conditions: List[AdmissionConditionIn] = Field(default_factory=list)
+
+    @field_validator('conditions', mode='before')
+    @classmethod
+    def _conditions_from_json(cls, value: Any):
+        if value is None or value == '':
+            return []
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except ValueError:
+                raise ValueError('Las condiciones deben ser una lista JSON.')
+        return value
 
     @field_validator('is_conditional', mode='before')
     @classmethod

@@ -973,6 +973,7 @@ class UserHistoryService:
         'program_transferred',      # Cambios de programa oficiales
         'program_enrolled',         # Inscripciones iniciales
         'academic_status_changed',  # Baja definitiva, egreso y reversiones
+        'grade_exam_recorded',      # Resultado y acta del examen de grado
         
         # Decisiones administrativas importantes
         'extension_decided',        # Decisiones de prórrogas (pueden ser legales)
@@ -1082,7 +1083,7 @@ class UserHistoryService:
         'semester_enrollment_confirmed': 'Confirmó inscripción semestral del estudiante',
         'semester_enrollment_status_updated': 'Actualizó estado de inscripción semestral',
         'semester_enrollment_reinstated': 'Reincorporó estudiante de baja temporal',
-        'academic_status_changed': 'Cambió el estado académico (activo, baja, egreso)',
+        'academic_status_changed': 'Cambió el estado académico (activo, baja, egreso, titulación)',
         'curriculum_plan_changed': 'Cambió la versión del plan de estudios del estudiante',
         'course_enrolled': 'Inscribió al estudiante en un grupo',
         'course_dropped': 'Dio de baja al estudiante de un grupo',
@@ -1092,6 +1093,18 @@ class UserHistoryService:
         'grade_correction_rejected': 'Rechazó la corrección de una calificación',
         'grade_capture_extended': 'Amplió la captura de calificaciones de un grupo',
         'grade_imported': 'Importó historial de calificaciones',
+
+        # CONCLUSIÓN (Fase 6C)
+        'thesis_registered': 'Registró la tesis del estudiante',
+        'thesis_updated': 'Modificó la tesis del estudiante',
+        'thesis_member_added': 'Agregó un integrante al comité tutorial o al sínodo',
+        'thesis_member_removed': 'Quitó un integrante del comité tutorial o del sínodo',
+        'admission_condition_created': 'Registró una condición de aceptación',
+        'admission_condition_resolved': 'Resolvió una condición de aceptación (cumplida o dispensada)',
+        'institution_document_uploaded': 'Cargó un documento de conclusión emitido por la institución',
+        'grade_exam_scheduled': 'Agendó el examen de grado',
+        'grade_exam_recorded': 'Registró el resultado del examen de grado',
+        'grade_exam_cancelled': 'Canceló el examen de grado',
 
         # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
         'semester_advanced': 'Avanzó al siguiente semestre',

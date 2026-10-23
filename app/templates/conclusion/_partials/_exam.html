@@ -1,0 +1,24 @@
+{# Examen de grado. Contexto: exam (agendado o none), exams (más reciente primero). #}
+{% from '_macros.html' import status_badge, empty_state %}
+{% if exam %}
+  <p class="mb-1">
+    {{ status_badge('pending', 'Agendado', 'sm') }}
+    {{ exam.scheduled_at|fechahora_es }}
+  </p>
+  <p class="mb-0"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>{{ exam.place }}</p>
+{% else %}
+  {% set last = exams[0] if exams else none %}
+  {% if last and last.status in ('approved', 'suspended') %}
+    <p class="mb-1">
+      {% if last.status == 'approved' %}{{ status_badge('approved', 'Aprobado', 'sm') }}
+      {% else %}{{ status_badge('rejected', 'Suspendido', 'sm') }}{% endif %}
+      {% if last.held_on %}Realizado el {{ last.held_on|fecha_es }}{% endif %}
+    </p>
+    {% if last.honorific_mention %}
+      <p class="mb-0"><i class="bi bi-award me-1" aria-hidden="true"></i>Con mención honorífica</p>
+    {% endif %}
+  {% else %}
+    {{ empty_state('calendar-event', 'Examen sin agendar',
+                   'La coordinación agendará tu examen cuando cumplas los requisitos.', compact=true) }}
+  {% endif %}
+{% endif %}

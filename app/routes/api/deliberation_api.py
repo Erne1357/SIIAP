@@ -20,6 +20,7 @@ Alcance (permiso ≠ alcance):
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app.utils.api_response import api_server_error
+from app.services.errors import DomainError
 from app.utils.validation import parse_json, parse_model
 from app.schemas.deliberation import (
     AcceptApplicantIn, RejectApplicantIn, ResetApplicantIn, ForceResetIn,
@@ -96,6 +97,9 @@ def api_get_applicants_for_deliberation(program_id):
             "meta": {"count": len(data)}
         }), 200
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
         return api_server_error(e, context='api_get_applicants_for_deliberation')
 
@@ -114,6 +118,9 @@ def api_get_deliberation_stats(program_id):
             "error": None,
             "meta": {}
         }), 200
+
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
 
     except Exception as e:
         return api_server_error(e, context='api_get_deliberation_stats')
@@ -157,6 +164,9 @@ def api_get_applicants_by_status(program_id, status):
             "meta": {"count": len(data)}
         }), 200
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
         return api_server_error(e, context='api_get_applicants_by_status')
 
@@ -196,6 +206,9 @@ def api_mark_interview_completed(user_uuid, program_id):
             "error": {"code": "INVALID_STATE", "message": str(e)},
             "meta": {}
         }), 400
+
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
 
     except Exception as e:
         return api_server_error(e, context='api_mark_interview_completed')
@@ -237,6 +250,9 @@ def api_start_deliberation(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
         return api_server_error(e, context='api_start_deliberation')
 
@@ -267,6 +283,7 @@ def api_accept_applicant(user_uuid, program_id):
             user_id, program_id, current_user.id, notes,
             is_conditional=is_conditional,
             dictamen_file=dictamen_file,
+            conditions=body.conditions,
         )
 
         success_msg = (
@@ -296,6 +313,9 @@ def api_accept_applicant(user_uuid, program_id):
             "error": {"code": "INVALID_STATE", "message": str(e)},
             "meta": {}
         }), 400
+
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
 
     except Exception as e:
         return api_server_error(e, context='api_accept_applicant')
@@ -362,6 +382,9 @@ def api_reject_applicant(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
         return api_server_error(e, context='api_reject_applicant')
 
@@ -404,6 +427,9 @@ def api_reset_applicant(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
         return api_server_error(e, context='api_reset_applicant')
 
@@ -436,6 +462,9 @@ def api_get_applicants_pending_interview(program_id):
             "error": None,
             "meta": {"count": len(data)}
         }), 200
+
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
 
     except Exception as e:
         return api_server_error(e, context='api_get_applicants_pending_interview')
@@ -517,6 +546,9 @@ def api_get_user_deliberation_status(user_uuid, program_id):
             "meta": {}
         }), 404
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
         return api_server_error(e, context='api_get_user_deliberation_status')
 
@@ -539,6 +571,9 @@ def api_get_program_admission_archives(program_id):
             "error": None,
             "meta": {"count": len(data)}
         }), 200
+
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
 
     except Exception as e:
         return api_server_error(e, context='api_get_program_admission_archives')
@@ -581,6 +616,9 @@ def api_force_reset_applicant(user_uuid, program_id):
             "error": {"code": "BUSINESS_ERROR", "message": str(e)},
             "meta": {}
         }), 400
+
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
 
     except Exception as e:
         return api_server_error(e, context='api_force_reset_applicant')

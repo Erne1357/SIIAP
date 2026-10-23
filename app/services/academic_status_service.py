@@ -9,12 +9,15 @@ is tracked here, so admission and trajectory never mix:
                │   ╲         ▼
                │    ──► withdrawn ──(admin revert)──► active
                ▼
-           graduated            (phase 6C adds graduated → titled)
+           graduated ──► titled ──(admin revert)──► graduated
 
 Business rules fixed by the owner (2026-10-21):
 - The coordinator registers graduation explicitly, with a date.
 - A definitive withdrawal needs a reason and is terminal; only a
   `postgraduate_admin` reverts it (`allow_revert=True`), with a reason.
+- Phase 6C: an approved grade exam titles the student (`titled`, with
+  `titled_at`). It is terminal too; reverting it to `graduated` follows the
+  same rule as a withdrawal (admin, `allow_revert=True`, reason).
 
 Unlike `admission_status_service`, this module writes the history entry
 itself: every caller logs the same action. It never commits.
@@ -33,9 +36,16 @@ ACTIVE = 'active'
 ON_LEAVE = 'on_leave'
 WITHDRAWN = 'withdrawn'
 GRADUATED = 'graduated'
+TITLED = 'titled'
 
 #: Every value the `ck_user_program_academic_status` CHECK accepts.
-ALL_STATUSES = frozenset({ACTIVE, ON_LEAVE, WITHDRAWN, GRADUATED})
+ALL_STATUSES = frozenset({ACTIVE, ON_LEAVE, WITHDRAWN, GRADUATED, TITLED})
+
+#: Trajectory finished: no further semester enrollment.
+CLOSED_STATUSES = frozenset({WITHDRAWN, GRADUATED, TITLED})
+
+#: Terminal statuses only a `postgraduate_admin` reverts (from -> to).
+REVERTS = {WITHDRAWN: ACTIVE, TITLED: GRADUATED}
 
 #: Students who may still enroll in a semester.
 CURRENT_STATUSES = frozenset({ACTIVE, ON_LEAVE})
@@ -46,7 +56,8 @@ ALLOWED_TRANSITIONS: dict[Optional[str], frozenset[str]] = {
     ACTIVE: frozenset({ON_LEAVE, WITHDRAWN, GRADUATED}),
     ON_LEAVE: frozenset({ACTIVE, WITHDRAWN}),
     WITHDRAWN: frozenset({ACTIVE}),
-    GRADUATED: frozenset(),
+    GRADUATED: frozenset({TITLED}),
+    TITLED: frozenset({GRADUATED}),
 }
 
 STATUS_LABELS_ES = {
@@ -55,6 +66,7 @@ STATUS_LABELS_ES = {
     ON_LEAVE: 'baja temporal',
     WITHDRAWN: 'baja definitiva',
     GRADUATED: 'egresado',
+    TITLED: 'titulado',
 }
 
 
@@ -97,13 +109,15 @@ def transition(user_program: UserProgram, to_status: str, *, actor_id: Optional[
         raise InvalidAcademicTransition(from_status, to_status)
 
     reason = (reason or '').strip() or None
-    reverting = from_status == WITHDRAWN
+    reverting = from_status in REVERTS
     if reverting and not allow_revert:
         raise InvalidAcademicTransition(from_status, to_status)
     if (reverting or to_status == WITHDRAWN) and not reason:
         raise DomainError('El motivo es obligatorio.')
-    if to_status == GRADUATED and on_date is None:
+    if to_status == GRADUATED and on_date is None and not reverting:
         raise DomainError('La fecha de egreso es obligatoria.')
+    if to_status == TITLED and on_date is None:
+        raise DomainError('La fecha del examen de grado es obligatoria.')
 
     now = now_local()
     user_program.academic_status = to_status
@@ -111,8 +125,12 @@ def transition(user_program: UserProgram, to_status: str, *, actor_id: Optional[
     if to_status == WITHDRAWN:
         user_program.withdrawn_at = now
         user_program.withdrawal_reason = reason
-    elif to_status == GRADUATED:
+    elif to_status == GRADUATED and not reverting:
         user_program.graduated_at = on_date
+    elif to_status == TITLED:
+        user_program.titled_at = on_date
+    if from_status == TITLED:
+        user_program.titled_at = None
 
     details = {
         'program_id': user_program.program_id,

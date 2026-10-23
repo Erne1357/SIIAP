@@ -733,6 +733,7 @@ class DeliberationManager {
             if (isConditionalCheck) isConditionalCheck.checked = false;
             if (dictamenSection) dictamenSection.classList.add('d-none');
             if (dictamenFileInput) dictamenFileInput.value = '';
+            this.resetConditions();
             modalTitle.textContent = 'Aceptar aspirante';
             confirmBtn.className = 'btn btn-success';
             confirmBtn.textContent = 'Confirmar aceptación';
@@ -744,11 +745,99 @@ class DeliberationManager {
                 if (dictamenSection) {
                     dictamenSection.classList.toggle('d-none', !e.target.checked);
                 }
+                const conditionsSection = document.getElementById('conditionsSection');
+                if (conditionsSection) {
+                    conditionsSection.classList.toggle('d-none', !e.target.checked);
+                    if (e.target.checked && !conditionsSection.querySelector('[data-condition-row]')) {
+                        this.addConditionRow();
+                    }
+                }
             });
+            this.bindConditionControls();
             isConditionalCheck.dataset.bound = '1';
         }
 
         this.decisionModal.show();
+    }
+
+    // ── Condiciones de la aceptación condicionada ───────────────────────────
+    bindConditionControls() {
+        const addBtn = document.getElementById('addConditionBtn');
+        const list = document.getElementById('conditionsList');
+        if (addBtn && !addBtn.dataset.bound) {
+            addBtn.addEventListener('click', () => this.addConditionRow(true));
+            addBtn.dataset.bound = '1';
+        }
+        if (list && !list.dataset.bound) {
+            list.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-remove-condition]');
+                if (!btn) return;
+                btn.closest('[data-condition-row]')?.remove();
+                window.SIIAP.announce?.('Condición eliminada.');
+                document.getElementById('addConditionBtn')?.focus();
+            });
+            list.dataset.bound = '1';
+        }
+    }
+
+    resetConditions() {
+        const list = document.getElementById('conditionsList');
+        if (list) list.innerHTML = '';
+        document.getElementById('conditionsSection')?.classList.add('d-none');
+        this._conditionSeq = 0;
+    }
+
+    addConditionRow(focus = false) {
+        const tpl = document.getElementById('conditionRowTemplate');
+        const list = document.getElementById('conditionsList');
+        if (!tpl || !list) return;
+        const row = tpl.content.firstElementChild.cloneNode(true);
+        this._conditionSeq = (this._conditionSeq || 0) + 1;
+        const n = this._conditionSeq;
+        row.querySelectorAll('[data-field]').forEach((el) => {
+            el.id = `condition-${n}-${el.dataset.field}`;
+        });
+        row.querySelectorAll('[data-for]').forEach((el) => {
+            el.setAttribute('for', `condition-${n}-${el.dataset.for}`);
+        });
+        list.appendChild(row);
+        if (focus) row.querySelector('[data-field="description"]')?.focus();
+    }
+
+    /** Returns [{description, archive_key, due_date}] or null when invalid. */
+    collectConditions() {
+        const rows = document.querySelectorAll('#conditionsList [data-condition-row]');
+        const result = [];
+        let invalid = false;
+        rows.forEach((row) => {
+            row.querySelector('.condition-list__error')?.remove();
+            const desc = row.querySelector('[data-field="description"]');
+            const description = desc.value.trim();
+            const archiveKey = row.querySelector('[data-field="archive_key"]').value;
+            const dueDate = row.querySelector('[data-field="due_date"]').value;
+            const blank = !description && !archiveKey && !dueDate;
+            if (blank) return;
+            if (!description) {
+                invalid = true;
+                desc.setAttribute('aria-invalid', 'true');
+                const msg = document.createElement('div');
+                msg.className = 'condition-list__error';
+                msg.textContent = 'Cada condición necesita una descripción.';
+                desc.after(msg);
+                return;
+            }
+            desc.removeAttribute('aria-invalid');
+            result.push({
+                description,
+                archive_key: archiveKey || null,
+                due_date: dueDate || null,
+            });
+        });
+        if (invalid) {
+            showFlash('warning', 'Cada condición necesita una descripción.');
+            return null;
+        }
+        return result;
     }
 
     async submitDecision() {
@@ -777,10 +866,13 @@ class DeliberationManager {
             }
 
             if (isConditional) {
+                const conditions = this.collectConditions();
+                if (conditions === null) return;
                 const fd = new FormData();
                 if (notes) fd.append('notes', notes);
                 fd.append('is_conditional', 'true');
                 fd.append('dictamen_file', dictamenFile);
+                if (conditions.length) fd.append('conditions', JSON.stringify(conditions));
                 try {
                     const r = await window.SIIAP.api.request('POST', endpoint, { body: fd });
                     this.decisionModal.hide();

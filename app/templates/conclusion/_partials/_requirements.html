@@ -1,0 +1,61 @@
+{#
+  Lista de requisitos de conclusión (página y respuesta HTMX de la subida).
+  Contexto explícito: up, graduated, requirements (conclusion_service.requirements).
+#}
+{% from '_macros.html' import status_badge, empty_state %}
+{% set _BADGE = {
+  'approved': ('approved', 'Aprobado'),
+  'reused': ('approved', 'Reutilizado de admisión'),
+  'institution_done': ('approved', 'Entregado por la institución'),
+  'pending': ('pending', 'En revisión'),
+  'rejected': ('rejected', 'Rechazado'),
+  'missing': ('in-progress', 'Falta'),
+  'institution_pending': ('review', 'Lo carga la coordinación'),
+} %}
+
+{% if not graduated %}
+  <p class="conclusion-note small" role="note">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+    Los requisitos se abren al egreso. Podrás subir tus documentos cuando tu estatus sea egresado.
+  </p>
+{% endif %}
+
+{% if not requirements %}
+  {{ empty_state('list-check', 'Sin requisitos',
+                 'Tu programa no tiene requisitos de conclusión configurados.', compact=true) }}
+{% else %}
+  <ul class="conclusion-list">
+    {% for r in requirements %}
+      {% set badge = _BADGE.get(r.status, ('pending', r.status)) %}
+      {% set can_upload = graduated and r.status in ('missing', 'rejected', 'pending') and not r.archive.issued_by_institution %}
+      <li class="conclusion-list__item conclusion-list__item--stack">
+        <div class="conclusion-list__row">
+          <span>{{ r.archive.name }}</span>
+          {{ status_badge(badge[0], badge[1], 'sm') }}
+        </div>
+        {% if r.blocked_by_condition %}
+          <p class="text-secondary small mb-0">Pendiente por una condición de aceptación.</p>
+        {% endif %}
+        {% if r.archive.issued_by_institution and r.status in ('missing', 'institution_pending') %}
+          <p class="text-secondary small mb-0">Lo carga la coordinación.</p>
+        {% endif %}
+        {% if can_upload %}
+          <form class="conclusion-upload" method="post"
+                action="{{ url_for('pages_conclusion.upload_requirement', archive_uuid=r.archive.uuid) }}"
+                enctype="multipart/form-data"
+                hx-post="{{ url_for('pages_conclusion.upload_requirement', archive_uuid=r.archive.uuid) }}"
+                hx-target="#conclusionRequirements" hx-swap="innerHTML"
+                hx-encoding="multipart/form-data" hx-history="false">
+            <input type="hidden" name="program" value="{{ up.program_id }}">
+            <label class="visually-hidden" for="req-file-{{ r.archive.id }}">Archivo para {{ r.archive.name }} (PDF)</label>
+            <input type="file" class="form-control form-control-sm tap-target" id="req-file-{{ r.archive.id }}"
+                   name="file" accept="application/pdf,.pdf" required>
+            <button type="submit" class="btn btn-sm btn-primary tap-target">
+              <i class="bi bi-upload me-1" aria-hidden="true"></i>{{ 'Reemplazar' if r.status == 'pending' else 'Subir' }}
+            </button>
+          </form>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}

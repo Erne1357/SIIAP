@@ -34,3 +34,6 @@ from .subject import Subject
 from .course_group import CourseGroup
 from .course_enrollment import CourseEnrollment
 from .grade_correction import GradeCorrection
+from .thesis import Thesis, ThesisMember
+from .admission_condition import AdmissionCondition
+from .grade_exam import GradeExam

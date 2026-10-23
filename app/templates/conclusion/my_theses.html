@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import empty_state, data_table_open, data_table_close %}
+
+{% block title %}Mis tesistas{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/conclusion/student.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="coord-page__header">
+    <h1 class="coord-page__title">Mis tesistas</h1>
+    <p class="coord-page__subtitle small">Tesis en las que formas parte del comité tutorial.</p>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {% if not rows %}
+        {{ empty_state('people', 'Sin tesistas',
+                       'Aún no formas parte del comité tutorial de ninguna tesis.', compact=true) }}
+      {% else %}
+        {{ data_table_open('Tesis en las que participas como comité tutorial', table_class='table-hover align-middle') }}
+          <thead>
+            <tr>
+              <th scope="col">Estudiante</th>
+              <th scope="col">Programa</th>
+              <th scope="col">Tesis</th>
+              <th scope="col">Tu función</th>
+              <th scope="col">Avance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr id="thesis-{{ row.thesis.uuid }}">
+                <th scope="row">
+                  {% set s = row.student %}
+                  {% if s and can_view_record %}
+                    <a href="{{ url_for('pages_student_record.student_record', user_uuid=s.uuid) }}">{{ s.first_name }} {{ s.last_name }}</a>
+                  {% elif s %}
+                    {{ s.first_name }} {{ s.last_name }}
+                  {% endif %}
+                </th>
+                <td>{{ row.user_program.program.name if row.user_program and row.user_program.program }}</td>
+                <td>{{ row.thesis.title }}</td>
+                <td>{% for r in row.roles %}{{ role_labels.get(r, r) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                <td>{{ row.progress.label if row.progress }}{% if row.progress %} ({{ row.progress.percent }}%){% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        {{ data_table_close() }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

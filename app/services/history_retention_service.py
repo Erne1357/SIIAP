@@ -163,7 +163,7 @@ class HistoryRetentionService:
 
         concluded_user_ids = {
             row.user_id for row in db.session.query(UserProgram.user_id)
-            .filter(UserProgram.academic_status == 'graduated')
+            .filter(UserProgram.academic_status.in_(('graduated', 'titled')))
             .distinct()
             .all()
         }

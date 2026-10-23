@@ -391,3 +391,44 @@ def compute_permanence_metrics(user_program, program, active_period_id) -> dict:
         "in_progress_segment": in_progress_segment,
         "academic_status": academic_status,
     }
+
+
+def conclusion_relevant(user_program: UserProgram) -> bool:
+    """
+    Whether a dashboard row has conclusion progress worth computing: the
+    student is graduated or titled, or already has a registered thesis.
+    """
+    from app.services import conclusion_service
+
+    if conclusion_service.effective_status(user_program) in ('graduated', 'titled'):
+        return True
+    if user_program.admission_status != 'enrolled':
+        return False
+    return conclusion_service.get_thesis(user_program) is not None
+
+
+def conclusion_summary(user_program: UserProgram, include: Optional[bool] = None) -> dict:
+    """
+    Conclusion fields for a coordinator-dashboard row:
+    conclusion_stage (Spanish label), conclusion_progress (0-100) and
+    conclusion_status ('pending' | 'in_progress' | 'completed').
+
+    `include=None` decides with `conclusion_relevant`; `include=False` skips
+    the queries and returns the neutral values.
+    """
+    if include is None:
+        include = conclusion_relevant(user_program)
+    if not include:
+        return {"conclusion_stage": "Inicial", "conclusion_progress": 0,
+                "conclusion_status": "pending"}
+    from app.services import conclusion_service
+
+    info = conclusion_service.progress(user_program)
+    if info['stage'] == 'titled':
+        status = 'completed'
+    elif info['percent'] > 0:
+        status = 'in_progress'
+    else:
+        status = 'pending'
+    return {"conclusion_stage": info['label'], "conclusion_progress": info['percent'],
+            "conclusion_status": status}

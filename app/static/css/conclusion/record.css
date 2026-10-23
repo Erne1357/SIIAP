@@ -1,0 +1,77 @@
+/* Conclusión tab of the student record (coordinator). */
+.conclusion-section {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.conclusion-section:last-child {
+  border-bottom: 0;
+}
+
+.conclusion-form {
+  margin-top: var(--space-3);
+}
+
+.conclusion-form__fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.conclusion-form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.conclusion-members {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.conclusion-members__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.conclusion-members__name {
+  flex: 1 1 14rem;
+  font-weight: var(--fw-medium);
+}
+
+.conclusion-members__role {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.conclusion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.conclusion-actions__waive {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.conclusion-exam {
+  background: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+}
+
+@media (max-width: 767.98px) {
+  .conclusion-form__row {
+    grid-template-columns: 1fr;
+  }
+}

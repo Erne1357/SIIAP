@@ -93,6 +93,8 @@ MENU: tuple[NavGroup, ...] = (
             NavItem('profile', 'Perfil', 'bi-person', 'pages_user.profile'),
             NavItem('my-kardex', 'Mi kardex', 'bi-journal-check', 'pages_kardex.my_kardex',
                     any_of=('kardex.page.view_own',)),
+            NavItem('my-conclusion', 'Mi conclusión', 'bi-award', 'pages_conclusion.my_conclusion',
+                    any_of=('conclusion.page.view_own',)),
         ),
     ),
     NavGroup(
@@ -159,6 +161,9 @@ MENU: tuple[NavGroup, ...] = (
                     'pages_teaching.my_groups',
                     any_of=('teaching.page.my_groups',),
                     active_prefixes=('pages_teaching.',)),
+            NavItem('my-theses', 'Mis tesistas', 'bi-mortarboard',
+                    'pages_conclusion.my_theses',
+                    any_of=('conclusion.page.my_theses',)),
         ),
     ),
     NavGroup(

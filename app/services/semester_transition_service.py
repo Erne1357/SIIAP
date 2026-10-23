@@ -141,8 +141,7 @@ def evaluate_student(
     blockers = []
 
     # ── Regla 0: trayectoria cerrada (baja definitiva o egreso) ──
-    if up.academic_status in (academic_status_service.WITHDRAWN,
-                              academic_status_service.GRADUATED):
+    if up.academic_status in academic_status_service.CLOSED_STATUSES:
         code = 'dropped' if up.academic_status == academic_status_service.WITHDRAWN else 'graduated'
         blockers.append({
             'code': code,

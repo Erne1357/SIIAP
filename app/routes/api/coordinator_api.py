@@ -285,10 +285,11 @@ def list_students():
             "academic_progress": perm["academic_progress"],
             "in_progress_segment": perm["in_progress_segment"],
             "academic_status": perm["academic_status"],
-            # Métricas de conclusión (placeholder)
-            "conclusion_stage": "inicial",
-            "conclusion_progress": 0,
-            "conclusion_status": "pending"
+            # Métricas de conclusión reales (conclusion_service.progress).
+            # Sólo para egresados/titulados o con tesis registrada (no por
+            # current_phase). NOTE: se calcula por fila (N+1 acotado);
+            # optimizar con carga por lotes si la lista crece.
+            **coordinator_service.conclusion_summary(user_program),
         }
 
         # Fuera de alcance: sólo nombre, correo y progreso/estado. La proyección

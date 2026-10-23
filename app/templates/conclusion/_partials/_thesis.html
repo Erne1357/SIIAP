@@ -1,0 +1,26 @@
+{# Tesis y comité tutorial (solo lectura). Contexto: thesis, role_labels. #}
+{% from '_macros.html' import empty_state %}
+{% if thesis is none %}
+  {{ empty_state('journal-bookmark', 'Tesis sin registrar',
+                 'La coordinación registrará tu tesis y tu comité tutorial.', compact=true) }}
+{% else %}
+  <p class="mb-1"><strong>{{ thesis.title }}</strong></p>
+  {% if thesis.research_line %}
+    <p class="text-secondary small mb-1">Línea de investigación: {{ thesis.research_line }}</p>
+  {% endif %}
+  <p class="text-secondary small mb-3">Registrada el {{ thesis.registered_at|fecha_es }}</p>
+  <h3 class="h6">Comité tutorial</h3>
+  {% set tutorial = thesis.members_of('tutorial') %}
+  {% if tutorial %}
+    <ul class="conclusion-list">
+      {% for m in tutorial %}
+        <li class="conclusion-list__item">
+          <span>{{ m.display_name }}{% if m.is_external and m.external_institution %} ({{ m.external_institution }}){% endif %}</span>
+          <span class="text-secondary small">{{ role_labels.get(m.role, m.role) }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-secondary small mb-0">Aún no se integra el comité tutorial.</p>
+  {% endif %}
+{% endif %}

@@ -349,7 +349,7 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
 
 
 def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str = None,
-                     is_conditional: bool = False, dictamen_file=None):
+                     is_conditional: bool = False, dictamen_file=None, conditions=None):
     """
     Acepta a un aspirante en el programa.
 
@@ -360,6 +360,9 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         notes: Notas opcionales sobre la decision
         is_conditional: Si True, marca la aceptación como condicionada (requiere dictamen)
         dictamen_file: FileStorage con el "Dictamen de Aceptación" (obligatorio si is_conditional)
+        conditions: (Fase 6C) condiciones de la aceptación condicionada, cada una
+            {description, archive_key|None, due_date|None} (dict u objeto con esos
+            atributos). Se ignoran si la aceptación no es condicionada.
 
     Returns:
         UserProgram actualizado
@@ -379,7 +382,18 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
             "Para aceptación condicionada se requiere adjuntar el 'Dictamen de Aceptación' (archivo PDF)."
         )
 
+    # Resolve the condition keys before writing anything: an unknown key aborts.
+    staged_conditions = _resolve_conditions(conditions) if is_conditional else []
+
     up.accept(decision_by=decision_by, notes=notes)
+
+    if staged_conditions:
+        from app.services import conclusion_service
+        for description, archive_id, due_date in staged_conditions:
+            conclusion_service.stage_condition(
+                up, description, archive_id=archive_id, due_date=due_date,
+                actor_id=decision_by,
+            )
 
     # Obtener datos para notificacion
     user = User.query.get(user_id)
@@ -479,6 +493,27 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     )
 
     return up
+
+
+def _resolve_conditions(conditions) -> list:
+    """[(description, archive_id|None, due_date|None)] from the request items."""
+    from app.services import conclusion_service
+
+    resolved = []
+    for item in conditions or []:
+        get = item.get if isinstance(item, dict) else (lambda k, o=item: getattr(o, k, None))
+        description = (get('description') or '').strip()
+        if not description:
+            raise DeliberationError('Cada condición necesita una descripción.')
+        archive_id = None
+        key = get('archive_key')
+        if key:
+            archive = conclusion_service.archive_by_key(key)
+            if archive is None or not (archive.archive_key or '').startswith('conclusion_'):
+                raise DeliberationError('El requisito de conclusión indicado no existe.')
+            archive_id = archive.id
+        resolved.append((description, archive_id, get('due_date')))
+    return resolved
 
 
 def reject_applicant(user_id: int, program_id: int, decision_by: int,
@@ -862,3 +897,23 @@ def list_admission_archives(program_id: int) -> list:
         .order_by(ProgramStep.sequence, Archive.id)
         .all()
     )
+
+
+def list_conclusion_requirements() -> list:
+    """[{'key', 'name'}] of the conclusion requirements a condition can point to."""
+    from app.models.archive import Archive
+
+    rows = (
+        Archive.query
+        .filter(Archive.archive_key.startswith('conclusion_', autoescape=True),
+                Archive.is_active.is_(True))
+        .order_by(Archive.name, Archive.id)
+        .all()
+    )
+    seen, options = set(), []
+    for archive in rows:
+        if archive.archive_key in seen:
+            continue
+        seen.add(archive.archive_key)
+        options.append({'key': archive.archive_key, 'name': archive.name})
+    return options

@@ -22,6 +22,8 @@ def register_page_blueprints(app):
     from app.routes.pages.grade_corrections_pages import pages_grade_corrections
     from app.routes.pages.grade_import_pages import pages_grade_import
     from app.routes.pages.academic_documents_pages import pages_academic_documents
+    from app.routes.pages.conclusion_record_pages import pages_conclusion_record
+    from app.routes.pages.conclusion_pages import pages_conclusion
 
     blueprints = [
         pages_auth,
@@ -38,6 +40,8 @@ def register_page_blueprints(app):
         pages_grade_corrections,
         pages_grade_import,
         pages_academic_documents,
+        pages_conclusion,
+        pages_conclusion_record,
     ]
 
     for bp in blueprints:

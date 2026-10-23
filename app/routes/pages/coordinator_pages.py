@@ -2,7 +2,7 @@
 from flask import Blueprint, render_template, abort
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
-from app.services import coordinator_service
+from app.services import coordinator_service, deliberation_service
 
 pages_coordinator = Blueprint('pages_coordinator', __name__, url_prefix='/coordinator')
 
@@ -45,7 +45,8 @@ def deliberation(program_id=None):
     return render_template('coordinator/deliberation.html',
                          coordinator_programs=coordinator_programs,
                          coordinator_programs_json=_programs_payload(coordinator_programs),
-                         selected_program=selected_program)
+                         selected_program=selected_program,
+                         conclusion_requirements=deliberation_service.list_conclusion_requirements())
 
 
 @pages_coordinator.route('/acceptance')

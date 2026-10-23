@@ -29,6 +29,8 @@ ALLOWED = [
     ('active', 'graduated'),
     ('on_leave', 'active'),
     ('on_leave', 'withdrawn'),
+    ('graduated', 'titled'),
+    ('titled', 'graduated'),
 ]
 FORBIDDEN = [
     (None, 'graduated'),
@@ -39,6 +41,9 @@ FORBIDDEN = [
     ('withdrawn', 'on_leave'),
     ('withdrawn', 'graduated'),
     ('active', 'titled'),
+    ('on_leave', 'titled'),
+    ('titled', 'active'),
+    ('titled', 'withdrawn'),
 ]
 
 
@@ -119,3 +124,32 @@ def test_applicant_without_status_cannot_be_withdrawn(app):
 
     with pytest.raises(svc.InvalidAcademicTransition):
         svc.transition(applicant, 'withdrawn', actor_id=None, reason='x')
+
+
+def test_titling_requires_exam_date_and_stamps_it(up):
+    _set(up, 'graduated')
+    with pytest.raises(DomainError, match='La fecha del examen de grado es obligatoria.'):
+        svc.transition(up, 'titled', actor_id=None)
+
+    svc.transition(up, 'titled', actor_id=None, on_date=date(2026, 9, 1))
+
+    assert up.academic_status == 'titled'
+    assert up.titled_at == date(2026, 9, 1)
+    assert svc.STATUS_LABELS_ES['titled'] == 'titulado'
+
+
+def test_titled_revert_needs_admin_flag_and_reason_and_keeps_graduation(up):
+    _set(up, 'graduated')
+    up.graduated_at = date(2026, 6, 1)
+    svc.transition(up, 'titled', actor_id=None, on_date=date(2026, 9, 1))
+
+    with pytest.raises(svc.InvalidAcademicTransition):
+        svc.transition(up, 'graduated', actor_id=None, reason='Error')
+    with pytest.raises(DomainError, match='El motivo es obligatorio.'):
+        svc.transition(up, 'graduated', actor_id=None, allow_revert=True)
+
+    svc.transition(up, 'graduated', actor_id=None, reason='Error', allow_revert=True)
+
+    assert up.academic_status == 'graduated'
+    assert up.titled_at is None
+    assert up.graduated_at == date(2026, 6, 1)

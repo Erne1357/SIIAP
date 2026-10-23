@@ -34,7 +34,7 @@ class UserProgram(db.Model):
             name='ck_user_program_admission_status',
         ),
         db.CheckConstraint(
-            "academic_status IN ('active', 'on_leave', 'withdrawn', 'graduated')",
+            "academic_status IN ('active', 'on_leave', 'withdrawn', 'graduated', 'titled')",
             name='ck_user_program_academic_status',
         ),
     )
@@ -68,6 +68,8 @@ class UserProgram(db.Model):
     academic_status = db.Column(db.String(20), nullable=True)
     academic_status_changed_at = db.Column(db.DateTime, nullable=True)
     graduated_at = db.Column(db.Date, nullable=True)
+    # Date the grade exam was approved (phase 6C, academic_status='titled').
+    titled_at = db.Column(db.Date, nullable=True)
     withdrawn_at = db.Column(db.DateTime, nullable=True)
     withdrawal_reason = db.Column(db.Text, nullable=True)
 

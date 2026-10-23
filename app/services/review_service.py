@@ -289,6 +289,11 @@ def decide_submission(reviewer, submission_id, action, comment=''):
     submission.reviewer_id = reviewer.id
     submission.review_date = now_local()
     submission.reviewer_comment = comment
+    if action == 'approve':
+        # Phase 6C: approving the requirement a pending admission condition
+        # points at fulfils that condition (same transaction).
+        from app.services import conclusion_service
+        conclusion_service.on_requirement_approved(submission, reviewer.id)
     db.session.commit()
 
     archive_name = (
