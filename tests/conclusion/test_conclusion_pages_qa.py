@@ -1,3 +1,4 @@
+# ruff: noqa: F811  (pytest fixtures imported from the sibling module)
 """Phase 6C QA follow-up on "Mi conclusión": titled is read-only; new requirement states."""
 
 from app import db

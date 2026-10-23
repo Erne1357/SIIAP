@@ -1,3 +1,4 @@
+# ruff: noqa: F811  (pytest fixtures imported from the sibling module)
 """
 Phase 6C QA follow-up on the coordinator's Conclusión tab:
 - bug 3: no mutation form is offered where the service would refuse it;

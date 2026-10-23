@@ -1,3 +1,4 @@
+# ruff: noqa: F811  (pytest fixtures imported from the sibling module)
 """
 Phase 6C QA follow-up: owner's decisions 6-8 and the deliberation/coordinator
 bugs found in the scenario QA.
