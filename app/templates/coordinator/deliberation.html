@@ -290,9 +290,6 @@
                 <label class="form-label" data-for="archive_key">Requisito de conclusión</label>
                 <select class="form-select" data-field="archive_key">
                   <option value="">— Sin requisito ligado —</option>
-                  {% for req in conclusion_requirements or [] %}
-                  <option value="{{ req.key }}">{{ req.name }}</option>
-                  {% endfor %}
                 </select>
               </div>
               <div class="condition-list__field">
@@ -305,6 +302,13 @@
               </button>
             </div>
           </template>
+          {# Requisitos de conclusión por programa: el modal los copia al
+             <select> según el programa del aspirante. #}
+          {% for program_id, reqs in (conclusion_requirements or {}).items() %}
+          <template id="conditionOptions-{{ program_id }}">
+            {% for req in reqs %}<option value="{{ req.key }}">{{ req.name }}</option>{% endfor %}
+          </template>
+          {% endfor %}
         </div>
 
         <!-- Sección de rechazo -->

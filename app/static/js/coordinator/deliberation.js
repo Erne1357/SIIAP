@@ -800,6 +800,11 @@ class DeliberationManager {
         row.querySelectorAll('[data-for]').forEach((el) => {
             el.setAttribute('for', `condition-${n}-${el.dataset.for}`);
         });
+        // Only the conclusion requirements of the applicant's program.
+        const programId = document.getElementById('decisionProgramId')?.value;
+        const options = programId && document.getElementById(`conditionOptions-${programId}`);
+        const select = row.querySelector('[data-field="archive_key"]');
+        if (options && select) select.appendChild(options.content.cloneNode(true));
         list.appendChild(row);
         if (focus) row.querySelector('[data-field="description"]')?.focus();
     }

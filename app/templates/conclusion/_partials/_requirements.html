@@ -1,6 +1,6 @@
 {#
   Lista de requisitos de conclusión (página y respuesta HTMX de la subida).
-  Contexto explícito: up, graduated, requirements (conclusion_service.requirements).
+  Contexto explícito: up, graduated, titled, requirements (conclusion_service.requirements).
 #}
 {% from '_macros.html' import status_badge, empty_state %}
 {% set _BADGE = {
@@ -11,9 +11,16 @@
   'rejected': ('rejected', 'Rechazado'),
   'missing': ('in-progress', 'Falta'),
   'institution_pending': ('review', 'Lo carga la coordinación'),
+  'not_applicable': ('deferred', 'No aplica'),
+  'reused_expired': ('rejected', 'Vigencia vencida'),
 } %}
 
-{% if not graduated %}
+{% if titled %}
+  <p class="conclusion-note small" role="note">
+    <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>
+    Titulado. Tus requisitos de conclusión quedan como consulta.
+  </p>
+{% elif not graduated %}
   <p class="conclusion-note small" role="note">
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
     Los requisitos se abren al egreso. Podrás subir tus documentos cuando tu estatus sea egresado.
@@ -27,12 +34,17 @@
   <ul class="conclusion-list">
     {% for r in requirements %}
       {% set badge = _BADGE.get(r.status, ('pending', r.status)) %}
-      {% set can_upload = graduated and r.status in ('missing', 'rejected', 'pending') and not r.archive.issued_by_institution %}
+      {% set can_upload = graduated and r.status in ('missing', 'rejected', 'pending', 'reused_expired') and not r.archive.issued_by_institution %}
       <li class="conclusion-list__item conclusion-list__item--stack">
         <div class="conclusion-list__row">
           <span>{{ r.archive.name }}</span>
           {{ status_badge(badge[0], badge[1], 'sm') }}
         </div>
+        {% if r.status == 'reused_expired' %}
+          <p class="text-secondary small mb-0">Tu documento de admisión perdió vigencia. Sube uno actualizado.</p>
+        {% elif r.status == 'reused' and r.note %}
+          <p class="text-secondary small mb-0">{{ r.note }}.</p>
+        {% endif %}
         {% if r.blocked_by_condition %}
           <p class="text-secondary small mb-0">Pendiente por una condición de aceptación.</p>
         {% endif %}

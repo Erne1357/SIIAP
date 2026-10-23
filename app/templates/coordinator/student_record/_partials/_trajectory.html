@@ -4,7 +4,8 @@
 
   Contexto explícito: target_user, trajectory (dict de
   permanence_service.get_trajectory o None), program_options (UserPrograms
-  inscritos dentro del alcance) y selected_program_id. Se carga bajo demanda y
+  inscritos dentro del alcance), selected_program_id y admission_debt
+  (admission_debt_service.overdue_admission_documents: prórrogas vencidas). Se carga bajo demanda y
   NO entra en el historial del navegador.
 #}
 {% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
@@ -54,6 +55,18 @@
     <h3 class="h5 mb-0">Estado académico</h3>
     {{ status_badge(_STATUS_BADGE.get(t.academic_status, 'pending'), t.academic_status_label|capitalize) }}
   </div>
+
+  {% if admission_debt %}
+    <div class="alert alert-warning" role="status" id="trajectoryAdmissionDebt">
+      <p class="mb-1"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+        No puede reinscribirse al siguiente semestre: prórroga de admisión vencida sin entregar.</p>
+      <ul class="mb-0">
+        {% for d in admission_debt %}
+          <li>{{ d.archive.name }} (prórroga hasta el {{ d.granted_until|fecha_es }})</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
 
   <dl class="row mb-3">
     <dt class="col-sm-4">Semestre</dt>

@@ -125,6 +125,11 @@ def evaluate_student(
                     'message': str,
                     'months': [{'id': int, 'label': str, 'sequence': int}]
                 },
+                {
+                    'code': 'admission_document_debt',
+                    'message': str,
+                    'documents': [str]   # prórroga vencida sin entregar
+                },
             ]
         }
     """
@@ -260,6 +265,16 @@ def evaluate_student(
             'months': missing_conacyt,
         })
     # Si no es becario, ignorar ventanas SECIHTI (ya se omitieron de missing_docs)
+
+    # ── Regla 5: documentos de admisión con prórroga vencida sin entregar ──
+    from app.services import admission_debt_service
+    overdue = admission_debt_service.overdue_admission_documents(up)
+    if overdue:
+        blockers.append({
+            'code': 'admission_document_debt',
+            'message': admission_debt_service.debt_message(overdue),
+            'documents': [d['archive'].name for d in overdue],
+        })
 
     return {
         'can_advance': len(blockers) == 0,

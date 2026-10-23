@@ -46,7 +46,8 @@ def deliberation(program_id=None):
                          coordinator_programs=coordinator_programs,
                          coordinator_programs_json=_programs_payload(coordinator_programs),
                          selected_program=selected_program,
-                         conclusion_requirements=deliberation_service.list_conclusion_requirements())
+                         conclusion_requirements=deliberation_service.list_conclusion_requirements(
+                             [p.id for p in coordinator_programs]))
 
 
 @pages_coordinator.route('/acceptance')

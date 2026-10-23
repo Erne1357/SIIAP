@@ -207,6 +207,9 @@ def test_condition_bad_date(world, login):
 # ─── Requirements ────────────────────────────────────────────────────────────
 
 def test_institution_upload_only_for_issued_documents(world, login):
+    # The form is offered only where the service accepts it (graduated / titled).
+    _status(world.up, 'graduated')
+    db.session.commit()
     html = login(world.coord).get(_base(world), headers=HX).get_data(as_text=True)
     assert f'upload-{world.cert.uuid}' in html
     assert f'upload-{world.doc.uuid}' not in html

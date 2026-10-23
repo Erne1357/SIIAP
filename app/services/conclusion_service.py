@@ -12,7 +12,15 @@ Flow fixed by the owner (2026-10-22, PLAN_FASE6C_diseno.md):
   condition points at that requirement or the student already has an own
   conclusion submission for it (that one always wins, whatever its status).
 - Approving (review inbox) the requirement a pending condition points at
-  marks that condition met (`on_requirement_approved`).
+  marks that condition met (`on_requirement_approved`); a condition created
+  against a requirement already satisfied is born met.
+- Reuse honours the admission archive's `validity_months`: a lapsed document
+  is 'reused_expired' (not satisfied) unless the coordination accepted it
+  (override 'accept_expired'); the student may upload a fresh one instead.
+- The coordination may mark a requirement 'not_applicable' for one student
+  (override, reason mandatory, reversible); it then counts as satisfied.
+- Titled / withdrawn files are read-only (no thesis, member, condition or
+  override changes).
 - Scheduling the exam needs `graduated` + every requirement satisfied +
   every condition met/waived + a board with president, secretary and vocal.
   An approved exam moves `academic_status` to `titled`; only a
@@ -33,6 +41,9 @@ from sqlalchemy import or_
 from app import db
 from app.models import Archive, Phase, ProgramStep, Step, Submission, User, UserProgram
 from app.models.admission_condition import AdmissionCondition
+from app.models.conclusion_requirement_override import (
+    OVERRIDE_KINDS, ConclusionRequirementOverride,
+)
 from app.models.grade_exam import EXAM_VERDICTS, GradeExam
 from app.models.thesis import MEMBER_ROLES, Thesis, ThesisMember
 from app.services import academic_status_service as status_svc
@@ -40,7 +51,7 @@ from app.services import program_scope_service as scope_service
 from app.services.errors import ConflictError, DomainError, NotFoundError
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
-from app.utils.datetime_utils import now_local
+from app.utils.datetime_utils import now_local, to_local_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +71,16 @@ THESIS_STATUSES = frozenset({status_svc.ACTIVE, status_svc.ON_LEAVE, status_svc.
 REQUIRED_EXAM_ROLES = ('president', 'secretary', 'vocal')
 
 #: Requirement statuses that count as fulfilled.
-SATISFIED_STATUSES = frozenset({'approved', 'reused', 'institution_done'})
+SATISFIED_STATUSES = frozenset({'approved', 'reused', 'institution_done', 'not_applicable'})
+
+#: Academic statuses in which the conclusion file is read-only.
+READ_ONLY_STATUSES = frozenset({status_svc.TITLED, status_svc.WITHDRAWN})
+
+#: Note shown on a reused document whose lapsed validity the coordination accepted.
+EXPIRED_ACCEPTED_NOTE = 'Vigencia vencida aceptada por la coordinación'
+
+OVERRIDE_LABELS_ES = {'not_applicable': 'No aplica',
+                      'accept_expired': 'Vigencia vencida aceptada'}
 
 ROLE_LABELS_ES = {
     'director': 'director(a)',
@@ -109,6 +129,17 @@ def effective_status(up: UserProgram) -> Optional[str]:
     if up.academic_status is None and up.admission_status == 'enrolled':
         return status_svc.ACTIVE
     return up.academic_status
+
+
+def is_read_only(up: UserProgram) -> bool:
+    """Titled or withdrawn: the conclusion file only shows, nothing changes."""
+    return effective_status(up) in READ_ONLY_STATUSES
+
+
+def _require_writable(up: UserProgram, what: str) -> None:
+    if is_read_only(up):
+        label = status_svc.STATUS_LABELS_ES.get(up.academic_status, up.academic_status)
+        raise ConclusionError(f'No se pueden {what} con estado académico "{label}".')
 
 
 def _in_scope(actor, up: Optional[UserProgram]) -> bool:
@@ -238,6 +269,68 @@ def _reuse_source(up: UserProgram, archive: Archive, blocked_ids: set) -> Option
 
 # ─── Requirements ────────────────────────────────────────────────────────────
 
+def reuse_expires_at(sub: Optional[Submission]) -> Optional[datetime]:
+    """When a reusable admission submission lapses (its archive's
+    `validity_months` from `upload_date`), or None if it never does."""
+    from app.services.admission_service import _add_months
+
+    archive = sub.archive if sub is not None else None
+    if archive is None or not archive.validity_months or not sub.upload_date:
+        return None
+    return to_local_timezone(_add_months(sub.upload_date, archive.validity_months))
+
+
+def overrides(up: UserProgram) -> dict:
+    """{(archive_id, kind): ConclusionRequirementOverride} of the student program."""
+    rows = ConclusionRequirementOverride.query.filter_by(user_program_id=up.id).all()
+    return {(o.archive_id, o.kind): o for o in rows}
+
+
+def _evaluate(up: UserProgram, ps: ProgramStep, archive: Archive, blocked_ids: set,
+              decided: dict) -> dict:
+    """One requirement item (see `requirements`)."""
+    sub = _latest_submission(up, archive.id)
+    reused_from = None
+    expires_at = None
+    note = None
+    not_applicable = decided.get((archive.id, 'not_applicable'))
+    if not_applicable is not None:
+        # The coordination's decision wins over whatever was delivered.
+        status = 'not_applicable'
+        note = not_applicable.reason
+    elif archive.issued_by_institution:
+        status = 'institution_done' if sub is not None and sub.status == 'approved' \
+            else 'institution_pending'
+    elif sub is not None:
+        # The student's own submission wins over reuse, whatever its status.
+        status = sub.status if sub.status in ('approved', 'pending', 'rejected') \
+            else 'pending'
+    else:
+        reused_from = _reuse_source(up, archive, blocked_ids)
+        if reused_from is None:
+            status = 'missing'
+        else:
+            expires_at = reuse_expires_at(reused_from)
+            status = 'reused'
+            if expires_at is not None and expires_at < now_local():
+                if (archive.id, 'accept_expired') in decided:
+                    note = EXPIRED_ACCEPTED_NOTE
+                else:
+                    status = 'reused_expired'
+    return {
+        'archive': archive,
+        'program_step': ps,
+        'status': status,
+        'submission': sub,
+        'reused_from': reused_from,
+        'reuse_expires_at': expires_at,
+        'note': note,
+        'overrides': {kind: o for (aid, kind), o in decided.items() if aid == archive.id},
+        'satisfied': status in SATISFIED_STATUSES,
+        'blocked_by_condition': archive.id in blocked_ids,
+    }
+
+
 def requirements(up: UserProgram) -> list:
     """
     Conclusion requirements of the student's program with their state.
@@ -245,39 +338,96 @@ def requirements(up: UserProgram) -> list:
     Each item: {
         'archive': Archive, 'program_step': ProgramStep,
         'status': 'approved' | 'pending' | 'rejected' | 'missing' | 'reused'
+                  | 'reused_expired' | 'not_applicable'
                   | 'institution_pending' | 'institution_done',
         'submission': Submission | None,   # the student's (or coordination's) own
-        'reused_from': Submission | None,  # admission submission when 'reused'
+        'reused_from': Submission | None,  # admission submission when reused
+        'reuse_expires_at': datetime | None,
+        'note': str | None,                # override reason / accepted-expiry note
+        'overrides': {kind: ConclusionRequirementOverride},
         'satisfied': bool,
         'blocked_by_condition': bool,      # a pending condition points at it
     }
     """
     blocked_ids = {c.archive_id for c in conditions(up)
                    if c.status == 'pending' and c.archive_id is not None}
-    items = []
+    decided = overrides(up)
+    return [_evaluate(up, ps, archive, blocked_ids, decided)
+            for ps, archive in conclusion_archives(up.program_id)]
+
+
+def requirement_satisfied(up: UserProgram, archive_id: int) -> bool:
+    """Whether the requirement `archive_id` is satisfied now, ignoring conditions."""
     for ps, archive in conclusion_archives(up.program_id):
-        sub = _latest_submission(up, archive.id)
-        reused_from = None
-        if archive.issued_by_institution:
-            status = 'institution_done' if sub is not None and sub.status == 'approved' \
-                else 'institution_pending'
-        elif sub is not None:
-            # The student's own submission wins over reuse, whatever its status.
-            status = sub.status if sub.status in ('approved', 'pending', 'rejected') \
-                else 'pending'
-        else:
-            reused_from = _reuse_source(up, archive, blocked_ids)
-            status = 'reused' if reused_from is not None else 'missing'
-        items.append({
-            'archive': archive,
-            'program_step': ps,
-            'status': status,
-            'submission': sub,
-            'reused_from': reused_from,
-            'satisfied': status in SATISFIED_STATUSES,
-            'blocked_by_condition': archive.id in blocked_ids,
-        })
-    return items
+        if archive.id == archive_id:
+            return _evaluate(up, ps, archive, set(), overrides(up))['satisfied']
+    return False
+
+
+def set_requirement_override(actor, user_program_id: int, archive_uuid, kind: str,
+                             reason: str) -> ConclusionRequirementOverride:
+    """
+    Record a coordination decision on one requirement of one student:
+    'not_applicable' (counts as satisfied) or 'accept_expired' (a reused
+    admission document past its validity counts as reused). Reason
+    mandatory. Commits.
+    """
+    if kind not in OVERRIDE_KINDS:
+        raise ConclusionError('Decisión inválida.')
+    up = _locked(actor, user_program_id)
+    _require_writable(up, 'modificar requisitos')
+    ps, archive = _program_archive(up, archive_uuid)
+    reason = _clean(reason)
+    if not reason:
+        raise ConclusionError('El motivo es obligatorio.')
+    decided = overrides(up)
+    if (archive.id, kind) in decided:
+        raise ConclusionConflict('Ese requisito ya tiene esa decisión registrada.')
+    item = _evaluate(up, ps, archive, set(), decided)
+    if kind == 'accept_expired' and item['status'] != 'reused_expired':
+        raise ConclusionError(
+            'Sólo se acepta la vigencia vencida de un documento reutilizado de admisión.')
+    if kind == 'not_applicable' and item['status'] in ('approved', 'institution_done', 'reused'):
+        raise ConclusionError(
+            'El requisito ya está cumplido; no hace falta marcarlo como «no aplica».')
+
+    override = ConclusionRequirementOverride(user_program_id=up.id, archive_id=archive.id,
+                                             kind=kind, reason=reason, created_by=actor.id)
+    db.session.add(override)
+    db.session.flush()
+    UserHistoryService.log_action(
+        user_id=up.user_id, action='conclusion_requirement_override_set', admin_id=actor.id,
+        user_program_id=up.id,
+        details={'program_id': up.program_id, 'archive_name': archive.name, 'kind': kind,
+                 'reason': reason},
+    )
+    _notify_student(up, 'conclusion_requirement_override',
+                    'Cambio en tus requisitos de conclusión',
+                    f'"{archive.name}": {OVERRIDE_LABELS_ES[kind]}. Motivo: {reason}')
+    db.session.commit()
+    return override
+
+
+def remove_requirement_override(actor, user_program_id: int, archive_uuid, kind: str) -> None:
+    """Undo a 'not_applicable' / 'accept_expired' decision. Commits."""
+    up = _locked(actor, user_program_id)
+    _require_writable(up, 'modificar requisitos')
+    _, archive = _program_archive(up, archive_uuid)
+    override = overrides(up).get((archive.id, kind))
+    if override is None:
+        raise ConclusionNotFound('Decisión no encontrada.')
+    reason = override.reason
+    db.session.delete(override)
+    UserHistoryService.log_action(
+        user_id=up.user_id, action='conclusion_requirement_override_removed', admin_id=actor.id,
+        user_program_id=up.id,
+        details={'program_id': up.program_id, 'archive_name': archive.name, 'kind': kind,
+                 'previous_reason': reason},
+    )
+    _notify_student(up, 'conclusion_requirement_override',
+                    'Cambio en tus requisitos de conclusión',
+                    f'"{archive.name}": la coordinación retiró «{OVERRIDE_LABELS_ES[kind]}».')
+    db.session.commit()
 
 
 # ─── Thesis ──────────────────────────────────────────────────────────────────
@@ -477,6 +627,10 @@ def remove_member(actor, user_program_id: int, member_id: int) -> None:
 
 # ─── Admission conditions ────────────────────────────────────────────────────
 
+#: Resolution note of a condition born against an already satisfied requirement.
+ALREADY_MET_NOTE = 'Requisito ya cumplido al registrar la condición'
+
+
 def stage_condition(up: UserProgram, description: str, *, archive_id: Optional[int] = None,
                     due_date: Optional[date] = None, actor_id: Optional[int] = None
                     ) -> AdmissionCondition:
@@ -484,11 +638,14 @@ def stage_condition(up: UserProgram, description: str, *, archive_id: Optional[i
     description = _clean(description)
     if not description:
         raise ConclusionError('La descripción de la condición es obligatoria.')
+    already_met = False
     if archive_id is not None:
-        archive = db.session.get(Archive, archive_id)
-        if archive is None or archive.step is None or archive.step.phase is None \
-                or archive.step.phase.name != CONCLUSION_PHASE:
-            raise ConclusionError('La condición sólo puede ligarse a un requisito de conclusión.')
+        if archive_id not in {a.id for _, a in conclusion_archives(up.program_id)}:
+            raise ConclusionError(
+                'La condición sólo puede ligarse a un requisito de conclusión del programa.')
+        # Evaluated before the condition exists: a pending condition would
+        # itself block the reuse it is asking about.
+        already_met = requirement_satisfied(up, archive_id)
     condition = AdmissionCondition(user_program_id=up.id, description=description,
                                    archive_id=archive_id, due_date=due_date,
                                    status='pending', created_by=actor_id)
@@ -501,6 +658,8 @@ def stage_condition(up: UserProgram, description: str, *, archive_id: Optional[i
                  'archive_id': archive_id,
                  'due_date': due_date.isoformat() if due_date else None},
     )
+    if already_met:
+        _mark_resolved(up, condition, 'met', ALREADY_MET_NOTE, actor_id)
     return condition
 
 
@@ -508,10 +667,7 @@ def create_condition(actor, user_program_id: int, description: str, *,
                      archive_uuid=None, due_date: Optional[date] = None) -> AdmissionCondition:
     """Add a condition to an accepted student program (not titled/withdrawn). Commits."""
     up = _locked(actor, user_program_id)
-    if effective_status(up) in (status_svc.TITLED, status_svc.WITHDRAWN):
-        label = status_svc.STATUS_LABELS_ES.get(up.academic_status, up.academic_status)
-        raise ConclusionError(
-            f'No se pueden agregar condiciones con estado académico "{label}".')
+    _require_writable(up, 'agregar condiciones')
     archive_id = None
     if archive_uuid:
         _, archive = _program_archive(up, archive_uuid)
@@ -559,6 +715,7 @@ def resolve_condition(actor, user_program_id: int, condition_uuid, resolution: s
                  .with_for_update().populate_existing().first())
     if condition is None:
         raise ConclusionNotFound(CONDITION_NOT_FOUND_MESSAGE)
+    _require_writable(up, 'resolver condiciones')
     if resolution not in ('met', 'waived'):
         raise ConclusionError('Resolución inválida: debe ser cumplida o dispensada.')
     if condition.status != 'pending':
@@ -623,6 +780,9 @@ def upload_requirement(user, archive_uuid, user_program_id: int, file) -> Submis
         raise ConclusionError('Los requisitos de conclusión se entregan después del egreso.')
     if archive.issued_by_institution:
         raise ConclusionError('Este documento lo emite la institución; la coordinación lo carga.')
+
+    if (archive.id, 'not_applicable') in overrides(up):
+        raise ConclusionError('La coordinación marcó este requisito como «no aplica».')
 
     sub = _latest_submission(up, archive.id)
     if sub is not None and sub.status == 'approved':

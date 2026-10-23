@@ -292,6 +292,12 @@ def confirm_semester_enrollment(
     if not period:
         raise StudentNotFound(f"Periodo academico {academic_period_id} no encontrado")
 
+    # Prórroga de admisión vencida sin entregar: no se reinscribe (decisión 5, 6C).
+    from app.services import admission_debt_service
+    overdue = admission_debt_service.overdue_admission_documents(up)
+    if overdue:
+        raise InvalidStateTransition(admission_debt_service.debt_message(overdue))
+
     # Verificar si ya existe inscripcion para este periodo
     se = SemesterEnrollment.query.filter_by(
         user_program_id=user_program_id,

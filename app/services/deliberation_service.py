@@ -383,7 +383,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         )
 
     # Resolve the condition keys before writing anything: an unknown key aborts.
-    staged_conditions = _resolve_conditions(conditions) if is_conditional else []
+    staged_conditions = _resolve_conditions(conditions, program_id) if is_conditional else []
 
     up.accept(decision_by=decision_by, notes=notes)
 
@@ -495,10 +495,18 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     return up
 
 
-def _resolve_conditions(conditions) -> list:
-    """[(description, archive_id|None, due_date|None)] from the request items."""
+def _resolve_conditions(conditions, program_id: int) -> list:
+    """
+    [(description, archive_id|None, due_date|None)] from the request items.
+
+    A linked requirement must be one of the conclusion requirements of
+    `program_id` (the applicant's program), not any archive with the key.
+    """
     from app.services import conclusion_service
 
+    program_archives = {a.archive_key: a
+                        for _, a in conclusion_service.conclusion_archives(program_id)
+                        if (a.archive_key or '').startswith('conclusion_')}
     resolved = []
     for item in conditions or []:
         get = item.get if isinstance(item, dict) else (lambda k, o=item: getattr(o, k, None))
@@ -508,9 +516,10 @@ def _resolve_conditions(conditions) -> list:
         archive_id = None
         key = get('archive_key')
         if key:
-            archive = conclusion_service.archive_by_key(key)
-            if archive is None or not (archive.archive_key or '').startswith('conclusion_'):
-                raise DeliberationError('El requisito de conclusión indicado no existe.')
+            archive = program_archives.get(key)
+            if archive is None:
+                raise DeliberationError(
+                    'El requisito de conclusión indicado no existe en el programa del aspirante.')
             archive_id = archive.id
         resolved.append((description, archive_id, get('due_date')))
     return resolved
@@ -899,21 +908,22 @@ def list_admission_archives(program_id: int) -> list:
     )
 
 
-def list_conclusion_requirements() -> list:
-    """[{'key', 'name'}] of the conclusion requirements a condition can point to."""
-    from app.models.archive import Archive
+def list_conclusion_requirements(program_ids) -> dict:
+    """
+    {program_id: [{'key', 'name'}]} — the conclusion requirements a condition
+    can point to, per program (the acceptance modal is per applicant, and the
+    applicant's program decides which requirements exist).
+    """
+    from app.services import conclusion_service
 
-    rows = (
-        Archive.query
-        .filter(Archive.archive_key.startswith('conclusion_', autoescape=True),
-                Archive.is_active.is_(True))
-        .order_by(Archive.name, Archive.id)
-        .all()
-    )
-    seen, options = set(), []
-    for archive in rows:
-        if archive.archive_key in seen:
-            continue
-        seen.add(archive.archive_key)
-        options.append({'key': archive.archive_key, 'name': archive.name})
+    options = {}
+    for program_id in program_ids or []:
+        seen, rows = set(), []
+        for _, archive in conclusion_service.conclusion_archives(program_id):
+            key = archive.archive_key or ''
+            if not key.startswith('conclusion_') or key in seen:
+                continue
+            seen.add(archive.archive_key)
+            rows.append({'key': archive.archive_key, 'name': archive.name})
+        options[program_id] = rows
     return options

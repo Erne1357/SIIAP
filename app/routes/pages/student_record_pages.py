@@ -17,6 +17,7 @@ from flask_login import login_required, current_user
 from app.models.user import User
 from app.services import student_record_service as svc
 from app.services import student_admission_detail_service as detail_svc
+from app.services import admission_debt_service
 from app.services import (
     academic_documents_service, course_enrollment_service, curriculum_service, grading_service,
     kardex_service, permanence_service,
@@ -145,6 +146,7 @@ def _trajectory_fragment(user: User, up=None):
         _TRAJECTORY_PARTIAL,
         target_user=user,
         trajectory=trajectory,
+        admission_debt=admission_debt_service.overdue_admission_documents(up),
         program_options=options,
         selected_program_id=up.program_id if up is not None else None,
     )

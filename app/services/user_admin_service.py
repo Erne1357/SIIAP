@@ -14,7 +14,7 @@ from app import db
 from app.models.user import User
 from app.models.user_program import UserProgram
 from app.services import program_scope_service as scope_service
-from app.services.errors import DomainError
+from app.services.errors import ConflictError, DomainError
 from app.services.user_history_service import UserHistoryService
 
 
@@ -287,8 +287,32 @@ def assign_control_number_as_admin(*, user_id: int, program_id: int,
         raise
 
 
+class UserOnThesisCommittee(ConflictError):
+    """The user sits on a tutorial committee or an examination board (409)."""
+
+
+def thesis_memberships_count(user_id: int) -> int:
+    """How many theses list `user_id` on their committee or board."""
+    from sqlalchemy import func
+    from app.models.thesis import ThesisMember
+
+    return (db.session.query(func.count(func.distinct(ThesisMember.thesis_id)))
+            .filter(ThesisMember.user_id == user_id).scalar() or 0)
+
+
 def delete_user_account(user: User, user_name: str) -> None:
-    """Log the deletion, commit, delete the row and commit."""
+    """
+    Log the deletion, commit, delete the row and commit.
+
+    Refused before any write when the user sits on a thesis committee or
+    board: `thesis_member.user_id` is RESTRICT, and the coordination must
+    replace the person first.
+    """
+    theses = thesis_memberships_count(user.id)
+    if theses:
+        raise UserOnThesisCommittee(
+            f'No se puede eliminar: integra el comité/sínodo de {theses} tesis. '
+            'Reemplázalo primero.')
     UserHistoryService.log_user_deletion(user_id=user.id, user_name=user_name)
     db.session.commit()
     db.session.delete(user)

@@ -3,9 +3,12 @@
   condiciones de admisión, requisitos, examen de grado y reversión de titulación.
 
   Contexto explícito: target_user, up (UserProgram o None), program_options,
-  selected_program_id y, con up: academic_status, status_label, thesis, can_edit_thesis,
-  teachers, member_roles, role_labels, body_labels, conditions,
+  selected_program_id y, con up: academic_status, status_label, thesis, read_only,
+  can_edit_thesis, can_edit_members ({body: bool}), can_manage_conditions, can_override,
+  can_upload_institution, teachers, member_roles, role_labels, body_labels, conditions,
   requirement_archives, requirements, exam, exams, blockers, can_revert.
+  Cada can_* refleja una negativa del servicio: no se ofrece un formulario que el
+  servicio rechazaría (titulado / baja definitiva = sólo consulta).
   Todo se envía a #recordConclusion. NO entra en el historial del navegador.
 #}
 {% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close, required_mark %}
@@ -17,7 +20,8 @@
   'approved': ['approved', 'Aprobado'], 'pending': ['review', 'En revisión'],
   'rejected': ['rejected', 'Rechazado'], 'missing': ['pending', 'Sin entregar'],
   'reused': ['approved', 'Reutilizado'], 'institution_pending': ['pending', 'Por emitir'],
-  'institution_done': ['approved', 'Emitido'] } %}
+  'institution_done': ['approved', 'Emitido'], 'not_applicable': ['deferred', 'No aplica'],
+  'reused_expired': ['rejected', 'Vigencia vencida'] } %}
 {% set _COND_BADGE = {'pending': ['pending', 'Pendiente'], 'met': ['approved', 'Cumplida'],
                       'waived': ['deferred', 'Dispensada']} %}
 {% set _EXAM_BADGE = {'scheduled': ['pending', 'Agendado'], 'approved': ['approved', 'Aprobado'],
@@ -26,7 +30,7 @@
 
 {% macro hidden_program() %}<input type="hidden" name="program" value="{{ selected_program_id }}">{% endmacro %}
 
-{% macro member_block(body, thesis) %}
+{% macro member_block(body, thesis, editable) %}
   <h3 class="h5 mb-2">{{ body_labels[body]|capitalize }}</h3>
   {% set members = thesis.members_of(body) if thesis else [] %}
   {% if members %}
@@ -38,6 +42,7 @@
             {% if m.is_external %}<span class="text-secondary small">(externo{% if m.external_institution %}, {{ m.external_institution }}{% endif %})</span>{% endif %}
           </span>
           <span class="conclusion-members__role">{{ role_labels.get(m.role, m.role) }}</span>
+          {% if editable %}
           <form hx-post="{{ _BASE }}/members/{{ m.id }}/remove" hx-target="{{ _T }}" hx-swap="innerHTML"
                 hx-history="false" hx-confirm="¿Quitar a {{ m.display_name }} del {{ body_labels[body] }}?"
                 data-confirm-title="Quitar integrante" data-confirm-type="warning"
@@ -48,6 +53,7 @@
               <span class="visually-hidden">a {{ m.display_name }}</span>
             </button>
           </form>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>
@@ -55,7 +61,7 @@
     <p class="text-secondary small">Sin integrantes registrados.</p>
   {% endif %}
 
-  {% if thesis %}
+  {% if thesis and editable %}
     <form class="conclusion-form" id="conclusionMemberForm-{{ body }}"
           hx-post="{{ _BASE }}/members" hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false">
       {{ hidden_program() }}
@@ -101,6 +107,8 @@
         </button>
       </fieldset>
     </form>
+  {% elif thesis and body == 'exam' and exam %}
+    <p class="text-secondary small">El sínodo no se modifica mientras haya un examen agendado.</p>
   {% endif %}
 {% endmacro %}
 
@@ -173,9 +181,9 @@
     {% if not thesis %}
       <p class="text-secondary small">Registra la tesis para integrar el comité tutorial y el sínodo.</p>
     {% endif %}
-    {{ member_block('tutorial', thesis) }}
+    {{ member_block('tutorial', thesis, can_edit_members['tutorial']) }}
     <hr>
-    {{ member_block('exam', thesis) }}
+    {{ member_block('exam', thesis, can_edit_members['exam']) }}
   </section>
 
   {# ── 3. Condiciones de admisión ──────────────────────────────────────── #}
@@ -203,7 +211,7 @@
               </td>
               <td>{{ status_badge(_COND_BADGE[c.status][0], _COND_BADGE[c.status][1], 'sm') }}</td>
               <td>
-                {% if c.status == 'pending' %}
+                {% if c.status == 'pending' and can_manage_conditions %}
                   <div class="conclusion-actions">
                     <form hx-post="{{ _BASE }}/conditions/{{ c.uuid }}/resolve" hx-target="{{ _T }}"
                           hx-swap="innerHTML" hx-history="false">
@@ -235,6 +243,7 @@
       {{ empty_state('check2-square', 'Sin condiciones', 'Este estudiante no tiene condiciones de admisión.', compact=true) }}
     {% endif %}
 
+    {% if can_manage_conditions %}
     <form class="conclusion-form" id="conclusionConditionForm" hx-post="{{ _BASE }}/conditions"
           hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false">
       {{ hidden_program() }}
@@ -262,6 +271,7 @@
         </button>
       </fieldset>
     </form>
+    {% endif %}
   </section>
 
   {# ── 4. Requisitos ───────────────────────────────────────────────────── #}
@@ -288,6 +298,10 @@
               <td>
                 {{ status_badge(badge[0], badge[1], 'sm') }}
                 {% if r.status == 'reused' %}<div class="text-secondary small">Reutilizado de admisión.</div>{% endif %}
+                {% if r.status == 'reused_expired' %}
+                  <div class="text-secondary small">El documento de admisión venció{% if r.reuse_expires_at %} el {{ r.reuse_expires_at|fecha_es }}{% endif %}. El estudiante puede subir uno nuevo.</div>
+                {% endif %}
+                {% if r.note %}<div class="text-secondary small">{{ 'Motivo: ' if r.status == 'not_applicable' }}{{ r.note }}</div>{% endif %}
               </td>
               <td>
                 {% if r.submission and r.submission.file_path %}
@@ -303,7 +317,13 @@
                 {% else %}—{% endif %}
               </td>
               <td>
-                {% if r.archive.issued_by_institution %}
+                {% set _upload = r.archive.issued_by_institution and can_upload_institution and r.status != 'not_applicable' %}
+                {% set _na = can_override and r.status in ('missing', 'pending', 'rejected', 'reused_expired', 'institution_pending') %}
+                {% set _accept = can_override and r.status == 'reused_expired' %}
+                {% set _undo = can_override and r.overrides %}
+                {% if _upload or _na or _accept or _undo %}
+                <div class="conclusion-actions">
+                  {% if _upload %}
                   <form class="conclusion-actions" hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/upload"
                         hx-target="{{ _T }}" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-history="false">
                     {{ hidden_program() }}
@@ -314,6 +334,58 @@
                       <i class="bi bi-upload me-1" aria-hidden="true"></i>{{ 'Reemplazar' if r.status == 'institution_done' else 'Cargar' }}
                     </button>
                   </form>
+                  {% endif %}
+                  {% if _accept %}
+                  <form class="conclusion-actions__waive" id="acceptExpired-{{ r.archive.uuid }}"
+                        hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/override"
+                        hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                        hx-confirm="¿Aceptar «{{ r.archive.name }}» con la vigencia vencida?"
+                        data-confirm-title="Aceptar vigencia vencida" data-confirm-type="warning"
+                        data-confirm-label="Sí, aceptar">
+                    {{ hidden_program() }}
+                    <input type="hidden" name="kind" value="accept_expired">
+                    <label class="visually-hidden" for="acceptExpiredReason-{{ r.archive.uuid }}">Motivo para aceptar la vigencia vencida</label>
+                    <input type="text" class="form-control form-control-sm tap-target" id="acceptExpiredReason-{{ r.archive.uuid }}"
+                           name="reason" placeholder="Motivo" required aria-required="true">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm tap-target">
+                      <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Aceptar vigencia vencida
+                    </button>
+                  </form>
+                  {% endif %}
+                  {% if _na %}
+                  <form class="conclusion-actions__waive" id="notApplicable-{{ r.archive.uuid }}"
+                        hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/override"
+                        hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                        hx-confirm="¿Marcar «{{ r.archive.name }}» como «no aplica» para este estudiante?"
+                        data-confirm-title="Requisito no aplica" data-confirm-type="warning"
+                        data-confirm-label="Sí, no aplica">
+                    {{ hidden_program() }}
+                    <input type="hidden" name="kind" value="not_applicable">
+                    <label class="visually-hidden" for="notApplicableReason-{{ r.archive.uuid }}">Motivo por el que no aplica</label>
+                    <input type="text" class="form-control form-control-sm tap-target" id="notApplicableReason-{{ r.archive.uuid }}"
+                           name="reason" placeholder="Motivo" required aria-required="true">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm tap-target">
+                      <i class="bi bi-slash-circle me-1" aria-hidden="true"></i>No aplica
+                    </button>
+                  </form>
+                  {% endif %}
+                  {% if _undo %}
+                    {% for kind in r.overrides %}
+                    <form id="overrideRemove-{{ kind }}-{{ r.archive.uuid }}"
+                          hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/override/remove"
+                          hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                          hx-confirm="¿Retirar la decisión sobre «{{ r.archive.name }}»?"
+                          data-confirm-title="Retirar decisión" data-confirm-type="warning"
+                          data-confirm-label="Sí, retirar">
+                      {{ hidden_program() }}
+                      <input type="hidden" name="kind" value="{{ kind }}">
+                      <button type="submit" class="btn btn-outline-danger btn-sm tap-target">
+                        <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>{{ 'Deshacer «no aplica»' if kind == 'not_applicable' else 'Retirar aceptación de vigencia' }}
+                      </button>
+                    </form>
+                    {% endfor %}
+                  {% endif %}
+                </div>
                 {% else %}—{% endif %}
               </td>
             </tr>

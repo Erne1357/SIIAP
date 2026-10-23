@@ -286,6 +286,21 @@
     </section>
     {% endif %}
 
+    {# — Documentos de admisión con prórroga (decisión 5, fase 6C) — #}
+    {% if up and up.id and extension_docs %}
+    <section class="card mb-4" aria-labelledby="extensionDocsTitle">
+      <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+        <i class="bi bi-hourglass-split text-warning-strong" aria-hidden="true"></i>
+        <h2 class="h6 mb-0 fw-bold" id="extensionDocsTitle">Documentos de admisión con prórroga</h2>
+      </div>
+      <div class="card-body" aria-live="polite">
+        <div id="extensionDocs">
+          {% include 'user/dashboard/_partials/_extension_docs.html' %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
     {# — Pago de inscripción semestral — #}
     {% if up and up.id %}
     <section class="card mb-4" id="cardEnrollmentPayment" aria-labelledby="enrollmentPaymentTitle">

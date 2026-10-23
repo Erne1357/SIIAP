@@ -36,4 +36,5 @@ from .course_enrollment import CourseEnrollment
 from .grade_correction import GradeCorrection
 from .thesis import Thesis, ThesisMember
 from .admission_condition import AdmissionCondition
+from .conclusion_requirement_override import ConclusionRequirementOverride
 from .grade_exam import GradeExam

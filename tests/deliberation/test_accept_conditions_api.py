@@ -29,6 +29,6 @@ def test_unknown_condition_requirement_is_a_spanish_400(app, login):
     assert res.status_code == 400
     body = res.get_json()
     assert body['error']['code'] == 'BUSINESS_ERROR'
-    assert body['error']['message'] == 'El requisito de conclusión indicado no existe.'
+    assert body['error']['message'] ==         'El requisito de conclusión indicado no existe en el programa del aspirante.'
     db.session.expire_all()
     assert db.session.get(UserProgram, up.id).admission_status == 'deliberation'

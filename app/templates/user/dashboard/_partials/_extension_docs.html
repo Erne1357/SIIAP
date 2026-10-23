@@ -1,0 +1,50 @@
+{#
+  Documentos de admisión con prórroga (decisión 5, fase 6C): el estudiante
+  inscrito los ve y los sube aquí. Con la prórroga vencida sin entregar no
+  puede reinscribirse al siguiente semestre.
+  Contexto explícito: up (UserProgram), extension_docs
+  (admission_debt_service.pending_extension_documents). Se envía a #extensionDocs.
+#}
+{% from '_macros.html' import status_badge %}
+{% set _overdue = extension_docs|selectattr('overdue')|list %}
+{% if _overdue %}
+  <div class="alert alert-danger mb-3" role="alert">
+    <i class="bi bi-exclamation-octagon me-1" aria-hidden="true"></i>
+    Tu prórroga venció. No podrás reinscribirte al siguiente semestre hasta entregar
+    {{ 'este documento' if _overdue|length == 1 else 'estos documentos' }}.
+  </div>
+{% endif %}
+<ul class="list-unstyled mb-0 d-flex flex-column gap-3">
+  {% for d in extension_docs %}
+    {% set sub = d.submission %}
+    <li id="extensionDoc-{{ d.archive.uuid }}">
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+        <strong>{{ d.archive.name }}</strong>
+        {% if sub and sub.status in ('pending', 'review') %}
+          {{ status_badge('review', 'En revisión', 'sm') }}
+        {% elif sub and sub.status == 'rejected' %}
+          {{ status_badge('rejected', 'Rechazado', 'sm') }}
+        {% elif d.overdue %}
+          {{ status_badge('rejected', 'Prórroga vencida', 'sm') }}
+        {% else %}
+          {{ status_badge('pending', 'Con prórroga', 'sm') }}
+        {% endif %}
+        <span class="text-secondary small">Prórroga hasta el {{ d.granted_until|fecha_es }}</span>
+      </div>
+      <form class="d-flex flex-wrap gap-2 align-items-center" method="post"
+            action="{{ url_for('pages_user.upload_extension_document', archive_uuid=d.archive.uuid) }}"
+            enctype="multipart/form-data"
+            hx-post="{{ url_for('pages_user.upload_extension_document', archive_uuid=d.archive.uuid) }}"
+            hx-target="#extensionDocs" hx-swap="innerHTML"
+            hx-encoding="multipart/form-data" hx-history="false">
+        <input type="hidden" name="user_program" value="{{ up.id }}">
+        <label class="visually-hidden" for="extDocFile-{{ d.archive.uuid }}">Archivo para {{ d.archive.name }} (PDF)</label>
+        <input type="file" class="form-control form-control-sm w-sm-auto tap-target" id="extDocFile-{{ d.archive.uuid }}"
+               name="file" accept="application/pdf,.pdf" required aria-required="true">
+        <button type="submit" class="btn btn-sm btn-primary tap-target">
+          <i class="bi bi-upload me-1" aria-hidden="true"></i>{{ 'Reemplazar' if sub and sub.status in ('pending', 'review') else 'Subir' }}
+        </button>
+      </form>
+    </li>
+  {% endfor %}
+</ul>

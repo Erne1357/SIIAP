@@ -1,7 +1,7 @@
 """Coordinator dashboard: real conclusion progress + condition requirement options."""
 
 from app import db
-from app.models import Archive, Phase, Step
+from app.models import Archive, Phase, ProgramStep, Step
 from app.services import coordinator_service, deliberation_service
 from tests.support.factories import enroll, make_program, make_user
 
@@ -51,14 +51,17 @@ def test_list_conclusion_requirements_only_conclusion_keys(app):
     step = Step(name='s', description='s', phase_id=phase.id)
     db.session.add(step)
     db.session.flush()
+    program = make_program(make_user('program_admin'))
+    db.session.add(ProgramStep(sequence=1, program_id=program.id, step_id=step.id))
     for name, key in (('Título previo', 'conclusion_previous_degree'),
                       ('Otro', 'admission_english_ms'), ('Sin clave', None)):
         a = Archive(name=name, description=name, file_path=None, step_id=step.id)
         a.archive_key = key
         db.session.add(a)
     db.session.commit()
-    assert deliberation_service.list_conclusion_requirements() == [
-        {'key': 'conclusion_previous_degree', 'name': 'Título previo'}]
+    # Per program (the acceptance modal is per applicant).
+    assert deliberation_service.list_conclusion_requirements([program.id]) == {program.id: [
+        {'key': 'conclusion_previous_degree', 'name': 'Título previo'}]}
 
 
 def test_summary_relevance_is_status_or_thesis_not_phase(app):

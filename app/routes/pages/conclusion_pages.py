@@ -41,10 +41,12 @@ def _selected_link(options: list):
 
 def _context(up) -> dict:
     """Everything the requirements fragment and the page need for one link."""
-    graduated = svc.effective_status(up) == status_svc.GRADUATED
+    status = svc.effective_status(up)
     return {
         'up': up,
-        'graduated': graduated,
+        # Uploads open only while graduated; titled is read-only.
+        'graduated': status == status_svc.GRADUATED,
+        'titled': status == status_svc.TITLED,
         'requirements': svc.requirements(up),
     }
 

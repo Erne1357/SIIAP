@@ -1,9 +1,11 @@
 # app/routes/pages/users_pages.py
-from flask import Blueprint, render_template, request
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required, current_user
+from app.services import admission_debt_service
 from app.services.admission_service import get_admission_state
 from app.services.dashboard_service import DashboardService
-from app.utils.htmx import is_htmx, render_fragment
+from app.utils.htmx import hx_flash, is_htmx, render_fragment
+from app.utils.permissions import permission_required
 
 pages_user = Blueprint("pages_user", __name__, url_prefix="/user")
 
@@ -30,6 +32,27 @@ def events_widget():
         "partials/_events_widget_body.html",
         events_widget=DashboardService.events_widget_for(current_user),
     )
+
+
+@pages_user.route("/dashboard/extension-documents/<uuid:archive_uuid>", methods=["POST"])
+@login_required
+@permission_required('submissions.api.create')
+def upload_extension_document(archive_uuid):
+    """Enrolled student uploads an admission document covered by an extension."""
+    up_id = request.form.get('user_program', type=int)
+    up = next((u for u in (current_user.user_program or []) if u.id == up_id), None)
+    if up is None:
+        abort(404)
+    admission_debt_service.upload_extension_document(
+        current_user, up.id, archive_uuid, request.files.get('file'))
+    message = 'Documento enviado. Quedó pendiente de revisión.'
+    if not is_htmx():
+        flash(message, 'success')
+        return redirect(url_for('pages_user.dashboard'))
+    response = render_fragment(
+        'user/dashboard/_partials/_extension_docs.html', up=up,
+        extension_docs=admission_debt_service.pending_extension_documents(up))
+    return hx_flash(response, 'success', message)
 
 
 @pages_user.route("/profile/summary", methods=["GET"])

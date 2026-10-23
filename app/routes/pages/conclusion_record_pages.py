@@ -84,11 +84,21 @@ def _fragment(user: User, up=None):
     if up is not None:
         status = svc.effective_status(up)
         exam = svc.current_exam(up)
+        read_only = svc.is_read_only(up)
+        can_edit_thesis = status in svc.THESIS_STATUSES
+        # Each flag mirrors the service refusal, so no form is offered that
+        # the service would reject (titled / withdrawn files are read-only).
         ctx.update(
             academic_status=status,
             status_label=status_svc.STATUS_LABELS_ES.get(status, status or '—'),
             thesis=svc.get_thesis(up),
-            can_edit_thesis=status in svc.THESIS_STATUSES,
+            read_only=read_only,
+            can_edit_thesis=can_edit_thesis,
+            can_edit_members={'tutorial': can_edit_thesis,
+                              'exam': can_edit_thesis and exam is None},
+            can_manage_conditions=not read_only,
+            can_override=not read_only,
+            can_upload_institution=status in svc.INSTITUTION_UPLOAD_STATUSES,
             teachers=teacher_service.teacher_choices(),
             member_roles=MEMBER_ROLES,
             role_labels=svc.ROLE_LABELS_ES,
@@ -213,6 +223,34 @@ def record_conclusion_requirement_upload(user_uuid, archive_uuid):
     up = _resolve(user, 'conclusion_upload')
     svc.upload_institution_document(current_user, up, archive_uuid, request.files.get('file'))
     return _done(user, up, 'Documento cargado.')
+
+
+@pages_conclusion_record.route(_BASE + '/requirements/<uuid:archive_uuid>/override',
+                               methods=['POST'])
+@login_required
+@permission_required('students.page.view_record')
+@permission_required('conclusion.page.manage')
+def record_conclusion_requirement_override(user_uuid, archive_uuid):
+    """Mark a requirement «no aplica», or accept an expired reused document (reason)."""
+    user = _load_target_or_404(user_uuid, 'conclusion_override')
+    up = _resolve(user, 'conclusion_override')
+    kind = _text('kind')
+    svc.set_requirement_override(current_user, up.id, archive_uuid, kind, _text('reason'))
+    return _done(user, up, 'Requisito marcado como «no aplica».' if kind == 'not_applicable'
+                 else 'Vigencia vencida aceptada.')
+
+
+@pages_conclusion_record.route(_BASE + '/requirements/<uuid:archive_uuid>/override/remove',
+                               methods=['POST'])
+@login_required
+@permission_required('students.page.view_record')
+@permission_required('conclusion.page.manage')
+def record_conclusion_requirement_override_remove(user_uuid, archive_uuid):
+    """Undo «no aplica» or the acceptance of an expired document."""
+    user = _load_target_or_404(user_uuid, 'conclusion_override_remove')
+    up = _resolve(user, 'conclusion_override_remove')
+    svc.remove_requirement_override(current_user, up.id, archive_uuid, _text('kind'))
+    return _done(user, up, 'Decisión retirada.')
 
 
 @pages_conclusion_record.route(_BASE + '/exam', methods=['POST'])

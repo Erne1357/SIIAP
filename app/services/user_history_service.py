@@ -1105,6 +1105,8 @@ class UserHistoryService:
         'grade_exam_scheduled': 'Agendó el examen de grado',
         'grade_exam_recorded': 'Registró el resultado del examen de grado',
         'grade_exam_cancelled': 'Canceló el examen de grado',
+        'conclusion_requirement_override_set': 'Marcó un requisito de conclusión como «no aplica» o aceptó una vigencia vencida',
+        'conclusion_requirement_override_removed': 'Deshizo «no aplica» o la aceptación de vigencia vencida de un requisito de conclusión',
 
         # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
         'semester_advanced': 'Avanzó al siguiente semestre',

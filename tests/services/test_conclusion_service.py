@@ -234,9 +234,13 @@ def test_requirements_states_and_reuse(ctx):
 
 
 def test_pending_condition_blocks_reuse(ctx):
-    _submit(ctx.up, ctx.title_ms)
+    # The condition exists before the admission title is approved (a condition
+    # created against an already satisfied requirement is born met).
     cond = svc.create_condition(ctx.coordinator, ctx.up.id, 'Entregar título',
                                 archive_uuid=ctx.prev_degree.uuid)
+    assert cond.status == 'pending'
+    _submit(ctx.up, ctx.title_ms)
+    db.session.commit()
     items = _by_key(svc.requirements(ctx.up))
     assert items['conclusion_previous_degree']['status'] == 'missing'
     assert items['conclusion_previous_degree']['blocked_by_condition']

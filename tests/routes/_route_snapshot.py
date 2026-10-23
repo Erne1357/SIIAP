@@ -369,4 +369,7 @@ KNOWN_ROUTES = frozenset({
     'POST /students/<uuid:user_uuid>/record/conclusion/requirements/<uuid:archive_uuid>/upload',
     'POST /students/<uuid:user_uuid>/record/conclusion/revert-titled',
     'POST /students/<uuid:user_uuid>/record/conclusion/thesis',
+    'POST /students/<uuid:user_uuid>/record/conclusion/requirements/<uuid:archive_uuid>/override',
+    'POST /students/<uuid:user_uuid>/record/conclusion/requirements/<uuid:archive_uuid>/override/remove',
+    'POST /user/dashboard/extension-documents/<uuid:archive_uuid>',
 })

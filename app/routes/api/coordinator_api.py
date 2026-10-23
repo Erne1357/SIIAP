@@ -647,6 +647,10 @@ def get_student_details(student_uuid):
 
 def _determine_current_phase(admission_state, user_program, perm):
     """Determina la fase actual del estudiante."""
+    # Egresados y titulados están en conclusión, sin importar los semestres
+    # contados (el egreso se registra en academic_status).
+    if user_program.academic_status in ('graduated', 'titled'):
+        return "conclusion"
     # Estudiantes con número de control = ya están en permanencia o conclusión
     if user_program.admission_status == 'enrolled':
         if perm["completed_semesters"] >= perm["total_semesters"]:

@@ -136,9 +136,15 @@ class DashboardService:
         except Exception:
             events_widget = None
 
+        # Admission documents still owed under an extension (phase 6C, decision 5).
+        from app.services import admission_debt_service
+        extension_docs = (admission_debt_service.pending_extension_documents(up)
+                          if up and up.admission_status == 'enrolled' else [])
+
         return {
             'program': program,
             'up': up,
+            'extension_docs': extension_docs,
             'academic_load': DashboardService.academic_load_for(user, up),
             'permanence_data': permanence_data,
             'pending_admission_docs': pending_admission_docs,
