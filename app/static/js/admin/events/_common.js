@@ -9,22 +9,20 @@
     }
 
     function getCsrfToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        return meta ? meta.getAttribute('content') : '';
+        return window.SIIAP.api.csrfToken();
     }
 
     /**
      * Pulls a readable Spanish message out of ANY body this API may answer.
      *
-     * The scope work moved the envelope's `error` from a bare string to an
-     * object `{code, message}` (see `_deny` in events_api.py / attendance_api.py),
-     * while older endpoints still answer with the string. Reading `data.error`
-     * straight into `new Error()` stringifies the object, so a coordinator who
-     * touched an event outside their scope got the toast
+     * The standard envelope carries `error` as an object `{code, message}`,
+     * while a few legacy endpoints still answer with a bare string. Reading
+     * `data.error` straight into `new Error()` stringifies the object, so a
+     * coordinator who touched an event outside their scope would get the toast
      * «Error: [object Object]» instead of the reason.
      *
      * Shapes handled, in order of preference:
-     *   {error: {code, message}}       -> message   (current envelope)
+     *   {error: {code, message}}       -> message   (standard envelope)
      *   {error: "texto"}               -> texto     (legacy endpoints)
      *   {message: "texto"}             -> texto
      *   {flash: [{level, message}]}    -> message   (flash array)
@@ -56,35 +54,79 @@
         return fallback;
     }
 
+    /**
+     * Fetches `url` and returns `{response, body}` with the parsed JSON body.
+     * Throws on HTML answers (permission redirects) and unparseable bodies;
+     * judging the status / `error` is left to the caller.
+     */
+    async function fetchJson(url, options = {}) {
+        const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+                          ...options.headers };
+        const r = await window.SIIAP.api.request(options.method || 'GET', url, {
+            body: options.body,
+            headers,
+            signal: options.signal,
+            flash: false,          // callers show their own messages
+            onUnauthorized: false
+        });
+        if (r.contentType.includes('text/html')) {
+            throw new Error('No tienes permisos para realizar esta acción');
+        }
+        if (r.body === null) {
+            throw new Error('Error al procesar la respuesta del servidor');
+        }
+        // Response-like view for the callers that read `.ok` / `.status`.
+        const response = { ok: r.status >= 200 && r.status < 300, status: r.status };
+        return { response, body: r.body };
+    }
+
+    /**
+     * Raw request: resolves with `{response, data}` where `data` is the whole
+     * parsed body. Use it for endpoints whose callers read the body as-is
+     * (e.g. `data.data.students`); use `apiData` for the standard envelope.
+     */
     async function apiRequest(url, options = {}) {
-        const defaultOptions = {
-            credentials: "same-origin",
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken(),
-                ...options.headers
-            }
-        };
-        const finalOptions = { ...defaultOptions, ...options };
         try {
-            const response = await fetch(url, finalOptions);
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('text/html')) {
-                throw new Error('No tienes permisos para realizar esta acción');
-            }
-            let data;
-            try {
-                data = await response.json();
-            } catch (jsonError) {
-                throw new Error('Error al procesar la respuesta del servidor');
-            }
+            const { response, body: data } = await fetchJson(url, options);
             if (!response.ok) {
                 throw new Error(errorMessage(data, `Error HTTP ${response.status}`));
             }
-            if (data.ok === false) {
+            if (data.ok === false || (data.error && typeof data.error === 'object')) {
                 throw new Error(errorMessage(data, 'Operación fallida'));
             }
             return { response, data };
+        } catch (error) {
+            console.error('API Request Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Envelope-aware request for the standard `{data, error, meta, flash}`
+     * body. Resolves with `{response, data, meta, flash}` where `data` is the
+     * envelope's `data` (never null: `{}` when the server sent none), so
+     * callers read `data.<key>` directly. Throws `Error(error.message)` on any
+     * failure.
+     *
+     * The one 4xx that resolves: a 409 whose `data.requires_force` is true
+     * (deleting an event / window / slot that still has booked appointments).
+     * The caller shows `data.message` in a confirmation and repeats the call
+     * with `?force=true`.
+     */
+    async function apiData(url, options = {}) {
+        try {
+            const { response, body } = await fetchJson(url, options);
+            const payload = (body && typeof body === 'object' && 'data' in body) ? body.data : null;
+            if (!response.ok) {
+                if (payload && payload.requires_force) {
+                    return { response, data: payload, meta: body.meta || {}, flash: body.flash || [] };
+                }
+                throw new Error(errorMessage(body, `Error HTTP ${response.status}`));
+            }
+            if (body && body.error) {
+                throw new Error(errorMessage(body, 'Operación fallida'));
+            }
+            return { response, data: payload || {}, meta: body.meta || {}, flash: body.flash || [] };
         } catch (error) {
             console.error('API Request Error:', error);
             throw error;
@@ -181,6 +223,7 @@
         flash,
         getCsrfToken,
         apiRequest,
+        apiData,
         errorMessage,
         TYPE_LABEL,
         TYPE_ICON,

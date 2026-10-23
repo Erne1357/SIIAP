@@ -13,18 +13,17 @@
   }
 
   function toast(level, message) {
-    if (typeof showFlash === 'function') showFlash(level, message);
+    window.SIIAP.flash(level, message);
   }
 
-  // Estrategia: reload tras toast con delay largo (3s) para no interrumpir al
-  // admin si está navegando pestañas. Eventos a escuchar son los que llegan a
-  // role:coordinator (nuevas submissions, aceptación, deliberación).
-  let reloadScheduled = false;
+  // Estrategia: toast + refresco in situ del cuerpo del dashboard (htmx sobre
+  // #dashboard-content; hx-sync deduplica ráfagas y el morph conserva scroll y
+  // foco). Eventos a escuchar son los que llegan a role:coordinator (nuevas
+  // submissions, aceptación, deliberación).
   function scheduleReload(msg) {
-    if (reloadScheduled) return;
-    reloadScheduled = true;
     toast('info', msg);
-    setTimeout(() => { window.location.reload(); }, 3000);
+    const el = document.getElementById('dashboard-content');
+    if (el && window.htmx) window.htmx.trigger(el, 'siiap:dashboard:refresh');
   }
 
   function init() {

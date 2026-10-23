@@ -30,6 +30,7 @@ import io
 
 from flask import Blueprint, jsonify, request, Response
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required
 from app.services import program_scope_service as scope_service
 import app.services.student_bulk_service as svc
@@ -85,11 +86,7 @@ def api_validate_individual():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            'data': None,
-            'error': {'code': 'SERVER_ERROR', 'message': str(e)},
-            'meta': {},
-        }), 500
+        return api_server_error(e, context='api_validate_individual')
 
 
 # ---------------------------------------------------------------------------
@@ -136,12 +133,7 @@ def api_create_individual():
         }), 400
 
     except Exception as e:
-        return jsonify({
-            'data': None,
-            'flash': [{'level': 'danger', 'message': 'Error al crear el estudiante.'}],
-            'error': {'code': 'SERVER_ERROR', 'message': str(e)},
-            'meta': {},
-        }), 500
+        return api_server_error(e, context='api_create_individual')
 
 
 # ---------------------------------------------------------------------------
@@ -203,12 +195,7 @@ def api_csv_preview():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            'data': None,
-            'flash': [{'level': 'danger', 'message': 'Error al procesar el CSV.'}],
-            'error': {'code': 'SERVER_ERROR', 'message': str(e)},
-            'meta': {},
-        }), 500
+        return api_server_error(e, context='api_csv_preview')
 
 
 # ---------------------------------------------------------------------------
@@ -264,12 +251,7 @@ def api_csv_execute():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            'data': None,
-            'flash': [{'level': 'danger', 'message': 'Error al ejecutar el CSV.'}],
-            'error': {'code': 'SERVER_ERROR', 'message': str(e)},
-            'meta': {},
-        }), 500
+        return api_server_error(e, context='api_csv_execute')
 
 
 # ---------------------------------------------------------------------------
@@ -292,8 +274,4 @@ def api_csv_template():
             },
         )
     except Exception as e:
-        return jsonify({
-            'data': None,
-            'error': {'code': 'SERVER_ERROR', 'message': str(e)},
-            'meta': {},
-        }), 500
+        return api_server_error(e, context='api_csv_template')

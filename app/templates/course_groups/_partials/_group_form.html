@@ -1,0 +1,86 @@
+{#
+  Modal de alta / edición de grupo (incluye "Nuevo docente").
+
+  Contexto explícito: modal_id, form_action (URL del POST), form_group (CourseGroup
+  o none), program, period, periods, subjects ([{id, label}]), teachers.
+  El permiso `teachers.page.create` se consulta con current_user para mostrar el alta.
+#}
+{% from '_macros.html' import modal_shell, required_mark %}
+{% call(section) modal_shell(modal_id, 'Editar grupo' if form_group else 'Nuevo grupo',
+                             icon='people', scrollable=true) %}
+  {% if section == 'body' %}
+    <form id="courseGroupForm" hx-post="{{ form_action }}" hx-target="#courseLoadRoot"
+          hx-swap="innerHTML" hx-history="false">
+      <div class="mb-3">
+        <label class="form-label" for="groupSubject">Materia{{ required_mark() }}</label>
+        <select class="form-select tap-target" id="groupSubject" name="subject_id" required>
+          <option value="">Elige una materia</option>
+          {% for s in subjects %}
+            <option value="{{ s.id }}" {{ 'selected' if form_group and form_group.subject_id == s.id }}>{{ s.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="groupPeriod">Periodo{{ required_mark() }}</label>
+        <select class="form-select tap-target" id="groupPeriod" name="academic_period_id" required>
+          {% for p in periods %}
+            <option value="{{ p.id }}" {{ 'selected' if (form_group.academic_period_id if form_group else period.id) == p.id }}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label" for="groupCode">Grupo{{ required_mark() }}</label>
+          <input class="form-control tap-target" id="groupCode" name="group_code" maxlength="10"
+                 value="{{ form_group.group_code if form_group else '' }}" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label" for="groupCapacity">Cupo{{ required_mark() }}</label>
+          <input class="form-control tap-target" id="groupCapacity" name="capacity" type="number"
+                 min="1" max="500" value="{{ form_group.capacity if form_group else '' }}" required>
+        </div>
+      </div>
+      {% set selected_id = form_group.teacher_id if form_group else none %}
+      {% include 'course_groups/_partials/_teacher_select.html' with context %}
+      <div class="mb-3">
+        <label class="form-label" for="groupLocation">Lugar</label>
+        <input class="form-control tap-target" id="groupLocation" name="location" maxlength="120"
+               value="{{ form_group.location or '' if form_group else '' }}">
+      </div>
+      <div class="mb-0">
+        <label class="form-label" for="groupSchedule">Horario</label>
+        <textarea class="form-control" id="groupSchedule" name="schedule" rows="2"
+                  placeholder="Lunes y miércoles 10:00–12:00">{{ form_group.schedule or '' if form_group else '' }}</textarea>
+      </div>
+    </form>
+
+    {% if current_user.has_permission('teachers.page.create') %}
+      <hr>
+      <h3 class="h6">¿No está en la lista? Da de alta a un docente</h3>
+      <form id="courseTeacherForm" hx-post="{{ url_for('pages_course_groups.create_teacher') }}"
+            hx-target="#groupTeacherField" hx-swap="outerHTML" hx-history="false">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label" for="teacherFirstName">Nombre</label>
+            <input class="form-control tap-target" id="teacherFirstName" name="first_name" maxlength="100" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="teacherLastName">Apellido</label>
+            <input class="form-control tap-target" id="teacherLastName" name="last_name" maxlength="100" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="teacherEmail">Correo</label>
+            <input class="form-control tap-target" id="teacherEmail" name="email" type="email" maxlength="120" required>
+          </div>
+        </div>
+        <button class="btn btn-outline-primary tap-target mt-2" type="submit">
+          <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Dar de alta y seleccionar
+        </button>
+        <p class="form-text mb-0">Recibirá un correo con el enlace para crear su contraseña.</p>
+      </form>
+    {% endif %}
+  {% elif section == 'footer' %}
+    <button type="button" class="btn btn-outline-secondary tap-target" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-primary tap-target" form="courseGroupForm">Guardar grupo</button>
+  {% endif %}
+{% endcall %}

@@ -19,6 +19,12 @@ Alcance (permiso ≠ alcance):
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
+from app.services.errors import DomainError
+from app.utils.validation import parse_json, parse_model
+from app.schemas.deliberation import (
+    AcceptApplicantIn, RejectApplicantIn, ResetApplicantIn, ForceResetIn,
+)
 from app.utils.permissions import (
     permission_required,
     program_scope_required,
@@ -91,12 +97,11 @@ def api_get_applicants_for_deliberation(program_id):
             "meta": {"count": len(data)}
         }), 200
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_applicants_for_deliberation')
 
 
 @api_deliberation.get('/program/<int:program_id>/stats')
@@ -114,12 +119,11 @@ def api_get_deliberation_stats(program_id):
             "meta": {}
         }), 200
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_deliberation_stats')
 
 
 @api_deliberation.get('/program/<int:program_id>/by-status/<string:status>')
@@ -160,12 +164,11 @@ def api_get_applicants_by_status(program_id, status):
             "meta": {"count": len(data)}
         }), 200
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_applicants_by_status')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/interview-completed')
@@ -204,13 +207,11 @@ def api_mark_interview_completed(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al marcar entrevista"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_mark_interview_completed')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/start')
@@ -249,13 +250,11 @@ def api_start_deliberation(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al iniciar deliberacion"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_start_deliberation')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/accept')
@@ -271,20 +270,20 @@ def api_accept_applicant(user_uuid, program_id):
 
     is_multipart = request.content_type and request.content_type.startswith('multipart/')
     if is_multipart:
-        notes = request.form.get('notes')
-        is_conditional = str(request.form.get('is_conditional', '')).lower() in ('true', '1', 'yes', 'on')
+        body = parse_model(AcceptApplicantIn, request.form.to_dict(flat=True))
         dictamen_file = request.files.get('dictamen_file')
     else:
-        data = request.get_json() or {}
-        notes = data.get('notes')
-        is_conditional = bool(data.get('is_conditional', False))
+        body = parse_json(AcceptApplicantIn)
         dictamen_file = None
+    notes = body.notes
+    is_conditional = body.is_conditional
 
     try:
         up = svc.accept_applicant(
             user_id, program_id, current_user.id, notes,
             is_conditional=is_conditional,
             dictamen_file=dictamen_file,
+            conditions=body.conditions,
         )
 
         success_msg = (
@@ -315,13 +314,11 @@ def api_accept_applicant(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al aceptar aspirante"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_accept_applicant')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/reject')
@@ -334,14 +331,14 @@ def api_reject_applicant(user_uuid, program_id):
     if user_id is None:
         return _applicant_not_found()
 
-    data = request.get_json() or {}
-    rejection_type = data.get('rejection_type', 'full')
-    notes = data.get('notes')
+    data = parse_json(RejectApplicantIn)
+    rejection_type = data.rejection_type
+    notes = data.notes
     # `correction_required` puede ser un JSON {archive_id, archive_name, notes}.
     # El cliente manda el UUID público del Archive; la columna guarda el id
     # interno, como todo lo persistido.
     correction_required = public_id_service.correction_required_to_internal(
-        data.get('correction_required')
+        data.correction_required
     )
 
     try:
@@ -385,13 +382,11 @@ def api_reject_applicant(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al rechazar aspirante"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reject_applicant')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/reset')
@@ -404,8 +399,7 @@ def api_reset_applicant(user_uuid, program_id):
     if user_id is None:
         return _applicant_not_found()
 
-    data = request.get_json() or {}
-    reason = data.get('reason')
+    reason = parse_json(ResetApplicantIn).reason
 
     try:
         up = svc.reset_to_in_progress(user_id, program_id, current_user.id, reason)
@@ -433,13 +427,11 @@ def api_reset_applicant(user_uuid, program_id):
             "meta": {}
         }), 400
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al reiniciar estado"}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reset_applicant')
 
 
 @api_deliberation.get('/program/<int:program_id>/pending-interview')
@@ -471,12 +463,11 @@ def api_get_applicants_pending_interview(program_id):
             "meta": {"count": len(data)}
         }), 200
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_applicants_pending_interview')
 
 
 @api_deliberation.get('/user/<uuid:user_uuid>/program/<int:program_id>/status')
@@ -555,12 +546,11 @@ def api_get_user_deliberation_status(user_uuid, program_id):
             "meta": {}
         }), 404
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_user_deliberation_status')
 
 
 @api_deliberation.get('/program/<int:program_id>/admission-archives')
@@ -570,25 +560,7 @@ def api_get_user_deliberation_status(user_uuid, program_id):
 def api_get_program_admission_archives(program_id):
     """Obtiene los archivos uploadables de la fase de admisión de un programa (para rechazo parcial)."""
     try:
-        from app.models import Step, ProgramStep, Phase
-        from app.models.archive import Archive
-        from sqlalchemy import and_
-
-        archives = (
-            Archive.query
-            .join(Step, Archive.step_id == Step.id)
-            .join(ProgramStep, Step.id == ProgramStep.step_id)
-            .join(Phase, Step.phase_id == Phase.id)
-            .filter(
-                and_(
-                    ProgramStep.program_id == program_id,
-                    Phase.name == 'admission',
-                    Archive.is_uploadable == True  # noqa: E712
-                )
-            )
-            .order_by(ProgramStep.sequence, Archive.id)
-            .all()
-        )
+        archives = svc.list_admission_archives(program_id)
 
         # `id` is the Archive's public UUID handle — the frontend posts it
         # back in `correction_required`, so it must not be the integer.
@@ -600,12 +572,11 @@ def api_get_program_admission_archives(program_id):
             "meta": {"count": len(data)}
         }), 200
 
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
     except Exception as e:
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_get_program_admission_archives')
 
 
 @api_deliberation.post('/user/<uuid:user_uuid>/program/<int:program_id>/force-reset')
@@ -618,8 +589,7 @@ def api_force_reset_applicant(user_uuid, program_id):
     if user_id is None:
         return _applicant_not_found()
 
-    data = request.get_json() or {}
-    reason = data.get('reason', 'Reinicio administrativo')
+    reason = parse_json(ForceResetIn).reason
 
     try:
         up = svc.force_reset_applicant(user_id, program_id, current_user.id, reason)
@@ -639,10 +609,16 @@ def api_force_reset_applicant(user_uuid, program_id):
             "meta": {}
         }), 404
 
-    except Exception as e:
+    except svc.InvalidStateTransition as e:
         return jsonify({
             "data": None,
-            "flash": [{"level": "danger", "message": str(e)}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
+            "flash": [{"level": "warning", "message": str(e)}],
+            "error": {"code": "BUSINESS_ERROR", "message": str(e)},
             "meta": {}
-        }), 500
+        }), 400
+
+    except DomainError:
+        raise  # the app-level handler renders it (400/404/409)
+
+    except Exception as e:
+        return api_server_error(e, context='api_force_reset_applicant')

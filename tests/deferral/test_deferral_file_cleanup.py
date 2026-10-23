@@ -42,8 +42,8 @@ class DeferralFileCleanupTest(unittest.TestCase):
         self.period = make_period(code='20261')
         today = date.today()
         self.next_period = AcademicPeriod(
-            code='20262',
-            name='Period 20262',
+            code='20271',
+            name='Period 20271',
             start_date=today + timedelta(days=150),
             end_date=today + timedelta(days=300),
             admission_start_date=today + timedelta(days=120),

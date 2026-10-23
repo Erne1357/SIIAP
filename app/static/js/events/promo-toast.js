@@ -37,9 +37,9 @@
         if (sessionStorage.getItem(SESSION_KEY) === '1') return;
 
         try {
-            const res = await fetch(ENDPOINT, { credentials: 'same-origin' });
+            const res = await window.SIIAP.api.get(ENDPOINT, { flash: false });
             if (!res.ok) return;
-            const body = await res.json();
+            const body = res.body;
             const count = Number(body?.data?.count || 0);
             if (count <= 0) return;
 

@@ -72,8 +72,8 @@ class TestEventHostsApi(unittest.TestCase):
         resp = self.client.get(f'/api/v1/events/{self.ev.id}/hosts')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertEqual(data['hosts'], [])
+        self.assertIsNone(data['error'])
+        self.assertEqual(data['data']['hosts'], [])
 
     def test_set_hosts_internal(self):
         resp = self._put(f'/api/v1/events/{self.ev.id}/hosts', {
@@ -81,7 +81,7 @@ class TestEventHostsApi(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['count'], 1)
+        self.assertEqual(data['data']['count'], 1)
 
     def test_set_hosts_external(self):
         resp = self._put(f'/api/v1/events/{self.ev.id}/hosts', {
@@ -96,7 +96,7 @@ class TestEventHostsApi(unittest.TestCase):
         resp = self._put(f'/api/v1/events/{self.ev.id}/hosts', {'hosts': []})
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['count'], 0)
+        self.assertEqual(data['data']['count'], 0)
 
     def test_set_hosts_invalid_data_returns_400(self):
         resp = self._put(f'/api/v1/events/{self.ev.id}/hosts', {
@@ -134,7 +134,7 @@ class TestEventHostsApi(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 201)
         result = json.loads(resp.data)
-        self.assertTrue(result['ok'])
+        self.assertIsNone(result['error'])
 
     def test_upload_host_photo_no_file_returns_400(self):
         resp = self.client.post(

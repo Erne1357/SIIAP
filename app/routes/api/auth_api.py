@@ -3,9 +3,9 @@ from flask import Blueprint, request, jsonify, session, redirect, url_for, curre
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
-from app.models.user import User
+from app.utils.api_response import api_ok, api_server_error
+from app.services import auth_service
 from app.services.auth_audit_service import AuthAuditService
-from app.services.user_history_service import UserHistoryService
 from app.utils.csrf import generate_csrf_token
 from app.utils.datetime_utils import now_local
 from app.utils.rate_limit import (
@@ -13,7 +13,6 @@ from app.utils.rate_limit import (
     client_ip,
     register_login_attempt,
 )
-from app import db
 import re
 
 api_auth_bp = Blueprint("api_auth", __name__, url_prefix="/api/v1/auth")
@@ -147,7 +146,7 @@ def api_login():
     # Throttle: this must run before the database lookup and before any
     # password hashing, so a flood costs nothing beyond a Redis round trip.
     # It COUNTS as well as decides — the count has to happen before the yield
-    # points below (Redis, User.query, scrypt), otherwise concurrent attempts
+    # points below (Redis, the user lookup, scrypt), otherwise concurrent attempts
     # for the same username all read the same pre-increment value and pass
     # together. A successful login undoes it via clear_login_failures().
     verdict = register_login_attempt(username, ip)
@@ -171,7 +170,7 @@ def api_login():
         response.headers["Retry-After"] = str(verdict.retry_after)
         return response, 429
 
-    user = User.query.filter_by(username=username).first()
+    user = auth_service.find_user_by_username(username)
 
     if user is None:
         # Unknown username: pay the hash anyway so the timing matches the
@@ -203,8 +202,7 @@ def api_login():
     # Generar token CSRF para la nueva sesión
     new_csrf_token = generate_csrf_token(force_new=True)
 
-    user.last_login = now_local()
-    db.session.commit()
+    auth_service.record_login(user)
 
     _log_login_event('login_success', username, ip, user_agent, user=user)
 
@@ -325,20 +323,10 @@ def change_password():
         }), 400
     
     # Todo OK, cambiar contraseña
-    current_user.password = generate_password_hash(new_password)
-    current_user.must_change_password = False  # Ya cambió su contraseña
-    db.session.commit()
-    
-    # Registrar en el historial
-    try:
-        UserHistoryService.log_password_change(
-            user_id=current_user.id,
-            changed_by_user=True
-        )
-        db.session.commit()
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.error(f"Error al registrar cambio de contraseña en historial: {e}")
+    # Clears must_change_password and records the change in the history.
+    auth_service.change_own_password(
+        current_user, new_password, logger=current_app.logger
+    )
     
     return jsonify({
         "data": {
@@ -393,9 +381,8 @@ def api_me():
     Incluye el flag must_change_password.
     """
     u = current_user
-    # Obtener el token CSRF actual de la sesión
-    from flask import session
-    csrf_token = session.get("_csrf_token", "")
+    # Signed CSRF token of the current session, for the client to refresh.
+    csrf_token = generate_csrf_token()
     
     return jsonify({
         "data": {
@@ -411,6 +398,27 @@ def api_me():
         "error": None, 
         "meta": {}
     }), 200
+
+
+@api_auth_bp.get("/session-status")
+@login_required
+def api_session_status():
+    """
+    Seconds of inactivity left, by the server's own record of activity.
+
+    Read-only: it does not count as activity (exempt from the session hook),
+    so an idle tab polling it can never keep the session alive. The browser
+    asks it before warning or logging out, because its own idle timer only
+    sees the events of one tab.
+    """
+    idle_limit = current_app.config.get('SESSION_IDLE_SECONDS', 15 * 60)
+    last = session.get('last_activity') or now_local().timestamp()
+    idle = max(0, now_local().timestamp() - last)
+    return api_ok({
+        'idle_seconds': int(idle),
+        'remaining_seconds': int(max(0, idle_limit - idle)),
+        'idle_limit_seconds': idle_limit,
+    })
 
 
 @api_auth_bp.get("/keepalive")
@@ -504,10 +512,8 @@ def api_reset_password(token):
     # La fortaleza la impone prs.consume_token() -> WeakPassword, que se traduce
     # abajo. No hay contraseña por defecto que bloquear.
     try:
-        user = prs.consume_token(token, new_password)
-        db.session.commit()
+        user = auth_service.reset_password_with_token(token, new_password)
     except prs.TokenNotFound as e:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": str(e)}],
@@ -515,7 +521,6 @@ def api_reset_password(token):
             "meta": {}
         }), 404
     except prs.TokenExpired as e:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "warning", "message": str(e)}],
@@ -523,7 +528,6 @@ def api_reset_password(token):
             "meta": {}
         }), 410
     except prs.TokenAlreadyUsed as e:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "warning", "message": str(e)}],
@@ -531,7 +535,6 @@ def api_reset_password(token):
             "meta": {}
         }), 410
     except prs.WeakPassword as e:
-        db.session.rollback()
         return jsonify({
             "data": None,
             "flash": [{"level": "danger", "message": str(e)}],
@@ -539,12 +542,7 @@ def api_reset_password(token):
             "meta": {}
         }), 400
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "data": None,
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_reset_password')
 
     return jsonify({
         "data": {"username": user.username},

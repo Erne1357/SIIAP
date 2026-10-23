@@ -122,8 +122,8 @@
     setBusy(region, true, 'Cargando tu historial…');
 
     try {
-      const res = await fetch('/api/v1/users/me/history', { credentials: 'same-origin' });
-      const json = await res.json();
+      const res = await window.SIIAP.api.get('/api/v1/users/me/history', { flash: false });
+      const json = res.body || {};
       if (!res.ok) throw new Error(json?.error?.message || 'Error ' + res.status);
 
       const history = (json.data && json.data.history) || [];

@@ -1,16 +1,6 @@
 {# Dashboard para Postgraduate Admin #}
 {% from '_macros.html' import role_banner, empty_state, async_region, skeleton_text_block, data_table_open, data_table_close, icon_button %}
-
-{{ role_banner(
-  user=current_user,
-  role_key='postgraduate_admin',
-  context_line=(metrics.total_programs ~ ' programa(s) activo(s)' if metrics else 'Administración de posgrado'),
-  next_action=(
-    'Tienes ' ~ metrics.pending_reviews ~ ' documento(s) por revisar en todos los programas'
-    if metrics and metrics.pending_reviews and metrics.pending_reviews > 0
-    else 'Sin documentos pendientes de revisión. Revisa los recordatorios del sistema.'
-  )
-) }}
+{% include 'user/dashboard/_partials/_postgraduate_banner.html' %}
 
 <!-- Pestañas de navegación -->
 <ul class="nav nav-tabs dashboard-section" id="adminTabs" role="tablist" aria-label="Secciones del panel de posgrado">
@@ -73,137 +63,12 @@
             </div>
         </section>
 
-        <!-- KPIs Globales -->
-        <section class="row dashboard-section" aria-label="Indicadores globales de posgrado">
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stat-card stat-card--brand h-100">
-                    <i class="bi bi-grid-3x3-gap-fill stat-card__icon" aria-hidden="true"></i>
-                    <p class="stat-card__value">{{ metrics.total_programs }}</p>
-                    <p class="stat-card__label">Programas activos</p>
-                </div>
-            </div>
-
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stat-card stat-card--info h-100">
-                    <i class="bi bi-person-lines-fill stat-card__icon" aria-hidden="true"></i>
-                    <p class="stat-card__value">{{ metrics.total_applicants }}</p>
-                    <p class="stat-card__label">Solicitantes totales</p>
-                </div>
-            </div>
-
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stat-card stat-card--success h-100">
-                    <i class="bi bi-mortarboard-fill stat-card__icon" aria-hidden="true"></i>
-                    <p class="stat-card__value">{{ metrics.total_students }}</p>
-                    <p class="stat-card__label">Estudiantes activos</p>
-                </div>
-            </div>
-
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stat-card stat-card--warning h-100">
-                    <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
-                    <p class="stat-card__value">{{ metrics.pending_reviews }}</p>
-                    <p class="stat-card__label">Documentos pendientes</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Resumen Ejecutivo -->
-        <div class="row">
-            <div class="col-12">
-                <section class="card" aria-labelledby="executiveSummaryTitle">
-                    <div class="card-header bg-transparent pt-4 pb-3">
-                        <h2 class="h5 mb-0 fw-bold" id="executiveSummaryTitle">
-                            <i class="bi bi-bar-chart-fill text-brand-primary me-2" aria-hidden="true"></i>Resumen ejecutivo
-                        </h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-md-4 mb-3">
-                                <p class="kpi-value kpi-value--sm text-brand-primary">
-                                    {{ ((metrics.total_students / (metrics.total_applicants if metrics.total_applicants > 0 else 1)) * 100)|round|int }}%
-                                </p>
-                                <p class="kpi-label">Tasa de admisión</p>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <p class="kpi-value kpi-value--sm text-success-strong">
-                                    {{ (metrics.total_applicants / (metrics.total_programs if metrics.total_programs > 0 else 1))|round|int }}
-                                </p>
-                                {# Etiqueta corta a propósito: en mayúsculas y con
-                                   tracking-wide, la versión larga medía 354px y se
-                                   partía en dos líneas dentro de la columna de
-                                   354px que da el portátil. #}
-                                <p class="kpi-label">Solicitantes por programa</p>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <p class="kpi-value kpi-value--sm text-warning-strong">
-                                    {{ metrics.interviews_pending }}
-                                </p>
-                                <p class="kpi-label">Entrevistas pendientes</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            </div>
-        </div>
+        {% include 'user/dashboard/_partials/_postgraduate_overview_data.html' %}
     </div>
 
     <!-- ============ PESTAÑA: PROGRAMAS ============ -->
     <div class="tab-pane fade" id="programs" role="tabpanel" aria-labelledby="programs-tab" tabindex="0">
-        <div class="row">
-            <div class="col-12">
-                <section class="card" aria-labelledby="programStatsTitle">
-                    <div class="card-header bg-transparent pt-4 pb-3">
-                        <h2 class="h5 mb-0 fw-bold" id="programStatsTitle">
-                            <i class="bi bi-mortarboard text-brand-primary me-2" aria-hidden="true"></i>Estadísticas por programa
-                        </h2>
-                    </div>
-                    <div class="card-body">
-                        {% if metrics.programs_stats %}
-                        {{ data_table_open('Estadísticas de solicitantes y documentos pendientes por programa', table_class='table-hover align-middle') }}
-                            <thead>
-                                <tr>
-                                    <th scope="col">Programa</th>
-                                    <th scope="col" class="text-center">Solicitantes</th>
-                                    <th scope="col" class="text-center">Documentos pendientes</th>
-                                    <th scope="col" class="text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for prog in metrics.programs_stats %}
-                                <tr>
-                                    <th scope="row" class="fw-semibold">{{ prog.name }}</th>
-                                    <td class="text-center">
-                                        <span class="badge bg-primary rounded-pill">{{ prog.applicants }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        {% if prog.pending_docs > 0 %}
-                                            <span class="badge bg-warning rounded-pill">{{ prog.pending_docs }}</span>
-                                        {% else %}
-                                            <span class="badge bg-success rounded-pill">0</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        {{ icon_button('eye', 'Ver el programa ' ~ prog.name,
-                                                       cls='btn btn-sm btn-outline-primary',
-                                                       href=url_for('program.view_program', slug=prog.slug)) }}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        {{ data_table_close() }}
-                        {% else %}
-                        {{ empty_state(
-                             icon='inbox',
-                             title='No hay programas registrados',
-                             description='Cuando se den de alta programas de posgrado aparecerán aquí.',
-                             compact=true
-                           ) }}
-                        {% endif %}
-                    </div>
-                </section>
-            </div>
-        </div>
+        {% include 'user/dashboard/_partials/_postgraduate_program_stats.html' %}
     </div>
 
     <!-- ============ PESTAÑA: RECORDATORIOS ============ -->

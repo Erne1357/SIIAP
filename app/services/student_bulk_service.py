@@ -71,7 +71,7 @@ import io
 import logging
 
 from app import db
-from app.services import public_id_service
+from app.services import academic_status_service, public_id_service
 from app.models import (
     User, UserProgram, Program, AcademicPeriod, Role
 )
@@ -93,7 +93,10 @@ logger = logging.getLogger(__name__)
 # Excepciones del dominio
 # ---------------------------------------------------------------------------
 
-class StudentBulkError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class StudentBulkError(DomainError):
     """Error base para operaciones de alta masiva."""
 
 
@@ -652,8 +655,13 @@ def create_student_individual(payload: dict, created_by_id: int,
             has_conacyt_scholarship=normalized['has_conacyt'],
             enrollment_date=now_local(),
         )
+        from app.services import curriculum_service
+        plan = curriculum_service.current_plan(program.id)
+        if plan is not None:
+            up.curriculum_plan_id = plan.id
         db.session.add(up)
         db.session.flush()  # obtener up.id
+        academic_status_service.transition(up, 'active', actor_id=created_by_id)
 
         # 4. Backfill semestral
         sems_created = _backfill_history(

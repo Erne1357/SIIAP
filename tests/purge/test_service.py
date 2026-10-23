@@ -9,7 +9,7 @@ not rely on shared mutable state.
 import json
 import os
 import zipfile
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -772,6 +772,42 @@ class TestConfirmPurgeStateMachine:
         refreshed = UserProgram.query.get(up_id)
         assert refreshed.admission_status == 'expired'
 
+    def test_confirm_skips_target_that_became_enrolled(
+        self, app, applicant_user_factory, make_applicant, postgrad_admin,
+        upload_root
+    ):
+        """A target whose status changed after listing keeps files and rows
+        and is reported as skipped; the other targets still purge."""
+        u1 = applicant_user_factory(suffix='skipenr')
+        u2 = applicant_user_factory(suffix='skipok')
+        up1, sub1 = make_applicant(u1, status='expired', with_file=True)
+        up2, sub2 = make_applicant(u2, status='expired', with_file=True)
+        file1 = upload_root / sub1.file_path
+        file2 = upload_root / sub2.file_path
+        up1_id, up2_id, sub1_id, sub2_id = up1.id, up2.id, sub1.id, sub2.id
+        _commit()
+
+        run = svc.create_purge_run(
+            user_program_ids=[up1_id, up2_id],
+            purge_type='admission_expired_with_files',
+            initiated_by_id=postgrad_admin.id,
+        )
+        run.status = 'downloaded'
+        UserProgram.query.get(up1_id).admission_status = 'enrolled'
+        db.session.commit()
+
+        result = svc.confirm_purge(run.run_id, confirmer_user_id=postgrad_admin.id)
+
+        db.session.expire_all()
+        assert result['skipped'] == 1
+        assert result['skipped_user_program_ids'] == [up1_id]
+        assert result['user_programs_affected'] == 1
+        assert file1.exists()
+        assert Submission.query.get(sub1_id) is not None
+        assert UserProgram.query.get(up1_id).admission_status == 'enrolled'
+        assert not file2.exists()
+        assert Submission.query.get(sub2_id) is None
+
     def test_confirm_logs_purge_run_confirmed_action(
         self, app, applicant_user_factory, make_applicant, postgrad_admin
     ):
@@ -1023,3 +1059,39 @@ class TestPurgeActionsInUserHistory:
         cols = {c.key for c in UserProgram.__table__.columns}
         assert 'created_at' not in cols
         assert 'updated_at' in cols
+
+
+class TestDelta3PlusStatusAndPeriodRules:
+    def test_accepted_never_enrolled_is_a_candidate(
+        self, app, applicant_user_factory, make_applicant, periods
+    ):
+        user = applicant_user_factory(suffix='acc_old')
+        up, _ = make_applicant(user, status='accepted', period_code='20251', with_file=True)
+        _commit()
+        ids = [r['user_program_id'] for r in svc.list_candidates('admission_delta3_plus')]
+        assert up.id in ids
+
+    def test_rejected_is_never_a_candidate(
+        self, app, applicant_user_factory, make_applicant, periods
+    ):
+        user = applicant_user_factory(suffix='rej_old')
+        up, _ = make_applicant(user, status='rejected', period_code='20251', with_file=True)
+        _commit()
+        ids = [r['user_program_id'] for r in svc.list_candidates('admission_delta3_plus')]
+        assert up.id not in ids
+
+    def test_summer_period_does_not_count(
+        self, app, applicant_user_factory, make_applicant, periods
+    ):
+        """From 20253 only 20263 is a closed regular period; the summer 20262 is ignored."""
+        summer = AcademicPeriod(
+            code='20262', name='Verano', start_date=date(2023, 7, 1), end_date=date(2023, 8, 1),
+            admission_start_date=date(2023, 5, 1), admission_end_date=date(2023, 6, 1),
+            is_active=False, status='completed',
+        )
+        db.session.add(summer)
+        user = applicant_user_factory(suffix='summer')
+        up, _ = make_applicant(user, status='in_progress', period_code='20253', with_file=True)
+        _commit()
+        ids = [r['user_program_id'] for r in svc.list_candidates('admission_delta3_plus')]
+        assert up.id not in ids

@@ -20,8 +20,8 @@ class EmailQueue(db.Model):
     __tablename__ = 'email_queue'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    notification_id = db.Column(db.Integer, db.ForeignKey('notification.id', ondelete='SET NULL'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    notification_id = db.Column(db.Integer, db.ForeignKey('notification.id', ondelete='SET NULL'), nullable=True, index=True)
     
     recipient_email = db.Column(db.String(255), nullable=False)
     subject = db.Column(db.String(500), nullable=False)

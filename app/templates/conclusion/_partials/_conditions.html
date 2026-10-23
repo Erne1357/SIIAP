@@ -1,0 +1,16 @@
+{# Condiciones de aceptación. Contexto: conditions. #}
+{% set _STATE = {'pending': ('pending', 'Pendiente'), 'met': ('approved', 'Cumplida'), 'waived': ('review', 'Dispensada')} %}
+{% from '_macros.html' import status_badge %}
+<ul class="conclusion-list">
+  {% for c in conditions %}
+    {% set st = _STATE.get(c.status, ('pending', c.status)) %}
+    <li class="conclusion-list__item">
+      <span>
+        {{ c.description }}
+        {% if c.due_date %}<span class="text-secondary small d-block">Fecha límite: {{ c.due_date|fecha_es }}</span>{% endif %}
+        {% if c.resolution_note %}<span class="text-secondary small d-block">{{ c.resolution_note }}</span>{% endif %}
+      </span>
+      {{ status_badge(st[0], st[1], 'sm') }}
+    </li>
+  {% endfor %}
+</ul>

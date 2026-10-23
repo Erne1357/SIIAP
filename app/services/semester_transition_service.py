@@ -24,6 +24,13 @@ from app.services import public_id_service
 from app.models import UserProgram, User, Program, AcademicPeriod
 from app.models.semester_enrollment import SemesterEnrollment
 from app.models.enrollment_deferral import EnrollmentDeferral
+from app.services.admission_status_service import (
+    EXPIRABLE_STATUSES,
+    regular_period_ids,
+    regular_periods_between,
+    transition,
+)
+from app.services import academic_progress, academic_status_service
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.services.payment_reference_service import PaymentReferenceService
@@ -36,15 +43,18 @@ logger = logging.getLogger(__name__)
 # Domain exceptions
 # ---------------------------------------------------------------------------
 
-class TransitionError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class TransitionError(DomainError):
     """Error base para operaciones de transición semestral."""
 
 
-class PeriodNotFound(TransitionError):
+class PeriodNotFound(TransitionError, NotFoundError):
     """El periodo académico no existe."""
 
 
-class ProgramNotFound(TransitionError):
+class ProgramNotFound(TransitionError, NotFoundError):
     """El programa no existe."""
 
 
@@ -68,40 +78,6 @@ def _get_program(program_id: int) -> Program:
     if not program:
         raise ProgramNotFound(f"Programa {program_id} no encontrado")
     return program
-
-
-def _ordered_period_ids() -> list:
-    """
-    Devuelve todos los IDs de periodos ordenados cronológicamente por
-    ``start_date``. NO usar ``id`` como proxy porque los periodos pueden
-    crearse en cualquier orden (ej: migración que rellena periodos
-    históricos faltantes después de que ya existían los recientes).
-    """
-    rows = (
-        db.session.query(AcademicPeriod.id)
-        .order_by(AcademicPeriod.start_date)
-        .all()
-    )
-    return [r[0] for r in rows]
-
-
-def _delta_periods(admission_period_id: Optional[int], target_period_id: int) -> Optional[int]:
-    """
-    Calcula cuántos periodos de diferencia hay entre admission_period_id
-    y target_period_id en la lista ordenada.
-
-    Retorna None si admission_period_id es None o no existe en la lista.
-    Retorna el número de posiciones de distancia (≥ 0).
-    """
-    if admission_period_id is None:
-        return None
-    period_ids = _ordered_period_ids()
-    try:
-        idx_target = period_ids.index(target_period_id)
-        idx_admission = period_ids.index(admission_period_id)
-    except ValueError:
-        return None
-    return idx_target - idx_admission
 
 
 def _get_conacyt_archive_step_id() -> Optional[int]:
@@ -149,6 +125,11 @@ def evaluate_student(
                     'message': str,
                     'months': [{'id': int, 'label': str, 'sequence': int}]
                 },
+                {
+                    'code': 'admission_document_debt',
+                    'message': str,
+                    'documents': [str]   # prórroga vencida sin entregar
+                },
             ]
         }
     """
@@ -164,6 +145,16 @@ def evaluate_student(
 
     blockers = []
 
+    # ── Regla 0: trayectoria cerrada (baja definitiva o egreso) ──
+    if up.academic_status in academic_status_service.CLOSED_STATUSES:
+        code = 'dropped' if up.academic_status == academic_status_service.WITHDRAWN else 'graduated'
+        blockers.append({
+            'code': code,
+            'message': (f"Estado académico: "
+                        f"{academic_status_service.STATUS_LABELS_ES[up.academic_status]}"),
+        })
+        return {'can_advance': False, 'blockers': blockers}
+
     # ── Regla 1: Debe existir SE en periodo origen con enrollment_confirmed=True ──
     source_se = SemesterEnrollment.query.filter_by(
         user_program_id=user_program_id,
@@ -177,22 +168,12 @@ def evaluate_student(
         })
         return {'can_advance': False, 'blockers': blockers}
 
-    # ── Regla nueva: Límite máximo de semestres (duration_semesters + 4) ──
+    # ── Límite de permanencia (duration_semesters + 4) en periodos calendario ──
     # Maestrías: 4 normal → 8 máx. Doctorado: 6 normal → 10 máx.
-    # Bajas temporales NO descuentan: el contador sigue creciendo.
-    program = up.program
-    if program and program.duration_semesters:
-        max_allowed = program.duration_semesters + 4
-        next_sem = (source_se.semester_number or 0) + 1
-        if next_sem > max_allowed:
-            blockers.append({
-                'code': 'semester_limit_exceeded',
-                'message': (
-                    f'Excede el límite de semestres del programa '
-                    f'(máx {max_allowed}: duración {program.duration_semesters} + 4). '
-                    f'Avanzaría al semestre {next_sem}.'
-                ),
-            })
+    # Las bajas temporales cuentan; el verano no (ver academic_progress).
+    limit_message = academic_progress.limit_exceeded_message(up, target_period_id)
+    if limit_message:
+        blockers.append({'code': 'semester_limit_exceeded', 'message': limit_message})
 
     if not source_se.enrollment_confirmed:
         blockers.append({
@@ -285,6 +266,16 @@ def evaluate_student(
         })
     # Si no es becario, ignorar ventanas SECIHTI (ya se omitieron de missing_docs)
 
+    # ── Regla 5: documentos de admisión con prórroga vencida sin entregar ──
+    from app.services import admission_debt_service
+    overdue = admission_debt_service.overdue_admission_documents(up)
+    if overdue:
+        blockers.append({
+            'code': 'admission_document_debt',
+            'message': admission_debt_service.debt_message(overdue),
+            'documents': [d['archive'].name for d in overdue],
+        })
+
     return {
         'can_advance': len(blockers) == 0,
         'blockers': blockers,
@@ -305,13 +296,8 @@ def _build_student_row(up: UserProgram, source_period_id: int, target_period_id:
         academic_period_id=source_period_id,
     ).first()
 
-    # Calcular el siguiente número de semestre
-    max_sem = (
-        db.session.query(db.func.max(SemesterEnrollment.semester_number))
-        .filter_by(user_program_id=up.id)
-        .scalar()
-    ) or 0
-    next_semester_number = max_sem + 1
+    # Siguiente semestre académico (el SE origen se cerrará como completado)
+    next_semester_number = academic_progress.next_semester_number(up.id, closing=source_se)
 
     program = up.program
     return {
@@ -350,11 +336,10 @@ def _build_admission_rows(
     periodo activo, no requieren acción. Antes se omitían silenciosamente y
     parecían "en limbo" en la UI.
     """
-    period_ids = _ordered_period_ids()
-
-    try:
-        idx_target = period_ids.index(target_period_id)
-    except ValueError:
+    # Non-summer periods only: summer (YYYY2) never counts toward the wait,
+    # and a summer target leaves every applicant untouched.
+    period_ids = regular_period_ids()
+    if target_period_id not in period_ids:
         return [], [], [], [], []
 
     # Todos los UserProgram del programa que NO son estudiantes enrolled
@@ -403,21 +388,22 @@ def _build_admission_rows(
             'admission_period_id': up.admission_period_id,
         }
 
-        # Excepción diferidos: si tienen deferral activo que apunta al target_period
-        if up.id in active_deferrals:
-            deferred_reactivate.append(base_row)
+        # Diferidos: solo se reactivan si tienen deferral activo hacia el
+        # target_period; fuera de eso los gestiona el flujo de diferimiento.
+        if up.admission_status == 'deferred':
+            if up.id in active_deferrals:
+                deferred_reactivate.append(base_row)
             continue
 
         if up.admission_period_id is None:
             # Sin periodo de admisión registrado: ignorar
             continue
 
-        try:
-            idx_admission = period_ids.index(up.admission_period_id)
-        except ValueError:
+        delta = regular_periods_between(
+            up.admission_period_id, target_period_id, period_ids,
+        )
+        if delta is None:
             continue
-
-        delta = idx_target - idx_admission
 
         if delta < 0:
             # Periodo de admisión es FUTURO al destino: ignorar (no aplica)
@@ -428,7 +414,9 @@ def _build_admission_rows(
         elif delta == 1:
             migrate.append(base_row)
         elif delta == 2:
-            expire.append(base_row)
+            # `rejected` keeps the committee's decision: never expired.
+            if up.admission_status in EXPIRABLE_STATUSES:
+                expire.append(base_row)
         else:  # delta >= 3
             cleanup.append(base_row)
 
@@ -614,7 +602,8 @@ def execute_program_transition(
     - Estudiantes elegibles: cierra SE actual, crea SE nuevo en pending.
     - Aspirantes Δ=1: migra admission_period_id al target_period_id.
     - Aspirantes Δ=2: admission_status='expired'.
-    - Diferidos con deferred_to_period_id == target_period_id: reactiva (in_progress).
+    - Diferidos (status 'deferred') con deferred_to_period_id == target_period_id: reactiva (accepted).
+    - Periodos de verano (YYYY2) no cuentan para Δ; 'rejected' nunca expira.
     - Idempotente: si ya existe SE para target_period, se omite.
 
     Returns:
@@ -661,13 +650,9 @@ def execute_program_transition(
         }
 
         # ── Aspirantes ──────────────────────────────────────────────────────
-        period_ids = _ordered_period_ids()
-        try:
-            idx_target = period_ids.index(target_period_id)
-        except ValueError:
-            idx_target = None
+        period_ids = regular_period_ids()
 
-        if idx_target is not None:
+        if target_period_id in period_ids:
             applicants = (
                 UserProgram.query
                 .filter(
@@ -680,10 +665,13 @@ def execute_program_transition(
             for up in applicants:
                 try:
                     # Diferidos con deferred_to_period_id == target → reactivar
-                    if up.id in active_deferrals:
-                        deferral = active_deferrals[up.id]
+                    if up.admission_status == 'deferred':
+                        deferral = active_deferrals.get(up.id)
+                        if deferral is None:
+                            continue
+                        # transition() first: a refusal must leave the row untouched.
+                        transition(up, 'accepted')
                         up.admission_period_id = target_period_id
-                        up.admission_status = 'in_progress'
                         deferral.status = 'used'
                         UserHistoryService.log_action(
                             user_id=up.user_id,
@@ -712,14 +700,11 @@ def execute_program_transition(
                     if up.admission_period_id is None:
                         continue
 
-                    try:
-                        idx_admission = period_ids.index(up.admission_period_id)
-                    except ValueError:
-                        continue
+                    delta = regular_periods_between(
+                        up.admission_period_id, target_period_id, period_ids,
+                    )
 
-                    delta = idx_target - idx_admission
-
-                    if delta <= 0:
+                    if delta is None or delta <= 0:
                         continue
                     elif delta == 1:
                         up.admission_period_id = target_period_id
@@ -735,7 +720,10 @@ def execute_program_transition(
                         )
                         stats['admission_migrated'] += 1
                     elif delta == 2:
-                        up.admission_status = 'expired'
+                        # `rejected` keeps the committee's decision.
+                        if up.admission_status not in EXPIRABLE_STATUSES:
+                            continue
+                        transition(up, 'expired')
                         up.updated_at = now
                         UserHistoryService.log_action(
                             user_id=up.user_id,
@@ -813,13 +801,8 @@ def execute_program_transition(
                     source_se.status = 'completed'
                     source_se.updated_at = now
 
-                # ── Calcular nuevo número de semestre ──
-                max_sem = (
-                    db.session.query(db.func.max(SemesterEnrollment.semester_number))
-                    .filter_by(user_program_id=up.id)
-                    .scalar()
-                ) or 0
-                new_semester_number = max_sem + 1
+                # ── Nuevo semestre académico (completados + 1) ──
+                new_semester_number = academic_progress.next_semester_number(up.id)
 
                 # ── Crear nuevo SE en target_period ──
                 new_se = SemesterEnrollment(

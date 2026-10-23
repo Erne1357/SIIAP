@@ -7,7 +7,7 @@ class Notification(db.Model):
     __tablename__ = 'notification'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
     
     type = db.Column(db.String(50), nullable=False)
     title = db.Column(db.String(200), nullable=False)
@@ -25,7 +25,7 @@ class Notification(db.Model):
     # Tiene prioridad sobre el campo 'url' dentro de data{}.
     action_url = db.Column(db.String(500), nullable=True)
 
-    related_invitation_id = db.Column(db.Integer, db.ForeignKey('event_invitation.id', ondelete='SET NULL'), nullable=True)
+    related_invitation_id = db.Column(db.Integer, db.ForeignKey('event_invitation.id', ondelete='SET NULL'), nullable=True, index=True)
     
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     read_at = db.Column(db.DateTime, nullable=True)

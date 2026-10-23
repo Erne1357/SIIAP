@@ -2,7 +2,7 @@
 {% extends "base.html" %}
 {% from '_macros.html' import field %}
 
-{% block title %}{{ super() }} - Configurar {{ program.name }}{% endblock %}
+{% block title %}Configurar {{ program.name }} - SIIAP{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/program_config.css') }}?v={{ static_version }}" rel="stylesheet">

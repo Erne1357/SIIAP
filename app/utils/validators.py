@@ -33,7 +33,10 @@ _SPACE = " "
 _COMBINING_MARK_CATEGORIES = ("Mn", "Mc")
 
 
-class InputValidationError(ValueError):
+from app.services.errors import DomainError
+
+
+class InputValidationError(ValueError, DomainError):
     """
     A user-supplied value failed validation.
 
@@ -45,6 +48,7 @@ class InputValidationError(ValueError):
         super().__init__(message)
         self.message = message
         self.field = field
+        self.fields = {field: message} if field else None
 
 
 def _coerce_to_text(value, label: str) -> str:

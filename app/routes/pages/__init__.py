@@ -15,6 +15,15 @@ def register_page_blueprints(app):
     from app.routes.pages.coordinator_pages import pages_coordinator
     from app.routes.pages.event_pages import pages_events_public
     from app.routes.pages.student_record_pages import pages_student_record
+    from app.routes.pages.curriculum_pages import pages_curriculum
+    from app.routes.pages.course_groups_pages import pages_course_groups
+    from app.routes.pages.teaching_pages import pages_teaching
+    from app.routes.pages.kardex_pages import pages_kardex
+    from app.routes.pages.grade_corrections_pages import pages_grade_corrections
+    from app.routes.pages.grade_import_pages import pages_grade_import
+    from app.routes.pages.academic_documents_pages import pages_academic_documents
+    from app.routes.pages.conclusion_record_pages import pages_conclusion_record
+    from app.routes.pages.conclusion_pages import pages_conclusion
 
     blueprints = [
         pages_auth,
@@ -24,6 +33,15 @@ def register_page_blueprints(app):
         pages_coordinator,
         pages_events_public,
         pages_student_record,
+        pages_curriculum,
+        pages_course_groups,
+        pages_teaching,
+        pages_kardex,
+        pages_grade_corrections,
+        pages_grade_import,
+        pages_academic_documents,
+        pages_conclusion,
+        pages_conclusion_record,
     ]
 
     for bp in blueprints:

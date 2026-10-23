@@ -92,3 +92,54 @@
         max-width: 10rem;
     }
 }
+
+/* ==========================================================================
+   Condiciones de aceptación condicionada (modal de decisión)
+   ========================================================================== */
+
+.condition-list__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.condition-list__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--bg-surface-sunken);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+}
+
+.condition-list__field .form-label {
+    font-size: var(--fs-sm);
+    margin-bottom: var(--space-1);
+}
+
+.condition-list__field--wide {
+    grid-column: 1 / -1;
+}
+
+.condition-list__remove {
+    justify-self: end;
+    align-self: end;
+}
+
+.condition-list__error {
+    color: var(--color-danger-700);
+    font-size: var(--fs-sm);
+    margin-top: var(--space-1);
+}
+
+@media (max-width: 767.98px) {
+    .condition-list__row {
+        grid-template-columns: 1fr;
+    }
+
+    .condition-list__remove {
+        align-self: auto;
+    }
+}

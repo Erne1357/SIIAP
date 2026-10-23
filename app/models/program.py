@@ -11,7 +11,7 @@ class Program(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
-    coordinator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    coordinator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     slug = db.Column(db.String(100), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)

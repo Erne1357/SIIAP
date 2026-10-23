@@ -27,23 +27,6 @@ logger = logging.getLogger(__name__)
 # 1. LIMPIEZA DE ARCHIVOS DE ADMISIÓN EXPIRADOS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _periods_elapsed_since(enrollment_period_code: str) -> int:
-    """
-    Cuenta cuántos periodos han cerrado su proceso de admisión después del periodo
-    de inscripción (código YYYYN comparado lexicográficamente, lo que equivale a
-    orden cronológico por el formato fijo de 5 caracteres).
-    """
-    from app.models.academic_period import AcademicPeriod
-    return (
-        AcademicPeriod.query
-        .filter(
-            AcademicPeriod.code > enrollment_period_code,
-            AcademicPeriod.admission_end_date < now_local().date(),
-        )
-        .count()
-    )
-
-
 @celery.task(
     name='app.tasks.maintenance.cleanup_expired_admission_files',
     bind=True,
@@ -71,6 +54,9 @@ def cleanup_expired_admission_files(self):
     from app.models.user_program import UserProgram
     from app.models.academic_period import AcademicPeriod
     from app.config import Config
+    from app.services.admission_status_service import (
+        EXPIRABLE_STATUSES, regular_periods_closed_since, transition,
+    )
 
     logger.info("[cleanup_expired_admission_files] Iniciando limpieza de archivos expirados...")
 
@@ -82,7 +68,7 @@ def cleanup_expired_admission_files(self):
             UserProgram.query
             .join(AcademicPeriod, UserProgram.admission_period_id == AcademicPeriod.id)
             .filter(
-                UserProgram.admission_status.in_(['in_progress', 'interview_completed', 'deliberation']),
+                UserProgram.admission_status.in_(EXPIRABLE_STATUSES),
                 UserProgram.admission_period_id.isnot(None),
             )
             .all()
@@ -96,11 +82,11 @@ def cleanup_expired_admission_files(self):
             if not enrollment_period:
                 continue
 
-            elapsed = _periods_elapsed_since(enrollment_period.code)
+            elapsed = regular_periods_closed_since(enrollment_period, now_local().date())
             if elapsed < 2:
                 continue  # todavía dentro del plazo permitido
 
-            up.admission_status = 'expired'
+            transition(up, 'expired')
             marked_expired += 1
 
             # Eliminar archivos físicos de las submissions de este proceso

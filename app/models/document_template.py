@@ -39,7 +39,7 @@ class DocumentTemplate(PublicUUIDMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
     # NULL = plantilla global (aplica a todos los programas sin plantilla específica)
-    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=True)
+    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=True, index=True)
 
     document_type = db.Column(db.String(50), nullable=False)
     # Tipos: acceptance_letter, enrollment_confirmation, course_schedule, payment_reference

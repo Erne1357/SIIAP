@@ -1,9 +1,9 @@
 # app/routes/api/programs_api.py
 from flask import Blueprint, jsonify, request, abort
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required, any_permission_required
 from app.services import programs_service as svc
-from app.services.user_history_service import UserHistoryService
 
 api_programs = Blueprint('api_programs', __name__, url_prefix='/api/v1/programs')
 
@@ -48,17 +48,7 @@ def api_enroll(program_id):
         program = svc.enroll_user_once(program_id, current_user.id)
         
         # Registrar en el historial
-        try:
-            UserHistoryService.log_program_enrollment(
-                user_id=current_user.id,
-                program_name=program.name,
-                program_id=program.id
-            )
-            from app import db
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar postulación en historial: {e}")
+        svc.record_enrollment_history(current_user.id, program)
         
         return jsonify({
             "data": {"program": {"id": program.id, "slug": program.slug}},
@@ -191,9 +181,4 @@ def api_update_program(slug):
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al actualizar programa: {e}")
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al actualizar el programa."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_update_program')

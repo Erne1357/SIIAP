@@ -118,8 +118,8 @@ class TestInviteStudents(TestInvitationsApiBase):
         )
         self.assertEqual(resp.status_code, 201)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertGreater(data['invited'], 0)
+        self.assertIsNone(data['error'])
+        self.assertGreater(data['data']['invited'], 0)
 
     def test_invite_empty_user_ids_returns_400(self):
         resp = self._admin_post(
@@ -165,8 +165,8 @@ class TestListEventInvitations(TestInvitationsApiBase):
         resp = self.admin_client.get(f'/api/v1/invitations/event/{self.ev.id}/list')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertGreater(data['total'], 0)
+        self.assertIsNone(data['error'])
+        self.assertGreater(data['data']['total'], 0)
 
     def test_list_invitations_not_found_event(self):
         resp = self.admin_client.get('/api/v1/invitations/event/99999/list')
@@ -194,7 +194,7 @@ class TestRespondToInvitation(TestInvitationsApiBase):
         )
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['status'], 'accepted')
+        self.assertEqual(data['data']['status'], 'accepted')
 
     def test_reject_invitation(self):
         inv = self._make_invitation()
@@ -204,7 +204,7 @@ class TestRespondToInvitation(TestInvitationsApiBase):
         )
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertEqual(data['status'], 'rejected')
+        self.assertEqual(data['data']['status'], 'rejected')
 
     def test_respond_wrong_user_returns_400(self):
         inv = self._make_invitation()
@@ -245,8 +245,8 @@ class TestMyInvitations(TestInvitationsApiBase):
         resp = self.student_client.get('/api/v1/invitations/my-invitations')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertEqual(data['total'], 1)
+        self.assertIsNone(data['error'])
+        self.assertEqual(data['data']['total'], 1)
 
     def test_my_invitations_does_not_include_non_pending(self):
         """GET /my-invitations only returns pending invitations."""
@@ -260,12 +260,12 @@ class TestMyInvitations(TestInvitationsApiBase):
         db.session.commit()
         resp = self.student_client.get('/api/v1/invitations/my-invitations')
         data = json.loads(resp.data)
-        self.assertEqual(data['total'], 0)
+        self.assertEqual(data['data']['total'], 0)
 
     def test_my_invitations_empty(self):
         resp = self.student_client.get('/api/v1/invitations/my-invitations')
         data = json.loads(resp.data)
-        self.assertEqual(data['total'], 0)
+        self.assertEqual(data['data']['total'], 0)
 
     def test_my_invitations_requires_auth(self):
         anon = self.app.test_client()
@@ -287,7 +287,7 @@ class TestCancelInvitation(TestInvitationsApiBase):
         resp = self._admin_delete(f'/api/v1/invitations/{inv.id}')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
+        self.assertIsNone(data['error'])
 
     def test_cancel_accepted_invitation_returns_400(self):
         inv = EventInvitation(
@@ -314,7 +314,7 @@ class TestUpdateEventDates(TestInvitationsApiBase):
         )
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
+        self.assertIsNone(data['error'])
 
     def test_update_dates_event_not_found(self):
         resp = self.admin_client.put(

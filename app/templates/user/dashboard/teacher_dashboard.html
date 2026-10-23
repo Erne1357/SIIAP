@@ -1,0 +1,70 @@
+{# Teacher Dashboard - phase 6B1: groups taught in the active period #}
+{% from '_macros.html' import role_banner, empty_state, data_table_open, data_table_close %}
+
+{% set _teacher_context %}
+{%- if period %}{{ period.name }}{% else %}Sin periodo activo{% endif -%}
+{% endset %}
+
+<div class="teacher-dashboard">
+
+  {{ role_banner(
+       user=current_user,
+       role_key='teacher',
+       role_label='Docente',
+       context_line=_teacher_context,
+       next_action=(
+         'Tienes ' ~ teaching_groups|length ~ ' grupo(s) asignado(s) este periodo.' if teaching_groups
+         else 'Aún no tienes grupos asignados en el periodo activo.'
+       )
+     ) }}
+
+  <section class="card dashboard-section" aria-labelledby="teachingGroupsTitle">
+    <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+      <i class="bi bi-people-fill text-brand-primary" aria-hidden="true"></i>
+      <h2 class="h6 mb-0 fw-bold" id="teachingGroupsTitle">Mis grupos del periodo</h2>
+      {% if period %}<span class="badge bg-secondary ms-auto">{{ period.name }}</span>{% endif %}
+    </div>
+    <div class="card-body">
+      {% if teaching_groups %}
+        {{ data_table_open('Grupos que impartes en el periodo activo', table_class='table-sm align-middle') }}
+          <thead>
+            <tr>
+              <th scope="col">Materia</th>
+              <th scope="col">Grupo</th>
+              <th scope="col" class="text-center">Inscritos</th>
+              <th scope="col">Horario</th>
+              <th scope="col">Aula</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in teaching_groups %}
+            <tr>
+              <th scope="row">
+                {{ g.subject_name }}
+                {% if g.program_name %}<span class="text-muted small d-block">{{ g.program_name }}</span>{% endif %}
+              </th>
+              <td>{{ g.group_code }}</td>
+              <td class="text-center">{{ g.enrolled }} / {{ g.capacity }}</td>
+              <td>{{ g.schedule or '—' }}</td>
+              <td>{{ g.location or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        {{ data_table_close() }}
+        <a href="{{ url_for('pages_teaching.my_groups') }}" class="btn btn-outline-primary tap-target mt-3">
+          <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Ver todos mis grupos
+        </a>
+      {% else %}
+        {{ empty_state(
+             icon='people',
+             title='Sin grupos en este periodo',
+             description='Cuando la coordinación te asigne un grupo del periodo activo aparecerá aquí.',
+             action_label='Ir a mis grupos',
+             action_url=url_for('pages_teaching.my_groups'),
+             compact=true
+           ) }}
+      {% endif %}
+    </div>
+  </section>
+
+</div>

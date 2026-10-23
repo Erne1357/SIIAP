@@ -1,0 +1,6 @@
+{# Answer of GET /user/profile/summary: the header's right column is the main
+   swap target (#profileHeaderMain); the personal-info card travels out-of-band. #}
+{% include 'user/profile/_profile_header.html' %}
+<div id="profilePersonalInfo" hx-swap-oob="innerHTML">
+  {% include 'user/profile/_profile_personal_info.html' %}
+</div>

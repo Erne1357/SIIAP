@@ -1,60 +1,38 @@
 # app/routes/api/coordinator_api.py
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request
 from flask_login import login_required, current_user
-from sqlalchemy import select, and_, or_, func
-from datetime import datetime, timezone
 
-from app import db
 from app.utils.permissions import (
     permission_required,
     any_permission_required,
     guard_user_scope,
 )
 from app.routes._public_id import resolved_id
-from app.services import file_access_service
 from app.services import program_scope_service as scope_service
-from app.utils.files import save_user_doc  # Importar tu función de archivos
+from app.services import coordinator_service
+from app.services import student_admission_detail_service as student_detail_service
+from app.services.errors import DomainError
 from app.services.user_history_service import UserHistoryService
 from app.utils.history_formatter import HistoryFormatter
 from app.models.user import User
-from app.models.role import Role
-from app.models.program import Program
-from app.models.user_program import UserProgram
-from app.models.submission import Submission
 from app.models.archive import Archive
-from app.models.step import Step
-from app.models.phase import Phase
-from app.models.program_step import ProgramStep
-from app.models.appointment import Appointment
-from app.models.semester_enrollment import SemesterEnrollment
-from app.models.academic_period import AcademicPeriod
+from app.schemas.coordinator import (
+    ListStudentsQuery,
+    StudentHistoryQuery,
+    UploadForStudentForm,
+)
 from app.services.admission_service import get_admission_state
-from app.utils.datetime_utils import now_local
+from app.utils.api_response import (
+    api_ok, api_error, api_not_found, api_server_error, domain_error_response,
+)
+from app.utils.validation import parse_form, parse_model
 
 api_coordinator = Blueprint('api_coordinator', __name__, url_prefix='/api/v1/coordinator')
 
 
 def _scoped_user_program(student_id: int):
-    """
-    UserProgram del estudiante que cae DENTRO del alcance del llamador.
-
-    Un estudiante puede tener más de un UserProgram (cambio de programa). Tomar
-    `.first()` a ciegas permitía que un coordinador escribiera sobre la
-    inscripción de un programa ajeno aunque compartiera otro con el estudiante.
-
-    Returns:
-        UserProgram | None — None si no tiene ninguno accesible.
-    """
-    rows = UserProgram.query.filter_by(user_id=student_id).all()
-    if not rows:
-        return None
-    scope = scope_service.accessible_program_ids(current_user)
-    if scope is None:
-        return rows[0]
-    for up in rows:
-        if up.program_id in scope:
-            return up
-    return None
+    """UserProgram of the student inside the caller's scope, or None."""
+    return coordinator_service.scoped_user_program(current_user, student_id)
 
 
 #: Denial text used by every "no such student here" branch of this blueprint.
@@ -127,7 +105,6 @@ def _restricted_permanence_payload(student, user_program, program) -> dict:
     """
     s = _summary_of(student, program, user_program=user_program)
     return {
-        "ok": True,
         "restricted": True,
         "student": {
             "id": s.get('id'),
@@ -172,7 +149,6 @@ def _restricted_details_payload(student, program, admission_state) -> dict:
     """
     s = _summary_of(student, program, admission_state=admission_state)
     return {
-        "ok": True,
         "restricted": True,
         "student": {
             "id": s.get('id'),
@@ -234,73 +210,32 @@ def list_students():
     `to_cross_program_summary`. Ningún dato personal, foto ni documento sale de
     aquí para un programa fuera del alcance del llamador.
     """
-    program_id = request.args.get('program_id', type=int)
-    phase = request.args.get('phase')  # admission, permanence, conclusion
-    status = request.args.get('status')  # pending, review, approved, rejected
-    search = request.args.get('search', '').strip()
-    show_other = request.args.get('show_other') == 'true'
+    q = parse_model(ListStudentsQuery, request.args.to_dict())
+    program_id = q.program_id
+    phase = q.phase  # admission, permanence, conclusion
+    status = q.status  # pending, review, approved, rejected
+    search = q.search
+    show_other = q.show_other
 
     # El toggle "ver otros programas" es exactamente el nivel reducido.
     if show_other and not scope_service.may_view_cross_program_summary(current_user):
         show_other = False
 
-    # Base query: usuarios con programas (aspirantes y estudiantes ya inscritos)
-    query = db.session.query(User, UserProgram, Program).join(
-        UserProgram, User.id == UserProgram.user_id
-    ).join(
-        Program, UserProgram.program_id == Program.id
-    ).filter(
-        User.role.has(name='applicant') | User.role.has(name='student'),
-        # `is_active` no está en la lista blanca del nivel reducido, así que
-        # esto filtra filas ajenas por un campo que el llamador no puede ver.
-        # Se mantiene a propósito: NO es un filtro del llamador sino la
-        # definición de la población del panel (cuentas activas), idéntica en
-        # todas las peticiones y para todos los llamadores, así que no se puede
-        # usar como oráculo comparativo — sólo confirmaría, para alguien de
-        # quien ya se sabe nombre y programa, que su cuenta fue desactivada.
-        # Moverlo a la rama con alcance metería cuentas desactivadas de otros
-        # programas en un panel operativo; la decisión es del dueño.
-        User.is_active == True,
-    )
-
     # Programas que puede gestionar el coordinador (propios + delegados).
     # None = alcance global (jefe de posgrado); set() vacío = sin alcance.
     scope = scope_service.accessible_program_ids(current_user)
 
-    if scope is not None and not show_other:
-        if not scope:
-            return jsonify({"students": []}), 200
-        query = query.filter(Program.id.in_(scope))
+    if scope is not None and not show_other and not scope:
+        return api_ok({"students": []})
 
-    # Filtros adicionales
-    if program_id:
-        query = query.filter(Program.id == program_id)
-    
-    if search:
-        # La búsqueda corre ANTES de la proyección y sobre filas de programas
-        # ajenos (`show_other`), así que sólo puede tocar campos que el nivel
-        # reducido permitiría VER en esa fila: si el número de control entrara
-        # aquí, la sola presencia de la fila respondería «¿es éste su número?».
-        # Las columnas se derivan del catálogo del servicio para que no puedan
-        # divergir de la lista blanca de la proyección.
-        #
-        # Si algún día se quiere buscar por número de control en los programas
-        # propios, NO se añade a este OR: se parte el predicado en dos ramas
-        # (dentro de alcance ∧ conjunto completo) ∨ (fuera ∧ conjunto
-        # reducido), como en `list_users` de admin/users_api.py.
-        search_term = f"%{search}%"
-        query = query.filter(
-            or_(*[
-                getattr(User, field).ilike(search_term)
-                for field in sorted(scope_service.CROSS_PROGRAM_SEARCHABLE_FIELDS)
-            ])
-        )
-
-    results = query.all()
+    # La población del panel (cuentas activas) y la búsqueda restringida a
+    # campos del nivel reducido viven en el servicio.
+    results = coordinator_service.list_panel_rows(
+        scope, show_other=show_other, program_id=program_id, search=search,
+    )
     students = []
 
-    active_period = AcademicPeriod.get_active_period()
-    active_period_id = active_period.id if active_period else None
+    active_period_id = coordinator_service.get_active_period_id()
 
     # Una sola resolución de alcance para toda la página.
     manageable_pids = scope_service.programs_in_scope(
@@ -311,7 +246,7 @@ def list_students():
         # Calcular estado actual del estudiante
         admission_state = get_admission_state(user.id, program.id, user_program)
         # Métricas de permanencia basadas en SemesterEnrollment + duración del programa
-        perm = _compute_permanence_metrics(user_program, program, active_period_id)
+        perm = coordinator_service.compute_permanence_metrics(user_program, program, active_period_id)
         # Determinar fase actual basada en estado
         current_phase = _determine_current_phase(admission_state, user_program, perm)
         
@@ -350,10 +285,11 @@ def list_students():
             "academic_progress": perm["academic_progress"],
             "in_progress_segment": perm["in_progress_segment"],
             "academic_status": perm["academic_status"],
-            # Métricas de conclusión (placeholder)
-            "conclusion_stage": "inicial",
-            "conclusion_progress": 0,
-            "conclusion_status": "pending"
+            # Métricas de conclusión reales (conclusion_service.progress).
+            # Sólo para egresados/titulados o con tesis registrada (no por
+            # current_phase). NOTE: se calcula por fila (N+1 acotado);
+            # optimizar con carga por lotes si la lista crece.
+            **coordinator_service.conclusion_summary(user_program),
         }
 
         # Fuera de alcance: sólo nombre, correo y progreso/estado. La proyección
@@ -367,7 +303,7 @@ def list_students():
 
         students.append(student_data)
     
-    return jsonify({"students": students}), 200
+    return api_ok({"students": students})
 
 @api_coordinator.route('/manageable-students', methods=['GET'])
 @login_required
@@ -377,26 +313,12 @@ def manageable_students():
     Lista solo estudiantes que el coordinador puede gestionar (para selects)
     """
     scope = scope_service.accessible_program_ids(current_user)
-    if scope is None:
-        program_filter = True  # acceso global
-    else:
-        if not scope:
-            return jsonify({"students": []}), 200
-        program_filter = Program.id.in_(scope)
-    
-    query = db.session.query(User, Program).join(
-        UserProgram, User.id == UserProgram.user_id
-    ).join(
-        Program, UserProgram.program_id == Program.id
-    ).filter(
-        User.role.has(name='applicant'),
-        User.is_active == True,
-        program_filter
-    ).order_by(User.first_name, User.last_name)
-    
-    results = query.all()
+    if scope is not None and not scope:
+        return api_ok({"students": []})
+
+    results = coordinator_service.list_manageable_applicants(scope)
     students = []
-    
+
     for user, program in results:
         students.append({
             "id": str(user.uuid) if user.uuid else None,
@@ -405,7 +327,7 @@ def manageable_students():
             "program_name": program.name
         })
     
-    return jsonify({"students": students}), 200
+    return api_ok({"students": students})
 
 @api_coordinator.route('/student/<uuid:student_uuid>/uploadable-archives', methods=['GET'])
 @login_required
@@ -427,31 +349,11 @@ def student_uploadable_archives(student_uuid):
 
     user_program = _scoped_user_program(student_id)
     if not user_program:
-        return jsonify({"error": "Estudiante no inscrito en programa"}), 404
+        return api_not_found("Estudiante no inscrito en programa")
 
-    # Obtener archivos que permiten subida por coordinador
-    query = db.session.query(Archive, Step, Phase).join(
-        Step, Archive.step_id == Step.id
-    ).join(
-        Phase, Step.phase_id == Phase.id
-    ).join(
-        ProgramStep, and_(
-            ProgramStep.step_id == Step.id,
-            ProgramStep.program_id == user_program.program_id
-        )
-    ).filter(
-        Archive.allow_coordinator_upload == True,
-        Archive.is_uploadable == True
-    ).order_by(Phase.id, ProgramStep.sequence)
-    
     archives = []
-    for archive, step, phase in query:
-        # Verificar si ya existe submission
-        existing = Submission.query.filter_by(
-            user_id=student_id,
-            archive_id=archive.id
-        ).first()
-        
+    for archive, step, phase, existing in coordinator_service.uploadable_archives_for(
+            student_id, user_program.program_id):
         archives.append({
             # Public handle — the browser posts it back as `archive_id`.
             "id": str(archive.uuid) if archive.uuid else None,
@@ -462,8 +364,8 @@ def student_uploadable_archives(student_uuid):
             "has_existing": bool(existing),
             "existing_status": existing.status if existing else None
         })
-    
-    return jsonify({"archives": archives}), 200
+
+    return api_ok({"archives": archives})
 
 @api_coordinator.route('/upload-for-student', methods=['POST'])
 @login_required
@@ -476,12 +378,11 @@ def upload_for_student():
     # misma clase de identificador: UUID público. `type=int` los habría leído
     # como None en silencio y el 400 siguiente lo habría tapado como "campo
     # faltante", así que se leen como texto y se resuelven aquí.
-    student = User.by_uuid(request.form.get('student_id'))
-    archive = Archive.by_uuid(request.form.get('archive_id'))
-    notes = request.form.get('notes', '').strip()
-    decision = (request.form.get('decision') or 'approve').strip().lower()
-    if decision not in ('approve', 'reject'):
-        decision = 'approve'
+    form = parse_form(UploadForStudentForm)
+    student = User.by_uuid(form.student_id)
+    archive = Archive.by_uuid(form.archive_id)
+    notes = form.notes
+    decision = form.decision
 
     # Un identificador que no resuelve NO se distingue aquí de uno fuera de
     # alcance: los dos caen al mismo 403 de la guarda de abajo, que con None
@@ -490,8 +391,8 @@ def upload_for_student():
     # UUID ajeno sabría si señala a alguien real antes de que el alcance
     # llegara a opinar. El 400 se reserva para lo que de verdad es un campo
     # ausente.
-    if not request.form.get('student_id') or not request.form.get('archive_id'):
-        return jsonify({"error": "student_id y archive_id son requeridos"}), 400
+    if not form.student_id or not form.archive_id:
+        return api_error("VALIDATION_ERROR", "El estudiante y el archivo son requeridos.", status=400)
 
     if student is not None and not _is_student_account(student):
         student = None
@@ -504,7 +405,8 @@ def upload_for_student():
         return denied
 
     student_id = student.id
-    archive_id = archive.id
+    if archive is None:
+        return api_not_found("Archivo no encontrado")
 
     # Archivo opcional: si no se proporciona, el coordinador valida sin documento
     # (caso típico: examen presencial). Aspirantes/estudiantes siempre suben file.
@@ -512,100 +414,46 @@ def upload_for_student():
     if file and not file.filename:
         file = None
     if not file and not notes:
-        return jsonify({
-            "error": "Si no subes un archivo debes proporcionar al menos un comentario justificativo"
-        }), 400
+        return api_error(
+            "VALIDATION_ERROR",
+            "Si no subes un archivo debes proporcionar al menos un comentario justificativo",
+            status=400,
+        )
     
     # Inscripción sobre la que se escribe: siempre una que el llamador gestiona.
     user_program = _scoped_user_program(student_id)
     if not user_program:
-        return jsonify({"error": "Estudiante no inscrito"}), 404
+        return api_not_found("Estudiante no inscrito")
 
     # Verificar que el archivo permite subida por coordinador
-    archive = db.session.get(Archive, archive_id)
-    if not archive or not archive.allow_coordinator_upload:
-        return jsonify({"error": "Este archivo no permite subida por coordinador"}), 403
-    
+    if not archive.allow_coordinator_upload:
+        return api_error("FORBIDDEN", "Este archivo no permite subida por coordinador", status=403)
+
     try:
-        # Si hay archivo, guardarlo. Si no, file_relative_path queda en None.
-        file_relative_path = None
-        if file:
-            file_relative_path = save_user_doc(
-                file_storage=file,
-                user_id=student_id,
-                phase='admission',
-                name=archive.name,
-            )
-
-        program_step = ProgramStep.query.filter_by(
-            program_id=user_program.program_id,
-            step_id=archive.step_id
-        ).first()
-
-        if not program_step:
-            return jsonify({"error": "Configuración de programa incompleta"}), 400
-
-        # Eliminar submission anterior si existe
-        existing = Submission.query.filter_by(
-            user_id=student_id,
-            archive_id=archive_id
-        ).first()
-        if existing:
-            db.session.delete(existing)
-
-        new_status = 'approved' if decision == 'approve' else 'rejected'
-        prefix = '[Coordinador]'
-        if not file:
-            prefix = '[Coordinador · validación sin archivo]'
-        comment_body = notes if notes else (
-            'Documento subido y aprobado' if decision == 'approve' else 'Documento rechazado'
+        submission = coordinator_service.upload_for_student(
+            student_id=student_id,
+            user_program=user_program,
+            archive=archive,
+            file=file,
+            decision=decision,
+            notes=notes,
+            uploader_id=current_user.id,
         )
-
-        submission = Submission(
-            file_path=file_relative_path,
-            status=new_status,
-            review_date=now_local(),
-            reviewer_comment=f"{prefix} {comment_body}",
-            user_id=student_id,
-            archive_id=archive_id,
-            program_step_id=program_step.id,
-            semester=None,
-            uploaded_by=current_user.id,
-            uploaded_by_role='program_admin'
-        )
-
-        # Marcar reviewer_id si la decisión es revisar (no solo subir)
-        submission.reviewer_id = current_user.id
-
-        db.session.add(submission)
-        db.session.commit()
-
-        try:
-            UserHistoryService.log_document_upload(
-                user_id=student_id,
-                archive_name=archive.name,
-                program_name=user_program.program.name,
-                uploaded_by_admin=True,
-                admin_id=current_user.id
-            )
-            db.session.commit()
-        except Exception as e:
-            current_app.logger.error(f"Error al registrar subida por coordinador en historial: {e}")
-
-        msg = (
-            f"Documento {'aprobado' if decision == 'approve' else 'rechazado'} exitosamente por coordinador"
-            + ('' if file else ' (sin archivo adjunto)')
-        )
-        return jsonify({
-            # Handle público de la entrega recién creada.
-            "ok": True,
-            "submission_id": str(submission.uuid) if submission.uuid else None,
-            "message": msg,
-        }), 201
-
+    except DomainError as e:
+        return domain_error_response(e)
     except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": f"Error al guardar: {str(e)}"}), 500
+        return api_server_error(e, message="Error al guardar el documento.",
+                                context="coordinator.upload_for_student")
+
+    msg = (
+        f"Documento {'aprobado' if decision == 'approve' else 'rechazado'} exitosamente por coordinador"
+        + ('' if file else ' (sin archivo adjunto)')
+    )
+    return api_ok({
+        # Handle público de la entrega recién creada.
+        "submission_id": str(submission.uuid) if submission.uuid else None,
+        "message": msg,
+    }, status=201)
 
 
 @api_coordinator.route('/programs', methods=['GET'])
@@ -614,13 +462,8 @@ def upload_for_student():
 def list_coordinator_programs():
     """Lista programas que el coordinador puede gestionar"""
     scope = scope_service.accessible_program_ids(current_user)
-    if scope is None:
-        programs = Program.query.all()
-    elif not scope:
-        programs = []
-    else:
-        programs = Program.query.filter(Program.id.in_(scope)).all()
-    
+    programs = coordinator_service.list_programs_in_scope(scope)
+
     items = [{
         "id": p.id,
         "name": p.name,
@@ -628,7 +471,7 @@ def list_coordinator_programs():
         "description": p.description
     } for p in programs]
     
-    return jsonify({"ok": True, "programs": items}), 200
+    return api_ok({"programs": items})
 
 @api_coordinator.route('/student/<uuid:student_uuid>/permanence-details', methods=['GET'])
 @login_required
@@ -639,12 +482,9 @@ def get_student_permanence_details(student_uuid):
     semestre actual, periodo activo, confirmación semestral,
     beca CONACyT, documentos de admisión pendientes e historial semestral.
     """
-    from app.models.semester_enrollment import SemesterEnrollment
-    from app.models.academic_period import AcademicPeriod
-
     student = _resolve_student(student_uuid)
     if student is None:
-        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+        return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
     student_id = student.id
 
     # La inscripción que se muestra es la del programa que el llamador gestiona;
@@ -652,35 +492,24 @@ def get_student_permanence_details(student_uuid):
     user_program = _scoped_user_program(student_id)
     can_manage = user_program is not None
     if user_program is None:
-        user_program = UserProgram.query.filter_by(user_id=student_id).first()
+        user_program = coordinator_service.first_user_program(student_id)
     if not user_program:
-        return jsonify({"ok": False, "error": "Sin programa"}), 404
+        return api_not_found("Sin programa")
 
-    program = db.session.get(Program, user_program.program_id)
+    program = coordinator_service.get_program(user_program.program_id)
 
     # Fuera de alcance: nivel reducido (nombre / correo / progreso). Ni número
     # de control, ni foto, ni beca, ni historial semestral cruzan de programa.
     if not can_manage:
         if not scope_service.may_view_cross_program_summary(current_user):
-            return jsonify({
-                "ok": False,
-                "error": "No tienes acceso a la información de este estudiante"
-            }), 403
-        return jsonify(_restricted_permanence_payload(student, user_program, program)), 200
+            return api_error("FORBIDDEN", "No tienes acceso a la información de este estudiante",
+                             status=403)
+        return api_ok(_restricted_permanence_payload(student, user_program, program))
 
-    # Periodo activo y enrollment del periodo actual
-    active_period = AcademicPeriod.get_active_period()
-    current_enrollment = None
-    if active_period:
-        current_enrollment = SemesterEnrollment.query.filter_by(
-            user_program_id=user_program.id,
-            academic_period_id=active_period.id
-        ).first()
-
-    # Historial semestral (todos los periodos)
-    history = SemesterEnrollment.query.filter_by(
-        user_program_id=user_program.id
-    ).order_by(SemesterEnrollment.semester_number.asc()).all()
+    # Periodo activo, confirmación del periodo actual e historial semestral
+    active_period, current_enrollment, history = (
+        coordinator_service.permanence_enrollment_context(user_program)
+    )
 
     # Documentos de admisión pendientes/rechazados
     admission_state = get_admission_state(student_id, program.id, user_program)
@@ -689,8 +518,7 @@ def get_student_permanence_details(student_uuid):
         admission_state['status_count'].get('rejected', 0)
     )
 
-    return jsonify({
-        "ok": True,
+    return api_ok({
         "student": {
             "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
@@ -736,7 +564,7 @@ def get_student_permanence_details(student_uuid):
             for se in history
         ],
         "can_manage": can_manage,
-    }), 200
+    })
 
 
 @api_coordinator.route('/student/<uuid:student_uuid>/details', methods=['GET'])
@@ -747,24 +575,21 @@ def get_student_details(student_uuid):
     Obtiene detalles completos de un estudiante para el modal del coordinador.
     Incluye: perfil, documentos, entrevista, métricas
     """
-    from app.models.event import Event, EventSlot, EventWindow
-    from app.services.interview_service import InterviewEligibilityService
-    
     # 1. Obtener estudiante
     student = _resolve_student(student_uuid)
     if student is None:
-        return jsonify({"ok": False, "error": STUDENT_NOT_FOUND_MESSAGE}), 404
+        return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
     student_id = student.id
 
     # 2. Resolver la inscripción dentro del alcance del llamador
     user_program = _scoped_user_program(student_id)
     can_manage = user_program is not None
     if user_program is None:
-        user_program = UserProgram.query.filter_by(user_id=student_id).first()
+        user_program = coordinator_service.first_user_program(student_id)
     if not user_program:
-        return jsonify({"ok": False, "error": "Estudiante no inscrito"}), 404
+        return api_not_found("Estudiante no inscrito")
 
-    program = db.session.get(Program, user_program.program_id)
+    program = coordinator_service.get_program(user_program.program_id)
 
     # 3. Obtener estado de admisión completo
     admission_state = get_admission_state(student_id, program.id, user_program)
@@ -773,77 +598,16 @@ def get_student_details(student_uuid):
     # sus URLs nunca cruzan de programa, aunque el llamador tenga el permiso.
     if not can_manage:
         if not scope_service.may_view_cross_program_summary(current_user):
-            return jsonify({
-                "ok": False,
-                "error": "No tienes acceso a la información de este estudiante"
-            }), 403
-        return jsonify(_restricted_details_payload(student, program, admission_state)), 200
+            return api_error("FORBIDDEN", "No tienes acceso a la información de este estudiante",
+                             status=403)
+        return api_ok(_restricted_details_payload(student, program, admission_state))
 
-    # 4. Organizar documentos por paso
-    documents_by_step = []
-    for item in admission_state['processed_steps']:
-        if item['sequence'] == 0:
-            continue
-        if item['is_combined']:
-            # Paso combinado
-            step_data = {
-                "step_id": item['id'],
-                "step_name": item['name'],
-                "sequence": item['sequence'],
-                "is_combined": True,
-                "locked": item['locked'],
-                "state": item['state'],
-                "archives": []
-            }
-            
-            # Archivos del step1
-            for arch in item['step1'].archives:
-                step_data['archives'].append(_format_archive_status(
-                    arch, 
-                    admission_state['subs'], 
-                    admission_state['all_extensions']
-                ))
-            
-            # Archivos del step2
-            for arch in item['step2'].archives:
-                step_data['archives'].append(_format_archive_status(
-                    arch, 
-                    admission_state['subs'], 
-                    admission_state['all_extensions']
-                ))
-            
-            documents_by_step.append(step_data)
-        else:
-            # Paso normal
-            step = item['step']
-            step_data = {
-                "step_id": step.id,
-                "step_name": step.name,
-                "sequence": item['sequence'],
-                "is_combined": False,
-                "locked": item['locked'],
-                "state": item['state'],
-                "archives": []
-            }
-            
-            for arch in step.archives:
-                step_data['archives'].append(_format_archive_status(
-                    arch, 
-                    admission_state['subs'], 
-                    admission_state['all_extensions']
-                ))
-            
-            documents_by_step.append(step_data)
-    
-    # 5. Estado de entrevista
-    interview_status = _get_interview_status(student_id, program.id)
-    
-    # 6. Verificar elegibilidad
-    eligibility = InterviewEligibilityService.check_student_eligibility(student_id, program.id)
-    
+    # 4-6. Documentos por paso, entrevista, elegibilidad y métricas: un solo
+    # constructor compartido con la ficha de admisión del expediente.
+    detail = student_detail_service.build_admission_detail(student, user_program, program)
+
     # 7. Construir respuesta
-    return jsonify({
-        "ok": True,
+    return api_ok({
         "student": {
             "id": str(student.uuid) if student.uuid else None,
             "full_name": f"{student.first_name} {student.last_name} {student.mother_last_name or ''}".strip(),
@@ -872,174 +636,21 @@ def get_student_details(student_uuid):
                 }
             }
         },
-        "documents": documents_by_step,
-        "interview": {
-            **interview_status,
-            "eligibility": eligibility
-        },
-        "metrics": {
-            "total_documents": len([a for step in documents_by_step for a in step['archives']]),
-            "approved": admission_state['status_count'].get('approved', 0),
-            "pending": admission_state['status_count'].get('pending', 0),
-            "rejected": admission_state['status_count'].get('rejected', 0),
-            "extended": admission_state['status_count'].get('extended', 0),
-            "in_review": admission_state['status_count'].get('review', 0),
-            "progress_percentage": admission_state['progress_pct']
-        },
-        "missing_documents": _get_missing_documents(documents_by_step),
+        "documents": detail["documents"],
+        "interview": detail["interview"],
+        "metrics": detail["metrics"],
+        "missing_documents": detail["missing_documents"],
         "can_manage": can_manage
-    }), 200
+    })
 
-def _format_archive_status(archive, subs, all_extensions):
-    """Formatea el estado de un archivo para el modal"""
-    sub = subs.get(archive.id)
-    ext = all_extensions.get(archive.id)
-    
-    return {
-        # Public handle — the browser posts it back as `archive_id`.
-        "id": str(archive.uuid) if archive.uuid else None,
-        "name": archive.name,
-        "description": archive.description,
-        "has_submission": bool(sub),
-        "status": sub.status if sub else "pending",
-        "uploaded_at": sub.upload_date.isoformat() if sub and sub.upload_date else None,
-        "uploaded_by_role": sub.uploaded_by_role if sub else None,
-        "reviewer_comment": sub.reviewer_comment if sub else None,
-        "review_date": sub.review_date.isoformat() if sub and sub.review_date else None,
-        # URL opaco: nombra la fila. El anterior reconstruía
-        # `<user_id>/admission/<archivo>`, o sea que publicaba el id entero del
-        # alumno en cada tarjeta del modal.
-        "file_url": file_access_service.submission_file_url(sub),
-        "has_extension": bool(ext),
-        "extension_status": ext.status if ext else None,
-        "extension_until": ext.granted_until.isoformat() if ext and ext.granted_until else None,
-        "is_uploadable": archive.is_uploadable,
-        "allow_coordinator_upload": archive.allow_coordinator_upload
-    }
-
-def _get_interview_status(student_id, program_id):
-    """Obtiene el estado de entrevista del estudiante"""
-    from app.models.event import Event, EventSlot, EventWindow
-
-    # Buscar cualquier cita no cancelada: scheduled (pendiente), done (realizada), no_show
-    appointment = db.session.execute(
-        select(Appointment)
-        .join(EventSlot, Appointment.slot_id == EventSlot.id)
-        .join(EventWindow, EventSlot.event_window_id == EventWindow.id)
-        .join(Event, EventWindow.event_id == Event.id)
-        .where(
-            Appointment.applicant_id == student_id,
-            Appointment.status.in_(['scheduled', 'done', 'no_show']),
-            or_(Event.program_id == program_id, Event.program_id.is_(None)),
-            Event.type == 'interview'
-        )
-    ).scalar_one_or_none()
-
-    if not appointment:
-        return {
-            "has_interview": False,
-            "appointment": None
-        }
-    
-    # Obtener detalles completos
-    slot = db.session.get(EventSlot, appointment.slot_id)
-    window = db.session.get(EventWindow, slot.event_window_id)
-    event = db.session.get(Event, window.event_id)
-    
-    return {
-        "has_interview": True,
-        "appointment": {
-            "id": appointment.id,
-            "status": appointment.status,
-            "notes": appointment.notes,
-            "created_at": appointment.created_at.isoformat(),
-            "event": {
-                "id": event.id,
-                "title": event.title,
-                "location": event.location,
-                "description": event.description
-            },
-            "slot": {
-                "starts_at": slot.starts_at.isoformat(),
-                "ends_at": slot.ends_at.isoformat()
-            }
-        }
-    }
-
-def _get_missing_documents(documents_by_step):
-    """Lista de documentos faltantes o rechazados"""
-    missing = []
-    for step in documents_by_step:
-        for arch in step['archives']:
-            if arch['status'] in ['pending', 'rejected']:
-                missing.append({
-                    "step": step['step_name'],
-                    "archive": arch['name'],
-                    "status": arch['status']
-                })
-    return missing
 # ==================== FUNCIONES AUXILIARES ====================
-
-def _compute_permanence_metrics(user_program, program, active_period_id):
-    """
-    Calcula métricas reales de permanencia para un UserProgram.
-
-    Returns dict con:
-      - current_semester: número de semestre actual del UserProgram
-      - completed_semesters: cantidad de SemesterEnrollment con status='completed'
-      - total_semesters: duración del programa (Program.duration_semesters; default 4)
-      - academic_progress: % de semestres completados sobre el total
-      - in_progress_segment: % adicional que corresponde al semestre en curso
-        (sólo cuando hay enrollment en estado 'active' en el periodo activo)
-      - academic_status: estado funcional para el coordinador
-        ('active' | 'on_leave' | 'completed' | 'dropped' | 'pending')
-    """
-    total = max(int(program.duration_semesters or 4), 1)
-    current_semester = user_program.current_semester or 1
-
-    completed = (
-        SemesterEnrollment.query
-        .filter_by(user_program_id=user_program.id, status='completed')
-        .count()
-    )
-    completed = min(completed, total)
-
-    # Enrollment del periodo activo (si existe) define el estado funcional + segmento parpadeante
-    current_enrollment = None
-    if active_period_id is not None:
-        current_enrollment = (
-            SemesterEnrollment.query
-            .filter_by(user_program_id=user_program.id, academic_period_id=active_period_id)
-            .first()
-        )
-
-    if current_enrollment is not None:
-        academic_status = current_enrollment.status
-    elif completed >= total:
-        academic_status = 'completed'
-    else:
-        academic_status = 'pending'
-
-    progress_pct = round((completed / total) * 100, 2)
-    segment_pct = round((1 / total) * 100, 2)
-
-    # Sólo parpadea si hay un semestre activamente en curso y queda espacio en la barra
-    in_progress_segment = 0
-    if academic_status == 'active' and (progress_pct + segment_pct) <= 100.001:
-        in_progress_segment = segment_pct
-
-    return {
-        "current_semester": current_semester,
-        "completed_semesters": completed,
-        "total_semesters": total,
-        "academic_progress": progress_pct,
-        "in_progress_segment": in_progress_segment,
-        "academic_status": academic_status,
-    }
-
 
 def _determine_current_phase(admission_state, user_program, perm):
     """Determina la fase actual del estudiante."""
+    # Egresados y titulados están en conclusión, sin importar los semestres
+    # contados (el egreso se registra en academic_status).
+    if user_program.academic_status in ('graduated', 'titled'):
+        return "conclusion"
     # Estudiantes con número de control = ya están en permanencia o conclusión
     if user_program.admission_status == 'enrolled':
         if perm["completed_semesters"] >= perm["total_semesters"]:
@@ -1077,10 +688,7 @@ def get_student_history(student_uuid):
         # Verificar que el estudiante existe y el coordinador tiene acceso
         student = _resolve_student(student_uuid)
         if student is None:
-            return jsonify({
-                'success': False,
-                'message': STUDENT_NOT_FOUND_MESSAGE
-            }), 404
+            return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
         student_id = student.id
         
         # El historial es información prohibida entre programas: aquí no hay
@@ -1092,15 +700,13 @@ def get_student_history(student_uuid):
         # ajeno averigua si señala a alguien real. Aquí no cuesta nada
         # colapsarlos y es la regla que ya sigue el resto del módulo.
         if not scope_service.user_in_scope(current_user, student, allow_self=False):
-            return jsonify({
-                'success': False,
-                'message': STUDENT_NOT_FOUND_MESSAGE
-            }), 404
+            return api_not_found(STUDENT_NOT_FOUND_MESSAGE)
 
 
         # Parámetros de consulta
-        format_type = request.args.get('format', 'formatted')
-        limit = min(int(request.args.get('limit', 50)), 100)
+        q = parse_model(StudentHistoryQuery, request.args.to_dict())
+        format_type = q.format
+        limit = q.limit
         
         # Obtener el historial del estudiante
         history_entries = UserHistoryService.get_user_history(
@@ -1127,9 +733,8 @@ def get_student_history(student_uuid):
             
             formatted_history.append(entry_dict)
         
-        return jsonify({
-            'success': True,
-            'data': {
+        return api_ok(
+            {
                 'student': {
                     'id': str(student.uuid) if student.uuid else None,
                     'name': f"{student.first_name} {student.last_name}",
@@ -1140,18 +745,18 @@ def get_student_history(student_uuid):
                 'total_count': len(history_entries),
                 'format_type': format_type
             },
-            'meta': {
+            meta={
                 'viewed_by': str(current_user.uuid) if current_user.uuid else None,
                 'ordered_by': 'timestamp_desc',
                 'limit_applied': limit
-            }
-        }), 200
+            },
+        )
         
+    except DomainError:
+        raise  # validation errors are rendered by the app-level handler
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error al obtener historial del estudiante: {str(e)}'
-        }), 500
+        return api_server_error(e, message='Error al obtener el historial del estudiante.',
+                                context='coordinator.get_student_history')
 
 def _check_ready_for_interview(admission_state):
     """Verifica si el estudiante está listo para entrevista"""

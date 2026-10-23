@@ -1,8 +1,9 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.services.notification_service import NotificationService
 from app.services.events_service import EventsService
-from app import db
+from app.services import notification_service as notif_svc
 
 api_notifications = Blueprint('api_notifications', __name__, url_prefix='/api/v1/notifications')
 
@@ -58,7 +59,7 @@ def get_unread_count():
 @login_required
 def mark_notification_read(notification_id):
     """Marca una notificación como leída"""
-    notification = NotificationService.mark_as_read(notification_id, current_user.id)
+    notification = notif_svc.mark_read_and_commit(notification_id, current_user.id)
     
     if not notification:
         return jsonify({
@@ -68,8 +69,6 @@ def mark_notification_read(notification_id):
                 'message': 'Notificación no encontrada'
             }]
         }), 404
-    
-    db.session.commit()
     
     return jsonify({
         'data': notification.to_dict(),
@@ -81,8 +80,7 @@ def mark_notification_read(notification_id):
 @login_required
 def mark_all_notifications_read():
     """Marca todas las notificaciones como leídas"""
-    count = NotificationService.mark_all_as_read(current_user.id)
-    db.session.commit()
+    count = notif_svc.mark_all_read_and_commit(current_user.id)
     
     return jsonify({
         'data': {
@@ -99,7 +97,7 @@ def mark_all_notifications_read():
 @login_required
 def delete_notification(notification_id):
     """Elimina (soft delete) una notificación"""
-    notification = NotificationService.delete_notification(notification_id, current_user.id)
+    notification = notif_svc.delete_and_commit(notification_id, current_user.id)
     
     if not notification:
         return jsonify({
@@ -109,8 +107,6 @@ def delete_notification(notification_id):
                 'message': 'Notificación no encontrada'
             }]
         }), 404
-    
-    db.session.commit()
     
     return jsonify({
         'data': None,
@@ -125,8 +121,7 @@ def delete_notification(notification_id):
 @login_required
 def clear_read_notifications():
     """Elimina todas las notificaciones leídas"""
-    count = NotificationService.clear_read_notifications(current_user.id)
-    db.session.commit()
+    count = notif_svc.clear_read_and_commit(current_user.id)
     
     return jsonify({
         'data': {
@@ -180,11 +175,7 @@ def respond_invitation(notification_id):
     # revelar las de nadie más. La autoría de la invitación la vuelve a
     # comprobar el servicio (`invitation.user_id != user_id`), que es la
     # comprobación que manda.
-    from app.models.notification import Notification
-    notification = Notification.query.filter_by(
-        id=notification_id,
-        user_id=current_user.id
-    ).first()
+    notification = notif_svc.get_notification_for_user(notification_id, current_user.id)
 
     if not notification or not notification.related_invitation_id:
         return jsonify({
@@ -207,7 +198,7 @@ def respond_invitation(notification_id):
         # El servicio ya explica el motivo en español (evento sin publicar,
         # invitación cancelada, sin cupo…). No se marca la notificación como
         # leída: la invitación sigue pendiente de respuesta.
-        db.session.rollback()
+        notif_svc.rollback_session()
         return jsonify({
             'data': None,
             'flash': [{'level': 'error', 'message': str(e)}],
@@ -215,17 +206,11 @@ def respond_invitation(notification_id):
             'meta': {}
         }), 400
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            'data': None,
-            'flash': [{'level': 'error', 'message': 'No se pudo registrar tu respuesta.'}],
-            'error': {'code': 'SERVER_ERROR', 'message': str(e)},
-            'meta': {}
-        }), 500
+        notif_svc.rollback_session()
+        return api_server_error(e, context='respond_invitation')
 
     # La transición ya está confirmada; marcar leída es un efecto de la ruta.
-    NotificationService.mark_as_read(notification_id, current_user.id)
-    db.session.commit()
+    notif_svc.mark_read_and_commit(notification_id, current_user.id)
 
     message = 'Invitación aceptada' if invitation.status == 'accepted' else 'Invitación rechazada'
 

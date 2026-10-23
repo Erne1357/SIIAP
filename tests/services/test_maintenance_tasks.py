@@ -327,7 +327,7 @@ class TestCleanupExpiredAdmissionFiles:
     def test_expires_stale_process(self, app):
         old = _period('20243', start=TODAY - timedelta(days=700), end=TODAY - timedelta(days=600),
                       adm_end=TODAY - timedelta(days=650))
-        for code, off in (('20251', 500), ('20252', 400)):
+        for code, off in (('20251', 500), ('20253', 400)):
             _period(code, start=TODAY - timedelta(days=off), end=TODAY - timedelta(days=off - 90),
                     adm_end=TODAY - timedelta(days=off + 10))
         prog = make_program()

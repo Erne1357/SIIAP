@@ -40,10 +40,9 @@ class DeliberationManager {
         const ids = this._targetProgramIds();
         return Promise.all(ids.map(async (pid) => {
             try {
-                const res = await fetch(urlBuilder(pid));
-                const json = await res.json();
-                if (!res.ok || json.error) return { pid, data: null, meta: null };
-                return { pid, data: json.data, meta: json.meta };
+                const r = await window.SIIAP.api.get(urlBuilder(pid), { flash: false });
+                if (!r.ok) return { pid, data: null, meta: null };
+                return { pid, data: r.data, meta: r.meta };
             } catch (e) {
                 return { pid, data: null, meta: null };
             }
@@ -366,21 +365,14 @@ class DeliberationManager {
 
     async _doMarkInterviewCompleted(userId, programId) {
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/interview-completed`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                }
-            });
+            // Empty JSON-typed POST, as before (the Content-Type header is kept on purpose)
+            const r = await window.SIIAP.api.request(
+                'POST',
+                `/api/v1/deliberation/user/${userId}/program/${programId}/interview-completed`,
+                { headers: { 'Content-Type': 'application/json' } }
+            );
 
-            const result = await response.json();
-
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadPendingInterview();
             }
@@ -646,10 +638,12 @@ class DeliberationManager {
         select.disabled = true;
 
         try {
-            const response = await fetch(`/api/v1/deliberation/program/${programId}/admission-archives`);
-            const result = await response.json();
+            const result = await window.SIIAP.api.get(
+                `/api/v1/deliberation/program/${programId}/admission-archives`,
+                { flash: false }
+            );
 
-            if (result.error || !result.data) {
+            if (!result.ok || !result.data) {
                 select.innerHTML = '<option value="">Error al cargar documentos</option>';
                 return;
             }
@@ -681,23 +675,16 @@ class DeliberationManager {
         const programId = document.getElementById('startDelibProgramId').value;
 
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/start`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                }
-            });
-
-            const result = await response.json();
+            // Empty JSON-typed POST, as before (the Content-Type header is kept on purpose)
+            const r = await window.SIIAP.api.request(
+                'POST',
+                `/api/v1/deliberation/user/${userId}/program/${programId}/start`,
+                { headers: { 'Content-Type': 'application/json' } }
+            );
 
             this.startDeliberationModal.hide();
 
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('interview_completed');
             }
@@ -746,6 +733,7 @@ class DeliberationManager {
             if (isConditionalCheck) isConditionalCheck.checked = false;
             if (dictamenSection) dictamenSection.classList.add('d-none');
             if (dictamenFileInput) dictamenFileInput.value = '';
+            this.resetConditions();
             modalTitle.textContent = 'Aceptar aspirante';
             confirmBtn.className = 'btn btn-success';
             confirmBtn.textContent = 'Confirmar aceptación';
@@ -757,11 +745,104 @@ class DeliberationManager {
                 if (dictamenSection) {
                     dictamenSection.classList.toggle('d-none', !e.target.checked);
                 }
+                const conditionsSection = document.getElementById('conditionsSection');
+                if (conditionsSection) {
+                    conditionsSection.classList.toggle('d-none', !e.target.checked);
+                    if (e.target.checked && !conditionsSection.querySelector('[data-condition-row]')) {
+                        this.addConditionRow();
+                    }
+                }
             });
+            this.bindConditionControls();
             isConditionalCheck.dataset.bound = '1';
         }
 
         this.decisionModal.show();
+    }
+
+    // ── Condiciones de la aceptación condicionada ───────────────────────────
+    bindConditionControls() {
+        const addBtn = document.getElementById('addConditionBtn');
+        const list = document.getElementById('conditionsList');
+        if (addBtn && !addBtn.dataset.bound) {
+            addBtn.addEventListener('click', () => this.addConditionRow(true));
+            addBtn.dataset.bound = '1';
+        }
+        if (list && !list.dataset.bound) {
+            list.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-remove-condition]');
+                if (!btn) return;
+                btn.closest('[data-condition-row]')?.remove();
+                window.SIIAP.announce?.('Condición eliminada.');
+                document.getElementById('addConditionBtn')?.focus();
+            });
+            list.dataset.bound = '1';
+        }
+    }
+
+    resetConditions() {
+        const list = document.getElementById('conditionsList');
+        if (list) list.innerHTML = '';
+        document.getElementById('conditionsSection')?.classList.add('d-none');
+        this._conditionSeq = 0;
+    }
+
+    addConditionRow(focus = false) {
+        const tpl = document.getElementById('conditionRowTemplate');
+        const list = document.getElementById('conditionsList');
+        if (!tpl || !list) return;
+        const row = tpl.content.firstElementChild.cloneNode(true);
+        this._conditionSeq = (this._conditionSeq || 0) + 1;
+        const n = this._conditionSeq;
+        row.querySelectorAll('[data-field]').forEach((el) => {
+            el.id = `condition-${n}-${el.dataset.field}`;
+        });
+        row.querySelectorAll('[data-for]').forEach((el) => {
+            el.setAttribute('for', `condition-${n}-${el.dataset.for}`);
+        });
+        // Only the conclusion requirements of the applicant's program.
+        const programId = document.getElementById('decisionProgramId')?.value;
+        const options = programId && document.getElementById(`conditionOptions-${programId}`);
+        const select = row.querySelector('[data-field="archive_key"]');
+        if (options && select) select.appendChild(options.content.cloneNode(true));
+        list.appendChild(row);
+        if (focus) row.querySelector('[data-field="description"]')?.focus();
+    }
+
+    /** Returns [{description, archive_key, due_date}] or null when invalid. */
+    collectConditions() {
+        const rows = document.querySelectorAll('#conditionsList [data-condition-row]');
+        const result = [];
+        let invalid = false;
+        rows.forEach((row) => {
+            row.querySelector('.condition-list__error')?.remove();
+            const desc = row.querySelector('[data-field="description"]');
+            const description = desc.value.trim();
+            const archiveKey = row.querySelector('[data-field="archive_key"]').value;
+            const dueDate = row.querySelector('[data-field="due_date"]').value;
+            const blank = !description && !archiveKey && !dueDate;
+            if (blank) return;
+            if (!description) {
+                invalid = true;
+                desc.setAttribute('aria-invalid', 'true');
+                const msg = document.createElement('div');
+                msg.className = 'condition-list__error';
+                msg.textContent = 'Cada condición necesita una descripción.';
+                desc.after(msg);
+                return;
+            }
+            desc.removeAttribute('aria-invalid');
+            result.push({
+                description,
+                archive_key: archiveKey || null,
+                due_date: dueDate || null,
+            });
+        });
+        if (invalid) {
+            showFlash('warning', 'Cada condición necesita una descripción.');
+            return null;
+        }
+        return result;
     }
 
     async submitDecision() {
@@ -770,7 +851,9 @@ class DeliberationManager {
         const action = document.getElementById('decisionAction').value;
         const notes = document.getElementById('decisionNotes').value;
 
-        if (!userId || !programId || !/^\d+$/.test(userId) || !/^\d+$/.test(programId)) {
+        // userId is the PUBLIC identifier (UUID); programId is still an integer.
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!userId || !programId || !UUID_RE.test(userId) || !/^\d+$/.test(programId)) {
             showFlash('danger', 'Aspirante o programa inválido — recarga la página e intenta de nuevo.');
             return;
         }
@@ -788,20 +871,17 @@ class DeliberationManager {
             }
 
             if (isConditional) {
+                const conditions = this.collectConditions();
+                if (conditions === null) return;
                 const fd = new FormData();
                 if (notes) fd.append('notes', notes);
                 fd.append('is_conditional', 'true');
                 fd.append('dictamen_file', dictamenFile);
+                if (conditions.length) fd.append('conditions', JSON.stringify(conditions));
                 try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
-                        body: fd,
-                    });
-                    const result = await response.json();
+                    const r = await window.SIIAP.api.request('POST', endpoint, { body: fd });
                     this.decisionModal.hide();
-                    if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
-                    if (!result.error) {
+                    if (r.ok) {
                         this.loadStats();
                         this.loadApplicants('deliberation');
                     }
@@ -839,24 +919,11 @@ class DeliberationManager {
         }
 
         try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify(body)
-            });
-
-            const result = await response.json();
+            const r = await window.SIIAP.api.post(endpoint, body);
 
             this.decisionModal.hide();
 
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('deliberation');
             }
@@ -877,22 +944,12 @@ class DeliberationManager {
 
     async _doResetApplicant(userId, programId) {
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/reset`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify({ reason: 'Correcciones completadas' })
-            });
+            const r = await window.SIIAP.api.post(
+                `/api/v1/deliberation/user/${userId}/program/${programId}/reset`,
+                { reason: 'Correcciones completadas' }
+            );
 
-            const result = await response.json();
-
-            if (result.flash) {
-                result.flash.forEach(f => showFlash(f.level, f.message));
-            }
-
-            if (!result.error) {
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('rejected');
             }
@@ -913,17 +970,11 @@ class DeliberationManager {
 
     async _doForceResetApplicant(userId, programId, applicantName) {
         try {
-            const response = await fetch(`/api/v1/deliberation/user/${userId}/program/${programId}/force-reset`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                },
-                body: JSON.stringify({ reason: 'Reinicio administrativo desde panel de deliberación' })
-            });
-            const result = await response.json();
-            if (result.flash) result.flash.forEach(f => showFlash(f.level, f.message));
-            if (!result.error) {
+            const r = await window.SIIAP.api.post(
+                `/api/v1/deliberation/user/${userId}/program/${programId}/force-reset`,
+                { reason: 'Reinicio administrativo desde panel de deliberación' }
+            );
+            if (r.ok) {
                 this.loadStats();
                 this.loadApplicants('accepted');
             }

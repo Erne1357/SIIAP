@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi kardex{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/kardex/kardex.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="coord-page__header">
+    <h1 class="coord-page__title">Mi kardex</h1>
+    <p class="coord-page__subtitle small">Historial de materias, intentos y calificaciones de tu plan de estudios.</p>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {% set select_url = url_for('pages_kardex.my_kardex') %}
+      {% set htmx_target = none %}
+      {% include 'kardex/_partials/_kardex.html' %}
+    </div>
+  </div>
+</div>
+{% endblock %}

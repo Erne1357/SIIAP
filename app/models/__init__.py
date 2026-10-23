@@ -29,3 +29,12 @@ from .user_permission import UserPermission
 from .purge_run import PurgeRun
 from .password_reset_token import PasswordResetToken
 from .program_admission_interest import ProgramAdmissionInterest
+from .curriculum_plan import CurriculumPlan
+from .subject import Subject
+from .course_group import CourseGroup
+from .course_enrollment import CourseEnrollment
+from .grade_correction import GradeCorrection
+from .thesis import Thesis, ThesisMember
+from .admission_condition import AdmissionCondition
+from .conclusion_requirement_override import ConclusionRequirementOverride
+from .grade_exam import GradeExam

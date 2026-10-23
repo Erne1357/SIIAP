@@ -1,0 +1,17 @@
+/* Kardex: attempts list inside the subjects table. */
+.kardex-attempts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.kardex-attempts__item {
+  font-size: var(--fs-sm);
+}
+
+.kardex-attempts__grade--failed {
+  color: var(--color-danger-700);
+}

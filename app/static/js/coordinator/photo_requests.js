@@ -7,8 +7,6 @@
 (function () {
   'use strict';
 
-  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
   function escHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -22,7 +20,7 @@
   }
 
   function flashMsg(level, msg) {
-    if (typeof showFlash === 'function') showFlash(level, msg);
+    window.SIIAP.flash(level, msg);
   }
 
   async function loadPhotoRequests() {
@@ -40,10 +38,9 @@
       </tr>`;
 
     try {
-      const res = await fetch('/api/v1/users/photo-requests');
-      const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
-      renderRequests(json.data || []);
+      const r = await window.SIIAP.api.get('/api/v1/users/photo-requests', { flash: false });
+      if (!r.ok) throw new Error(r.error?.message || 'Error');
+      renderRequests(r.data || []);
     } catch (e) {
       tbody.innerHTML = `
         <tr>
@@ -150,14 +147,11 @@
       : (prompt('Motivo del rechazo (opcional):') || null);
 
     try {
-      const res = await fetch(`/api/v1/users/${encodeURIComponent(userId)}/photo/enable-change`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-        body: JSON.stringify({ approve, reason }),
-      });
-      const json = await res.json();
-      if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
-      if (res.ok && !json.error) loadPhotoRequests();
+      const r = await window.SIIAP.api.post(
+        `/api/v1/users/${encodeURIComponent(userId)}/photo/enable-change`,
+        { approve, reason }
+      );
+      if (r.ok) loadPhotoRequests();
     } catch (e) {
       flashMsg('danger', 'Error al procesar la solicitud.');
     }
@@ -182,14 +176,12 @@
       fd.append('photo', file);
 
       try {
-        const res = await fetch(`/api/v1/users/${encodeURIComponent(userId)}/photo`, {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrfToken },
-          body: fd,
-        });
-        const json = await res.json();
-        if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
-        if (res.ok && !json.error) {
+        const r = await window.SIIAP.api.request(
+          'POST',
+          `/api/v1/users/${encodeURIComponent(userId)}/photo`,
+          { body: fd }
+        );
+        if (r.ok) {
           bootstrap.Modal.getInstance(
             document.getElementById('coordPhotoUploadFromListModal')
           )?.hide();
@@ -215,10 +207,9 @@
       });
     }
     // Initial badge fetch
-    fetch('/api/v1/users/photo-requests')
-      .then(r => r.ok ? r.json() : null)
-      .then(json => {
-        const count = (json?.data || []).length;
+    window.SIIAP.api.get('/api/v1/users/photo-requests', { flash: false })
+      .then(r => {
+        const count = (r.ok ? (r.data || []) : []).length;
         const badge = document.getElementById('photoRequestsCount');
         if (badge && count > 0) {
           badge.textContent = count;

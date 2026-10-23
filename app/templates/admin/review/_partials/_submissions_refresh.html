@@ -1,0 +1,8 @@
+{# Fragment answered to the realtime refresh: new rows + the counters that
+   live outside the tbody (out-of-band swaps). Context as _submissions_rows. #}
+{% include 'admin/review/_partials/_submissions_rows.html' %}
+<span class="badge bg-warning ms-2" id="pendingDocsCount" hx-swap-oob="true">{{ submissions|length }}</span>
+{% for ph_key in ['admission', 'permanence', 'conclusion'] %}
+{% set ph_count = phase_counts[ph_key] if phase_counts else 0 %}
+<span class="badge ms-1 {% if ph_count > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}" id="phase-count-{{ ph_key }}" hx-swap-oob="true">{{ ph_count }}</span>
+{% endfor %}

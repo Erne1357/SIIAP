@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from '_macros.html' import data_table_open, data_table_close, modal_shell, field, icon_button %}
 
-{% block title %}{{ super() }} - Worker Celery{% endblock %}
+{% block title %}Worker Celery - SIIAP{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/celery_worker.css') }}?v={{ static_version }}" rel="stylesheet">

@@ -1,0 +1,164 @@
+{#
+  Versiones del plan de un programa y las tablas de materias de la versión
+  elegida.
+
+  Contexto explícito: program, plans, plan (o None), required_by_semester
+  [(semestre|None, [materias])], slots, bank, subject_count, kind_labels.
+  Cada POST de la página devuelve este fragmento actualizado.
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
+{% set _target = '#curriculumWorkspace' %}
+
+{% macro subject_rows(subjects, show_semester=false) %}
+  {% for s in subjects %}
+    <tr id="subject-{{ s.id }}">
+      <td>{{ s.key or '—' }}</td>
+      <td>
+        {{ s.name }}
+        {% if s.is_incomplete %}
+          <span class="status-badge status-badge--pending status-badge--sm">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>Falta clave o créditos</span>
+          </span>
+        {% endif %}
+      </td>
+      <td>{{ s.credits if s.credits is not none else '—' }}</td>
+      {% if show_semester %}<td>{{ s.suggested_semester or '—' }}</td>{% endif %}
+      <td class="curriculum-actions">
+        <button type="button" class="btn btn-outline-primary btn-sm tap-target"
+                data-bs-toggle="modal" data-bs-target="#modalSubject"
+                data-subject-url="{{ url_for('pages_curriculum.edit_subject', subject_id=s.id) }}"
+                data-subject-key="{{ s.key or '' }}" data-subject-name="{{ s.name }}"
+                data-subject-credits="{{ s.credits if s.credits is not none else '' }}"
+                data-subject-semester="{{ s.suggested_semester or '' }}"
+                data-subject-kind="{{ s.kind }}" data-subject-title="Editar materia">
+          <i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Editar {{ s.name }}</span>
+        </button>
+        <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                hx-post="{{ url_for('pages_curriculum.deactivate_subject', subject_id=s.id) }}"
+                hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false"
+                hx-confirm="¿Desactivar la materia «{{ s.name }}»? Dejará de ofrecerse en grupos nuevos."
+                data-confirm-title="Desactivar materia" data-confirm-type="warning"
+                data-confirm-label="Sí, desactivar">
+          <i class="bi bi-slash-circle" aria-hidden="true"></i><span class="visually-hidden">Desactivar {{ s.name }}</span>
+        </button>
+      </td>
+    </tr>
+  {% endfor %}
+{% endmacro %}
+
+{% macro subject_table(caption, table_id, subjects, show_semester=false) %}
+  {{ data_table_open(caption, id=table_id) }}
+    <thead>
+      <tr>
+        <th scope="col">Clave</th>
+        <th scope="col">Materia</th>
+        <th scope="col">Créditos</th>
+        {% if show_semester %}<th scope="col">Semestre</th>{% endif %}
+        <th scope="col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>{{ subject_rows(subjects, show_semester) }}</tbody>
+  {{ data_table_close() }}
+{% endmacro %}
+
+<section class="mb-4" aria-labelledby="curriculumVersionsTitle">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <h2 class="h5 mb-0" id="curriculumVersionsTitle">Versiones de {{ program.name }}</h2>
+    <form hx-post="{{ url_for('pages_curriculum.create_plan') }}" hx-target="{{ _target }}"
+          hx-swap="innerHTML" hx-history="false"
+          hx-confirm="Se creará una versión nueva con una copia de las materias de la versión mostrada. ¿Continuar?"
+          data-confirm-title="Nueva versión del plan" data-confirm-type="warning"
+          data-confirm-label="Sí, crear versión">
+      <input type="hidden" name="program_id" value="{{ program.id }}">
+      {% if plan %}<input type="hidden" name="copy_from" value="{{ plan.id }}">{% endif %}
+      <button type="submit" class="btn btn-primary tap-target">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nueva versión
+      </button>
+    </form>
+  </div>
+  {% if plans %}
+    {{ data_table_open('Versiones del plan de estudios', id='curriculumVersions') }}
+      <thead>
+        <tr>
+          <th scope="col">Versión</th>
+          <th scope="col">Nombre</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in plans %}
+          <tr id="plan-{{ p.id }}">
+            <td>{{ p.version }}</td>
+            <td>{{ p.name }}</td>
+            <td>
+              {% if p.is_current %}{{ status_badge('accepted', 'Vigente', 'sm') }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="curriculum-actions">
+              {% if not (plan and p.id == plan.id) %}
+                <button type="button" class="btn btn-outline-primary btn-sm tap-target"
+                        hx-get="{{ url_for('pages_curriculum.plan_fragment', plan_id=p.id) }}"
+                        hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false">
+                  <i class="bi bi-eye me-1" aria-hidden="true"></i>Ver materias
+                </button>
+              {% else %}
+                <span class="text-muted small">Mostrando</span>
+              {% endif %}
+              {% if not p.is_current %}
+                <button type="button" class="btn btn-outline-success btn-sm tap-target"
+                        hx-post="{{ url_for('pages_curriculum.set_current', plan_id=p.id) }}"
+                        hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false"
+                        hx-confirm="La versión {{ p.version }} será la que sigan los estudiantes de nuevo ingreso. ¿Marcarla como vigente?"
+                        data-confirm-title="Cambiar versión vigente" data-confirm-type="warning"
+                        data-confirm-label="Sí, marcar vigente">
+                  <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Marcar vigente
+                </button>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    {{ data_table_close() }}
+  {% else %}
+    {{ empty_state('journal-plus', 'Sin versiones del plan',
+                   'Este programa aún no tiene plan de estudios. Crea la primera versión para capturar sus materias.',
+                   compact=true) }}
+  {% endif %}
+</section>
+
+{% if plan %}
+  <section aria-labelledby="curriculumSubjectsTitle">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h2 class="h5 mb-0" id="curriculumSubjectsTitle">
+        Materias de la versión {{ plan.version }}
+        {% if plan.is_current %}{{ status_badge('accepted', 'Vigente', 'sm') }}{% endif %}
+      </h2>
+      <button type="button" class="btn btn-primary tap-target" data-bs-toggle="modal" data-bs-target="#modalSubject"
+              data-subject-url="{{ url_for('pages_curriculum.create_subject', plan_id=plan.id) }}"
+              data-subject-title="Nueva materia">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar materia
+      </button>
+    </div>
+
+    {% if subject_count == 0 %}
+      {{ empty_state('journal-text', 'Sin materias',
+                     'Esta versión aún no tiene materias activas. Agrega la primera.', compact=true) }}
+    {% endif %}
+
+    {% for semester, subjects in required_by_semester %}
+      <h3 class="h6 mt-4 mb-2">{{ 'Semestre ' ~ semester if semester else 'Sin semestre sugerido' }}</h3>
+      {{ subject_table('Materias obligatorias ' ~ ('del semestre ' ~ semester if semester else 'sin semestre sugerido'),
+                       'curriculumSemester' ~ (semester or 'None'), subjects) }}
+    {% endfor %}
+
+    {% if slots %}
+      <h3 class="h6 mt-4 mb-2">Huecos de optativa</h3>
+      {{ subject_table('Huecos de optativa del plan', 'curriculumSlots', slots, true) }}
+    {% endif %}
+
+    {% if bank %}
+      <h3 class="h6 mt-4 mb-2">Banco de optativas</h3>
+      {{ subject_table('Optativas del banco', 'curriculumBank', bank) }}
+    {% endif %}
+  </section>
+{% endif %}

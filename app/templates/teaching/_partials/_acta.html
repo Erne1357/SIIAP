@@ -1,0 +1,126 @@
+{#
+  Acta de calificaciones de un grupo. Se renderiza dentro de #actaRoot.
+
+  Contexto explícito: group, rows (grading_service.acta_rows), is_teacher,
+  editable (el docente puede capturar ahora), can_correct (acta cerrada y puede
+  solicitar correcciones), window_text (descripción de la ventana de captura o None).
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close, modal_shell %}
+{% set _target = '#actaRoot' %}
+
+{% if group.status == 'closed' %}
+  <div class="alert alert-secondary acta__notice" role="status">
+    <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Acta cerrada
+    {% if group.closed_at %}el {{ group.closed_at|fecha_es }}{% endif %}. Las calificaciones son definitivas.
+  </div>
+{% elif not editable and is_teacher %}
+  <div class="alert alert-warning acta__notice" role="status">
+    <i class="bi bi-calendar-x me-1" aria-hidden="true"></i>La captura de calificaciones no está abierta.
+    {% if window_text %}{{ window_text }}{% endif %}
+  </div>
+{% endif %}
+
+{% macro _table() %}
+  {{ data_table_open('Calificaciones de los estudiantes del grupo', id='groupRoster') }}
+    <thead>
+      <tr>
+        <th scope="col">Nombre</th>
+        <th scope="col">Número de control</th>
+        <th scope="col">Intento</th>
+        <th scope="col">Calificación</th>
+        {% if can_correct %}<th scope="col">Corrección</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr id="actaRow-{{ r.enrollment.id }}">
+          <td>{{ r.full_name }}</td>
+          <td>{{ r.control_number or '—' }}</td>
+          <td>{{ r.attempt_label }}</td>
+          <td>
+            {% if editable %}
+              <label class="visually-hidden" for="grade-{{ r.enrollment.id }}">Calificación de {{ r.full_name }}</label>
+              <input type="text" class="form-control acta__grade" id="grade-{{ r.enrollment.id }}"
+                     name="grade-{{ r.enrollment.id }}" value="{{ r.value }}"
+                     inputmode="numeric" maxlength="3" autocomplete="off"
+                     pattern="[0-9]{1,3}|[Nn][Pp]" placeholder="0-100">
+            {% else %}
+              <span class="fw-semibold">{{ r.value or '—' }}</span>
+              {% if r.final %}
+                {% if r.result == 'passed' %}
+                  {{ status_badge('approved', 'Aprobada', 'sm') }}
+                {% else %}
+                  {{ status_badge('rejected', 'Reprobada', 'sm') }}
+                {% endif %}
+              {% endif %}
+            {% endif %}
+          </td>
+          {% if can_correct %}
+            <td>
+              {% if r.pending_correction %}
+                {{ status_badge('pending', 'Corrección pendiente', 'sm') }}
+              {% else %}
+                <button type="button" class="btn btn-outline-secondary btn-sm tap-target"
+                        data-bs-toggle="modal" data-bs-target="#correctionModal-{{ r.enrollment.id }}">
+                  <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Solicitar corrección
+                </button>
+              {% endif %}
+            </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  {{ data_table_close() }}
+{% endmacro %}
+
+{% if not rows %}
+  {{ empty_state('people', 'Sin estudiantes inscritos',
+                 'Este grupo todavía no tiene inscripciones.', compact=true) }}
+{% else %}
+  {% if editable %}
+    <form id="actaForm" hx-post="{{ url_for('pages_teaching.save_grades', group_uuid=group.uuid) }}"
+          hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false">
+      {{ _table() }}
+      <div class="acta__actions">
+        <button type="submit" class="btn btn-primary tap-target">
+          <i class="bi bi-save me-1" aria-hidden="true"></i>Guardar borrador
+        </button>
+        <button type="button" id="actaCloseBtn" class="btn btn-danger tap-target"
+                hx-post="{{ url_for('pages_teaching.close_acta', group_uuid=group.uuid) }}"
+                hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false"
+                hx-confirm="Al cerrar el acta las calificaciones quedan definitivas; después sólo podrás solicitar correcciones.{% set specials = rows|selectattr('attempt_type', 'equalto', 'special')|list|length %}{% if specials %} Hay {{ specials }} estudiante(s) en intento especial: si reprueban o no se presentan causarán baja definitiva automática.{% endif %} ¿Cerrar el acta?"
+                data-confirm-title="Cerrar acta" data-confirm-type="danger"
+                data-confirm-label="Sí, cerrar acta">
+          <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Cerrar acta
+        </button>
+      </div>
+    </form>
+  {% else %}
+    {{ _table() }}
+  {% endif %}
+
+  {% if can_correct %}
+    {% for r in rows if not r.pending_correction %}
+      {% call(section) modal_shell('correctionModal-' ~ r.enrollment.id, 'Solicitar corrección', icon='pencil-square') %}
+        {% if section == 'body' %}
+          <form id="correctionForm-{{ r.enrollment.id }}"
+                hx-post="{{ url_for('pages_teaching.request_grade_correction', group_uuid=group.uuid) }}"
+                hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false">
+            <input type="hidden" name="enrollment_id" value="{{ r.enrollment.id }}">
+            <p class="mb-3">{{ r.full_name }} · calificación actual: <strong>{{ r.value }}</strong></p>
+            <label class="form-label" for="correctionValue-{{ r.enrollment.id }}">Calificación correcta (0-100 o NP)</label>
+            <input type="text" class="form-control acta__grade mb-3" id="correctionValue-{{ r.enrollment.id }}"
+                   name="new_value" inputmode="numeric" maxlength="3" autocomplete="off" required
+                   pattern="[0-9]{1,3}|[Nn][Pp]">
+            <label class="form-label" for="correctionReason-{{ r.enrollment.id }}">Motivo (obligatorio)</label>
+            <textarea class="form-control" id="correctionReason-{{ r.enrollment.id }}" name="reason"
+                      rows="3" required></textarea>
+          </form>
+        {% elif section == 'footer' %}
+          <button type="button" class="btn btn-outline-secondary tap-target" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary tap-target" form="correctionForm-{{ r.enrollment.id }}">Enviar solicitud</button>
+        {% endif %}
+      {% endcall %}
+    {% endfor %}
+  {% endif %}
+{% endif %}

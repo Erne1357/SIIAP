@@ -1,0 +1,49 @@
+{#
+  Descargas en PDF del kardex y de la boleta por periodo.
+
+  Contexto explícito: kd (kardex_service.kardex; kd.user_program), pdf_scope
+  ('own' | 'record'), report_periods (lista de AcademicPeriod con calificaciones;
+  si falta, solo se ofrece el kardex), target_user (solo con pdf_scope='record').
+  Los permisos se comprueban aquí; el servidor los exige de nuevo.
+#}
+{% if kd and kd.user_program %}
+  {% set _own = pdf_scope == 'own' %}
+  {% set _allowed = has_perm('kardex.page.export_own_pdf') if _own else (has_perm('kardex.page.export_pdf') and has_perm('students.page.view_record')) %}
+  {% if _allowed %}
+    {% set _pid = kd.user_program.program_id %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="kardexPdfActions">
+      {% if _own %}
+        <a class="btn btn-outline-primary btn-sm tap-target"
+           href="{{ url_for('pages_academic_documents.own_kardex_pdf', program=_pid) }}">
+          <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Descargar kardex (PDF)
+        </a>
+      {% else %}
+        <a class="btn btn-outline-primary btn-sm tap-target"
+           href="{{ url_for('pages_academic_documents.record_kardex_pdf', user_uuid=target_user.uuid, program=_pid) }}">
+          <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Descargar kardex (PDF)
+        </a>
+      {% endif %}
+      {% if report_periods %}
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm tap-target dropdown-toggle" type="button"
+                  id="kardexReportCardMenu" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Boleta por periodo
+          </button>
+          <ul class="dropdown-menu" aria-labelledby="kardexReportCardMenu">
+            {% for period in report_periods %}
+              <li>
+                {% if _own %}
+                  <a class="dropdown-item tap-target"
+                     href="{{ url_for('pages_academic_documents.own_report_card_pdf', period_id=period.id, program=_pid) }}">Boleta {{ period.name }}</a>
+                {% else %}
+                  <a class="dropdown-item tap-target"
+                     href="{{ url_for('pages_academic_documents.record_report_card_pdf', user_uuid=target_user.uuid, period_id=period.id, program=_pid) }}">Boleta {{ period.name }}</a>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endif %}

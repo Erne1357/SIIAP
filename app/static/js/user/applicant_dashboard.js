@@ -22,10 +22,6 @@
     return (doc && doc.file_url) || '#';
   }
 
-  function getCsrf() {
-    return document.querySelector('meta[name="csrf-token"]')?.content || '';
-  }
-
   function escHtml(value) {
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -55,8 +51,8 @@
     if (!container) return;
     setBusy(container, true, 'Buscando tu carta de aceptación…');
     try {
-      const resp = await fetch(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`);
-      const result = await resp.json();
+      const resp = await window.SIIAP.api.get(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`, { flash: false });
+      const result = resp.body || { error: resp.error };
       if (result.error) {
         container.innerHTML = '';
         setBusy(container, false);
@@ -101,8 +97,8 @@
     if (!container) return;
     setBusy(container, true, 'Cargando tus documentos de aceptación…');
     try {
-      const resp = await fetch(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`);
-      const result = await resp.json();
+      const resp = await window.SIIAP.api.get(`/api/v1/acceptance/user/${userId}/program/${userProgramId}/status`, { flash: false });
+      const result = resp.body || { error: resp.error };
 
       if (result.error) {
         container.innerHTML = acceptanceErrorState(result.error.message);
@@ -232,15 +228,13 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Subiendo...'; }
 
       try {
-        const resp = await fetch(
+        // flash:false — the server flashes are shown below with showSimpleToast.
+        const resp = await window.SIIAP.api.request(
+          'POST',
           `/api/v1/acceptance/user/${userId}/program/${userProgramId}/submit-receipt`,
-          {
-            method: 'POST',
-            headers: { 'X-CSRFToken': getCsrf() },
-            body: formData,
-          }
+          { body: formData, flash: false }
         );
-        const result = await resp.json();
+        const result = resp.body || { error: resp.error };
         if (result.flash) result.flash.forEach(f => showSimpleToast(f.message, f.level));
         if (!result.error) loadAcceptanceDocs();
       } catch (err) {
@@ -279,6 +273,19 @@
     loadAcceptanceDocs();   // sólo actúa si existe #acceptanceDocsContent
   });
 
+  /** Re-render the dashboard body in place (htmx, see #dashboard-content in dashboard.html). */
+  function refreshDashboard() {
+    const el = document.getElementById('dashboard-content');
+    if (el && window.htmx) window.htmx.trigger(el, 'siiap:dashboard:refresh');
+  }
+
+  // The refresh morphs the server markup over the JS-built regions: load them again.
+  document.addEventListener('htmx:afterSettle', (e) => {
+    if (e.detail?.target?.id !== 'dashboard-content') return;
+    loadDeferralLetter();
+    loadAcceptanceDocs();
+  });
+
   // Tiempo real: recargar documentos de aceptación cuando hay cambios
   window.addEventListener('siiap:acceptance:updated', () => {
     loadAcceptanceDocs();
@@ -291,7 +298,7 @@
     const data = e.detail || {};
     const action = data.status === 'approved' ? 'aprobado' : 'rechazado';
     showSimpleToast(`Un documento ha sido ${action}. Actualizando...`, data.status === 'approved' ? 'success' : 'warning');
-    setTimeout(() => { window.location.reload(); }, 2000);
+    refreshDashboard();
   });
 
   // Tiempo real: decisión de prórroga
@@ -305,7 +312,7 @@
     const m = messages[data.status];
     if (!m) return;
     showSimpleToast(`${m.text} Actualizando...`, m.type);
-    setTimeout(() => { window.location.reload(); }, 2000);
+    refreshDashboard();
   });
 
   // Tiempo real: cambio de estado de admisión → banners y timeline cambian
@@ -322,6 +329,6 @@
     const m = messages[data.new_status];
     if (!m) return;
     showSimpleToast(`${m.text} Actualizando...`, m.type);
-    setTimeout(() => { window.location.reload(); }, 2500);
+    refreshDashboard();
   });
 })();

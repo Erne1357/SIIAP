@@ -15,9 +15,10 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required
+from app.services import task_log_service
 from app.extensions import celery as celery_app
-from app.utils.datetime_utils import now_local
 
 logger = logging.getLogger(__name__)
 
@@ -92,25 +93,14 @@ def task_history():
       task_name  filtrar por nombre de tarea
       triggered_by  filtrar por 'manual' o 'scheduled'
     """
-    from app.models.task_log import TaskLog
-
     page       = request.args.get('page', 1, type=int)
     per_page   = min(request.args.get('per_page', 20, type=int), 100)
     status     = request.args.get('status')
     task_name  = request.args.get('task_name')
     triggered  = request.args.get('triggered_by')
 
-    q = TaskLog.query
-
-    if status:
-        q = q.filter(TaskLog.status == status)
-    if task_name:
-        q = q.filter(TaskLog.task_name == task_name)
-    if triggered:
-        q = q.filter(TaskLog.triggered_by == triggered)
-
-    pagination = q.order_by(TaskLog.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
+    pagination = task_log_service.paginate_task_logs(
+        page, per_page, status=status, task_name=task_name, triggered_by=triggered
     )
 
     return _ok(
@@ -152,9 +142,6 @@ def run_task():
       task_key  (str, requerido) — clave del mapa _RUNNABLE_TASKS
       kwargs    (dict, opcional) — argumentos de la tarea
     """
-    from app import db
-    from app.models.task_log import TaskLog
-
     body     = request.get_json(silent=True) or {}
     task_key = body.get('task_key', '').strip()
     kwargs   = body.get('kwargs', {})
@@ -175,17 +162,7 @@ def run_task():
         task_id = async_result.id
 
         # Crear el TaskLog marcado como 'manual' inmediatamente
-        log = TaskLog(
-            task_id      = task_id,
-            task_name    = task_name,
-            status       = 'pending',
-            triggered_by = 'manual',
-            triggered_by_user_id = current_user.id,
-            kwargs       = kwargs,
-            created_at   = now_local(),
-        )
-        db.session.add(log)
-        db.session.commit()
+        task_log_service.log_manual_task(task_id, task_name, kwargs, current_user.id)
 
         logger.info(
             f"[celery_api] Tarea manual encolada: {task_name} "
@@ -196,7 +173,7 @@ def run_task():
 
     except Exception as exc:
         logger.error(f"[celery_api] run_task error: {exc}", exc_info=True)
-        return _err(f"Error al encolar la tarea: {exc}", 500)
+        return api_server_error(exc, context='run_task')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -251,7 +228,7 @@ def list_schedules():
 
     except Exception as exc:
         logger.error(f"[celery_api] list_schedules error: {exc}", exc_info=True)
-        return _err(f"Error al leer schedules: {exc}", 500)
+        return api_server_error(exc, context='list_schedules')
 
 
 def _serialize_schedule(entry):
@@ -348,4 +325,4 @@ def update_schedule(entry_name):
 
     except Exception as exc:
         logger.error(f"[celery_api] update_schedule error: {exc}", exc_info=True)
-        return _err(f"Error al actualizar schedule: {exc}", 500)
+        return api_server_error(exc, context='update_schedule')

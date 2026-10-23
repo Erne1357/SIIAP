@@ -217,7 +217,7 @@ class AppointmentEventReadACLTestCase(unittest.TestCase):
         resp = self._get(self.client_applicant_a, f'/api/v1/appointments/{appt.id}/details')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(
-            json.loads(resp.data)['appointment']['event']['title'],
+            json.loads(resp.data)['data']['appointment']['event']['title'],
             'Entrevistas de admisión',
         )
 
@@ -229,7 +229,7 @@ class AppointmentEventReadACLTestCase(unittest.TestCase):
 
         resp = self._get(self.client_applicant_a, '/api/v1/appointments/mine/active')
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(json.loads(resp.data)['appointments'], [])
+        self.assertEqual(json.loads(resp.data)['data']['appointments'], [])
 
     def test_coordinator_assigned_appointment_survives_the_event_closing(self):
         # This is the shipped shape of every real interview: assigned by the
@@ -246,8 +246,8 @@ class AppointmentEventReadACLTestCase(unittest.TestCase):
         resp = self._get(self.client_applicant_a, f'/api/v1/appointments/{appt.id}/details')
         self.assertEqual(resp.status_code, 200)
         body = json.loads(resp.data)
-        self.assertEqual(body['appointment']['event']['title'], 'Entrevistas de admisión')
-        self.assertEqual(body['appointment']['event']['location'], 'Sala 1')
+        self.assertEqual(body['data']['appointment']['event']['title'], 'Entrevistas de admisión')
+        self.assertEqual(body['data']['appointment']['event']['location'], 'Sala 1')
 
     def test_mine_active_keeps_the_coordinator_assigned_interview(self):
         self._assert_created(self._assign_as_coordinator(self.event_public, self.slot_public))
@@ -255,7 +255,7 @@ class AppointmentEventReadACLTestCase(unittest.TestCase):
 
         resp = self._get(self.client_applicant_a, '/api/v1/appointments/mine/active')
         self.assertEqual(resp.status_code, 200)
-        items = json.loads(resp.data)['appointments']
+        items = json.loads(resp.data)['data']['appointments']
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]['event_title'], 'Entrevistas de admisión')
         self.assertEqual(items[0]['location'], 'Sala 1')

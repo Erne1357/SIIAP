@@ -95,7 +95,7 @@ class TestSidebarBadge(unittest.TestCase):
         resp = self.client.get('/api/v1/invitations/my-invitations')
         data = json.loads(resp.data)
         # student only has 1 pending invitation
-        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['data']['total'], 1)
 
     def test_my_invitations_total_zero_when_no_pending(self):
         # Seed accepted invitation only
@@ -107,7 +107,7 @@ class TestSidebarBadge(unittest.TestCase):
         db.session.commit()
         resp = self.client.get('/api/v1/invitations/my-invitations')
         data = json.loads(resp.data)
-        self.assertEqual(data['total'], 0)
+        self.assertEqual(data['data']['total'], 0)
 
     # ------------------------------------------------------------------
     # pending count decreases after respond
@@ -123,7 +123,7 @@ class TestSidebarBadge(unittest.TestCase):
 
         # Before respond
         resp = self.client.get('/api/v1/invitations/my-invitations')
-        before = json.loads(resp.data)['total']
+        before = json.loads(resp.data)['data']['total']
         self.assertEqual(before, 1)
 
         # Respond (accept)
@@ -136,7 +136,7 @@ class TestSidebarBadge(unittest.TestCase):
 
         # After respond
         resp = self.client.get('/api/v1/invitations/my-invitations')
-        after = json.loads(resp.data)['total']
+        after = json.loads(resp.data)['data']['total']
         self.assertEqual(after, 0)
 
     def test_pending_count_decreases_after_reject(self):
@@ -155,7 +155,7 @@ class TestSidebarBadge(unittest.TestCase):
         )
 
         resp = self.client.get('/api/v1/invitations/my-invitations')
-        after = json.loads(resp.data)['total']
+        after = json.loads(resp.data)['data']['total']
         self.assertEqual(after, 0)
 
     def test_multiple_pending_correct_count(self):
@@ -193,7 +193,7 @@ class TestSidebarBadge(unittest.TestCase):
 
         resp = self.client.get('/api/v1/invitations/my-invitations')
         data = json.loads(resp.data)
-        self.assertEqual(data['total'], 2)
+        self.assertEqual(data['data']['total'], 2)
 
     # ------------------------------------------------------------------
     # /events/new-count and /events/mark-seen
@@ -226,7 +226,7 @@ class TestSidebarBadge(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['data']['ok'])
+        self.assertIsNone(data['error'])
 
     def test_mark_seen_resets_count(self):
         # Mark seen now

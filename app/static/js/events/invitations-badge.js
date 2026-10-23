@@ -36,10 +36,10 @@
      */
     async function loadInitialCount() {
         try {
-            const res = await fetch(ENDPOINT, { credentials: 'same-origin' });
+            const res = await window.SIIAP.api.get(ENDPOINT, { flash: false });
             if (!res.ok) return;
-            const data = await res.json();
-            const count = Number(data.total || 0);
+            const data = res.body;
+            const count = Number(data.data?.total || 0);
             setBadge(count);
         } catch (err) {
             console.warn('[invitations-badge] fallo carga inicial:', err);

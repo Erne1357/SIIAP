@@ -1,12 +1,14 @@
 # app/routes/api/invitations_api.py
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, current_app
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_server_error
+from app.utils.validation import parse_json
+from app.schemas.invitations import (
+    RespondInvitationIn, InviteStudentsIn, UpdateEventDatesIn,
+)
 from app.services import program_scope_service as scope_service
 from app.services.events_service import EventsService
-from app.models.event import Event, EventInvitation
-from app.models.program import Program
-from app import db
 
 api_invitations = Blueprint('api_invitations', __name__, url_prefix='/api/v1/invitations')
 
@@ -18,13 +20,7 @@ DEFAULT_MAX_INVITE_BATCH = 100
 
 def _deny(code: str, message: str, status: int):
     """Denegación con el envelope del proyecto y mensaje en español."""
-    return jsonify({
-        "ok": False,
-        "data": None,
-        "flash": [{"level": "danger", "message": message}],
-        "error": {"code": code, "message": message},
-        "meta": {}
-    }), status
+    return api_error(code, message, status=status, level='danger')
 
 
 def _load_managed_event(event_id: int):
@@ -44,7 +40,7 @@ def _load_managed_event(event_id: int):
     Returns:
         (event, None) si procede; (None, respuesta_error) si no.
     """
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event:
         return None, _deny("NOT_FOUND", "Evento no encontrado.", 404)
     if not EventsService.user_may_manage_event(current_user, event):
@@ -61,12 +57,12 @@ def invite_students(event_id: int):
     if err:
         return err
 
-    data = request.get_json() or {}
-    user_ids = data.get('user_ids', [])
-    notes = data.get('notes')
-    allow_external = bool(data.get('allow_external', False))
+    payload = parse_json(InviteStudentsIn)
+    user_ids = payload.user_ids
+    notes = payload.notes
+    allow_external = payload.allow_external
 
-    if not user_ids or not isinstance(user_ids, list):
+    if not user_ids:
         return _deny("VALIDATION_ERROR", "user_ids debe ser una lista.", 400)
 
     # `user_ids` es una lista de UUID públicos. Se rechaza la peticion entera
@@ -78,9 +74,8 @@ def invite_students(event_id: int):
     # Se consigue mapeando lo irresoluble a un id imposible, que jamas puede
     # estar en el alcance de nadie y por tanto arrastra la peticion al 403 de
     # abajo.
-    from app.models.user import User
-    resolved = [User.by_uuid(raw) for raw in user_ids]
-    target_ids = {row.id if row is not None else -1 for row in resolved}
+    resolved = EventsService.resolve_user_ids_by_uuid(user_ids)
+    target_ids = {uid if uid is not None else -1 for uid in resolved}
 
     max_batch = current_app.config.get('MAX_INVITE_BATCH', DEFAULT_MAX_INVITE_BATCH)
     if len(target_ids) > max_batch:
@@ -150,21 +145,18 @@ def invite_students(event_id: int):
                 ),
             })
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "invited": len(results['invited']),
             "already_invited": len(results['already_invited']),
             "already_registered": len(results['already_registered']),
             "pending_publication": bool(results.get('pending_publication')),
-            "flash": flash,
             "details": results
-        }), 201
+        }, status=201, flash=flash)
 
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='invite_students')
 
 
 @api_invitations.route('/event/<int:event_id>/list', methods=['GET'])
@@ -179,22 +171,21 @@ def list_event_invitations(event_id: int):
     try:
         invitations = EventsService.get_event_invitations(event_id)
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "invitations": invitations,
             "total": len(invitations)
-        }), 200
+        })
 
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='list_event_invitations')
 
 
 @api_invitations.route('/<int:invitation_id>/respond', methods=['POST'])
 @login_required
 def respond_to_invitation(invitation_id: int):
     """Responder a una invitación (estudiante)"""
-    data = request.get_json() or {}
-    accept = data.get('accept', False)
+    payload = parse_json(RespondInvitationIn)
+    accept = payload.accept
 
     try:
         invitation = EventsService.respond_to_invitation(
@@ -203,17 +194,15 @@ def respond_to_invitation(invitation_id: int):
             accept=accept
         )
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "status": invitation.status,
             "message": "Invitación aceptada" if accept else "Invitación rechazada"
-        }), 200
+        })
 
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='respond_to_invitation')
 
 
 @api_invitations.route('/my-invitations', methods=['GET'])
@@ -223,14 +212,13 @@ def my_invitations():
     try:
         invitations = EventsService.get_my_invitations(current_user.id)
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "invitations": invitations,
             "total": len(invitations)
-        }), 200
+        })
 
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='my_invitations')
 
 
 @api_invitations.route('/<int:invitation_id>', methods=['DELETE'])
@@ -241,11 +229,10 @@ def cancel_invitation(invitation_id: int):
     # Alcance: la invitación pertenece a un evento, y el evento a un programa.
     # Sin esta comprobación cualquier portador del permiso —incluido un
     # coordinador con alcance vacío— cancelaba invitaciones de otros programas.
-    invitation = db.session.get(EventInvitation, invitation_id)
+    invitation, event = EventsService.get_invitation_and_event(invitation_id)
     if not invitation:
         return _deny("NOT_FOUND", "Invitación no encontrada.", 404)
 
-    event = db.session.get(Event, invitation.event_id)
     if not EventsService.user_may_manage_event(current_user, event):
         # 404 deliberado: quien no gestiona el evento no debe poder confirmar
         # qué ids de invitación existen.
@@ -254,16 +241,12 @@ def cancel_invitation(invitation_id: int):
     try:
         EventsService.cancel_invitation(invitation_id)
 
-        return jsonify({
-            "ok": True,
-            "message": "Invitación cancelada"
-        }), 200
+        return api_ok({"message": "Invitación cancelada"})
 
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='cancel_invitation')
 
 
 @api_invitations.route('/event/<int:event_id>/dates', methods=['PUT'])
@@ -271,22 +254,13 @@ def cancel_invitation(invitation_id: int):
 @permission_required('invitations.api.manage')
 def update_event_dates(event_id: int):
     """Actualizar fechas del evento"""
-    from datetime import datetime
-
     event, err = _load_managed_event(event_id)
     if err:
         return err
 
-    data = request.get_json() or {}
-
-    event_date = None
-    event_end_date = None
-
-    if data.get('event_date'):
-        event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
-
-    if data.get('event_end_date'):
-        event_end_date = datetime.fromisoformat(data['event_end_date'].replace('Z', '+00:00'))
+    payload = parse_json(UpdateEventDatesIn)
+    event_date = payload.event_date
+    event_end_date = payload.event_end_date
 
     try:
         updated_event = EventsService.update_event_dates(
@@ -295,14 +269,12 @@ def update_event_dates(event_id: int):
             event_end_date=event_end_date
         )
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "event_date": updated_event.event_date.isoformat() if updated_event.event_date else None,
             "event_end_date": updated_event.event_end_date.isoformat() if updated_event.event_end_date else None
-        }), 200
+        })
 
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_error('BUSINESS_ERROR', str(e), status=400)
     except Exception as e:
-        db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context='update_event_dates')

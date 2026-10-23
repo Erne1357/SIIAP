@@ -10,11 +10,16 @@ class UserHistory(db.Model):
     __tablename__ = 'user_history'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    admin_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True, index=True)
     action = db.Column(db.String(50), nullable=False)
     details = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, default=now_local, nullable=False)
+    # Student program the action concerns, when there is one.
+    user_program_id = db.Column(
+        db.Integer, db.ForeignKey('user_program.id', ondelete='SET NULL'),
+        nullable=True, index=True
+    )
     
     # Relaciones
     user = db.relationship('User', foreign_keys=[user_id], overlaps="histories")

@@ -5,10 +5,8 @@
 (function () {
   'use strict';
 
-  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
   function flashMsg(level, msg) {
-    if (typeof showFlash === 'function') showFlash(level, msg);
+    window.SIIAP.flash(level, msg);
   }
 
   /** El nombre accesible y el tooltip se mantienen sincronizados: `title` solo
@@ -24,8 +22,8 @@
     if (!btn) return;
 
     try {
-      const res = await fetch('/api/v1/users/me/photo-status');
-      const json = await res.json();
+      const res = await window.SIIAP.api.get('/api/v1/users/me/photo-status', { flash: false });
+      const json = res.body || {};
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       const d = json.data || {};
       btn.classList.remove('d-none');
@@ -109,13 +107,8 @@
       fd.append('photo', f);
 
       try {
-        const res = await fetch('/api/v1/users/me/photo', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrfToken },
-          body: fd,
-        });
-        const json = await res.json();
-        if (json.flash) json.flash.forEach(fl => flashMsg(fl.level, fl.message));
+        const res = await window.SIIAP.api.request('POST', '/api/v1/users/me/photo', { body: fd });
+        const json = res.body || {};
 
         if (res.ok && !json.error) {
           const newUrl = json.data?.avatar_url;
@@ -147,16 +140,8 @@
       const reason = document.getElementById('photoChangeReason')?.value.trim() || '';
 
       try {
-        const res = await fetch('/api/v1/users/me/photo/request-change', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-          },
-          body: JSON.stringify({ reason }),
-        });
-        const json = await res.json();
-        if (json.flash) json.flash.forEach(fl => flashMsg(fl.level, fl.message));
+        const res = await window.SIIAP.api.post('/api/v1/users/me/photo/request-change', { reason });
+        const json = res.body || {};
 
         if (res.ok && !json.error) {
           bootstrap.Modal.getInstance(document.getElementById('requestPhotoChangeModal'))?.hide();

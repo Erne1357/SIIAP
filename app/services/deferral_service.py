@@ -26,6 +26,12 @@ from app.services import public_id_service
 from app.models import UserProgram, User, AcademicPeriod
 from app.models.acceptance_document import AcceptanceDocument
 from app.models.enrollment_deferral import EnrollmentDeferral
+from app.services.admission_status_service import (
+    InvalidAdmissionTransition,
+    is_summer_period,
+    lock_user_program,
+    transition,
+)
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
 from app.sockets.emitters import emit_user_and_coordinators, emit_to_coordinators
@@ -41,7 +47,10 @@ MAX_DEFERRALS = 2
 # Excepciones
 # ─────────────────────────────────────────────────────────────────────────────
 
-class DeferralError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class DeferralError(DomainError):
     """Error base para operaciones de diferimiento."""
     pass
 
@@ -50,7 +59,7 @@ class DeferralNotAllowed(DeferralError):
     pass
 
 
-class DeferralNotFound(DeferralError):
+class DeferralNotFound(DeferralError, NotFoundError):
     pass
 
 
@@ -83,18 +92,21 @@ def _count_active_or_used_deferrals(user_program_id: int) -> int:
 def _get_next_period(current_period_id: int) -> Optional[AcademicPeriod]:
     """
     Retorna el siguiente periodo académico disponible (por start_date)
-    posterior al periodo actual.
+    posterior al periodo actual. Los periodos de verano se omiten: la
+    transición semestral nunca mueve aspirantes a un periodo de verano, así que
+    un diferimiento hacia él jamás se reactivaría.
     """
     current = AcademicPeriod.query.get(current_period_id)
     if not current:
         return None
 
-    return (
+    later = (
         AcademicPeriod.query
         .filter(AcademicPeriod.start_date > current.start_date)
         .order_by(AcademicPeriod.start_date.asc())
-        .first()
+        .all()
     )
+    return next((p for p in later if not is_summer_period(p)), None)
 
 
 def _absolute_doc_path(relative_path: str) -> Optional[str]:
@@ -151,12 +163,20 @@ def _apply_deferral(up: UserProgram, deferral: EnrollmentDeferral,
     Aplica el diferimiento: cambia estados y resetea documentos.
     No hace commit; el llamador es responsable.
     """
+    # Validate the status move first: a refused transition must not leave
+    # side effects (document deletion, deferral activation).
+    try:
+        transition(up, 'deferred')
+    except InvalidAdmissionTransition as e:
+        raise DeferralNotAllowed(
+            f"Solo se puede diferir aspirantes aceptados. {e}"
+        ) from e
+
     deferral.status = 'active'
     deferral.reviewed_by_id = coordinator_id
     deferral.reviewed_at = now_local()
 
     # Conservar admission_period_id original hasta la reactivación
-    up.admission_status = 'deferred'
 
     _reset_docs_for_deferral(up.id)
 
@@ -210,7 +230,9 @@ def defer_applicant(user_id: int, program_id: int,
     Crea un EnrollmentDeferral con status='active' y aplica el diferimiento
     de inmediato (sin requerir aprobación).
     """
-    up = _get_user_program(user_id, program_id)
+    up = lock_user_program(user_id, program_id)
+    if not up:
+        raise DeferralNotFound(DEFERRAL_NOT_FOUND_MESSAGE)
 
     if up.admission_status != 'accepted':
         raise DeferralNotAllowed(
@@ -377,10 +399,14 @@ def approve_deferral(deferral_id: int, coordinator_id: int,
             f"Estado actual: '{deferral.status}'"
         )
 
-    deferral.review_notes = notes
-    up = deferral.user_program
+    # Lock the applicant row before reading its status (see lock_user_program).
+    deferral_up = db.session.get(UserProgram, deferral.user_program_id)
+    up = lock_user_program(deferral_up.user_id, deferral_up.program_id)
 
+    # Raises DeferralNotAllowed before any change if the applicant is no
+    # longer `accepted`.
     _apply_deferral(up, deferral, coordinator_id)
+    deferral.review_notes = notes
 
     db.session.commit()
 
@@ -466,7 +492,9 @@ def reactivate_deferred(user_id: int, program_id: int,
     - La acceptance_letter se conserva
     - course_schedule y enrollment_receipt ya están reseteados desde el diferimiento
     """
-    up = _get_user_program(user_id, program_id)
+    up = lock_user_program(user_id, program_id)
+    if up is None:
+        raise DeferralNotFound(DEFERRAL_NOT_FOUND_MESSAGE)
 
     if up.admission_status != 'deferred':
         raise DeferralNotAllowed(
@@ -488,7 +516,7 @@ def reactivate_deferred(user_id: int, program_id: int,
     if active_deferral.deferred_to_period_id:
         up.admission_period_id = active_deferral.deferred_to_period_id
 
-    up.admission_status = 'accepted'
+    transition(up, 'accepted')
 
     active_deferral.status = 'used'
 
@@ -702,10 +730,16 @@ def check_and_expire_deferrals() -> dict:
         deferral.status = 'expired'
         up = deferral.user_program
 
+        # The applicant may have left `deferred` meanwhile (reactivated,
+        # expired by period, enrolled): the row is closed, nothing else.
+        if up.admission_status != 'deferred':
+            expired_count += 1
+            continue
+
         # Si aún está en deferred y ya no puede diferir más → expirar proceso
         total_used = _count_active_or_used_deferrals(up.id)
         if total_used >= MAX_DEFERRALS:
-            up.admission_status = 'expired'
+            transition(up, 'expired')
             # System-driven transition (maintenance task): no acting admin.
             UserHistoryService.log_action(
                 user_id=up.user_id,

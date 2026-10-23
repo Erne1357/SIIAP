@@ -6,9 +6,9 @@ class Appointment(db.Model):
     __tablename__ = 'appointment'
 
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, index=True)
     slot_id = db.Column(db.Integer, db.ForeignKey('event_slot.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, unique=True)
-    applicant_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
+    applicant_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, index=True)
     assigned_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL', onupdate='CASCADE'))
     status = db.Column(db.String(20), nullable=False, default='scheduled')  # scheduled|done|no_show|cancelled
     notes = db.Column(db.Text)
@@ -40,7 +40,7 @@ class AppointmentChangeRequest(db.Model):
     __tablename__ = 'appointment_change_request'
 
     id = db.Column(db.Integer, primary_key=True)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False, index=True)
     requested_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE', onupdate='CASCADE'), nullable=False)
     reason = db.Column(db.Text)
     suggestions = db.Column(db.Text)  # JSON textual o texto libre con propuestas

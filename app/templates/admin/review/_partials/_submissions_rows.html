@@ -1,0 +1,39 @@
+{# Rows of the review list (<tbody id="submissions-body">).
+   Context: submissions, filters, is_program_admin, managed_program_ids.
+   No {% extends %}: included by the full page and rendered alone as the htmx fragment. #}
+{% from '_macros.html' import status_badge, empty_state %}
+{% set current_phase = filters.phase or 'admission' %}
+          {% for sub in submissions %}
+          {% set is_own_program = not is_program_admin or sub.program_step.program.id in managed_program_ids %}
+          <tr class="{% if not is_own_program %}table-secondary{% endif %}">
+            <th scope="row" class="fw-normal">{{ loop.index }}</th>
+            <td>{{ sub.user.first_name }} {{ sub.user.last_name }}</td>
+            <td>
+              {{ sub.program_step.program.name }}
+              {% if not is_own_program %}
+              <i class="bi bi-eye text-muted ms-1" aria-hidden="true"></i>
+              <span class="visually-hidden">Solo consulta</span>
+              {% endif %}
+            </td>
+            <td>{{ sub.archive.name }}</td>
+            <td>{% if sub.upload_date %}{{ sub.upload_date|fechahora_es('numeric') }}{% else %}—{% endif %}</td>
+            <td>{{ status_badge(sub.status, size='sm') }}</td>
+            <td>
+              <a href="{{ url_for('pages_admin.pages_review.submission_detail', sub_uuid=sub.uuid) }}"
+                class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye me-1" aria-hidden="true"></i>{% if is_own_program %}Revisar{% else %}Ver{% endif %}
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7">
+              {{ empty_state(icon='inbox',
+                             title='No hay documentos pendientes',
+                             description='Prueba con otro estado o quita los filtros de programa y aspirante.',
+                             action_label='Quitar filtros',
+                             action_url='?phase=' ~ current_phase,
+                             variant='inline') }}
+            </td>
+          </tr>
+          {% endfor %}

@@ -1,24 +1,16 @@
-// static/js/program/admission.js - Flash corregido
+// static/js/program/admission.js
+// Documents are uploaded / replaced / deleted through htmx fragments (see
+// routes/pages/admission_pages.py and templates/programs/admission/_partials/):
+// no full reload and no sessionStorage flash queue. What is left
+// here is what htmx cannot do declaratively: modal wiring, client pre-checks,
+// the extra request parameters, and re-applying client-only state after a morph.
 document.addEventListener('DOMContentLoaded', () => {
-
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
 
   // FUNCIÓN FLASH CORRECTA
   function flash(message, level = 'success') {
     window.dispatchEvent(new CustomEvent('flash', {
       detail: { level: level, message: message }
     }));
-  }
-
-  function persistFlashes(flashes) {
-    try {
-      const arr = Array.isArray(flashes) ? flashes : [];
-      sessionStorage.setItem('flashQueue', JSON.stringify(arr));
-    } catch (_) { }
   }
 
   function closeModal(modalEl) {
@@ -30,7 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const uploadModal = document.getElementById('uploadModal');
   const extensionModal = document.getElementById('extensionModal');
-  let currentStepForHash = null;
+
+  // Ask the server for a fresh body (status banner / tabs). The element declares
+  // hx-get and the trigger list in the template.
+  function refreshPanel() {
+    const el = document.getElementById('admission-refresh');
+    if (el && window.htmx) window.htmx.trigger(el, 'siiap:admission-refresh');
+  }
 
   // ==================== INICIALIZAR TOOLTIPS ====================
   const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -43,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadModal.addEventListener('show.bs.modal', event => {
       const btn = event.relatedTarget;
       const archId = btn?.getAttribute('data-archive');
-      const stepId = btn?.getAttribute('data-step');
       const archiveName = btn?.getAttribute('data-archive-name');
       const hasExisting = btn?.getAttribute('data-has-existing') === 'true';
       const existingFilename = btn?.getAttribute('data-existing-filename');
@@ -51,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const inputArchive = uploadModal.querySelector('[name="archive_id"]');
       if (inputArchive) inputArchive.value = archId || '';
-      currentStepForHash = stepId || null;
 
       const existingInfo = document.getElementById('existingFileInfo');
       const uploadBtnText = document.getElementById('uploadBtnText');
@@ -168,28 +164,17 @@ document.addEventListener('DOMContentLoaded', () => {
         reason: reason
       };
 
-      const res = await fetch('/api/v1/extensions/requests', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const json = await res.json().catch(() => ({}));
+      const res = await window.SIIAP.api.post('/api/v1/extensions/requests', payload, { flash: false });
 
       if (!res.ok) {
-        const msg = json?.error || 'No se pudo enviar la solicitud de prórroga.';
+        const msg = res.body?.error?.message || 'No se pudo enviar la solicitud de prórroga.';
         flash(msg, 'danger');
         return;
       }
 
       flash('Solicitud de prórroga enviada exitosamente. Recibirás una respuesta pronto', 'success');
       closeModal(extensionModal);
-
-      setTimeout(() => window.location.reload(), 1500);
+      refreshPanel();
 
     } catch (err) {
       console.error('Extension request error:', err);
@@ -217,129 +202,101 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ==================== SUBIR ARCHIVOS CON VALIDACIONES ====================
-  document.querySelectorAll('form[data-admission-upload="true"]').forEach(form => {
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const fd = new FormData(form);
-      const archiveId = fd.get('archive_id');
-      const file = fd.get('file');
+  // ==================== HTMX: SUBIR / ELIMINAR (sin recarga) ====================
+  // The form (#uploadForm) and the delete buttons declare hx-post / hx-delete.
+  // The server answers with the pane that changed (HX-Retarget), the tabs and
+  // the stepper out of band, and the flash in HX-Trigger.
+  const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+  let openCollapseIds = [];
+  let focusFallbackId = null;
 
-      if (!archiveId || !file || (file instanceof File && !file.name)) {
+  // Pre-checks that save a round trip; the server validates again, identically.
+  document.addEventListener('htmx:beforeRequest', (evt) => {
+    const elt = evt.detail.elt;
+    if (!elt || !elt.matches || !elt.matches('[data-admission-ctx]')) return;
+
+    if (elt.id === 'uploadForm') {
+      const fd = new FormData(elt);
+      const file = fd.get('file');
+      if (!fd.get('archive_id') || !file || (file instanceof File && !file.name)) {
+        evt.preventDefault();
         flash('Selecciona un archivo válido', 'danger');
         return;
       }
-
-      if (file.size > 3 * 1024 * 1024) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        evt.preventDefault();
         flash('El archivo no puede superar los 3MB', 'danger');
         return;
       }
-
       if (!file.name.toLowerCase().endsWith('.pdf')) {
+        evt.preventDefault();
         flash('Solo se permiten archivos PDF', 'danger');
         return;
       }
+    }
 
-      const submitBtn = form.querySelector('button[type="submit"]');
-      const originalText = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="bi bi-arrow-repeat bi-spin" aria-hidden="true"></i> Subiendo...';
-      submitBtn.disabled = true;
-
-      try {
-        const res = await fetch('/api/v1/submissions', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrf },
-          body: fd
-        });
-        const json = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          const msg = json?.error?.message || 'No se pudo subir el documento.';
-          if (Array.isArray(json.flash) && json.flash.length) {
-            json.flash.forEach(f => flash(f.message || msg, f.level || 'danger'));
-          } else {
-            flash(msg, 'danger');
-          }
-          return;
-        }
-
-        closeModal(uploadModal);
-
-        const flashes = Array.isArray(json.flash) && json.flash.length
-          ? json.flash
-          : [{ level: 'success', message: 'Documento subido exitosamente.' }];
-
-        if (currentStepForHash) {
-          // Buscar si este step está en un tab combinado
-          const combinedTab = document.querySelector(`[data-bs-target*="pane-combined-"][data-bs-target*="${currentStepForHash}"]`);
-          if (combinedTab) {
-            const target = combinedTab.getAttribute('data-bs-target');
-            window.location.hash = target;
-          } else {
-            window.location.hash = `#pane-${currentStepForHash}`;
-          }
-        }
-        persistFlashes(flashes);
-        window.location.reload();
-
-      } catch (err) {
-        console.error('Upload error:', err);
-        flash('Error de red al subir', 'danger');
-      } finally {
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-      }
-    });
+    // A morph resets attributes the server does not know about: remember the
+    // description rows the user opened, and where focus should go if the
+    // pressed button disappears (delete).
+    openCollapseIds = Array.from(document.querySelectorAll('#admission-body .archive-table .collapse.show'))
+      .map(el => el.id).filter(Boolean);
+    focusFallbackId = elt.getAttribute('data-focus-fallback');
   });
 
-  // ==================== ELIMINAR ARCHIVOS ====================
-  document.querySelectorAll('[data-delete-submission]').forEach(btn => {
-    btn.addEventListener('click', async (ev) => {
-      ev.preventDefault();
-      const subId = btn.getAttribute('data-delete-submission');
-      const stepId = btn.getAttribute('data-step');
-      if (!subId) return;
+  // The server cannot know which tab is open nor which tabs the browser shows
+  // locked; tell it, so it marks the right tab active and only re-sends the
+  // panes whose lock changed.
+  document.addEventListener('htmx:configRequest', (evt) => {
+    const elt = evt.detail.elt;
+    if (!elt || !elt.matches || !elt.matches('[data-admission-ctx]')) return;
+    const paneOf = (btn) => (btn.getAttribute('data-bs-target') || '').replace(/^#/, '');
+    const activeTab = document.querySelector('#stepTab .nav-link.active');
+    if (activeTab) evt.detail.parameters['active'] = paneOf(activeTab);
+    evt.detail.parameters['locked'] = Array.from(document.querySelectorAll('#stepTab .nav-link.disabled'))
+      .map(paneOf).filter(Boolean).join(',');
+  });
 
-      const ok = await siiapConfirm({
-        type: 'danger',
-        title: 'Eliminar archivo',
-        message: '¿Eliminar este archivo?',
-        confirmLabel: 'Sí, eliminar',
-      });
-      if (!ok) return;
+  // Success closes the modal; a refusal keeps it open (the flash says why).
+  document.addEventListener('htmx:afterRequest', (evt) => {
+    const elt = evt.detail.elt;
+    if (elt && elt.id === 'uploadForm' && evt.detail.successful) closeModal(uploadModal);
+  });
 
-      try {
-        const res = await fetch(`/api/v1/submissions/${subId}`, {
-          method: 'DELETE',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrf }
-        });
-        const json = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          const msg = json?.error?.message || 'No se pudo eliminar.';
-          if (Array.isArray(json.flash) && json.flash.length) {
-            json.flash.forEach(f => flash(f.message || msg, f.level || 'danger'));
-          } else {
-            flash(msg, 'danger');
-          }
-          return;
-        }
-
-        const flashes = Array.isArray(json.flash) && json.flash.length
-          ? json.flash
-          : [{ level: 'success', message: 'Archivo eliminado.' }];
-
-        if (stepId) window.location.hash = `#pane-${stepId}`;
-        persistFlashes(flashes);
-        window.location.reload();
-
-      } catch (err) {
-        console.error('Delete error:', err);
-        flash('Error de red al eliminar', 'danger');
-      }
+  function restoreOpenCollapses() {
+    openCollapseIds.forEach((id) => {
+      const row = document.getElementById(id);
+      if (!row || !row.classList.contains('collapse')) return;
+      row.classList.add('show');
+      const toggler = document.querySelector(`[href="#${id}"][data-bs-toggle="collapse"]`);
+      if (toggler) toggler.setAttribute('aria-expanded', 'true');
     });
+    openCollapseIds = [];
+  }
+
+  function restoreFocus() {
+    if (!focusFallbackId) return;
+    const target = document.getElementById(focusFallbackId);
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (target && lost) target.focus();
+  }
+
+  document.addEventListener('htmx:afterSwap', (evt) => {
+    if (!document.getElementById('admission-body')) return;
+    restoreOpenCollapses();
+
+    // The interview panel is filled by JS: a morph puts back the server's skeleton.
+    if (document.querySelector('.interview-info[aria-busy="true"]')) loadInterviewInfo();
+
+    const target = evt.detail.target;
+    if (target && target.id === 'admission-body' && window.SIIAP && SIIAP.announce) {
+      SIIAP.announce('Se actualizó el estado de tus documentos.');
+    }
+
+    restoreFocus();
+    if (focusFallbackId) {
+      // The confirm dialog hands focus back after its own fade.
+      setTimeout(() => { restoreFocus(); focusFallbackId = null; }, 400);
+    }
   });
 
   // ==================== VALIDACIÓN DE ARCHIVOS EN TIEMPO REAL ====================
@@ -392,20 +349,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!panel) return;
 
     try {
-      const res = await fetch('/api/v1/appointments/mine/active', {
-        credentials: 'same-origin'
-      });
+      const res = await window.SIIAP.api.get('/api/v1/appointments/mine/active', { flash: false });
 
       if (!res.ok) throw new Error('appointments-request-failed');
 
-      const json = await res.json();
-      if (json.ok && json.appointments && json.appointments.length > 0) {
+      const json = res.body;
+      const appointments = json.data?.appointments || [];
+      if (!json.error && appointments.length > 0) {
         renderInterviewPanel('', '');
-        json.appointments.forEach(appt => showInterviewCard(appt));
-      } else if (json.ok && !json.appointments.length) {
+        appointments.forEach(appt => showInterviewCard(appt));
+      } else if (!json.error && !appointments.length) {
         // Sin cita asignada: informar si falta completar el perfil.
-        const meRes = await fetch('/api/v1/users/me', { credentials: 'same-origin' });
-        const userInfo = await meRes.json();
+        const meRes = await window.SIIAP.api.get('/api/v1/users/me', { flash: false });
+        const userInfo = meRes.body;
 
         if (meRes.ok && !userInfo.data.user.profile_completed) {
           renderInterviewPanel('alert alert-warning', `
@@ -550,20 +506,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = { reason };
       if (suggestions) payload.suggestions = suggestions;
 
-      const res = await fetch(`/api/v1/appointments/${appointmentId}/change-requests`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf
-        },
-        body: JSON.stringify(payload)
-      });
+      const res = await window.SIIAP.api.post(`/api/v1/appointments/${appointmentId}/change-requests`, payload, { flash: false });
 
-      const json = await res.json();
-
-      if (!res.ok || !json.ok) {
-        flash(json.error || 'No se pudo enviar la solicitud', 'danger');
+      if (!res.ok) {
+        flash(res.body?.error?.message || 'No se pudo enviar la solicitud', 'danger');
         return;
       }
 
@@ -575,35 +521,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ==================== TIEMPO REAL: ACTUALIZAR AL RECIBIR REVISIÓN ====================
+  // ==================== TIEMPO REAL ====================
+  // The body refreshes itself: #admission-refresh declares hx-get and listens
+  // to these same window events (hx-trigger "... from:window"). Here only the
+  // user-facing message remains.
   window.addEventListener('siiap:submission:reviewed', (e) => {
     const data = e.detail;
     if (!data) return;
-
-    // Buscar la fila del documento revisado y actualizar el badge de estado
-    const archiveId = data.archive_id;
     const newStatus = data.status; // 'approved' o 'rejected'
-
-    // Buscar el botón de upload que corresponde a este archive_id
-    const uploadBtn = document.querySelector(`[data-archive="${archiveId}"]`);
-    if (!uploadBtn) return;
-
-    // Buscar el contenedor del step
-    const stepCard = uploadBtn.closest('.step-card, .card, .accordion-item, [data-step]');
-    if (!stepCard) return;
-
-    // Actualizar el chip de estado con el componente compartido
-    const statusBadge = stepCard.querySelector('.status-badge');
-    if (statusBadge && (newStatus === 'approved' || newStatus === 'rejected')) {
-      statusBadge.replaceWith(SIIAP.statusBadgeEl(newStatus));
-    }
-
-    // Mostrar toast informativo
+    if (newStatus !== 'approved' && newStatus !== 'rejected') return;
     const action = newStatus === 'approved' ? 'aprobado' : 'rechazado';
-    flash(`Un documento ha sido ${action}. La página se actualizará.`, newStatus === 'approved' ? 'success' : 'warning');
-
-    // Recargar la página después de un breve delay para mostrar los cambios completos
-    setTimeout(() => { window.location.reload(); }, 2000);
+    flash(`Un documento ha sido ${action}.`, newStatus === 'approved' ? 'success' : 'warning');
   });
 
   // ==================== TIEMPO REAL: DECISIÓN DE PRÓRROGA ====================
@@ -616,8 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const m = messages[data.status];
     if (!m) return;
-    flash(`${m.text} La página se actualizará.`, m.level);
-    setTimeout(() => { window.location.reload(); }, 2000);
+    flash(m.text, m.level);
   });
 
   // ==================== TIEMPO REAL: CAMBIO DE ESTADO DE ADMISIÓN ====================
@@ -639,15 +566,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const m = messages[data.new_status];
     if (!m) return;
 
-    flash(`${m.text} La página se actualizará.`, m.level);
-    setTimeout(() => { window.location.reload(); }, 2500);
+    flash(m.text, m.level);
   });
 
   // ── Subida de carta de asignación de número de control ────────────────────
-  const receiptBtn = document.getElementById('receiptUploadBtn');
-  if (receiptBtn && window.SIIAP_ADMISSION) {
-    receiptBtn.addEventListener('click', () => submitEnrollmentReceipt());
-  }
+  // Delegated: the button lives in the refreshable body, so it can be replaced.
+  document.addEventListener('click', (e) => {
+    if (window.SIIAP_ADMISSION && e.target.closest('#receiptUploadBtn')) submitEnrollmentReceipt();
+  });
 
   function submitEnrollmentReceipt() {
     const cfg = window.SIIAP_ADMISSION || {};
@@ -675,19 +601,15 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.innerHTML = '<i class="bi bi-upload me-1" aria-hidden="true"></i>Subir carta';
     };
 
-    fetch(`/api/v1/acceptance/user/${cfg.userId}/program/${cfg.programId}/submit-receipt`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrf },
-      body: formData
-    })
-      .then(r => r.json())
+    window.SIIAP.api.request('POST', `/api/v1/acceptance/user/${cfg.userId}/program/${cfg.programId}/submit-receipt`, { body: formData, flash: false })
       .then(res => {
         if (res.error) {
           statusDiv.innerHTML = '<div class="alert alert-danger py-1 small mb-0">' + SIIAP.escapeHtml(res.error.message || 'No se pudo subir el archivo.') + '</div>';
           restoreButton();
         } else {
           statusDiv.innerHTML = '<div class="alert alert-success py-1 small mb-0">Documento subido. El coordinador lo revisará pronto.</div>';
-          setTimeout(() => location.reload(), 2000);
+          flash('Documento subido. El coordinador lo revisará pronto.', 'success');
+          refreshPanel();
         }
       })
       .catch(() => {

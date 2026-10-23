@@ -89,17 +89,25 @@
     return targetId ? document.getElementById(targetId) : null;
   }
 
-  /** Cierra todos los submenús del sidebar salvo el indicado. */
+  /**
+   * Cierra los submenús del sidebar salvo el indicado.
+   * El grupo de la página actual (data-nav-current, lo marca el servidor) no
+   * se cierra nunca desde aquí: sólo su propio disparador lo pliega.
+   */
   function closeSubmenus(except) {
     document.querySelectorAll('[data-dropdown]').forEach(t => {
       const submenu = submenuFor(t);
       if (submenu && submenu === except) return;
+      if (t.hasAttribute('data-nav-current')) return;
       t.classList.remove('expanded');
       SIIAP.syncExpanded(t, submenu, false);
     });
     // Submenús sin disparador asociado (defensivo).
     document.querySelectorAll('.dropdown-submenu.show').forEach(m => {
-      if (m !== except) m.classList.remove('show');
+      if (m === except) return;
+      const owner = document.querySelector('[data-dropdown="' + m.id + '"]');
+      if (owner && owner.hasAttribute('data-nav-current')) return;
+      m.classList.remove('show');
     });
   }
 
@@ -177,7 +185,7 @@
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
       const openTrigger = document.querySelector(
-        '[data-dropdown][aria-expanded="true"]'
+        '[data-dropdown][aria-expanded="true"]:not([data-nav-current])'
       );
       if (!openTrigger) return;
       closeSubmenus(null);
@@ -199,6 +207,14 @@
           if (bsOffcanvas) bsOffcanvas.hide();
         }
 
+        // Stop the idle timer's keepalive and wait for one already in flight:
+        // finishing after the logout, it would restore the session cookie.
+        const sess = window.SIIAP && window.SIIAP.session;
+        if (sess) {
+          sess.beginLogout();
+          await Promise.race([sess.settle(), new Promise(r => setTimeout(r, 3000))]);
+        }
+
         try {
           const res = await fetch(CFG.logoutUrl, {
             method: 'POST',
@@ -215,6 +231,8 @@
         } catch (e) {
           console.error(e);
         } finally {
+          // htmx snapshots rendered pages under this key; never leave them behind.
+          try { localStorage.removeItem('htmx-history-cache'); } catch (_) { /* storage blocked */ }
           window.location.href = CFG.loginUrl;
         }
       });

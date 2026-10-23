@@ -16,6 +16,7 @@ CSS = APP / "static" / "css"
 JS = APP / "static" / "js"
 
 PDF_TEMPLATE = "app/templates/coordinator/student_record/_pdf.html"
+PDF_DIR = "app/templates/pdf/"
 EMAIL_DIR = "app/templates/emails/"
 TOKENS_CSS = "app/static/css/_tokens.css"
 
@@ -60,7 +61,7 @@ def _tpls(include_emails=False, include_pdf=False):
         r = _rel(p)
         if not include_emails and r.startswith(EMAIL_DIR):
             continue
-        if not include_pdf and r == PDF_TEMPLATE:
+        if not include_pdf and (r == PDF_TEMPLATE or r.startswith(PDF_DIR)):
             continue
         yield r, _strip_tpl(_read(p))
 
@@ -72,6 +73,8 @@ def _css_files():
 
 def _js_files():
     for p in _files(JS, ".js"):
+        if "vendor" in p.relative_to(JS).parts:
+            continue  # third-party code (see app/static/js/vendor/README.md; app/static/vendor/ is outside js/ and css/ so it is never scanned)
         yield _rel(p), _strip_js(_read(p))
 
 
@@ -228,6 +231,11 @@ def py_db_in_routes():
     return _collect(_py_files("routes"), lambda t: _count(r"\bdb\.session\b|\.query\b", t))
 
 
+def py_user_program_index_zero():
+    """`user_program[0]` in app/: use User.current_user_program() instead."""
+    return _collect(_py_files(), lambda t: _count(r"user_program\[0\]", t))
+
+
 def py_print():
     """print( calls in app/."""
     return _collect(_py_files(), lambda t: _count(r"(?<![\w.])print\(", t))
@@ -303,6 +311,11 @@ def js_console_log():
     return _collect(_js_files(), lambda t: _count(r"\bconsole\.log\(", t))
 
 
+def js_location_reload():
+    """location.reload( left in JS: re-render the region with an htmx fragment instead."""
+    return _collect(_js_files(), lambda t: _count(r"location\.reload\(", t))
+
+
 def js_alert():
     """Blocking alert( calls."""
     return _collect(_js_files(), lambda t: _count(r"(?<![\w.$])alert\(", t))
@@ -318,6 +331,23 @@ def js_mutation_without_csrf():
         return 0
 
     return _collect(_js_files(), counter)
+
+
+def js_csrf_meta_reads():
+    """Reads of the csrf meta tag outside SIIAP.api (utils/http.js owns it)."""
+    items = ((p, t) for p, t in _js_files() if not p.endswith("utils/http.js"))
+    return _collect(items, lambda t: _count(r"""meta\[name=["']csrf-token["']\]""", t))
+
+
+# --------------------------------------------------------------------------- 16 htmx
+_HX_INLINE_JS = re.compile(
+    r"""\bhx-on(?:[:\-][\w:.\-]*)?\s*=|\bhx-[a-z-]+\s*=\s*(["'])\s*js:""", re.I
+)
+
+
+def htmx_inline_js():
+    """hx-on* attributes and `js:` expressions in hx-vals/hx-headers (allowEval is off)."""
+    return _collect(_tpls(), lambda t: len(_HX_INLINE_JS.findall(t)))
 
 
 RULES = {
@@ -337,13 +367,17 @@ RULES = {
     "py_roles_required": py_roles_required,
     "py_db_in_routes": py_db_in_routes,
     "py_print": py_print,
+    "py_user_program_index_zero": py_user_program_index_zero,
+    "htmx_inline_js": htmx_inline_js,
     "css_gradient_text": css_gradient_text,
     "css_bounce_easing": css_bounce_easing,
     "css_thick_side_borders": css_thick_side_borders,
     "py_flash_not_spanish": py_flash_not_spanish,
     "js_console_log": js_console_log,
+    "js_location_reload": js_location_reload,
     "js_alert": js_alert,
     "js_mutation_without_csrf": js_mutation_without_csrf,
+    "js_csrf_meta_reads": js_csrf_meta_reads,
 }
 
 

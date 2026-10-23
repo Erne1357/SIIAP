@@ -1,0 +1,40 @@
+{# programs/admission/_partials/_step_pane.html
+   Panel de un paso (o del paso combinado 2+3): destino del swap tras subir,
+   reemplazar o eliminar un documento.
+   Requiere: item, active (bool), program, subs, all_extensions, current_user.
+   `oob` (opcional): se emite fuera de banda (hx-swap-oob) con morph. #}
+{% from '_macros.html' import data_table_open, data_table_close %}
+{% from 'programs/admission/_archive_rows.html' import render_archive_row, archive_table_head %}
+{% set key = item.id if item.is_combined else item.step.id %}
+<div class="tab-pane fade{% if active %} show active{% endif %}" id="pane-{{ key }}"
+     role="tabpanel" aria-labelledby="tab-{{ key }}" tabindex="0"{% if oob %} hx-swap-oob="morph"{% endif %}>
+  {% if item.locked %}
+  <div class="alert alert-warning" role="alert">Completa y aprueba el paso anterior.</div>
+  {% elif item.is_combined %}
+    {# Paso combinado: una sola tabla con los archivos de los dos pasos #}
+    {% if item.step1.name == 'Entrevista' or item.step1.name == 'Defensa de Protocolo/Propuesta' %}
+    <div class="interview-info" role="status" aria-live="polite" aria-busy="true">
+      <div class="skeleton skeleton-card skeleton-card--sm"></div>
+    </div>
+    {% else %}
+    {% set informative_1 = item.step1.program_steps and item.step1.program_steps[0].sequence == 0 %}
+    {% set informative_2 = item.step2.program_steps and item.step2.program_steps[0].sequence == 0 %}
+    {{ data_table_open('Documentos requeridos de ' ~ item.name,
+                       id='archiveTable-' ~ item.id,
+                       table_class='table-hover align-middle archive-table') }}
+      {{ archive_table_head() }}
+      <tbody>
+        {% for arch in item.step1.archives %}
+          {{ render_archive_row(arch, item.step1, subs, all_extensions, current_user, informative_1, program.slug) }}
+        {% endfor %}
+        {% for arch in item.step2.archives %}
+          {{ render_archive_row(arch, item.step2, subs, all_extensions, current_user, informative_2, program.slug) }}
+        {% endfor %}
+      </tbody>
+    {{ data_table_close() }}
+    {% endif %}
+  {% else %}
+    {% set step = item.step %}
+    {% include 'programs/admission/_archive_table.html' %}
+  {% endif %}
+</div>

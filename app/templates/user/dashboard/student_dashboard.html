@@ -234,6 +234,73 @@
       </div>
     </section>
 
+    {# — Mi carga académica (periodo activo) — #}
+    {% if has_perm('course_enrollment.page.view_own') %}
+    <section class="card mb-4" aria-labelledby="academicLoadTitle">
+      <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+        <i class="bi bi-journal-text text-brand-primary" aria-hidden="true"></i>
+        <h2 class="h6 mb-0 fw-bold" id="academicLoadTitle">Mi carga académica</h2>
+        {% if permanence_data and permanence_data.current_period %}
+          <span class="badge bg-secondary ms-auto">{{ permanence_data.current_period.name }}</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if academic_load %}
+          {% set attempt_labels = {'ordinary': 'Ordinaria', 'repeat': 'Repetición', 'special': 'Especial'} %}
+          {{ data_table_open('Materias inscritas en el periodo activo', table_class='table-sm align-middle') }}
+            <thead>
+              <tr>
+                <th scope="col">Materia</th>
+                <th scope="col">Grupo</th>
+                <th scope="col">Docente</th>
+                <th scope="col">Horario</th>
+                <th scope="col">Aula</th>
+                <th scope="col">Oportunidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in academic_load %}
+              <tr>
+                <th scope="row">
+                  {{ item.subject.name }}
+                  {% if item.slot_name %}<span class="text-muted small d-block">{{ item.slot_name }}</span>{% endif %}
+                </th>
+                <td>{{ item.group_code or '—' }}</td>
+                <td>{{ item.teacher_name or '—' }}</td>
+                <td>{{ item.schedule or '—' }}</td>
+                <td>{{ item.location or '—' }}</td>
+                <td>{{ attempt_labels.get(item.attempt_type, item.attempt_type) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          {{ data_table_close() }}
+        {% else %}
+          {{ empty_state(
+               icon='journal-x',
+               title='Aún no tienes materias inscritas',
+               description='Tu carga académica aparecerá aquí cuando la coordinación te inscriba a grupos del periodo activo.',
+               compact=true
+             ) }}
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    {# — Documentos de admisión con prórroga (decisión 5, fase 6C) — #}
+    {% if up and up.id and extension_docs %}
+    <section class="card mb-4" aria-labelledby="extensionDocsTitle">
+      <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+        <i class="bi bi-hourglass-split text-warning-strong" aria-hidden="true"></i>
+        <h2 class="h6 mb-0 fw-bold" id="extensionDocsTitle">Documentos de admisión con prórroga</h2>
+      </div>
+      <div class="card-body" aria-live="polite">
+        <div id="extensionDocs">
+          {% include 'user/dashboard/_partials/_extension_docs.html' %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
     {# — Pago de inscripción semestral — #}
     {% if up and up.id %}
     <section class="card mb-4" id="cardEnrollmentPayment" aria-labelledby="enrollmentPaymentTitle">

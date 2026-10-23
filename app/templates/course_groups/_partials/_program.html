@@ -1,0 +1,145 @@
+{#
+  Carga académica de un programa en un periodo: tabla de grupos, alta de grupo
+  e "Inscribir semestre". Se carga dentro de #courseLoadRoot (permanence.html).
+
+  Contexto explícito: program, period (o none), periods, groups
+  ([{group, subject, teacher_name, enrolled, capacity}]), subjects, teachers,
+  students ([{id, name, control_number, semester}]), summary ({enrolled, skipped} o none).
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close, modal_shell %}
+
+<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+  <form hx-get="{{ url_for('pages_course_groups.program_groups', program_id=program.id) }}"
+        hx-trigger="change" hx-target="#courseLoadRoot" hx-swap="innerHTML" hx-history="false">
+    <label class="form-label" for="courseLoadPeriod">Periodo</label>
+    <select class="form-select tap-target" id="courseLoadPeriod" name="period">
+      {% for p in periods %}
+        <option value="{{ p.id }}" {{ 'selected' if period and p.id == period.id }}>{{ p.name }}{{ ' (activo)' if p.is_active }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% if period %}
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class="btn btn-outline-primary tap-target" data-bs-toggle="modal"
+              data-bs-target="#semesterModal" {{ 'disabled' if not groups or not students }}>
+        <i class="bi bi-people me-1" aria-hidden="true"></i>Inscribir semestre
+      </button>
+      <button type="button" class="btn btn-primary tap-target" data-bs-toggle="modal"
+              data-bs-target="#groupModal">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nuevo grupo
+      </button>
+    </div>
+  {% endif %}
+</div>
+
+{% if summary %}
+  <div class="alert alert-info" role="status" id="courseLoadSummary">
+    <p class="mb-1"><strong>Inscripciones realizadas: {{ summary.enrolled }}.</strong></p>
+    {% if summary.skipped %}
+      <p class="mb-1">No se inscribió ({{ summary.skipped|length }}):</p>
+      <ul class="mb-0">
+        {% for item in summary.skipped %}
+          <li>{{ item.name }}: {{ item.reason }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if not period %}
+  {{ empty_state('calendar-x', 'Sin periodos académicos',
+                 'Crea un periodo en Configuración para poder abrir grupos.', compact=true) }}
+{% elif groups %}
+  {{ data_table_open('Grupos del programa en el periodo seleccionado', id='courseGroupsTable',
+                     table_class='table-hover align-middle') }}
+    <thead>
+      <tr>
+        <th scope="col">Materia</th>
+        <th scope="col">Grupo</th>
+        <th scope="col">Docente</th>
+        <th scope="col">Inscritos</th>
+        <th scope="col">Lugar</th>
+        <th scope="col">Horario</th>
+        <th scope="col"><span class="visually-hidden">Acciones</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in groups %}
+        {% set g = row.group %}
+        <tr id="group-{{ g.uuid }}">
+          <th scope="row">{{ row.subject.name }}</th>
+          <td>{{ g.group_code }}</td>
+          <td>{{ row.teacher_name or 'Sin asignar' }}</td>
+          <td>
+            {{ row.enrolled }}/{{ row.capacity }}
+            {% if g.status == 'closed' %}{{ status_badge('rejected', 'Cerrado', 'sm') }}
+            {% elif row.enrolled >= row.capacity %}{{ status_badge('deferred', 'Lleno', 'sm') }}{% endif %}
+          </td>
+          <td>{{ g.location or '—' }}</td>
+          <td>{{ g.schedule or '—' }}</td>
+          <td>
+            <button type="button" class="btn btn-sm btn-outline-primary tap-target"
+                    hx-get="{{ url_for('pages_course_groups.group_detail', group_uuid=g.uuid) }}"
+                    hx-target="#courseLoadRoot" hx-swap="innerHTML" hx-history="false">
+              <i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista
+              <span class="visually-hidden">del grupo {{ g.group_code }} de {{ row.subject.name }}</span>
+            </button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  {{ data_table_close() }}
+{% else %}
+  {{ empty_state('journal-x', 'Sin grupos en este periodo',
+                 'Aún no hay grupos abiertos para este programa en el periodo seleccionado.',
+                 compact=true) }}
+{% endif %}
+
+{% if period %}
+  {% with modal_id='groupModal', form_group=none,
+          form_action=url_for('pages_course_groups.create_group', program_id=program.id) %}
+    {% include 'course_groups/_partials/_group_form.html' %}
+  {% endwith %}
+
+  {% call(section) modal_shell('semesterModal', 'Inscribir semestre', icon='people', size='lg',
+                               scrollable=true) %}
+    {% if section == 'body' %}
+      <form id="semesterForm" hx-post="{{ url_for('pages_course_groups.enroll_semester', program_id=program.id) }}"
+            hx-target="#courseLoadRoot" hx-swap="innerHTML" hx-history="false"
+            hx-confirm="Se inscribirá a los estudiantes elegidos en los grupos marcados. ¿Continuar?"
+            data-confirm-title="Inscribir semestre" data-confirm-label="Inscribir">
+        <input type="hidden" name="period" value="{{ period.id }}">
+        <p class="text-secondary">Cada estudiante se inscribe en los grupos de materias obligatorias
+          de su semestre actual. Las optativas se inscriben una por una desde la lista del grupo.</p>
+        <fieldset class="mb-3">
+          <legend class="h6">Grupos</legend>
+          {% for row in groups %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="group_ids" value="{{ row.group.id }}"
+                     id="semGroup{{ row.group.id }}" checked>
+              <label class="form-check-label" for="semGroup{{ row.group.id }}">
+                {{ row.subject.name }} — grupo {{ row.group.group_code }}
+                {% if row.subject.suggested_semester %}({{ row.subject.suggested_semester }}º semestre){% endif %}
+              </label>
+            </div>
+          {% endfor %}
+        </fieldset>
+        <fieldset class="mb-0">
+          <legend class="h6">Estudiantes</legend>
+          {% for s in students %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="user_program_ids" value="{{ s.id }}"
+                     id="semStudent{{ s.id }}" checked>
+              <label class="form-check-label" for="semStudent{{ s.id }}">
+                {{ s.name }}{% if s.control_number %} ({{ s.control_number }}){% endif %} — {{ s.semester }}º semestre
+              </label>
+            </div>
+          {% endfor %}
+        </fieldset>
+      </form>
+    {% elif section == 'footer' %}
+      <button type="button" class="btn btn-outline-secondary tap-target" data-bs-dismiss="modal">Cancelar</button>
+      <button type="submit" class="btn btn-primary tap-target" form="semesterForm">Inscribir</button>
+    {% endif %}
+  {% endcall %}
+{% endif %}

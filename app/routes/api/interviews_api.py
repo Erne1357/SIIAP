@@ -10,10 +10,11 @@ with `@program_scope_required(...)`; the payloads carry per-document
 compliance detail and one of them writes a state that feeds eligibility.
 """
 
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, current_app
 from flask_login import login_required, current_user
 
 from app.models.user import User
+from app.utils.api_response import api_ok, api_error, api_server_error
 from app.routes._public_id import resolved_id
 from app.utils.permissions import (
     permission_required,
@@ -24,8 +25,6 @@ from app.utils.permissions import (
 from app.services.interview_service import InterviewEligibilityService
 
 api_interviews = Blueprint('api_interviews', __name__, url_prefix='/api/v1/interviews')
-
-_SERVER_ERROR_MESSAGE = 'Ocurrió un error al procesar la solicitud'
 
 
 @api_interviews.route('/eligibility/<uuid:student_uuid>/<int:program_id>', methods=['GET'])
@@ -55,21 +54,15 @@ def check_eligibility(student_uuid, program_id: int):
 
     try:
         eligibility = InterviewEligibilityService.check_student_eligibility(student_id, program_id)
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "student_id": str(student.uuid) if student.uuid else None,
             "program_id": program_id,
             "eligibility": eligibility
-        }), 200
-    except Exception:
-        current_app.logger.exception(
-            "Error verificando elegibilidad (student_id=%s, program_id=%s)",
-            student_id, program_id
+        })
+    except Exception as e:
+        return api_server_error(
+            e, context=f"check_eligibility (student_id={student_id}, program_id={program_id})"
         )
-        return jsonify({
-            "ok": False,
-            "error": _SERVER_ERROR_MESSAGE
-        }), 500
 
 
 @api_interviews.route('/eligible-students/<int:program_id>', methods=['GET'])
@@ -89,20 +82,15 @@ def list_eligible_students(program_id: int):
             "Usuario %s listó estudiantes elegibles del programa %s - Total: %s",
             current_user.id, program_id, len(eligible_students)
         )
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "program_id": program_id,
             "eligible_students": eligible_students,
             "count": len(eligible_students)
-        }), 200
-    except Exception:
-        current_app.logger.exception(
-            "Error listando estudiantes elegibles del programa %s", program_id
+        })
+    except Exception as e:
+        return api_server_error(
+            e, context=f"list_eligible_students (program_id={program_id})"
         )
-        return jsonify({
-            "ok": False,
-            "error": _SERVER_ERROR_MESSAGE
-        }), 500
 
 
 @api_interviews.route('/eligible-students', methods=['GET'])
@@ -126,13 +114,12 @@ def list_all_eligible_students():
             program_ids = InterviewEligibilityService.all_program_ids()
         elif not scope:
             # Conjunto vacío = SIN alcance. Nunca "todos".
-            return jsonify({
-                "ok": True,
+            return api_ok({
                 "programs": [],
                 "total_programs": 0,
                 "total_eligible_students": 0,
                 "message": "No tienes programas asignados"
-            }), 200
+            })
         else:
             program_ids = sorted(scope)
 
@@ -144,22 +131,15 @@ def list_all_eligible_students():
             current_user.id, len(programs_data), total_eligible
         )
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "programs": programs_data,
             "total_programs": len(programs_data),
             "total_eligible_students": total_eligible,
             "user_role": current_user.role.name
-        }), 200
+        })
 
-    except Exception:
-        current_app.logger.exception(
-            "Error obteniendo estudiantes elegibles para todos los programas"
-        )
-        return jsonify({
-            "ok": False,
-            "error": _SERVER_ERROR_MESSAGE
-        }), 500
+    except Exception as e:
+        return api_server_error(e, context='list_all_eligible_students')
 
 
 @api_interviews.route('/mark-profile-complete/<uuid:user_uuid>', methods=['POST'])
@@ -187,26 +167,18 @@ def mark_profile_complete(user_uuid):
             user_id=user_id,
             admin_id=current_user.id,
         )
-    except Exception:
-        current_app.logger.exception(
-            "Error marcando perfil como completo (user_id=%s)", user_id
+    except Exception as e:
+        return api_server_error(
+            e, context=f"mark_profile_complete (user_id={user_id})"
         )
-        return jsonify({
-            "ok": False,
-            "error": _SERVER_ERROR_MESSAGE
-        }), 500
 
     status = result["status"]
     if status in ('ok', 'already_complete'):
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "status": status,
             "message": result["message"]
-        }), 200
+        })
 
-    http_status = 404 if status == 'not_found' else 400
-    return jsonify({
-        "ok": False,
-        "status": status,
-        "error": result["message"]
-    }), http_status
+    if status == 'not_found':
+        return api_error('NOT_FOUND', result["message"], status=404)
+    return api_error('BUSINESS_ERROR', result["message"], status=400)

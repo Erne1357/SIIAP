@@ -18,9 +18,9 @@ class DocumentDeadline(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
     # Qué documento y para qué programa
-    archive_id = db.Column(db.Integer, db.ForeignKey('archive.id'), nullable=False)
-    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False)
-    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=False)
+    archive_id = db.Column(db.Integer, db.ForeignKey('archive.id'), nullable=False, index=True)
+    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False, index=True)
+    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=False, index=True)
 
     # Para distinguir 1er y 2do reporte (Doctorado) o mes de entrega (CONACyT)
     # Ejemplos: 1, 2 (reportes) | 1-12 (meses para CONACyT)

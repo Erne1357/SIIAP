@@ -2,119 +2,70 @@
 
 import pytest
 from flask import session
-from werkzeug.exceptions import BadRequest
+from flask_wtf.csrf import CSRFError, validate_csrf
 
 from app.utils.csrf import (
-    CSRF_HEADER, CSRF_SESSION_KEY, generate_csrf_token, validate_csrf_for_api,
+    CSRF_EXEMPT_VIEWS, CSRF_SESSION_KEY, csrf, csrf_error_message, generate_csrf_token,
 )
 from app.utils.urls import DEFAULT_BASE_URL, external_url, get_base_url
 
 
 # --- generate_csrf_token ----------------------------------------------------
 
-def test_generate_creates_and_stores(app):
+def test_generate_stores_raw_token_and_returns_signed_copy(app):
     with app.test_request_context():
-        t = generate_csrf_token()
-        assert t and session[CSRF_SESSION_KEY] == t
-        assert len(t) >= 32
+        signed = generate_csrf_token()
+        raw = session[CSRF_SESSION_KEY]
+        assert raw and signed and signed != raw
+        validate_csrf(signed)  # does not raise
 
 
-def test_generate_is_stable(app):
+def test_generate_is_stable_within_a_request(app):
     with app.test_request_context():
         assert generate_csrf_token() == generate_csrf_token()
 
 
-def test_generate_force_new_rotates(app):
+def test_generate_force_new_rotates_session_token(app):
     with app.test_request_context():
-        a = generate_csrf_token()
-        b = generate_csrf_token(force_new=True)
-        assert a != b and session[CSRF_SESSION_KEY] == b
+        old_signed = generate_csrf_token()
+        old_raw = session[CSRF_SESSION_KEY]
+        new_signed = generate_csrf_token(force_new=True)
+        assert session[CSRF_SESSION_KEY] != old_raw
+        validate_csrf(new_signed)
+        with pytest.raises(Exception):
+            validate_csrf(old_signed)
 
 
 def test_generate_replaces_empty_token(app):
     with app.test_request_context():
         session[CSRF_SESSION_KEY] = ''
         assert generate_csrf_token()
+        assert session[CSRF_SESSION_KEY]
 
 
-# --- validate_csrf_for_api --------------------------------------------------
+# --- init_csrf / messages ---------------------------------------------------
 
-def run(app, method, path, header=None, saved=None):
-    headers = {CSRF_HEADER: header} if header is not None else {}
-    with app.test_request_context(path, method=method, headers=headers):
-        if saved is not None:
-            session[CSRF_SESSION_KEY] = saved
-        return validate_csrf_for_api()
+def test_tokens_do_not_expire_within_the_session(app):
+    assert app.config['WTF_CSRF_TIME_LIMIT'] is None
 
 
-@pytest.mark.parametrize('method', ['GET', 'HEAD', 'OPTIONS'])
-def test_safe_methods_not_checked(app, method):
-    assert run(app, method, '/api/v1/x') is None
+def test_login_view_is_the_only_exemption():
+    assert CSRF_EXEMPT_VIEWS == ('app.routes.api.auth_api.api_login',)
+    assert set(CSRF_EXEMPT_VIEWS) <= csrf._exempt_views
 
 
-@pytest.mark.parametrize('method', ['POST', 'PUT', 'PATCH', 'DELETE'])
-def test_mutating_methods_valid_token(app, method):
-    assert run(app, method, '/api/v1/x', header='tok', saved='tok') is None
-
-
-@pytest.mark.parametrize('method', ['POST', 'PUT', 'PATCH', 'DELETE'])
-def test_mutating_methods_missing_header(app, method):
-    with pytest.raises(BadRequest) as e:
-        run(app, method, '/api/v1/x', saved='tok')
-    assert 'no enviado' in e.value.description
-
-
-def test_wrong_token(app):
-    with pytest.raises(BadRequest) as e:
-        run(app, 'POST', '/api/v1/x', header='nope', saved='tok')
-    assert 'inválido' in e.value.description
-
-
-def test_no_session_token_expired_message(app):
-    with pytest.raises(BadRequest) as e:
-        run(app, 'POST', '/api/v1/x', header='tok')
-    assert 'expirada' in e.value.description
-
-
-def test_no_session_token_and_no_header_still_expired(app):
-    with pytest.raises(BadRequest) as e:
-        run(app, 'DELETE', '/api/v1/x')
-    assert 'expirada' in e.value.description
-
-
-def test_non_api_path_not_checked(app):
-    assert run(app, 'POST', '/login') is None
-    assert run(app, 'POST', '/apix/v1') is None
-    assert run(app, 'POST', '/api') is None
-
-
-@pytest.mark.parametrize('path', ['/api/v1/auth/login', '/api/v1/auth/register'])
-def test_exempt_paths(app, path):
-    assert run(app, 'POST', path) is None
-
-
-def test_exempt_is_exact_match(app):
-    with pytest.raises(BadRequest):
-        run(app, 'POST', '/api/v1/auth/login/extra', header='x', saved='y')
-    with pytest.raises(BadRequest):
-        run(app, 'POST', '/api/v1/auth/logout', header='x', saved='y')
-
-
-def test_token_comparison_case_sensitive(app):
-    with pytest.raises(BadRequest):
-        run(app, 'POST', '/api/v1/x', header='TOK', saved='tok')
-
-
-def test_prefix_token_rejected(app):
-    with pytest.raises(BadRequest):
-        run(app, 'POST', '/api/v1/x', header='to', saved='tok')
-
-
-def test_generates_token_when_missing_for_next_request(app):
-    with app.test_request_context('/api/v1/x', method='POST', headers={CSRF_HEADER: 'a'}):
-        with pytest.raises(BadRequest):
-            validate_csrf_for_api()
-        assert session.get(CSRF_SESSION_KEY)
+@pytest.mark.parametrize('reason, fragment', [
+    ('The CSRF token is missing.', 'no enviado'),
+    ('The CSRF session token is missing.', 'Sesión expirada'),
+    ('The CSRF token has expired.', 'Sesión expirada'),
+    ('The CSRF token is invalid.', 'inválido'),
+    ('The CSRF tokens do not match.', 'inválido'),
+    ('The referrer header is missing.', 'origen'),
+    ('The referrer does not match the host.', 'origen'),
+    ('Something new in a future Flask-WTF.', 'inválido'),
+])
+def test_csrf_error_message_is_spanish(reason, fragment):
+    assert fragment in csrf_error_message(CSRFError(reason))
 
 
 # --- urls -------------------------------------------------------------------

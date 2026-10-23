@@ -16,8 +16,8 @@ class UserPermission(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), nullable=False)
-    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=True)
+    permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), nullable=False, index=True)
+    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=True, index=True)
     granted_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     granted_at = db.Column(db.DateTime, default=now_local, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=True)

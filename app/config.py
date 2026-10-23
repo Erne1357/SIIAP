@@ -20,6 +20,25 @@ def _running_under_pytest() -> bool:
     return 'pytest' in sys.modules or 'PYTEST_CURRENT_TEST' in os.environ
 
 
+def _is_production() -> bool:
+    """True when the process is configured as production (FLASK_ENV)."""
+    return os.environ.get('FLASK_ENV', 'development').strip().lower() == 'production'
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    """
+    Read a boolean environment variable, falling back to `default` when unset.
+
+    Security flags default to the safe value for the current environment, so a
+    commented-out line in the production env file fails closed instead of
+    silently shipping the development behaviour.
+    """
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def _require_production_base_url() -> None:
     """
     Refuse to boot a production process without an explicit APP_BASE_URL.
@@ -82,8 +101,27 @@ def _require_production_secret_key() -> None:
     )
 
 
+def _require_production_debug_off() -> None:
+    """
+    Refuse to boot a production process with FLASK_DEBUG explicitly enabled.
+
+    DEBUG in production enables the interactive debugger on errors and dumps
+    applicant names and e-mails into the container log on every coordinator
+    dashboard load.
+    """
+    if _running_under_pytest() or not _is_production():
+        return
+    if not _env_flag('FLASK_DEBUG', default=False):
+        return
+    raise MissingProductionConfigError(
+        "FLASK_DEBUG esta activado y FLASK_ENV=production.\n"
+        "Quita la linea o ponla en FLASK_DEBUG=false en docker/.env.prod."
+    )
+
+
 _require_production_base_url()
 _require_production_secret_key()
+_require_production_debug_off()
 
 
 class Config:
@@ -138,18 +176,32 @@ class Config:
     SESSION_COOKIE_NAME = "siiap_session"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
-    
+    # Secure by default in production; the E2E stack overrides it explicitly
+    # because it runs FLASK_ENV=production over plain HTTP.
+    SESSION_COOKIE_SECURE = _env_flag('SESSION_COOKIE_SECURE', default=_is_production())
+
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
-    REMEMBER_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
-    
+    REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
+
+    # Two different clocks, on purpose:
+    # - SESSION_IDLE_SECONDS: inactivity window, enforced by the server against
+    #   session['last_activity'] (its own clock only).
+    # - SESSION_MAX_HOURS: absolute cap of the cookie. Flask uses it both for
+    #   the cookie's Expires (judged by the BROWSER's clock) and as the
+    #   signature max-age. It used to be 17 minutes, so a client clock a few
+    #   minutes fast, or a server clock correction, killed active sessions.
+    SESSION_IDLE_SECONDS = int(os.environ.get('SESSION_IDLE_SECONDS', 15 * 60))
+    SESSION_MAX_HOURS = int(os.environ.get('SESSION_MAX_HOURS', 12))
+
     # ===== ENTORNO =====
     FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
-    DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    DEBUG = _env_flag('FLASK_DEBUG', default=not _is_production())
 
     # ===== PROXY REVERSO (para HTTPS en producción) =====
-    PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', 'http')
+    PREFERRED_URL_SCHEME = os.environ.get(
+        'PREFERRED_URL_SCHEME', 'https' if _is_production() else 'http'
+    )
 
     # ===== URL PÚBLICA DE LA APLICACIÓN =====
     # Base de TODO enlace absoluto que sale del sistema (correos,

@@ -174,7 +174,7 @@ def test_execute_expires_admission(app, periods, program, roles, postgrad_admin,
 
 
 def test_execute_reactivates_deferred(app, periods, program, roles, postgrad_admin, permissions):
-    """Diferido cuyo target_period == nuevo periodo activo: in_progress + status='used'."""
+    """Diferido cuyo target_period == nuevo periodo activo: accepted + status='used'."""
     u = User(
         first_name='Asp', last_name='Defer', mother_last_name='',
         username='asp_def_exec', password='Test1234!',
@@ -204,7 +204,7 @@ def test_execute_reactivates_deferred(app, periods, program, roles, postgrad_adm
     assert stats['deferred_reactivated'] == 1
     db.session.expire_all()
     up_re = UserProgram.query.get(up.id)
-    assert up_re.admission_status == 'in_progress'
+    assert up_re.admission_status == 'accepted'
     assert up_re.admission_period_id == periods['20271'].id
     deferral_re = EnrollmentDeferral.query.get(deferral.id)
     assert deferral_re.status == 'used'

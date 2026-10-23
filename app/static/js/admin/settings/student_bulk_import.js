@@ -14,11 +14,6 @@
 
   const API_BASE = '/api/v1/student-bulk';
 
-  function getCsrfToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta ? meta.content : '';
-  }
-
   /**
    * POST JSON to an endpoint, handle flash array from response.
    * Returns parsed `data` on success, null on error.
@@ -26,23 +21,14 @@
   async function postJson(url, payload) {
     let res;
     try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
-        },
-        body: JSON.stringify(payload),
-      });
+      res = await window.SIIAP.api.post(url, payload, { flash: false });
     } catch (networkErr) {
       showFlash('danger', 'Error de red. Verifica tu conexión e intenta de nuevo.');
       return null;
     }
 
-    let body;
-    try {
-      body = await res.json();
-    } catch {
+    const body = res.body;
+    if (body === null || body === undefined) {
       showFlash('danger', 'Respuesta inesperada del servidor.');
       return null;
     }
@@ -71,20 +57,14 @@
   async function postFormData(url, formData) {
     let res;
     try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrfToken() },
-        body: formData,
-      });
+      res = await window.SIIAP.api.request('POST', url, { body: formData, flash: false });
     } catch (networkErr) {
       showFlash('danger', 'Error de red. Verifica tu conexión e intenta de nuevo.');
       return null;
     }
 
-    let body;
-    try {
-      body = await res.json();
-    } catch {
+    const body = res.body;
+    if (body === null || body === undefined) {
       showFlash('danger', 'Respuesta inesperada del servidor.');
       return null;
     }

@@ -1,0 +1,553 @@
+{#
+  Pestaña «Conclusión» del expediente: tesis, comité tutorial, sínodo,
+  condiciones de admisión, requisitos, examen de grado y reversión de titulación.
+
+  Contexto explícito: target_user, up (UserProgram o None), program_options,
+  selected_program_id y, con up: academic_status, status_label, thesis, read_only,
+  can_edit_thesis, can_edit_members ({body: bool}), can_manage_conditions, can_override,
+  can_upload_institution, teachers, member_roles, role_labels, body_labels, conditions,
+  requirement_archives, requirements, exam, exams, blockers, can_revert.
+  Cada can_* refleja una negativa del servicio: no se ofrece un formulario que el
+  servicio rechazaría (titulado / baja definitiva = sólo consulta).
+  Todo se envía a #recordConclusion. NO entra en el historial del navegador.
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close, required_mark %}
+
+{% set _T = '#recordConclusion' %}
+{% set _BASE = url_for('pages_conclusion_record.record_conclusion', user_uuid=target_user.uuid) %}
+
+{% set _REQ_BADGE = {
+  'approved': ['approved', 'Aprobado'], 'pending': ['review', 'En revisión'],
+  'rejected': ['rejected', 'Rechazado'], 'missing': ['pending', 'Sin entregar'],
+  'reused': ['approved', 'Reutilizado'], 'institution_pending': ['pending', 'Por emitir'],
+  'institution_done': ['approved', 'Emitido'], 'not_applicable': ['deferred', 'No aplica'],
+  'reused_expired': ['rejected', 'Vigencia vencida'] } %}
+{% set _COND_BADGE = {'pending': ['pending', 'Pendiente'], 'met': ['approved', 'Cumplida'],
+                      'waived': ['deferred', 'Dispensada']} %}
+{% set _EXAM_BADGE = {'scheduled': ['pending', 'Agendado'], 'approved': ['approved', 'Aprobado'],
+                      'suspended': ['rejected', 'Suspendido'], 'cancelled': ['deferred', 'Cancelado']} %}
+{% set _VERDICT = {'unanimous': 'Unanimidad', 'majority': 'Mayoría'} %}
+
+{% macro hidden_program() %}<input type="hidden" name="program" value="{{ selected_program_id }}">{% endmacro %}
+
+{% macro member_block(body, thesis, editable) %}
+  <h3 class="h5 mb-2">{{ body_labels[body]|capitalize }}</h3>
+  {% set members = thesis.members_of(body) if thesis else [] %}
+  {% if members %}
+    <ul class="conclusion-members" id="conclusionMembers-{{ body }}">
+      {% for m in members %}
+        <li class="conclusion-members__item" id="conclusionMember-{{ m.id }}">
+          <span class="conclusion-members__name">
+            {{ m.display_name }}
+            {% if m.is_external %}<span class="text-secondary small">(externo{% if m.external_institution %}, {{ m.external_institution }}{% endif %})</span>{% endif %}
+          </span>
+          <span class="conclusion-members__role">{{ role_labels.get(m.role, m.role) }}</span>
+          {% if editable %}
+          <form hx-post="{{ _BASE }}/members/{{ m.id }}/remove" hx-target="{{ _T }}" hx-swap="innerHTML"
+                hx-history="false" hx-confirm="¿Quitar a {{ m.display_name }} del {{ body_labels[body] }}?"
+                data-confirm-title="Quitar integrante" data-confirm-type="warning"
+                data-confirm-label="Sí, quitar">
+            {{ hidden_program() }}
+            <button type="submit" class="btn btn-outline-danger btn-sm tap-target">
+              <i class="bi bi-person-dash me-1" aria-hidden="true"></i>Quitar
+              <span class="visually-hidden">a {{ m.display_name }}</span>
+            </button>
+          </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-secondary small">Sin integrantes registrados.</p>
+  {% endif %}
+
+  {% if thesis and editable %}
+    <form class="conclusion-form" id="conclusionMemberForm-{{ body }}"
+          hx-post="{{ _BASE }}/members" hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false">
+      {{ hidden_program() }}
+      <input type="hidden" name="body" value="{{ body }}">
+      <fieldset class="conclusion-form__fieldset">
+        <legend class="h6">Agregar integrante</legend>
+        <div class="conclusion-form__row">
+          <div>
+            <label class="form-label" for="memberRole-{{ body }}">Rol</label>
+            <select class="form-select tap-target" id="memberRole-{{ body }}" name="role" required>
+              {% for r in member_roles[body] %}<option value="{{ r }}">{{ role_labels[r]|capitalize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="memberPerson-{{ body }}">Tipo</label>
+            <select class="form-select tap-target" id="memberPerson-{{ body }}" name="person">
+              <option value="internal">Interno (docente del sistema)</option>
+              <option value="external">Externo</option>
+            </select>
+          </div>
+        </div>
+        <div class="conclusion-form__row">
+          <div>
+            <label class="form-label" for="memberUser-{{ body }}">Docente interno</label>
+            <select class="form-select tap-target" id="memberUser-{{ body }}" name="user_id">
+              <option value="">Selecciona…</option>
+              {% for t in teachers %}
+                <option value="{{ t.id }}">{{ t.last_name }} {{ t.mother_last_name or '' }}, {{ t.first_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="memberExtName-{{ body }}">Nombre (externo)</label>
+            <input type="text" class="form-control tap-target" id="memberExtName-{{ body }}" name="external_name" maxlength="200">
+          </div>
+          <div>
+            <label class="form-label" for="memberExtInst-{{ body }}">Institución (externo)</label>
+            <input type="text" class="form-control tap-target" id="memberExtInst-{{ body }}" name="external_institution" maxlength="200">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary tap-target">
+          <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Agregar
+        </button>
+      </fieldset>
+    </form>
+  {% elif thesis and body == 'exam' and exam %}
+    <p class="text-secondary small">El sínodo no se modifica mientras haya un examen agendado.</p>
+  {% endif %}
+{% endmacro %}
+
+{% if up is none %}
+  {{ empty_state('mortarboard', 'Sin programa inscrito',
+                 'Esta cuenta no tiene un programa inscrito dentro de tu alcance, así que no hay conclusión que gestionar.',
+                 compact=true) }}
+{% else %}
+  {% if program_options|length > 1 %}
+    <form class="mb-3" hx-get="{{ _BASE }}" hx-trigger="change" hx-target="{{ _T }}"
+          hx-swap="innerHTML" hx-history="false">
+      <label class="form-label" for="conclusionProgram">Programa</label>
+      <select class="form-select w-auto tap-target" id="conclusionProgram" name="program">
+        {% for opt in program_options %}
+          <option value="{{ opt.program_id }}" {{ 'selected' if opt.program_id == selected_program_id }}>{{ opt.program.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  {% else %}
+    <p class="text-secondary small mb-3">
+      <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>{{ up.program.name }}
+    </p>
+  {% endif %}
+  <p class="mb-4">Estado académico: <strong>{{ status_label }}</strong></p>
+
+  {# ── 1. Tesis ───────────────────────────────────────────────────────── #}
+  <section class="conclusion-section" aria-labelledby="conclusionThesisTitle">
+    <h2 class="h5" id="conclusionThesisTitle">Tesis</h2>
+    {% if can_edit_thesis %}
+      <form class="conclusion-form" id="conclusionThesisForm" hx-post="{{ _BASE }}/thesis"
+            hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false">
+        {{ hidden_program() }}
+        <div class="mb-2">
+          <label class="form-label" for="thesisTitle">Título{{ required_mark() }}</label>
+          <input type="text" class="form-control tap-target" id="thesisTitle" name="title" maxlength="500"
+                 value="{{ thesis.title if thesis }}" required aria-required="true">
+        </div>
+        <div class="conclusion-form__row">
+          <div>
+            <label class="form-label" for="thesisLine">Línea de investigación</label>
+            <input type="text" class="form-control tap-target" id="thesisLine" name="research_line" maxlength="255"
+                   value="{{ (thesis.research_line or '') if thesis }}">
+          </div>
+          <div>
+            <label class="form-label" for="thesisDate">Fecha de registro</label>
+            <input type="date" class="form-control tap-target" id="thesisDate" name="registered_at"
+                   value="{{ thesis.registered_at.isoformat() if thesis }}">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary tap-target">
+          <i class="bi bi-journal-check me-1" aria-hidden="true"></i>{{ 'Guardar cambios' if thesis else 'Registrar tesis' }}
+        </button>
+      </form>
+    {% elif thesis %}
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Título</dt><dd class="col-sm-8">{{ thesis.title }}</dd>
+        <dt class="col-sm-4">Línea de investigación</dt><dd class="col-sm-8">{{ thesis.research_line or '—' }}</dd>
+        <dt class="col-sm-4">Fecha de registro</dt><dd class="col-sm-8">{{ thesis.registered_at|fecha_es }}</dd>
+      </dl>
+    {% else %}
+      {{ empty_state('journal-x', 'Sin tesis registrada',
+                     'La tesis solo puede registrarse mientras el estudiante está activo, en licencia o egresado.',
+                     compact=true) }}
+    {% endif %}
+  </section>
+
+  {# ── 2. Comité tutorial y sínodo ─────────────────────────────────────── #}
+  <section class="conclusion-section" aria-labelledby="conclusionCommitteesTitle">
+    <h2 class="h5" id="conclusionCommitteesTitle">Comité tutorial y sínodo</h2>
+    {% if not thesis %}
+      <p class="text-secondary small">Registra la tesis para integrar el comité tutorial y el sínodo.</p>
+    {% endif %}
+    {{ member_block('tutorial', thesis, can_edit_members['tutorial']) }}
+    <hr>
+    {{ member_block('exam', thesis, can_edit_members['exam']) }}
+  </section>
+
+  {# ── 3. Condiciones de admisión ──────────────────────────────────────── #}
+  <section class="conclusion-section" aria-labelledby="conclusionConditionsTitle">
+    <h2 class="h5" id="conclusionConditionsTitle">Condiciones de admisión</h2>
+    {% if conditions %}
+      {{ data_table_open('Condiciones de admisión del estudiante', id='conclusionConditions') }}
+        <thead>
+          <tr>
+            <th scope="col">Condición</th>
+            <th scope="col">Requisito ligado</th>
+            <th scope="col">Fecha límite</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in conditions %}
+            <tr id="conclusionCondition-{{ c.uuid }}">
+              <td>{{ c.description }}{% if c.resolution_note %}<div class="text-secondary small">Nota: {{ c.resolution_note }}</div>{% endif %}</td>
+              <td>{{ c.archive.name if c.archive else '—' }}</td>
+              <td>
+                {% if c.due_date %}{{ c.due_date|fecha_es }}{% else %}—{% endif %}
+                {% if c.is_overdue %}<span class="text-danger-strong small">(vencida)</span>{% endif %}
+              </td>
+              <td>{{ status_badge(_COND_BADGE[c.status][0], _COND_BADGE[c.status][1], 'sm') }}</td>
+              <td>
+                {% if c.status == 'pending' and can_manage_conditions %}
+                  <div class="conclusion-actions">
+                    <form hx-post="{{ _BASE }}/conditions/{{ c.uuid }}/resolve" hx-target="{{ _T }}"
+                          hx-swap="innerHTML" hx-history="false">
+                      {{ hidden_program() }}
+                      <input type="hidden" name="resolution" value="met">
+                      <button type="submit" class="btn btn-outline-success btn-sm tap-target">
+                        <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Marcar cumplida
+                      </button>
+                    </form>
+                    <form class="conclusion-actions__waive" hx-post="{{ _BASE }}/conditions/{{ c.uuid }}/resolve"
+                          hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false">
+                      {{ hidden_program() }}
+                      <input type="hidden" name="resolution" value="waived">
+                      <label class="visually-hidden" for="waiveNote-{{ c.uuid }}">Motivo de la dispensa</label>
+                      <input type="text" class="form-control form-control-sm tap-target" id="waiveNote-{{ c.uuid }}"
+                             name="note" placeholder="Motivo de la dispensa" required aria-required="true">
+                      <button type="submit" class="btn btn-outline-secondary btn-sm tap-target">
+                        <i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Dispensar
+                      </button>
+                    </form>
+                  </div>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {{ data_table_close() }}
+    {% else %}
+      {{ empty_state('check2-square', 'Sin condiciones', 'Este estudiante no tiene condiciones de admisión.', compact=true) }}
+    {% endif %}
+
+    {% if can_manage_conditions %}
+    <form class="conclusion-form" id="conclusionConditionForm" hx-post="{{ _BASE }}/conditions"
+          hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false">
+      {{ hidden_program() }}
+      <fieldset class="conclusion-form__fieldset">
+        <legend class="h6">Nueva condición</legend>
+        <div class="mb-2">
+          <label class="form-label" for="conditionDescription">Descripción{{ required_mark() }}</label>
+          <textarea class="form-control" id="conditionDescription" name="description" rows="2" required aria-required="true"></textarea>
+        </div>
+        <div class="conclusion-form__row">
+          <div>
+            <label class="form-label" for="conditionArchive">Requisito ligado</label>
+            <select class="form-select tap-target" id="conditionArchive" name="archive_id">
+              <option value="">Ninguno</option>
+              {% for a in requirement_archives %}<option value="{{ a.uuid }}">{{ a.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="conditionDue">Fecha límite</label>
+            <input type="date" class="form-control tap-target" id="conditionDue" name="due_date">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary tap-target">
+          <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Agregar condición
+        </button>
+      </fieldset>
+    </form>
+    {% endif %}
+  </section>
+
+  {# ── 4. Requisitos ───────────────────────────────────────────────────── #}
+  <section class="conclusion-section" aria-labelledby="conclusionRequirementsTitle">
+    <h2 class="h5" id="conclusionRequirementsTitle">Requisitos de conclusión</h2>
+    {% if requirements %}
+      {{ data_table_open('Requisitos de conclusión del estudiante', id='conclusionRequirements') }}
+        <thead>
+          <tr>
+            <th scope="col">Documento</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Archivo</th>
+            <th scope="col">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in requirements %}
+            {% set badge = _REQ_BADGE.get(r.status, ['pending', r.status]) %}
+            <tr id="conclusionRequirement-{{ r.archive.uuid }}">
+              <td>
+                {{ r.archive.name }}
+                {% if r.blocked_by_condition %}<div class="text-secondary small">Ligado a una condición pendiente.</div>{% endif %}
+              </td>
+              <td>
+                {{ status_badge(badge[0], badge[1], 'sm') }}
+                {% if r.status == 'reused' %}<div class="text-secondary small">Reutilizado de admisión.</div>{% endif %}
+                {% if r.status == 'reused_expired' %}
+                  <div class="text-secondary small">El documento de admisión venció{% if r.reuse_expires_at %} el {{ r.reuse_expires_at|fecha_es }}{% endif %}. El estudiante puede subir uno nuevo.</div>
+                {% endif %}
+                {% if r.note %}<div class="text-secondary small">{{ 'Motivo: ' if r.status == 'not_applicable' }}{{ r.note }}</div>{% endif %}
+              </td>
+              <td>
+                {% if r.submission and r.submission.file_path %}
+                  <a href="{{ url_for('api_files.user_doc', doc_uuid=r.submission.uuid) }}" target="_blank" rel="noopener">
+                    <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Abrir documento
+                    <span class="visually-hidden">(se abre en una pestaña nueva)</span>
+                  </a>
+                {% elif r.reused_from and r.reused_from.file_path %}
+                  <a href="{{ url_for('api_files.user_doc', doc_uuid=r.reused_from.uuid) }}" target="_blank" rel="noopener">
+                    <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Abrir documento de admisión
+                    <span class="visually-hidden">(se abre en una pestaña nueva)</span>
+                  </a>
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% set _upload = r.archive.issued_by_institution and can_upload_institution and r.status != 'not_applicable' %}
+                {% set _na = can_override and r.status in ('missing', 'pending', 'rejected', 'reused_expired', 'institution_pending') %}
+                {% set _accept = can_override and r.status == 'reused_expired' %}
+                {% set _undo = can_override and r.overrides %}
+                {% if _upload or _na or _accept or _undo %}
+                <div class="conclusion-actions">
+                  {% if _upload %}
+                  <form class="conclusion-actions" hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/upload"
+                        hx-target="{{ _T }}" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-history="false">
+                    {{ hidden_program() }}
+                    <label class="visually-hidden" for="upload-{{ r.archive.uuid }}">Archivo PDF de {{ r.archive.name }}</label>
+                    <input type="file" class="form-control form-control-sm" id="upload-{{ r.archive.uuid }}"
+                           name="file" accept="application/pdf" required aria-required="true">
+                    <button type="submit" class="btn btn-outline-primary btn-sm tap-target">
+                      <i class="bi bi-upload me-1" aria-hidden="true"></i>{{ 'Reemplazar' if r.status == 'institution_done' else 'Cargar' }}
+                    </button>
+                  </form>
+                  {% endif %}
+                  {% if _accept %}
+                  <form class="conclusion-actions__waive" id="acceptExpired-{{ r.archive.uuid }}"
+                        hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/override"
+                        hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                        hx-confirm="¿Aceptar «{{ r.archive.name }}» con la vigencia vencida?"
+                        data-confirm-title="Aceptar vigencia vencida" data-confirm-type="warning"
+                        data-confirm-label="Sí, aceptar">
+                    {{ hidden_program() }}
+                    <input type="hidden" name="kind" value="accept_expired">
+                    <label class="visually-hidden" for="acceptExpiredReason-{{ r.archive.uuid }}">Motivo para aceptar la vigencia vencida</label>
+                    <input type="text" class="form-control form-control-sm tap-target" id="acceptExpiredReason-{{ r.archive.uuid }}"
+                           name="reason" placeholder="Motivo" required aria-required="true">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm tap-target">
+                      <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Aceptar vigencia vencida
+                    </button>
+                  </form>
+                  {% endif %}
+                  {% if _na %}
+                  <form class="conclusion-actions__waive" id="notApplicable-{{ r.archive.uuid }}"
+                        hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/override"
+                        hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                        hx-confirm="¿Marcar «{{ r.archive.name }}» como «no aplica» para este estudiante?"
+                        data-confirm-title="Requisito no aplica" data-confirm-type="warning"
+                        data-confirm-label="Sí, no aplica">
+                    {{ hidden_program() }}
+                    <input type="hidden" name="kind" value="not_applicable">
+                    <label class="visually-hidden" for="notApplicableReason-{{ r.archive.uuid }}">Motivo por el que no aplica</label>
+                    <input type="text" class="form-control form-control-sm tap-target" id="notApplicableReason-{{ r.archive.uuid }}"
+                           name="reason" placeholder="Motivo" required aria-required="true">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm tap-target">
+                      <i class="bi bi-slash-circle me-1" aria-hidden="true"></i>No aplica
+                    </button>
+                  </form>
+                  {% endif %}
+                  {% if _undo %}
+                    {% for kind in r.overrides %}
+                    <form id="overrideRemove-{{ kind }}-{{ r.archive.uuid }}"
+                          hx-post="{{ _BASE }}/requirements/{{ r.archive.uuid }}/override/remove"
+                          hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                          hx-confirm="¿Retirar la decisión sobre «{{ r.archive.name }}»?"
+                          data-confirm-title="Retirar decisión" data-confirm-type="warning"
+                          data-confirm-label="Sí, retirar">
+                      {{ hidden_program() }}
+                      <input type="hidden" name="kind" value="{{ kind }}">
+                      <button type="submit" class="btn btn-outline-danger btn-sm tap-target">
+                        <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>{{ 'Deshacer «no aplica»' if kind == 'not_applicable' else 'Retirar aceptación de vigencia' }}
+                      </button>
+                    </form>
+                    {% endfor %}
+                  {% endif %}
+                </div>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {{ data_table_close() }}
+    {% else %}
+      {{ empty_state('folder2-open', 'Sin requisitos', 'Este programa no define requisitos de conclusión.', compact=true) }}
+    {% endif %}
+  </section>
+
+  {# ── 5. Examen de grado ──────────────────────────────────────────────── #}
+  <section class="conclusion-section" aria-labelledby="conclusionExamTitle">
+    <h2 class="h5" id="conclusionExamTitle">Examen de grado</h2>
+    {% if exam %}
+      <div class="card conclusion-exam" id="conclusionExamCurrent">
+        <div class="card-body">
+          <p class="mb-1"><strong>{{ exam.scheduled_at|fechahora_es }}</strong> · {{ exam.place }}
+            {{ status_badge('pending', 'Agendado', 'sm') }}</p>
+          {% if exam.notes %}<p class="text-secondary small mb-3">{{ exam.notes }}</p>{% endif %}
+
+          <form class="conclusion-form" id="conclusionResultForm" hx-post="{{ _BASE }}/exam/{{ exam.uuid }}/result"
+                hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                hx-confirm="¿Registrar el resultado del examen? Un resultado aprobado titula al estudiante."
+                data-confirm-title="Registrar resultado" data-confirm-type="warning"
+                data-confirm-label="Sí, registrar">
+            {{ hidden_program() }}
+            <fieldset class="conclusion-form__fieldset">
+              <legend class="h6">Registrar resultado</legend>
+              <div class="conclusion-form__row">
+                <div>
+                  <label class="form-label" for="examResult">Resultado{{ required_mark() }}</label>
+                  <select class="form-select tap-target" id="examResult" name="result" required>
+                    <option value="approved">Aprobado</option>
+                    <option value="suspended">Suspendido</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label" for="examVerdict">Veredicto</label>
+                  <select class="form-select tap-target" id="examVerdict" name="verdict">
+                    <option value="">—</option>
+                    <option value="unanimous">Unanimidad</option>
+                    <option value="majority">Mayoría</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label" for="examFolio">Folio del acta</label>
+                  <input type="text" class="form-control tap-target" id="examFolio" name="acta_folio" maxlength="50">
+                </div>
+                <div>
+                  <label class="form-label" for="examHeldOn">Fecha del examen</label>
+                  <input type="date" class="form-control tap-target" id="examHeldOn" name="held_on">
+                </div>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="examHonor" name="honorific_mention" value="1">
+                <label class="form-check-label" for="examHonor">Mención honorífica</label>
+              </div>
+              <div class="mb-2">
+                <label class="form-label" for="examResultNotes">Notas</label>
+                <textarea class="form-control" id="examResultNotes" name="notes" rows="2"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary tap-target">
+                <i class="bi bi-patch-check me-1" aria-hidden="true"></i>Registrar resultado
+              </button>
+            </fieldset>
+          </form>
+
+          <form class="conclusion-form" id="conclusionCancelForm" hx-post="{{ _BASE }}/exam/{{ exam.uuid }}/cancel"
+                hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+                hx-confirm="¿Cancelar el examen de grado agendado?"
+                data-confirm-title="Cancelar examen" data-confirm-type="warning"
+                data-confirm-label="Sí, cancelar examen">
+            {{ hidden_program() }}
+            <label class="form-label" for="examCancelReason">Motivo de la cancelación</label>
+            <input type="text" class="form-control tap-target mb-2" id="examCancelReason" name="reason">
+            <button type="submit" class="btn btn-outline-danger tap-target">
+              <i class="bi bi-calendar-x me-1" aria-hidden="true"></i>Cancelar examen
+            </button>
+          </form>
+        </div>
+      </div>
+    {% elif blockers %}
+      <div class="alert alert-warning" role="status" id="conclusionBlockers">
+        <p class="mb-1"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+          El examen aún no puede agendarse:</p>
+        <ul class="mb-0">
+          {% for b in blockers %}<li>{{ b }}</li>{% endfor %}
+        </ul>
+      </div>
+    {% else %}
+      <form class="conclusion-form" id="conclusionScheduleForm" hx-post="{{ _BASE }}/exam"
+            hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false">
+        {{ hidden_program() }}
+        <fieldset class="conclusion-form__fieldset">
+          <legend class="h6">Agendar examen</legend>
+          <div class="conclusion-form__row">
+            <div>
+              <label class="form-label" for="examWhen">Fecha y hora{{ required_mark() }}</label>
+              <input type="datetime-local" class="form-control tap-target" id="examWhen" name="scheduled_at" required aria-required="true">
+            </div>
+            <div>
+              <label class="form-label" for="examPlace">Lugar{{ required_mark() }}</label>
+              <input type="text" class="form-control tap-target" id="examPlace" name="place" maxlength="255" required aria-required="true">
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label" for="examNotes">Notas</label>
+            <textarea class="form-control" id="examNotes" name="notes" rows="2"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary tap-target">
+            <i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Agendar examen
+          </button>
+        </fieldset>
+      </form>
+    {% endif %}
+
+    <h3 class="h6 mt-4">Historial de exámenes</h3>
+    {% if exams %}
+      {{ data_table_open('Historial de exámenes de grado', id='conclusionExams') }}
+        <thead>
+          <tr>
+            <th scope="col">Fecha</th>
+            <th scope="col">Lugar</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Veredicto</th>
+            <th scope="col">Folio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in exams %}
+            <tr id="conclusionExam-{{ e.uuid }}">
+              <td>{{ e.scheduled_at|fechahora_es }}</td>
+              <td>{{ e.place }}</td>
+              <td>{{ status_badge(_EXAM_BADGE[e.status][0], _EXAM_BADGE[e.status][1], 'sm') }}</td>
+              <td>{{ _VERDICT.get(e.verdict, '—') }}{% if e.honorific_mention %} · mención honorífica{% endif %}</td>
+              <td>{{ e.acta_folio or '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {{ data_table_close() }}
+    {% else %}
+      <p class="text-secondary small">Aún no hay exámenes registrados.</p>
+    {% endif %}
+  </section>
+
+  {# ── 6. Revertir titulación ──────────────────────────────────────────── #}
+  {% if can_revert %}
+    <section class="conclusion-section" aria-labelledby="conclusionRevertTitle">
+      <h2 class="h5" id="conclusionRevertTitle">Revertir titulación</h2>
+      <form class="conclusion-form" id="conclusionRevertForm" hx-post="{{ _BASE }}/revert-titled"
+            hx-target="{{ _T }}" hx-swap="innerHTML" hx-history="false"
+            hx-confirm="¿Revertir la titulación del estudiante? Volverá a estado egresado."
+            data-confirm-title="Revertir titulación" data-confirm-type="warning"
+            data-confirm-label="Sí, revertir">
+        {{ hidden_program() }}
+        <label class="form-label" for="revertReason">Motivo (obligatorio){{ required_mark() }}</label>
+        <textarea class="form-control mb-2" id="revertReason" name="reason" rows="3" required aria-required="true"></textarea>
+        <button type="submit" class="btn btn-outline-danger tap-target">
+          <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Revertir titulación
+        </button>
+      </form>
+    </section>
+  {% endif %}
+{% endif %}

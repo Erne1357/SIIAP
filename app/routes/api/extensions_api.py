@@ -1,11 +1,11 @@
 # app/routes/api/extensions_api.py - Actualizado
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_not_found, api_server_error
+from app.services import extensions_service
 from app.services.extensions_service import ExtensionsService
 from app.services import extensions_scope_service as escope
-from app.services.user_history_service import UserHistoryService
-from app import db
 from app.models.archive import Archive
 from app.models.user import User
 from app.utils.datetime_utils import now_local, to_local_timezone
@@ -80,27 +80,20 @@ def create_extension_request():
     reason = (data.get('reason') or '').strip()
 
     if not archive_id or not requested_until or not reason:
-        return jsonify({
-            "ok": False,
-            "error": "archive_id, requested_until y reason son requeridos"
-        }), 400
+        return api_error("VALIDATION_ERROR",
+                         "El archivo, la fecha solicitada y el motivo son requeridos.", status=400)
 
     # Validar formato de fecha
     try:
         requested_until_dt = datetime.fromisoformat(requested_until.replace('Z', '+00:00'))
     except ValueError:
-        return jsonify({
-            "ok": False,
-            "error": "Formato de fecha inválido. Use ISO format (YYYY-MM-DD)"
-        }), 400
+        return api_error("VALIDATION_ERROR",
+                         "Formato de fecha inválido. Use ISO format (YYYY-MM-DD)", status=400)
 
     # Validar que la fecha sea futura. to_local_timezone normaliza fechas sin
     # zona horaria; comparar contra datetime.now() reventaba con un ISO en UTC.
     if to_local_timezone(requested_until_dt) <= now_local():
-        return jsonify({
-            "ok": False,
-            "error": "La fecha solicitada debe ser futura"
-        }), 400
+        return api_error("VALIDATION_ERROR", "La fecha solicitada debe ser futura", status=400)
 
     role = 'coordinator' if current_user.has_permission('extensions.api.list_for_review') else 'student'
 
@@ -115,32 +108,19 @@ def create_extension_request():
         )
 
         # Registrar en el historial
-        try:
-            archive_name = er.archive.name if er.archive else f"ID {archive_id}"
+        extensions_service.record_request_history(
+            er, current_user.id, archive_id, requested_until, reason, role)
 
-            UserHistoryService.log_extension_request(
-                user_id=current_user.id,
-                archive_name=archive_name,
-                requested_until=requested_until,
-                reason=reason,
-                requested_by_admin=(role == 'coordinator')
-            )
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar solicitud de prórroga en historial: {e}")
-
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "id": er.id,
             "message": "Solicitud de prórroga enviada exitosamente"
-        }), 201
+        }, status=201)
 
+    except ValueError as e:
+        # ExtensionsService raises ValueError with Spanish, user-facing text.
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        return jsonify({
-            "ok": False,
-            "error": str(e)
-        }), 400
+        return api_server_error(e, context="extensions.create_extension_request")
 
 @api_extensions.route('/requests', methods=['GET'])
 @login_required
@@ -187,10 +167,10 @@ def list_extension_requests():
 
         items = [_serialize_request(er) for er in requests]
 
-        return jsonify({"ok": True, "items": items}), 200
+        return api_ok({"items": items})
 
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context="extensions.list_extension_requests")
 
 @api_extensions.route('/requests/<int:req_id>/decision', methods=['PUT'])
 @login_required
@@ -208,10 +188,7 @@ def decide_extension_request(req_id: int):
     # y solicitud de otro programa responden igual (404), para no confirmar la
     # existencia de prórrogas ajenas.
     if not escope.request_in_scope(current_user, req_id):
-        return jsonify({
-            "ok": False,
-            "error": "Solicitud de prórroga no encontrada"
-        }), 404
+        return api_not_found("Solicitud de prórroga no encontrada")
 
     data = request.get_json() or {}
     status = data.get('status')
@@ -219,36 +196,26 @@ def decide_extension_request(req_id: int):
     condition_text = data.get('condition_text')
 
     if status not in ('granted', 'rejected', 'cancelled'):
-        return jsonify({
-            "ok": False,
-            "error": "status debe ser 'granted', 'rejected' o 'cancelled'"
-        }), 400
+        return api_error("VALIDATION_ERROR",
+                         "El estado debe ser 'granted', 'rejected' o 'cancelled'", status=400)
 
     granted_until_dt = None
     if status == 'granted':
         if not granted_until:
-            return jsonify({
-                "ok": False,
-                "error": "granted_until es requerido cuando status='granted'"
-            }), 400
+            return api_error("VALIDATION_ERROR",
+                             "La fecha de la prórroga es requerida al conceder", status=400)
 
         try:
             granted_until_dt = datetime.fromisoformat(granted_until.replace('Z', '+00:00'))
         except ValueError:
-            return jsonify({
-                "ok": False,
-                "error": "Formato de granted_until inválido"
-            }), 400
+            return api_error("VALIDATION_ERROR", "Formato de fecha de la prórroga inválido", status=400)
 
         # Una prórroga que vence en el pasado nace vencida: fabrica una deuda
         # documental que bloquea la asignación del número de control
         # (acceptance_service._check_document_debt) sin dejar más rastro que
         # decided_by. No se acepta.
         if to_local_timezone(granted_until_dt) <= now_local():
-            return jsonify({
-                "ok": False,
-                "error": "La fecha de la prórroga debe ser futura"
-            }), 400
+            return api_error("VALIDATION_ERROR", "La fecha de la prórroga debe ser futura", status=400)
 
     try:
         er = ExtensionsService.decide_request(
@@ -259,43 +226,21 @@ def decide_extension_request(req_id: int):
             condition_text=condition_text
         )
 
-        # Primero hacer commit de la decisión de prórroga
-        db.session.commit()
+        # Commit de la decisión y luego historial (con sus notificaciones)
+        extensions_service.record_decision(
+            er, status, granted_until_dt, condition_text, current_user.id)
 
-        # Luego registrar en el historial (con sus notificaciones)
-        try:
-            archive_name = er.archive.name if er.archive else f"ID {er.archive_id}"
-
-            # Formatear la fecha para mostrarla al usuario de manera legible
-            formatted_date = None
-            if status == 'granted' and granted_until_dt:
-                formatted_date = granted_until_dt.strftime('%d/%m/%Y')
-
-            UserHistoryService.log_extension_decision(
-                user_id=er.user_id,
-                archive_name=archive_name,
-                decision=status,
-                granted_until=formatted_date,
-                condition_text=condition_text,
-                admin_id=current_user.id
-            )
-            # Commit del historial y notificaciones
-            db.session.commit()
-        except Exception as e:
-            from flask import current_app
-            current_app.logger.error(f"Error al registrar decisión de prórroga en historial: {e}")
-            # No fallar la operación por un error de log
-            pass
-
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "id": er.id,
             "status": er.status,
             "message": f"Solicitud {status} exitosamente"
-        }), 200
+        })
 
+    except ValueError as e:
+        # ExtensionsService raises ValueError with Spanish, user-facing text.
+        return api_error("BUSINESS_ERROR", str(e), status=400)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return api_server_error(e, context="extensions.decide_extension_request")
 
 @api_extensions.route('/archive/<uuid:archive_uuid>/status', methods=['GET'])
 @login_required
@@ -313,7 +258,7 @@ def get_archive_extension_status(archive_uuid):
     """
     archive = Archive.by_uuid(archive_uuid)
     if archive is None:
-        return jsonify({"ok": False, "error": "Archivo no encontrado"}), 404
+        return api_not_found("Archivo no encontrado")
     archive_id = archive.id
 
     try:
@@ -337,16 +282,15 @@ def get_archive_extension_status(archive_uuid):
                     "created_at": pr.created_at.isoformat()
                 }
 
-        return jsonify({
-            "ok": True,
+        return api_ok({
             "has_pending": has_pending,
             "has_active": bool(active_extension),
             "effective_deadline": effective_deadline.isoformat() if effective_deadline else None,
             "pending_request": pending_request
-        }), 200
+        })
 
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return api_server_error(e, context="extensions.get_archive_extension_status")
 
 @api_extensions.route('/requests/for-review', methods=['GET'])
 @login_required
@@ -371,4 +315,4 @@ def list_extension_requests_for_review():
 
     items = [_serialize_request(er, include_contact=True) for er in requests]
 
-    return jsonify({"ok": True, "items": items}), 200
+    return api_ok({"items": items})

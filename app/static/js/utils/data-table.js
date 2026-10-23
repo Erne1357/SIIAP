@@ -8,8 +8,14 @@
 
   const SIIAP = global.SIIAP || (global.SIIAP = {});
 
+  // Idiomorph drops attributes the server did not emit, so data-dt-init alone
+  // is not a safe guard: a morph would erase it and every re-init would stack
+  // another scroll listener and ResizeObserver. Identity survives a morph.
+  const initialised = new WeakSet();
+
   function initDataTable(wrapper) {
-    if (!wrapper || wrapper.dataset.dtInit === '1') return;
+    if (!wrapper || initialised.has(wrapper)) return;
+    initialised.add(wrapper);
     wrapper.dataset.dtInit = '1';
 
     const update = () => {
