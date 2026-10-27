@@ -1,11 +1,5 @@
 // static/js/coordinator/dashboard.js - FASE 2
 document.addEventListener('DOMContentLoaded', () => {
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
-
   function emitFlash(level, message) {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
@@ -22,18 +16,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==================== CARGA DE PROGRAMAS ====================
   async function loadPrograms() {
     try {
-      const res = await fetch('/api/v1/coordinator/programs', {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get('/api/v1/coordinator/programs', { flash: false });
 
-      if (!res.ok) throw new Error('No se pudieron cargar los programas');
+      if (!r.ok) throw new Error('No se pudieron cargar los programas');
 
-      const data = await res.json();
+      const data = r.body;
       const programFilter = document.getElementById('programFilter');
       
-      if (programFilter && data.programs) {
+      if (programFilter && data.data?.programs) {
         programFilter.innerHTML = '<option value="">Todos los programas</option>' +
-          data.programs.map(p =>
+          data.data.programs.map(p =>
             `<option value="${SIIAP.escapeAttr(p.id)}">${SIIAP.escapeHtml(p.name)}</option>`
           ).join('');
       }
@@ -46,16 +38,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadStudents() {
     try {
       const params = new URLSearchParams(currentFilters);
-      const res = await fetch(`/api/v1/coordinator/students?${params}`, {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get(`/api/v1/coordinator/students?${params}`, { flash: false });
 
-      if (!res.ok) throw new Error('No se pudieron cargar los estudiantes');
+      if (!r.ok) throw new Error('No se pudieron cargar los estudiantes');
 
-      const data = await res.json();
+      const data = r.body;
       
 
-      studentsData = data.students || [];
+      studentsData = data.data?.students || [];
       
       
 
@@ -135,10 +125,12 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary btn-view-student"
-                    data-student-id="${SIIAP.escapeAttr(student.id)}" title="Ver detalles">
-              <i class="bi bi-eye"></i>
-            </button>
+            <a class="btn btn-outline-primary btn-view-student tap-target"
+               href="${SIIAP.escapeAttr(studentDetailHref(student.id, student.can_manage))}"
+               title="Ver detalles"
+               aria-label="Ver detalles de ${SIIAP.escapeAttr(student.full_name)}">
+              <i class="bi bi-eye" aria-hidden="true"></i>
+            </a>
             ${student.can_manage ? `
             <button type="button" class="btn btn-outline-success btn-upload-for tap-target"
                     data-student-id="${SIIAP.escapeAttr(student.id)}" title="Subir documento"
@@ -249,11 +241,12 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
         <td>
           <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-primary btn-view-student tap-target"
-                    data-student-id="${SIIAP.escapeAttr(student.id)}" title="Ver detalles"
-                    aria-label="Ver detalles de ${SIIAP.escapeAttr(student.full_name)}">
+            <a class="btn btn-outline-primary btn-view-student tap-target"
+               href="${SIIAP.escapeAttr(studentDetailHref(student.id, student.can_manage))}"
+               title="Ver detalles"
+               aria-label="Ver detalles de ${SIIAP.escapeAttr(student.full_name)}">
               <i class="bi bi-eye" aria-hidden="true"></i>
-            </button>
+            </a>
             ${window.siiapStudentRecordBtn ? window.siiapStudentRecordBtn(student.id) : ''}
           </div>
         </td>
@@ -399,9 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const studentId = button.dataset.studentId;
 
-    if (button.classList.contains('btn-view-student')) {
-      viewStudentDetails(studentId);
-    } else if (button.classList.contains('btn-view-permanence')) {
+    if (button.classList.contains('btn-view-permanence')) {
       viewPermanenceDetails(studentId);
     } else if (button.classList.contains('btn-upload-for')) {
       openUploadModal(studentId);
@@ -409,61 +400,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==================== ACCIONES DE ESTUDIANTES ====================
-  async function viewStudentDetails(studentId) {
-    const student = studentsData.find(s => s.id == studentId);
-    if (!student) return;
-
-    // Mostrar modal con loading
-    const modal = new bootstrap.Modal(document.getElementById('studentDetailsModal'));
-    document.getElementById('modalStudentName').textContent = 'Cargando...';
-    document.getElementById('modalStudentEmail').textContent = '';
-    document.getElementById('modalStudentProgram').textContent = '';
-    
-    // Mostrar loading solo en el tab activo, manteniendo la estructura del modal
-    document.getElementById('generalTabContent').innerHTML = `
-      <div class="text-center py-5">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Cargando información del estudiante…</span>
-        </div>
-        <p class="mt-3 text-secondary">Obteniendo información del estudiante…</p>
-      </div>
-    `;
-    
-    // Limpiar otros tabs
-    document.getElementById('documentsTabContent').innerHTML = '';
-    document.getElementById('interviewTabContent').innerHTML = '';
-    
-    // Asegurar que el tab General esté activo
-    document.getElementById('general-tab').click();
-    
-    modal.show();
-
-    try {
-      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/details`, {
-        credentials: 'same-origin'
-      });
-
-      if (!res.ok) throw new Error('Error al cargar detalles');
-
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Error desconocido');
-
-      renderStudentDetails(data);
-
-    } catch (err) {
-      console.error('Error loading student details:', err);
-      // El error se pinta DENTRO del panel General, nunca sobre #modalContent:
-      // reemplazar el cuerpo entero borra las pestañas y sus contenedores, y a
-      // partir de ahí cualquier apertura posterior del modal falla en cadena.
-      document.getElementById('generalTabContent').innerHTML = `
-      <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
-        Error al cargar información: ${SIIAP.escapeHtml(err.message)}
-      </div>
-    `;
-      document.getElementById('documentsTabContent').innerHTML = '';
-      document.getElementById('interviewTabContent').innerHTML = '';
-    }
+  /**
+   * Destino de «Ver detalles»: el detalle del estudiante es una página, no un
+   * modal. Un estudiante del propio alcance abre su expediente en la pestaña
+   * Admisión; uno de otro programa abre el resumen reducido (nombre, correo y
+   * avance), que es lo único que el servidor entrega entre programas.
+   */
+  function studentDetailHref(studentId, canManage) {
+    const id = encodeURIComponent(studentId);
+    return canManage === false
+      ? `/students/${id}/summary`
+      : `/students/${id}/record?tab=admision`;
   }
 
   /**
@@ -488,398 +435,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
   }
 
-  function renderStudentDetails(data) {
-    const student = data.student;
-    const restricted = data.restricted === true || data.can_manage === false;
-
-    // Header
-    document.getElementById('modalStudentName').textContent = student.full_name || '';
-    document.getElementById('modalStudentEmail').textContent = student.email || '';
-    document.getElementById('modalStudentAvatar').src = student.avatar_url || '/static/assets/images/default.jpg';
-    document.getElementById('modalStudentProgram').textContent =
-      (student.program && student.program.name) || 'Programa no disponible';
-
-    // Tab General
-    renderGeneralTab(student, data.metrics || {}, data.missing_documents || [], restricted);
-
-    // Tab Documentos
-    renderDocumentsTab(data.documents || [], student.id, data.can_manage, restricted);
-
-    // Tab Entrevista
-    renderInterviewTab(data.interview || {}, student, restricted);
-  }
-
-  function renderGeneralTab(student, metrics, missing, restricted) {
-    const generalContent = document.getElementById('generalTabContent');
-    // Numeric coercion for the CSS custom property (style-attribute injection).
-    const progress = Number(metrics.progress_percentage) || 0;
-    const profile = student.profile_data || {};
-    const emergency = profile.emergency_contact || {};
-
-    // Fuera de alcance no hay «perfil incompleto» ni «documentos en orden»: no
-    // los sabemos. Cada bloque que dependa de un dato prohibido se sustituye
-    // por su versión neutra en lugar de imprimir el valor por defecto.
-    const profileBlock = restricted
-      ? ''
-      : `
-    <div class="alert ${student.profile_completed ? 'alert-success' : 'alert-warning'} mb-4">
-      <h4 class="h6 mb-2">
-        <i class="bi bi-person-check-fill me-2" aria-hidden="true"></i>Estado del perfil
-      </h4>
-      ${student.profile_completed
-        ? '<p class="mb-0"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Perfil completo: elegible para entrevista</p>'
-        : '<p class="mb-0"><i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Perfil incompleto: debe completar sus datos personales</p>'}
-    </div>`;
-
-    const missingBlock = restricted
-      ? ''
-      : (missing.length > 0 ? `
-      <div class="mb-4">
-        <h4 class="h6 mb-2">
-          <i class="bi bi-exclamation-circle-fill text-warning-strong me-2" aria-hidden="true"></i>
-          Documentos pendientes (${missing.length})
-        </h4>
-        <ul class="list-group">
-          ${missing.map(item => `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <div>
-                <strong>${SIIAP.escapeHtml(item.archive)}</strong>
-                <small class="d-block text-muted">${SIIAP.escapeHtml(item.step)}</small>
-              </div>
-              ${item.status === 'rejected'
-                ? SIIAP.statusBadge('rejected', 'Rechazado', 'sm')
-                : SIIAP.statusBadge('pending', 'Pendiente', 'sm')}
-            </li>
-          `).join('')}
-        </ul>
-      </div>
-    ` : '<div class="alert alert-success"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Todos los documentos están en orden</div>');
-
-    const personalBlock = restricted
-      ? `
-    <div>
-      <h4 class="h6 mb-3">Datos personales</h4>
-      <div class="empty-state empty-state--compact">
-        <div class="empty-state__icon"><i class="bi bi-shield-lock" aria-hidden="true"></i></div>
-        <h5 class="empty-state__title">Reservados a su programa</h5>
-        <p class="empty-state__description">
-          El teléfono, la CURP, el NSS, la fecha de nacimiento y el contacto de
-          emergencia solo puede consultarlos quien coordina el programa de esta
-          persona.
-        </p>
-      </div>
-    </div>`
-      : `
-    <div>
-      <h4 class="h6 mb-3">Datos personales</h4>
-      <dl class="row g-3 mb-0">
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">Teléfono</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(profile.phone || profile.mobile_phone || 'No registrado')}</dd>
-        </div>
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">CURP</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(profile.curp || 'No registrado')}</dd>
-        </div>
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">Fecha de nacimiento</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(SIIAP.formatDate(profile.birth_date, 'long', 'No registrado'))}</dd>
-        </div>
-        <div class="col-md-6">
-          <dt class="small text-secondary fw-normal">NSS</dt>
-          <dd class="mb-0">${SIIAP.escapeHtml(profile.nss || 'No registrado')}</dd>
-        </div>
-        <div class="col-12">
-          <dt class="small text-secondary fw-normal">Contacto de emergencia</dt>
-          <dd class="mb-0">
-            ${SIIAP.escapeHtml(emergency.name || 'No registrado')}
-            <small class="d-block text-secondary">
-              ${SIIAP.escapeHtml(emergency.phone || '')}
-              ${emergency.relationship ? `(${SIIAP.escapeHtml(emergency.relationship)})` : ''}
-            </small>
-          </dd>
-        </div>
-      </dl>
-    </div>`;
-
-    generalContent.innerHTML = `
-    ${restricted ? restrictedNotice('Los contadores y el porcentaje de avance sí son datos reales.') : ''}
-    <!-- Métricas -->
-    <div class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--success h-100">
-          <i class="bi bi-check-circle-fill stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.approved)}</p>
-          <p class="stat-card__label">Aprobados</p>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--warning h-100">
-          <i class="bi bi-hourglass-split stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.pending)}</p>
-          <p class="stat-card__label">Pendientes</p>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--danger h-100">
-          <i class="bi bi-x-circle-fill stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.rejected)}</p>
-          <p class="stat-card__label">Rechazados</p>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--info h-100">
-          <i class="bi bi-clock-history stat-card__icon" aria-hidden="true"></i>
-          <p class="stat-card__value">${SIIAP.escapeHtml(metrics.extended)}</p>
-          <p class="stat-card__label">En prórroga</p>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Progreso -->
-    <div class="mb-4">
-      <h4 class="h6 mb-2">Progreso general</h4>
-      <div class="progress progress--lg" role="progressbar"
-           aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"
-           aria-label="Progreso general del expediente">
-        <div class="progress-bar progress-bar--dynamic bg-success" style="--progress: ${progress}%">
-          ${progress}%
-        </div>
-      </div>
-    </div>
-    
-    <!-- Estado del Perfil -->
-    ${profileBlock}
-
-    <!-- Documentos Faltantes/Rechazados -->
-    ${missingBlock}
-
-    <!-- Datos Personales -->
-    ${personalBlock}
-  `;
-  }
-
-  function renderDocumentsTab(documents, studentId, canManage, restricted) {
-    const docsContent = document.getElementById('documentsTabContent');
-
-    // Fuera de alcance el backend NO envía documentos: la lista vacía no
-    // significa «no subió nada», significa «no puedes verlos». Decirlo.
-    if (restricted) {
-      docsContent.innerHTML = `
-        ${restrictedNotice()}
-        <div class="empty-state empty-state--compact">
-          <div class="empty-state__icon"><i class="bi bi-file-earmark-lock" aria-hidden="true"></i></div>
-          <h4 class="empty-state__title">Documentos no disponibles</h4>
-          <p class="empty-state__description">
-            Los expedientes y sus archivos solo son accesibles para quien
-            coordina el programa de esta persona.
-          </p>
-        </div>`;
-      return;
-    }
-
-    // Si es solo lectura, mostrar advertencia
-    const readOnlyWarning = !canManage ? `
-      <div class="alert alert-info mb-3">
-        <i class="bi bi-eye me-2" aria-hidden="true"></i>
-        <strong>Modo solo lectura:</strong> Este estudiante pertenece a un programa de otro coordinador.
-      </div>
-    ` : '';
-
-    docsContent.innerHTML = readOnlyWarning + documents.map(step => `
-    <section class="mb-4">
-      <h4 class="h6 d-flex align-items-center gap-2 mb-2">
-        <span>${SIIAP.escapeHtml(step.sequence)}. ${SIIAP.escapeHtml(step.step_name)}</span>
-        ${getArchiveStatusBadge(step.state)}
-      </h4>
-      <div class="siiap-table-wrapper">
-          <table class="table siiap-table table-sm table-hover mb-0">
-            <caption class="visually-hidden">Documentos de la etapa ${SIIAP.escapeHtml(step.step_name)}</caption>
-            <thead class="table-light">
-              <tr>
-                <th scope="col">Documento</th>
-                <th scope="col" class="text-center">Estado</th>
-                <th scope="col">Fecha</th>
-                <th scope="col">Observaciones</th>
-                <th scope="col" class="text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${step.archives.map(arch => `
-                <tr>
-                  <td>
-                    <strong>${SIIAP.escapeHtml(arch.name)}</strong>
-                    ${arch.uploaded_by_role === 'program_admin' ? '<i class="bi bi-person-vcard-fill text-brand-primary ms-1" title="Subido por coordinador" aria-hidden="true"></i><span class="visually-hidden">Subido por el coordinador</span>' : ''}
-                  </td>
-                  <td class="text-center">
-                    ${getArchiveStatusBadge(arch.status)}
-                  </td>
-                  <td>${SIIAP.escapeHtml(SIIAP.formatDate(arch.uploaded_at, 'numeric', '-'))}</td>
-                  <td>
-                    <small class="text-secondary">${SIIAP.escapeHtml(arch.reviewer_comment || '-')}</small>
-                  </td>
-                  <td class="text-center">
-                    <div class="btn-group btn-group-sm" role="group">
-                      ${arch.has_submission ? `
-                        <a href="${SIIAP.escapeAttr(arch.file_url)}" target="_blank" rel="noopener"
-                           class="btn btn-outline-primary tap-target"
-                           title="Ver documento" aria-label="Ver documento ${SIIAP.escapeAttr(arch.name)} (se abre en una pestaña nueva)">
-                          <i class="bi bi-eye" aria-hidden="true"></i>
-                        </a>
-                      ` : ''}
-                      ${canManage && arch.allow_coordinator_upload ? `
-                        <button type="button" class="btn btn-outline-success btn-upload-for-modal tap-target"
-                                data-student-id="${SIIAP.escapeAttr(studentId)}" data-archive-id="${SIIAP.escapeAttr(arch.id)}"
-                                title="Subir documento" aria-label="Subir documento ${SIIAP.escapeAttr(arch.name)}">
-                          <i class="bi bi-upload" aria-hidden="true"></i>
-                        </button>
-                      ` : ''}
-                    </div>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-      </div>
-    </section>
-  `).join('');
-  }
-
-  function renderInterviewTab(interview, student, restricted) {
-    const interviewContent = document.getElementById('interviewTabContent');
-
-    // `eligible: null` no es «no cumple». Fuera de alcance la elegibilidad no
-    // se calcula, y pintar la alerta amarilla afirmaría un rechazo inexistente.
-    if (restricted) {
-      interviewContent.innerHTML = `
-        ${restrictedNotice()}
-        <div class="empty-state empty-state--compact">
-          <div class="empty-state__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
-          <h4 class="empty-state__title">Entrevista no disponible</h4>
-          <p class="empty-state__description">
-            La cita de entrevista y la elegibilidad las gestiona el programa al
-            que pertenece esta persona.
-          </p>
-        </div>`;
-      return;
-    }
-
-    const eligibility = interview.eligibility || {};
-    const missingItems = eligibility.missing_items || [];
-    const appt = interview.appointment;
-    const apptStatus = appt?.status;
-    const interviewDone = apptStatus === 'done' || apptStatus === 'no_show';
-
-    // Mapa de estado de cita → badge + color header
-    const apptStatusMap = {
-      scheduled: { badge: SIIAP.statusBadge('in_progress', 'Programada', 'sm'), headerBg: 'bg-primary-soft' },
-      done:      { badge: SIIAP.statusBadge('approved',    'Realizada', 'sm'),  headerBg: 'bg-success-soft' },
-      no_show:   { badge: SIIAP.statusBadge('rejected',    'No se presentó', 'sm'), headerBg: 'bg-danger-soft' },
-    };
-    const apptStyle = apptStatusMap[apptStatus]
-      || { badge: SIIAP.statusBadge('pending', SIIAP.statusLabel(apptStatus), 'sm'), headerBg: 'bg-info-soft' };
-
-    interviewContent.innerHTML = `
-    <!-- Estado de Elegibilidad (solo si la entrevista no se realizó todavía) -->
-    ${!interviewDone ? `
-    <div class="alert ${eligibility.eligible ? 'alert-success' : 'alert-warning'} mb-4">
-      <h4 class="h6 mb-2">
-        <i class="bi ${eligibility.eligible ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2" aria-hidden="true"></i>
-        Estado de elegibilidad
-      </h4>
-      <p class="mb-0">
-        ${eligibility.eligible
-          ? 'El estudiante cumple con todos los requisitos para la entrevista.'
-          : 'El estudiante NO cumple con los requisitos para la entrevista.'}
-      </p>
-      ${!eligibility.eligible && missingItems.length > 0 ? `
-        <hr>
-        <p class="mb-2 small"><strong>Elementos faltantes:</strong></p>
-        <ul class="small mb-0">
-          ${missingItems.map(item => `
-            <li>${item.type === 'profile'
-              ? SIIAP.escapeHtml(item.description)
-              : `${SIIAP.escapeHtml(item.step)}: ${SIIAP.escapeHtml(item.archive)} (${SIIAP.escapeHtml(item.current_status)})`}</li>
-          `).join('')}
-        </ul>
-      ` : ''}
-    </div>
-    ` : ''}
-
-    <!-- Detalle de la cita de entrevista -->
-    ${interview.has_interview ? `
-      <div class="card">
-        <div class="card-header ${apptStyle.headerBg}">
-          <h4 class="h6 mb-0">
-            <i class="bi bi-calendar-check me-2" aria-hidden="true"></i>
-            ${interviewDone ? 'Entrevista completada' : 'Entrevista asignada'}
-          </h4>
-        </div>
-        <div class="card-body">
-          <dl class="row g-3 mb-0">
-            <div class="col-md-6">
-              <dt class="small text-secondary fw-normal">Evento</dt>
-              <dd class="mb-0"><strong>${SIIAP.escapeHtml(appt.event.title)}</strong></dd>
-            </div>
-            <div class="col-md-6">
-              <dt class="small text-secondary fw-normal">Fecha y hora</dt>
-              <dd class="mb-0">
-                ${SIIAP.escapeHtml(SIIAP.formatDate(appt.slot.starts_at, 'long', '—'))}
-                <small class="d-block text-secondary">
-                  ${SIIAP.escapeHtml(SIIAP.formatTime(appt.slot.starts_at, '—'))} – ${SIIAP.escapeHtml(SIIAP.formatTime(appt.slot.ends_at, '—'))}
-                </small>
-              </dd>
-            </div>
-            <div class="col-md-6">
-              <dt class="small text-secondary fw-normal">Lugar</dt>
-              <dd class="mb-0">${SIIAP.escapeHtml(appt.event.location || 'Por confirmar')}</dd>
-            </div>
-            <div class="col-md-6">
-              <dt class="small text-secondary fw-normal">Estado</dt>
-              <dd class="mb-0">${apptStyle.badge}</dd>
-            </div>
-            ${appt.notes ? `
-              <div class="col-12">
-                <dt class="small text-secondary fw-normal">Notas</dt>
-                <dd class="mb-0 small">${SIIAP.escapeHtml(appt.notes)}</dd>
-              </div>
-            ` : ''}
-          </dl>
-        </div>
-      </div>
-    ` : `
-      <div class="alert alert-info">
-        <i class="bi bi-info-circle-fill me-2"></i>
-        El estudiante no tiene entrevista asignada aún.
-        ${eligibility.eligible ? ' Sin embargo, cumple con los requisitos y puede ser asignado.' : ''}
-      </div>
-    `}
-  `;
-  }
-
-  // Funciones auxiliares
-  function getStepStateName(state) {
-    const names = {
-      'approved': 'Completo',
-      'rejected': 'Rechazado',
-      'pending': 'Pendiente',
-      'extended': 'En Prórroga',
-      'review': 'En Revisión'
-    };
-    return names[state] || state;
-  }
-
-  function getArchiveStatusBadge(status) {
-    const map = {
-      'approved': ['approved',     'Aprobado'],
-      'rejected': ['rejected',     'Rechazado'],
-      'pending':  ['pending',      'Pendiente'],
-      'review':   ['review',       'En revisión'],
-      'extended': ['deliberation', 'En prórroga'],
-    };
-    const [key, label] = map[status] || ['pending', SIIAP.statusLabel(status)];
-    return SIIAP.statusBadge(key, label, 'sm');
-  }
   function openUploadModal(studentId) {
     const student = studentsData.find(s => s.id == studentId);
     if (!student) return;
@@ -975,21 +530,18 @@ document.addEventListener('DOMContentLoaded', () => {
       submitBtn.disabled = true;
 
       try {
-        const res = await fetch('/api/v1/coordinator/upload-for-student', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': csrf },
-          body: formData
+        // flash:false -> this screen emits its own messages below
+        const r = await window.SIIAP.api.request('POST', '/api/v1/coordinator/upload-for-student', {
+          body: formData,
+          flash: false
         });
 
-        const json = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          emitFlash('danger', json.error || 'No se pudo subir el documento');
+        if (!r.ok) {
+          emitFlash('danger', r.error?.message || 'No se pudo subir el documento');
           return;
         }
 
-        emitFlash('success', json.message || 'Documento registrado exitosamente por coordinador');
+        emitFlash('success', r.data?.message || 'Documento registrado exitosamente por coordinador');
 
         // Cerrar modal y recargar datos
         const modal = bootstrap.Modal.getInstance(document.getElementById('uploadForStudentModal'));
@@ -1009,17 +561,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadStudentsList() {
     try {
-      const res = await fetch('/api/v1/coordinator/manageable-students', {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get('/api/v1/coordinator/manageable-students', { flash: false });
 
-      if (!res.ok) throw new Error('No se pudieron cargar estudiantes');
+      if (!r.ok) throw new Error('No se pudieron cargar estudiantes');
 
-      const data = await res.json();
+      const data = r.body;
       const select = document.getElementById('targetStudent');
 
       select.innerHTML = '<option value="">Seleccionar estudiante...</option>' +
-        data.students.map(s =>
+        (data.data?.students || []).map(s =>
           `<option value="${SIIAP.escapeAttr(s.id)}">${SIIAP.escapeHtml(s.full_name)} - ${SIIAP.escapeHtml(s.program_name)}</option>`
         ).join('');
 
@@ -1030,21 +580,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadStudentArchives(studentId) {
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/uploadable-archives`, {
-        credentials: 'same-origin'
-      });
+      const r = await window.SIIAP.api.get(
+        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/uploadable-archives`,
+        { flash: false }
+      );
 
-      if (!res.ok) throw new Error('No se pudieron cargar archivos');
+      if (!r.ok) throw new Error('No se pudieron cargar archivos');
 
-      const data = await res.json();
+      const data = r.body;
       const select = document.getElementById('targetArchive');
 
-      if (data.archives.length === 0) {
+      const archives = data.data?.archives || [];
+      if (archives.length === 0) {
         select.innerHTML = '<option value="">No hay archivos disponibles para subir</option>';
         select.disabled = true;
       } else {
         select.innerHTML = '<option value="">Seleccionar archivo...</option>' +
-          data.archives.map(a =>
+          archives.map(a =>
             `<option value="${SIIAP.escapeAttr(a.id)}">${SIIAP.escapeHtml(a.name)} (${SIIAP.escapeHtml(a.step_name)})</option>`
           ).join('');
         select.disabled = false;
@@ -1080,8 +632,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function viewPermanenceDetails(studentId) {
     // Identificador público del estudiante (UUID): se guarda como cadena.
-    // Con parseInt quedaba NaN y `viewStudentDetails(NaN)` pedía
-    // /api/v1/coordinator/student/NaN/details.
+    // Con parseInt quedaba NaN y la pedida de datos usaba
+    // /api/v1/coordinator/student/NaN/….
     _permCurrentStudentId = studentId;
 
     // Resetear modal
@@ -1097,12 +649,12 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.show();
 
     try {
-      const res = await fetch(`/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`, {
-        credentials: 'same-origin'
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar');
-      renderPermanenceModal(data);
+      const r = await window.SIIAP.api.get(
+        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`,
+        { flash: false }
+      );
+      if (!r.ok) throw new Error(r.error?.message || 'Error al cargar');
+      renderPermanenceModal(r.data);
     } catch (err) {
       document.getElementById('permModalSpinner').innerHTML = `
         <div class="alert alert-danger">
@@ -1136,8 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('permAdmissionCount').textContent = pending_admission_count;
       admAlert.classList.remove('d-none');
       document.getElementById('permOpenAdmissionBtn').onclick = () => {
-        bootstrap.Modal.getInstance(document.getElementById('permanenceDetailsModal'))?.hide();
-        viewStudentDetails(_permCurrentStudentId);
+        window.location.assign(studentDetailHref(_permCurrentStudentId, can_manage));
       };
     } else {
       admAlert.classList.add('d-none');
@@ -1145,8 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Botón "Ver expediente completo"
     document.getElementById('permOpenFullBtn').onclick = () => {
-      bootstrap.Modal.getInstance(document.getElementById('permanenceDetailsModal'))?.hide();
-      viewStudentDetails(_permCurrentStudentId);
+      window.location.assign(studentDetailHref(_permCurrentStudentId, can_manage));
     };
 
     // ── Tarjetas resumen ──────────────────────────────────────────
@@ -1303,16 +853,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function toggleConacytScholarship(userProgramId, newValue) {
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-      const res = await fetch(`/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-        body: JSON.stringify({ value: newValue }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => emitFlash(f.level, f.message));
-      if (res.ok && !json.error) {
-        _permCurrentConacyt = json.data.has_conacyt_scholarship;
+      const r = await window.SIIAP.api.patch(
+        `/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`,
+        { value: newValue }
+      );
+      if (r.ok) {
+        _permCurrentConacyt = r.data.has_conacyt_scholarship;
         const badge = document.getElementById('permConacytBadge');
         badge.innerHTML = _permCurrentConacyt
           ? SIIAP.statusBadge('approved', 'Becario SECIHTI')

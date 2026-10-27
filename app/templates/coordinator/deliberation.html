@@ -269,6 +269,46 @@
               Adjunta el documento oficial con las condiciones de aceptación (PDF preferido).
             </div>
           </div>
+
+          <fieldset class="mb-3 d-none condition-list" id="conditionsSection">
+            <legend class="form-label fw-bold fs-6">Condiciones de aceptación</legend>
+            <p class="form-text mt-0" id="conditionsHelp">
+              Registra cada condición que el aspirante debe cumplir. Puedes ligarla a un requisito de conclusión para que se marque como cumplida al aprobarse.
+            </p>
+            <div id="conditionsList" class="condition-list__rows"></div>
+            <button type="button" class="btn btn-outline-primary btn-sm tap-target" id="addConditionBtn">
+              <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar condición
+            </button>
+          </fieldset>
+          <template id="conditionRowTemplate">
+            <div class="condition-list__row" data-condition-row>
+              <div class="condition-list__field condition-list__field--wide">
+                <label class="form-label" data-for="description">Descripción{{ required_mark() }}</label>
+                <input type="text" class="form-control" data-field="description" maxlength="500">
+              </div>
+              <div class="condition-list__field">
+                <label class="form-label" data-for="archive_key">Requisito de conclusión</label>
+                <select class="form-select" data-field="archive_key">
+                  <option value="">— Sin requisito ligado —</option>
+                </select>
+              </div>
+              <div class="condition-list__field">
+                <label class="form-label" data-for="due_date">Fecha límite <span class="text-secondary fw-normal">(opcional)</span></label>
+                <input type="date" class="form-control" data-field="due_date">
+              </div>
+              <button type="button" class="btn btn-outline-danger tap-target condition-list__remove"
+                      data-remove-condition aria-label="Quitar condición">
+                <i class="bi bi-trash" aria-hidden="true"></i>
+              </button>
+            </div>
+          </template>
+          {# Requisitos de conclusión por programa: el modal los copia al
+             <select> según el programa del aspirante. #}
+          {% for program_id, reqs in (conclusion_requirements or {}).items() %}
+          <template id="conditionOptions-{{ program_id }}">
+            {% for req in reqs %}<option value="{{ req.key }}">{{ req.name }}</option>{% endfor %}
+          </template>
+          {% endfor %}
         </div>
 
         <!-- Sección de rechazo -->

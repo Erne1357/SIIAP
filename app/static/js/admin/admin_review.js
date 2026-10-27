@@ -1,11 +1,5 @@
 // static/js/admin/admin_review.js - Versión con gestión de prórrogas
 document.addEventListener('DOMContentLoaded', () => {
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
-
   function emitFlash(level, message) {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
@@ -77,16 +71,12 @@ document.addEventListener('DOMContentLoaded', () => {
       setDecisionBusy(true, 'Enviando decisión…');
 
       try {
-        const res = await fetch(`/api/v1/admin/review/submissions/${subId}/decision`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrf
-          },
-          body: JSON.stringify({ action: pendingAction, comment })
-        });
-        const json = await res.json().catch(() => ({}));
+        const res = await window.SIIAP.api.post(
+          `/api/v1/admin/review/submissions/${subId}/decision`,
+          { action: pendingAction, comment },
+          { flash: false }
+        );
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo aplicar la acción.';
@@ -183,15 +173,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (programId) params.append('program_id', programId);
       if (userId) params.append('user_id', userId);
 
-      const res = await fetch(`/api/v1/extensions/requests?${params}`, {
-        credentials: 'same-origin'
-      });
+      const res = await window.SIIAP.api.get(`/api/v1/extensions/requests?${params}`, { flash: false });
 
       if (!res.ok) throw new Error('Error al cargar solicitudes');
 
-      const json = await res.json();
+      const json = res.body || {};
       
-      extensionRequests = json.items || [];
+      extensionRequests = json.data?.items || [];
 
       renderExtensions();
       updateExtensionCounts();
@@ -374,24 +362,16 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.granted_until = grantedUntil;
       }
 
-      const res = await fetch(`/api/v1/extensions/requests/${extId}/decision`, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf
-        },
-        body: JSON.stringify(payload)
-      });
+      const res = await window.SIIAP.api.put(`/api/v1/extensions/requests/${extId}/decision`, payload, { flash: false });
 
-      const json = await res.json();
+      const json = res.body || {};
 
-      if (!res.ok || !json.ok) {
-        emitFlash('danger', json.error || 'No se pudo procesar la decisión');
+      if (!res.ok || json.error) {
+        emitFlash('danger', json.error?.message || 'No se pudo procesar la decisión');
         return;
       }
 
-      emitFlash('success', json.message || 'Decisión registrada exitosamente');
+      emitFlash('success', json.data?.message || 'Decisión registrada exitosamente');
 
       // Cerrar modal y recargar
       const modal = bootstrap.Modal.getInstance(extensionReviewModal);
@@ -409,13 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('siiap:submission:new', (e) => {
     const data = e.detail;
     if (!data) return;
-    emitFlash('info', `Nuevo documento recibido: "${data.archive_name || 'documento'}". Recarga para verlo.`);
-
-    // Si hay una tabla de submissions visible, recargarla automáticamente
-    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
-    if (submissionsTable) {
-      setTimeout(() => { window.location.reload(); }, 3000);
-    }
+    // La lista se refresca sola (hx-trigger de #submissions-body): sin ella, el aviso invita a recargar.
+    const hasList = !!document.getElementById('submissions-body');
+    emitFlash('info', `Nuevo documento recibido: "${data.archive_name || 'documento'}".${hasList ? '' : ' Recarga para verlo.'}`);
   });
 
   // ==================== TIEMPO REAL: DOCUMENTO REVISADO POR OTRO ADMIN ====================
@@ -442,12 +418,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Caso 2: estamos en la lista → reload para eliminar la fila resuelta
-    const submissionsTable = document.querySelector('[data-submissions-list], .submissions-list, #submissionsList');
-    if (submissionsTable) {
+    // Caso 2: estamos en la lista → #submissions-body se re-pide solo (hx-trigger) y retira la fila resuelta
+    if (document.getElementById('submissions-body')) {
       const action = data.status === 'approved' ? 'aprobado' : 'rechazado';
       emitFlash('info', `Un documento fue ${action} por otro revisor. Actualizando...`);
-      setTimeout(() => { window.location.reload(); }, 1500);
     }
   });
 });

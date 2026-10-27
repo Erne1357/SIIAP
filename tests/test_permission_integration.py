@@ -197,7 +197,7 @@ class DelegationServiceTest(IntegrationBase):
     def test_delegate_fails_if_granter_lacks_permission(self):
         """delegate_permission falla si el granter no tiene el permiso a delegar."""
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError) as ctx:
+            with self.assertRaises(perm_svc.PermissionServiceError) as ctx:
                 perm_svc.delegate_permission(
                     granter_id=self.social.id,  # social_service no tiene delegate
                     grantee_id=self.admin.id,
@@ -208,7 +208,7 @@ class DelegationServiceTest(IntegrationBase):
     def test_delegate_fails_for_nonexistent_codename(self):
         """delegate_permission falla si el codename no existe."""
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.delegate_permission(
                     granter_id=self.admin.id,
                     grantee_id=self.social.id,
@@ -216,7 +216,7 @@ class DelegationServiceTest(IntegrationBase):
                 )
 
     def test_duplicate_active_delegation_raises(self):
-        """Delegar el mismo permiso dos veces (activo) lanza PermissionError."""
+        """Delegar el mismo permiso dos veces (activo) lanza PermissionServiceError."""
         with self.app.test_request_context('/'):
             perm_svc.delegate_permission(
                 granter_id=self.admin.id,
@@ -224,7 +224,7 @@ class DelegationServiceTest(IntegrationBase):
                 codename='acceptance.api.upload_doc',
                 program_id=self.program.id,
             )
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.delegate_permission(
                     granter_id=self.admin.id,
                     grantee_id=self.social.id,
@@ -250,7 +250,7 @@ class DelegationServiceTest(IntegrationBase):
             )
 
     def test_revoke_already_revoked_raises(self):
-        """Revocar una delegación ya revocada lanza PermissionError."""
+        """Revocar una delegación ya revocada lanza PermissionServiceError."""
         with self.app.test_request_context('/'):
             up = perm_svc.delegate_permission(
                 granter_id=self.admin.id,
@@ -259,7 +259,7 @@ class DelegationServiceTest(IntegrationBase):
                 program_id=self.program.id,
             )
             perm_svc.revoke_delegation(self.admin.id, up.id)
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.revoke_delegation(self.admin.id, up.id)
 
     def test_delegate_with_expiry(self):
@@ -325,14 +325,14 @@ class RoleOverrideServiceTest(IntegrationBase):
             )
 
     def test_duplicate_override_raises(self):
-        """Agregar dos veces el mismo override activo lanza PermissionError."""
+        """Agregar dos veces el mismo override activo lanza PermissionServiceError."""
         with self.app.test_request_context('/'):
             perm_svc.add_role_override(
                 role_id=self.r_social.id,
                 codename='admin_review.api.list_submissions',
                 performed_by=self.admin.id,
             )
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.add_role_override(
                     role_id=self.r_social.id,
                     codename='admin_review.api.list_submissions',
@@ -632,7 +632,7 @@ class DelegationScopeTest(IntegrationBase):
         cualquier codename sobre B y heredaba todo el programa B.
         """
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.delegate_permission(
                     granter_id=self.admin.id,
                     grantee_id=self.admin.id,
@@ -643,7 +643,7 @@ class DelegationScopeTest(IntegrationBase):
     def test_cannot_delegate_over_a_program_outside_own_scope(self):
         """Nadie reparte acceso a un programa que no controla."""
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.delegate_permission(
                     granter_id=self.admin.id,
                     grantee_id=self.social.id,
@@ -654,7 +654,7 @@ class DelegationScopeTest(IntegrationBase):
     def test_program_admin_cannot_delegate_globally(self):
         """program_id=None ('todos los programas') es sólo del jefe de posgrado."""
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.delegate_permission(
                     granter_id=self.admin.id,
                     grantee_id=self.social.id,
@@ -665,7 +665,7 @@ class DelegationScopeTest(IntegrationBase):
     def test_self_service_permission_is_not_delegatable(self):
         """'users.api.me' no describe trabajo sobre un programa: se rechaza."""
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.delegate_permission(
                     granter_id=self.admin.id,
                     grantee_id=self.social.id,
@@ -757,7 +757,7 @@ class DelegationVisibilityTest(IntegrationBase):
         delegación vive en un programa que no alcanza.
         """
         with self.app.test_request_context('/'):
-            with self.assertRaises(perm_svc.PermissionError):
+            with self.assertRaises(perm_svc.PermissionServiceError):
                 perm_svc.revoke_delegation(
                     revoker_id=self.admin2.id,
                     user_permission_id=self.up_id,

@@ -11,18 +11,20 @@ Endpoints:
   POST   /api/admin/document-templates/generate   — generar documento para un estudiante
   GET    /api/admin/document-templates/variables  — lista de variables disponibles
 """
-import os
-
-from flask import Blueprint, jsonify, request, send_file, current_app
+from flask import Blueprint, request, send_file
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_error, api_server_error
 from app.services import program_scope_service as scope_service
-from app.services import template_access_service
-from app import db
+from app.services import template_access_service, document_template_service
 from app.models.document_template import (
     DocumentTemplate, DOCUMENT_TYPES, TEMPLATE_FILE_TYPES
 )
 from app.models.user import User
+from app.schemas.document_templates import (
+    GenerateDocumentIn, UpdateTemplateIn, UploadTemplateForm,
+)
+from app.utils.validation import parse_form, parse_json
 
 api_document_templates = Blueprint(
     'api_document_templates',
@@ -33,16 +35,16 @@ api_document_templates = Blueprint(
 ALLOWED_EXTENSIONS = {'html', 'docx'}
 
 
-def _ok(data=None, **kwargs):
-    payload = {'ok': True}
-    if data is not None:
-        payload['data'] = data
-    payload.update(kwargs)
-    return jsonify(payload)
+_ERROR_CODES = {
+    400: 'VALIDATION_ERROR',
+    403: 'FORBIDDEN',
+    404: 'NOT_FOUND',
+}
 
 
 def _err(msg, code=400):
-    return jsonify({'ok': False, 'error': msg}), code
+    """Standard error envelope; the error code follows the HTTP status."""
+    return api_error(_ERROR_CODES.get(code, 'BUSINESS_ERROR'), msg, status=code)
 
 
 def _allowed_file(filename):
@@ -70,13 +72,6 @@ def _load_template_in_scope(template_uuid):
     return t, None
 
 
-def _templates_sys_dir():
-    return current_app.config.get(
-        'TEMPLATES_SYS_FOLDER',
-        os.path.join(current_app.instance_path, 'templates_sys'),
-    )
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # LISTAR
 # ─────────────────────────────────────────────────────────────────────────────
@@ -99,25 +94,17 @@ def list_templates():
     es literalmente el predicado que guarda los bytes: lo que se ve listado es
     exactamente lo que se puede descargar.
     """
-    q = DocumentTemplate.query
-
-    doc_type = request.args.get('document_type')
-    if doc_type:
-        q = q.filter_by(document_type=doc_type)
-
-    program_id = request.args.get('program_id', type=int)
-    if program_id is not None:
-        q = q.filter_by(program_id=program_id)
-
     active_only = request.args.get('active_only', 'false').lower() == 'true'
-    if active_only:
-        q = q.filter_by(is_active=True)
 
     templates = template_access_service.visible_document_templates(
         current_user,
-        q.order_by(DocumentTemplate.document_type, DocumentTemplate.name).all(),
+        document_template_service.query_templates(
+            document_type=request.args.get('document_type'),
+            program_id=request.args.get('program_id', type=int),
+            active_only=active_only,
+        ),
     )
-    return _ok([t.to_dict() for t in templates], total=len(templates))
+    return api_ok([t.to_dict() for t in templates], meta={'total': len(templates)})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -156,10 +143,11 @@ def upload_template():
     if not _allowed_file(file.filename):
         return _err(f"Tipo de archivo no permitido. Use: {', '.join(ALLOWED_EXTENSIONS)}")
 
-    name = (request.form.get('name') or '').strip()
-    doc_type = (request.form.get('document_type') or '').strip()
-    program_id = request.form.get('program_id', type=int)
-    description = (request.form.get('description') or '').strip() or None
+    form = parse_form(UploadTemplateForm)
+    name = form.name
+    doc_type = form.document_type
+    program_id = form.program_id
+    description = form.description
 
     if not name:
         return _err("El campo 'name' es requerido.")
@@ -174,37 +162,16 @@ def upload_template():
             403,
         )
 
-    ext = file.filename.rsplit('.', 1)[1].lower()
-
-    # Guardar en instance/templates_sys/<document_type>/
-    base_dir = _templates_sys_dir()
-    subdir = os.path.join(base_dir, doc_type)
-    os.makedirs(subdir, exist_ok=True)
-
-    from werkzeug.utils import secure_filename
-    from app.utils.datetime_utils import now_local
-    timestamp = now_local().strftime('%Y%m%d_%H%M%S')
-    safe_name = secure_filename(f"{timestamp}_{file.filename}")
-    abs_path = os.path.join(subdir, safe_name)
-    file.save(abs_path)
-
-    # Ruta relativa guardada en BD
-    rel_path = os.path.join(doc_type, safe_name)
-
-    template = DocumentTemplate(
-        program_id=program_id,
-        document_type=doc_type,
+    template = document_template_service.create_template(
+        file=file,
         name=name,
-        file_path=rel_path,
-        file_type=ext,
+        document_type=doc_type,
+        program_id=program_id,
         description=description,
-        is_active=True,
         created_by=current_user.id,
     )
-    db.session.add(template)
-    db.session.commit()
 
-    return _ok(template.to_dict()), 201
+    return api_ok(template.to_dict(), status=201)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -226,7 +193,7 @@ def get_template(template_uuid):
     if t is None or not template_access_service.may_download_document_template(
             current_user, t):
         return _err("Plantilla no encontrada.", 404)
-    return _ok(t.to_dict())
+    return api_ok(t.to_dict())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -247,17 +214,9 @@ def update_template(template_uuid):
     if err:
         return err
 
-    body = request.get_json(silent=True) or {}
-
-    if 'name' in body:
-        t.name = body['name'].strip()
-    if 'description' in body:
-        t.description = body['description'] or None
-    if 'is_active' in body:
-        t.is_active = bool(body['is_active'])
-
-    db.session.commit()
-    return _ok(t.to_dict())
+    body = parse_json(UpdateTemplateIn).model_dump(exclude_unset=True)
+    t = document_template_service.update_template(t, body)
+    return api_ok(t.to_dict())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -274,18 +233,8 @@ def delete_template(template_uuid):
         return err
     deleted_public_id = str(t.uuid) if t.uuid else None
 
-    # Eliminar archivo físico
-    base_dir = _templates_sys_dir()
-    abs_path = os.path.join(base_dir, t.file_path)
-    if os.path.exists(abs_path):
-        try:
-            os.remove(abs_path)
-        except OSError:
-            pass  # archivo ya no existe, continuar
-
-    db.session.delete(t)
-    db.session.commit()
-    return _ok({'deleted_id': deleted_public_id})
+    document_template_service.delete_template(t)
+    return api_ok({'deleted_id': deleted_public_id})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -310,7 +259,7 @@ def list_variables():
         {'key': '{{coordinator_name}}', 'description': 'Nombre del coordinador del programa'},
         {'key': '{{current_date}}',     'description': 'Fecha actual en formato dd/mm/yyyy'},
     ]
-    return _ok(variables)
+    return api_ok(variables)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -336,15 +285,15 @@ def generate_document():
     el estudiante estén dentro del alcance del llamador. No hay nivel reducido:
     un documento relleno es dato personal completo o no es nada.
     """
-    body = request.get_json(silent=True) or {}
+    body = parse_json(GenerateDocumentIn)
     # `user_id` viaja en el CUERPO, no en el URL, pero es la misma clase de
     # identificador: UUID público. Se resuelve aquí y el servicio sigue
     # recibiendo el id interno.
-    target = User.by_uuid(body.get('user_id'))
+    target = User.by_uuid(body.user_id)
     user_id = target.id if target else None
-    program_id = body.get('program_id')
-    doc_type = body.get('document_type')
-    period_id = body.get('period_id')
+    program_id = body.program_id
+    doc_type = body.document_type
+    period_id = body.period_id
 
     if not user_id or not program_id or not doc_type:
         return _err("Se requieren: user_id, program_id, document_type.")
@@ -368,11 +317,11 @@ def generate_document():
         )
     except ValueError as e:
         return _err(str(e), 404)
-    except RuntimeError as e:
-        return _err(str(e), 500)
     except Exception as e:
-        current_app.logger.error(f"[generate_document] Error: {e}", exc_info=True)
-        return _err(f"Error interno al generar el documento: {e}", 500)
+        return api_server_error(
+            e, message='Error interno al generar el documento.',
+            context='document_templates.generate_document',
+        )
 
     mime = 'application/pdf' if result['file_type'] == 'pdf' else \
            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

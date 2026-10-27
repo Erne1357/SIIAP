@@ -33,6 +33,13 @@
     const isBellPresent = !!document.getElementById('notificationBell');
     if (!isBellPresent) return;
 
+    // El cliente Socket.IO es un archivo propio (static/vendor/socket.io); si aun asi
+    // no esta, la app sigue funcionando sin tiempo real en lugar de lanzar un error.
+    if (typeof io === 'undefined') {
+        console.warn('[WS] Cliente Socket.IO no disponible; se omite el tiempo real.');
+        return;
+    }
+
     // ─── Conectar ────────────────────────────────────────────────────────────
     const socket = io({
         transports: ['websocket', 'polling'],

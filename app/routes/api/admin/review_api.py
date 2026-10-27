@@ -6,6 +6,7 @@ from app.utils.permissions import any_permission_required, permission_required
 from app.models import Submission
 from app.models.user import User
 from app.services import review_service
+from app.services.review_engine import ReviewConflict, ReviewError
 from app.services.review_service import InvalidReviewAction, SubmissionNotFound
 
 api_review = Blueprint("api_review", __name__, url_prefix="/api/v1/admin/review")
@@ -135,6 +136,22 @@ def decide_submission(sub_uuid):
         }), 400
     except SubmissionNotFound as e:
         return _not_found(e.message)
+    except ReviewConflict as e:
+        # Already decided (changing it needs a reason, in the inbox) or the
+        # state moved on: same envelope as the route's other refusals.
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "warning", "message": e.message}],
+            "error": {"code": "CONFLICT", "message": e.message},
+            "meta": {}
+        }), 409
+    except ReviewError as e:
+        return jsonify({
+            "data": None,
+            "flash": [{"level": "danger", "message": e.message}],
+            "error": {"code": "BAD_ACTION", "message": e.message},
+            "meta": {}
+        }), 400
 
     return jsonify({
         "data": {"submission": _sub_to_dict(sub)},

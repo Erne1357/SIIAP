@@ -11,13 +11,14 @@ El escenario mínimo que hace falta para probar las reglas:
   - un periodo con la convocatoria abierta hoy.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 import tempfile
 
 import pytest
 
 from app import create_app, db
+from app.utils.datetime_utils import now_local
 from app.models.role import Role
 from app.models.user import User
 from app.models.program import Program
@@ -174,7 +175,9 @@ def structure(app, phases, from_program, to_program):
 @pytest.fixture
 def open_period(app):
     """Periodo con la convocatoria de admisión ABIERTA hoy."""
-    today = date.today()
+    # Same clock as the service (now_local): date.today() is UTC in CI and
+    # disagreed with it around midnight, flipping "closed yesterday" to open.
+    today = now_local().date()
     ap = AcademicPeriod(
         code='20261', name='Enero-Junio 2026',
         start_date=today + timedelta(days=60),
@@ -191,7 +194,9 @@ def open_period(app):
 @pytest.fixture
 def closed_period(app):
     """Periodo con la convocatoria CERRADA (terminó ayer)."""
-    today = date.today()
+    # Same clock as the service (now_local): date.today() is UTC in CI and
+    # disagreed with it around midnight, flipping "closed yesterday" to open.
+    today = now_local().date()
     ap = AcademicPeriod(
         code='20253', name='Agosto-Diciembre 2025',
         start_date=today + timedelta(days=30),

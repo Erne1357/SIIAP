@@ -231,8 +231,6 @@ def execute_cleanup():
             },
         )
     except Exception as e:
-        from app import db
-        db.session.rollback()
         return _server_error(e, 'execute_cleanup')
 
 

@@ -27,11 +27,11 @@ from accounts import PASSWORD  # noqa: F401  (re-exported for convenience)
 #: the echo again would only duplicate every finding.
 _RESOURCE_ECHO = re.compile(r'^Failed to load resource')
 
-#: Third-party hosts the pages load from (fonts, Bootstrap, Socket.IO client).
+#: Third-party hosts the pages load from (Google Fonts only; Bootstrap, icons and Socket.IO are vendored).
 #: A request failure here is the sandbox's connectivity, not an app defect, so
 #: it is ignored. A *script error* that follows is not: it still fails the test.
 THIRD_PARTY_HOSTS = (
-    'fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'cdn.socket.io',
+    'fonts.googleapis.com', 'fonts.gstatic.com',
 )
 
 

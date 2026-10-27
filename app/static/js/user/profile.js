@@ -3,20 +3,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const profileForm = document.querySelector('form[data-profile-update="true"]');
   const completeProfileForm = document.querySelector('form[data-complete-profile="true"]');
 
-  const getCsrf = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-  const csrf = getCsrf();
-
   function emitFlash(level, message) {
     window.dispatchEvent(new CustomEvent('flash', { detail: { level, message } }));
   }
   
-  function persistFlashes(flashes) {
+  /**
+   * Re-render only what a saved profile changes (header data column + personal-info
+   * card) from the server, instead of reloading the page. The active tab, scroll
+   * and the photo controls stay untouched.
+   */
+  async function refreshProfileSummary() {
+    if (!window.htmx) return;
     try {
-      sessionStorage.setItem('flashQueue', JSON.stringify(flashes || []));
-    } catch (_) {}
+      await window.htmx.ajax('GET', '/user/profile/summary', {
+        target: '#profileHeaderMain', swap: 'innerHTML'
+      });
+      if (window.SIIAP?.announce) window.SIIAP.announce('Perfil actualizado.');
+    } catch (err) {
+      // The save succeeded; a failed refresh is reported by the htmx bridge.
+      console.error('profile summary refresh error:', err);
+    }
   }
 
   // ========== FORMULARIO BÁSICO DE PERFIL ==========
@@ -31,17 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       try {
-        const res = await fetch('/api/v1/users/me', {
-          method: 'PATCH',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrf
-          },
-          body: JSON.stringify(payload)
-        });
+        // flash:false — this handler emits or persists the server flashes itself.
+        const res = await window.SIIAP.api.patch('/api/v1/users/me', payload, { flash: false });
 
-        const json = await res.json().catch(() => ({}));
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo actualizar el perfil.';
@@ -65,8 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
           ? json.flash
           : [{ level: 'success', message: 'Perfil actualizado exitosamente.' }];
 
-        persistFlashes(flashes);
-        window.location.reload();
+        flashes.forEach(f => emitFlash(f.level || 'success', f.message));
+        await refreshProfileSummary();
 
       } catch (err) {
         console.error('profile update error:', err);
@@ -114,17 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
       submitBtn.disabled = true;
 
       try {
-        const res = await fetch('/api/v1/users/me/complete-profile', {
-          method: 'PATCH',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrf
-          },
-          body: JSON.stringify(payload)
-        });
+        // flash:false — this handler emits or persists the server flashes itself.
+        const res = await window.SIIAP.api.patch('/api/v1/users/me/complete-profile', payload, { flash: false });
 
-        const json = await res.json().catch(() => ({}));
+        const json = res.body || {};
 
         if (!res.ok) {
           const msg = json?.error?.message || 'No se pudo guardar la información.';
@@ -156,8 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
 
-        persistFlashes(flashes);
-        window.location.reload();
+        flashes.forEach(f => emitFlash(f.level || 'success', f.message));
+        await refreshProfileSummary();
 
       } catch (err) {
         console.error('complete profile error:', err);
@@ -174,13 +166,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadProfileCompletionStatus() {
     try {
-      const res = await fetch('/api/v1/users/me/profile-completion', {
-        credentials: 'same-origin'
-      });
+      const res = await window.SIIAP.api.get('/api/v1/users/me/profile-completion', { flash: false });
 
       if (!res.ok) return;
 
-      const json = await res.json();
+      const json = res.body;
       const completion = json.data;
 
       // Actualizar indicador de completitud en la UI

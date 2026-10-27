@@ -1,8 +1,5 @@
 (() => {
     const API = "/api/v1";
-    // Every /api mutation must carry the session's CSRF token; without it the
-    // backend answers 400 and the policy is never saved.
-    const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.content || "";
     // Sumidero propio del panel de retención: en archives.html el id "alerts"
     // pertenece a la pestaña de archivos y los avisos salían en la pestaña
     // equivocada.
@@ -26,6 +23,14 @@
         dropped: "Baja o desistimiento",
         enrollment: "Inscripción",
     };
+
+    // Mensaje de un envelope de error: el primer mensaje por campo si existe
+    // (es el más específico) y si no `error.message`.
+    function errText(body, fallback) {
+        const fields = body?.error?.fields;
+        const first = fields ? Object.values(fields)[0] : null;
+        return first || body?.error?.message || fallback;
+    }
 
     function flash(msg, type = "success") {
         if (!alerts) return;
@@ -89,15 +94,15 @@
 
     async function loadAll() {
         // archivos (para selector y vista)
-        const aRes = await fetch(`${API}/archives?include=step`, { credentials: "same-origin" });
-        const aData = await aRes.json();
-        archives = aData.items || [];
+        const aRes = await window.SIIAP.api.get(`${API}/archives?include=step`, { flash: false });
+        const aData = aRes.body || {};
+        archives = aData.data?.items || [];
         renderArchivesOptions();
 
         // políticas
-        const pRes = await fetch(`${API}/retention/policies`, { credentials: "same-origin" });
-        const pData = await pRes.json();
-        policies = pData.items || [];
+        const pRes = await window.SIIAP.api.get(`${API}/retention/policies`, { flash: false });
+        const pData = pRes.body || {};
+        policies = pData.data?.items || [];
         renderPolicies();
     }
 
@@ -135,22 +140,12 @@
         try {
             let res, data;
             if (polId.value) {
-                res = await fetch(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
-                    credentials: "same-origin",
-                    body: JSON.stringify(body)
-                });
+                res = await window.SIIAP.api.put(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, body, { flash: false });
             } else {
-                res = await fetch(`${API}/retention/policies`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
-                    credentials: "same-origin",
-                    body: JSON.stringify(body)
-                });
+                res = await window.SIIAP.api.post(`${API}/retention/policies`, body, { flash: false });
             }
-            data = await res.json();
-            if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo guardar");
+            data = res.body || {};
+            if (!res.ok || data.error) throw new Error(errText(data, "No se pudo guardar"));
             flash("Política guardada");
             btnReset.click();
             await loadAll();
@@ -178,13 +173,9 @@
         });
         if (!ok) return;
         try {
-            const res = await fetch(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, {
-                method: "DELETE",
-                headers: { "X-CSRFToken": csrfToken() },
-                credentials: "same-origin"
-            });
-            const data = await res.json();
-            if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo eliminar");
+            const res = await window.SIIAP.api.delete(`${API}/retention/policies/${encodeURIComponent(polId.value)}`, { flash: false });
+            const data = res.body || {};
+            if (!res.ok || data.error) throw new Error(errText(data, "No se pudo eliminar"));
             flash("Política eliminada");
             btnReset.click();
             await loadAll();
@@ -197,10 +188,10 @@
     if (btnCandidates) {
         btnCandidates.addEventListener("click", async () => {
             try {
-                const res = await fetch("/api/v1/retention/candidates", { credentials: "same-origin" });
-                const data = await res.json();
-                if (!res.ok || data.ok === false) throw new Error(data.error || "No se pudo traer candidatos");
-                const count = data.count || (data.items ? data.items.length : 0);
+                const res = await window.SIIAP.api.get("/api/v1/retention/candidates", { flash: false });
+                const data = res.body || {};
+                if (!res.ok || data.error) throw new Error(errText(data, "No se pudo traer candidatos"));
+                const count = data.data?.count || (data.data?.items ? data.data.items.length : 0);
                 flash(
                     count === 1
                         ? "Hay 1 archivo candidato a eliminación."

@@ -132,7 +132,10 @@ class TestIdleTimeout:
         assert client.get('/api/v1/auth/me').get_json()['error']['code'] == 'UNAUTHORIZED'
 
     def test_permanent_session_lifetime(self, app):
-        assert app.permanent_session_lifetime.total_seconds() == 17 * 60
+        # Absolute cookie cap; inactivity is enforced separately on the server
+        # (SESSION_IDLE_SECONDS). It was 17 minutes, which tied active sessions
+        # to the browser's clock — see test_session_lifetime.py.
+        assert app.permanent_session_lifetime.total_seconds() == 12 * 3600
 
     def test_expired_session_csrf_token_dropped(self, login):
         client = login(make_user('student'))

@@ -312,7 +312,7 @@ class TestHostsImagesAndBytes(ParticipationBase):
 
         resp = self._get(f'/api/v1/events/{self.ev_a_public.id}/hosts')
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(len(json.loads(resp.data)['hosts']), 1)
+        self.assertEqual(len(json.loads(resp.data)['data']['hosts']), 1)
 
         resp = self._get(f'/api/v1/events/{self.ev_a_public.id}/images')
         self.assertEqual(resp.status_code, 200)
@@ -378,7 +378,7 @@ class TestOrdinaryStudentFlowStillWorks(ParticipationBase):
     def test_listing_shows_institutional_and_own_program_events_only(self):
         resp = self._get('/api/v1/events/public')
         self.assertEqual(resp.status_code, 200)
-        ids = [item['id'] for item in json.loads(resp.data)['items']]
+        ids = [item['id'] for item in json.loads(resp.data)['data']['items']]
         self.assertIn(self.ev_institutional.id, ids)
         self.assertIn(self.ev_a_public.id, ids)
         self.assertNotIn(self.ev_b_public.id, ids)
@@ -389,13 +389,13 @@ class TestOrdinaryStudentFlowStillWorks(ParticipationBase):
     def test_detail_register_and_unregister(self):
         detail = self._get(f'/api/v1/events/public/{self.ev_a_public.id}')
         self.assertEqual(detail.status_code, 200)
-        self.assertIsNone(json.loads(detail.data)['my_registration'])
+        self.assertIsNone(json.loads(detail.data)['data']['my_registration'])
 
         resp = self._post(f'/api/v1/attendance/event/{self.ev_a_public.id}/register')
         self.assertEqual(resp.status_code, 201)
 
         detail = self._get(f'/api/v1/events/public/{self.ev_a_public.id}')
-        self.assertEqual(json.loads(detail.data)['my_registration']['status'], 'registered')
+        self.assertEqual(json.loads(detail.data)['data']['my_registration']['status'], 'registered')
 
         resp = self._post(f'/api/v1/attendance/event/{self.ev_a_public.id}/unregister')
         self.assertEqual(resp.status_code, 200)

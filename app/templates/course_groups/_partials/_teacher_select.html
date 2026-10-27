@@ -1,0 +1,15 @@
+{#
+  Selector de docente del formulario de grupo. Se reemplaza completo
+  (hx-swap="outerHTML" sobre #groupTeacherField) al dar de alta un docente.
+
+  Contexto explícito: teachers (lista de User), selected_id (int o none).
+#}
+<div class="mb-3" id="groupTeacherField">
+  <label class="form-label" for="groupTeacher">Docente</label>
+  <select class="form-select tap-target" id="groupTeacher" name="teacher_id" form="courseGroupForm">
+    <option value="">Sin asignar</option>
+    {% for t in teachers %}
+      <option value="{{ t.id }}" {{ 'selected' if selected_id == t.id }}>{{ t.last_name }} {{ t.first_name }}{% if t.role and t.role.name != 'teacher' %} (personal){% endif %}</option>
+    {% endfor %}
+  </select>
+</div>

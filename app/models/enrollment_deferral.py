@@ -25,17 +25,20 @@ class EnrollmentDeferral(db.Model):
 
     # FK al proceso del aspirante
     user_program_id = db.Column(
-        db.Integer, db.ForeignKey('user_program.id'), nullable=False
+        db.Integer, db.ForeignKey('user_program.id'), nullable=False,
+        index=True
     )
 
     # Periodo original en que fue aceptado
     original_period_id = db.Column(
-        db.Integer, db.ForeignKey('academic_period.id'), nullable=False
+        db.Integer, db.ForeignKey('academic_period.id'), nullable=False,
+        index=True
     )
 
     # Periodo al que se difiere (asignado automáticamente = siguiente periodo)
     deferred_to_period_id = db.Column(
-        db.Integer, db.ForeignKey('academic_period.id'), nullable=True
+        db.Integer, db.ForeignKey('academic_period.id'), nullable=True,
+        index=True
     )
 
     # Número de diferimiento (1 o 2). Máximo 2 por aspirante/programa.

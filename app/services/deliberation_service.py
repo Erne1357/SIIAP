@@ -22,6 +22,11 @@ import json
 
 from app import db
 from app.services import public_id_service
+from app.services.admission_status_service import (
+    InvalidAdmissionTransition,
+    lock_user_program,
+    transition,
+)
 from app.models import UserProgram, User, Program, Submission, ProgramStep
 from app.services.notification_service import NotificationService
 from app.services.user_history_service import UserHistoryService
@@ -29,7 +34,10 @@ from app.utils.datetime_utils import now_local
 from sqlalchemy import and_, or_
 
 
-class DeliberationError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class DeliberationError(DomainError):
     """Error base para operaciones de deliberacion."""
     pass
 
@@ -41,7 +49,7 @@ class DeliberationError(Exception):
 APPLICANT_NOT_FOUND_MESSAGE = 'No se encontró al aspirante en este programa.'
 
 
-class ApplicantNotFound(DeliberationError):
+class ApplicantNotFound(DeliberationError, NotFoundError):
     """El aspirante no fue encontrado."""
     pass
 
@@ -120,6 +128,71 @@ def get_user_program(user_id: int, program_id: int):
     return up
 
 
+def get_user_program_for_update(user_id: int, program_id: int):
+    """
+    Same as `get_user_program` but takes a row lock (`SELECT ... FOR UPDATE`).
+
+    Every function that changes `admission_status` loads the row this way so two
+    concurrent decisions on the same applicant are serialised until commit.
+
+    Raises:
+        ApplicantNotFound: Si no existe la relacion
+    """
+    up = lock_user_program(user_id, program_id)
+
+    if not up:
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
+
+    return up
+
+
+def _move_to(up, to_status: str) -> None:
+    """Run the state machine, surfacing a refusal as the module's own error."""
+    try:
+        transition(up, to_status)
+    except InvalidAdmissionTransition as e:
+        raise InvalidStateTransition(str(e)) from e
+
+
+def _stage_interview_completed(up, user_id: int, program_id: int, actor_id: int,
+                               details_suffix: str = ''):
+    """Log history and queue the applicant notification for a completed interview."""
+    program_name = up.program.name if up.program else f'programa {program_id}'
+    UserHistoryService.log_action(
+        user_id=user_id,
+        admin_id=actor_id,
+        action='interview_completed',
+        details=f'Entrevista marcada como completada en {program_name}{details_suffix}',
+    )
+
+    # 'medium' is this codebase's normal priority (low/medium/high/critical),
+    # the same one start_deliberation uses for the next transition.
+    NotificationService.create_notification(
+        user_id=user_id,
+        notification_type='interview_completed',
+        title='Tu entrevista fue registrada',
+        message=f'Tu entrevista para {program_name} quedó registrada como completada. '
+                f'El siguiente paso es la deliberación del comité de admisión.',
+        priority='medium',
+        action_url='/user/dashboard',
+    )
+
+
+def _emit_interview_completed(user_id: int, program_id: int) -> None:
+    """Notificar al aspirante + coordinadores del programa en tiempo real."""
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'admission:status_changed',
+        {
+            'user_id': public_id_service.user_uuid(user_id),
+            'program_id': program_id,
+            'new_status': 'interview_completed',
+        },
+        user_id=user_id,
+        program_id=program_id,
+    )
+
+
 def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int = None):
     """
     Marca que el aspirante completo su entrevista.
@@ -136,16 +209,15 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
     """
     from app.models.appointment import Appointment
     from app.models.event import Event
-    from app.services.user_history_service import UserHistoryService
 
-    up = get_user_program(user_id, program_id)
+    up = get_user_program_for_update(user_id, program_id)
 
     if up.admission_status not in ['in_progress']:
         raise InvalidStateTransition(
             f"No se puede marcar entrevista completada desde estado '{up.admission_status}'"
         )
 
-    up.admission_status = 'interview_completed'
+    _move_to(up, 'interview_completed')
 
     # Buscar y marcar la cita de entrevista como 'done'.
     # Se incluyen eventos globales (program_id=NULL) además de los del programa,
@@ -167,45 +239,53 @@ def mark_interview_completed(user_id: int, program_id: int, coordinator_id: int 
     if appointment:
         appointment.status = 'done'
 
-    program_name = up.program.name if up.program else f'programa {program_id}'
-    UserHistoryService.log_action(
-        user_id=user_id,
-        admin_id=coordinator_id or user_id,
-        action='interview_completed',
-        details=(
-            f'Entrevista marcada como completada en {program_name}'
-            + (f' (cita #{appointment.id})' if appointment else '')
-        ),
-    )
-
-    # 'medium' is this codebase's normal priority (low/medium/high/critical),
-    # the same one start_deliberation uses for the next transition.
-    NotificationService.create_notification(
-        user_id=user_id,
-        notification_type='interview_completed',
-        title='Tu entrevista fue registrada',
-        message=f'Tu entrevista para {program_name} quedó registrada como completada. '
-                f'El siguiente paso es la deliberación del comité de admisión.',
-        priority='medium',
-        action_url='/user/dashboard',
+    _stage_interview_completed(
+        up, user_id, program_id, coordinator_id or user_id,
+        details_suffix=f' (cita #{appointment.id})' if appointment else '',
     )
 
     db.session.commit()
 
-    # Notificar al aspirante + coordinadores del programa en tiempo real
-    from app.sockets.emitters import emit_user_and_coordinators
-    emit_user_and_coordinators(
-        'admission:status_changed',
-        {
-            'user_id': public_id_service.user_uuid(user_id),
-            'program_id': program_id,
-            'new_status': 'interview_completed',
-        },
-        user_id=user_id,
-        program_id=program_id,
-    )
+    _emit_interview_completed(user_id, program_id)
 
     return up
+
+
+def complete_interview_from_appointment(appointment, actor_id: int) -> bool:
+    """
+    Advance the applicant to `interview_completed` after an interview
+    appointment was marked as done.
+
+    Only acts when the appointment belongs to an `interview` event of a program
+    and the applicant is still `in_progress` in it; anything else is a silent
+    no-op (a non-interview appointment, a global event, an applicant who is
+    already further along or not enrolled).
+
+    Commits the session in every case — including whatever the caller already
+    changed on the appointment — so the caller must not commit again. Returns
+    True when the status moved.
+    """
+    from app.models.event import Event
+
+    event = db.session.get(Event, appointment.event_id)
+    if not event or event.type != 'interview' or not event.program_id:
+        db.session.commit()
+        return False
+
+    up = lock_user_program(appointment.applicant_id, event.program_id)
+    if not up or up.admission_status != 'in_progress':
+        db.session.commit()
+        return False
+
+    _move_to(up, 'interview_completed')
+    _stage_interview_completed(
+        up, appointment.applicant_id, event.program_id, actor_id,
+        details_suffix=f' (cita #{appointment.id}: {event.title})',
+    )
+    db.session.commit()
+
+    _emit_interview_completed(appointment.applicant_id, event.program_id)
+    return True
 
 
 def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
@@ -220,7 +300,7 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
     Returns:
         UserProgram actualizado
     """
-    up = get_user_program(user_id, program_id)
+    up = get_user_program_for_update(user_id, program_id)
 
     if up.admission_status not in ['interview_completed']:
         raise InvalidStateTransition(
@@ -269,7 +349,7 @@ def start_deliberation(user_id: int, program_id: int, coordinator_id: int):
 
 
 def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str = None,
-                     is_conditional: bool = False, dictamen_file=None):
+                     is_conditional: bool = False, dictamen_file=None, conditions=None):
     """
     Acepta a un aspirante en el programa.
 
@@ -280,6 +360,9 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
         notes: Notas opcionales sobre la decision
         is_conditional: Si True, marca la aceptación como condicionada (requiere dictamen)
         dictamen_file: FileStorage con el "Dictamen de Aceptación" (obligatorio si is_conditional)
+        conditions: (Fase 6C) condiciones de la aceptación condicionada, cada una
+            {description, archive_key|None, due_date|None} (dict u objeto con esos
+            atributos). Se ignoran si la aceptación no es condicionada.
 
     Returns:
         UserProgram actualizado
@@ -287,7 +370,7 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     from app.models.acceptance_document import AcceptanceDocument
     from app.utils.files import save_user_doc
 
-    up = get_user_program(user_id, program_id)
+    up = get_user_program_for_update(user_id, program_id)
 
     if up.admission_status not in ['deliberation', 'interview_completed']:
         raise InvalidStateTransition(
@@ -299,7 +382,18 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
             "Para aceptación condicionada se requiere adjuntar el 'Dictamen de Aceptación' (archivo PDF)."
         )
 
+    # Resolve the condition keys before writing anything: an unknown key aborts.
+    staged_conditions = _resolve_conditions(conditions, program_id) if is_conditional else []
+
     up.accept(decision_by=decision_by, notes=notes)
+
+    if staged_conditions:
+        from app.services import conclusion_service
+        for description, archive_id, due_date in staged_conditions:
+            conclusion_service.stage_condition(
+                up, description, archive_id=archive_id, due_date=due_date,
+                actor_id=decision_by,
+            )
 
     # Obtener datos para notificacion
     user = User.query.get(user_id)
@@ -401,6 +495,36 @@ def accept_applicant(user_id: int, program_id: int, decision_by: int, notes: str
     return up
 
 
+def _resolve_conditions(conditions, program_id: int) -> list:
+    """
+    [(description, archive_id|None, due_date|None)] from the request items.
+
+    A linked requirement must be one of the conclusion requirements of
+    `program_id` (the applicant's program), not any archive with the key.
+    """
+    from app.services import conclusion_service
+
+    program_archives = {a.archive_key: a
+                        for _, a in conclusion_service.conclusion_archives(program_id)
+                        if (a.archive_key or '').startswith('conclusion_')}
+    resolved = []
+    for item in conditions or []:
+        get = item.get if isinstance(item, dict) else (lambda k, o=item: getattr(o, k, None))
+        description = (get('description') or '').strip()
+        if not description:
+            raise DeliberationError('Cada condición necesita una descripción.')
+        archive_id = None
+        key = get('archive_key')
+        if key:
+            archive = program_archives.get(key)
+            if archive is None:
+                raise DeliberationError(
+                    'El requisito de conclusión indicado no existe en el programa del aspirante.')
+            archive_id = archive.id
+        resolved.append((description, archive_id, get('due_date')))
+    return resolved
+
+
 def reject_applicant(user_id: int, program_id: int, decision_by: int,
                      rejection_type: str = 'full', notes: str = None,
                      correction_required: str = None):
@@ -418,7 +542,7 @@ def reject_applicant(user_id: int, program_id: int, decision_by: int,
     Returns:
         UserProgram actualizado
     """
-    up = get_user_program(user_id, program_id)
+    up = get_user_program_for_update(user_id, program_id)
 
     if up.admission_status not in ['deliberation', 'interview_completed']:
         raise InvalidStateTransition(
@@ -552,7 +676,7 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
     Returns:
         UserProgram actualizado
     """
-    up = get_user_program(user_id, program_id)
+    up = get_user_program_for_update(user_id, program_id)
 
     if up.admission_status not in ['rejected']:
         raise InvalidStateTransition(
@@ -565,7 +689,7 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
         )
 
     # Reiniciar estado
-    up.admission_status = 'in_progress'
+    _move_to(up, 'in_progress')
     up.deliberation_started_at = None
     up.decision_at = None
     up.decision_by = None
@@ -614,7 +738,8 @@ def reset_to_in_progress(user_id: int, program_id: int, admin_id: int, reason: s
 
 def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: str = None):
     """
-    Reinicia forzosamente el estado de un aspirante a 'in_progress' desde cualquier estado.
+    Reinicia forzosamente el estado de un aspirante a 'in_progress' desde cualquier
+    estado salvo 'enrolled' (terminal: un alumno inscrito no se puede reiniciar).
     Solo debe ser usado por postgraduate_admin para correcciones administrativas.
 
     Args:
@@ -625,11 +750,16 @@ def force_reset_applicant(user_id: int, program_id: int, admin_id: int, reason: 
 
     Returns:
         UserProgram actualizado
+
+    Raises:
+        InvalidStateTransition: Si el aspirante ya esta inscrito.
     """
-    up = get_user_program(user_id, program_id)
+    up = get_user_program_for_update(user_id, program_id)
 
     prev_status = up.admission_status
-    up.admission_status = 'in_progress'
+    # Raises before anything is cleared when the move is refused (an `enrolled`
+    # student is terminal and cannot be reset).
+    _move_to(up, 'in_progress')
     up.deliberation_started_at = None
     up.decision_at = None
     up.decision_by = None
@@ -753,3 +883,47 @@ def get_applicants_with_pending_interview(program_id: int):
     ).order_by(UserProgram.updated_at.desc()).all()
 
     return applicants
+
+
+def list_admission_archives(program_id: int) -> list:
+    """Uploadable archives of the admission phase of a program (partial rejection)."""
+    from sqlalchemy import and_
+    from app.models import Step, ProgramStep, Phase
+    from app.models.archive import Archive
+
+    return (
+        Archive.query
+        .join(Step, Archive.step_id == Step.id)
+        .join(ProgramStep, Step.id == ProgramStep.step_id)
+        .join(Phase, Step.phase_id == Phase.id)
+        .filter(
+            and_(
+                ProgramStep.program_id == program_id,
+                Phase.name == 'admission',
+                Archive.is_uploadable == True  # noqa: E712
+            )
+        )
+        .order_by(ProgramStep.sequence, Archive.id)
+        .all()
+    )
+
+
+def list_conclusion_requirements(program_ids) -> dict:
+    """
+    {program_id: [{'key', 'name'}]} — the conclusion requirements a condition
+    can point to, per program (the acceptance modal is per applicant, and the
+    applicant's program decides which requirements exist).
+    """
+    from app.services import conclusion_service
+
+    options = {}
+    for program_id in program_ids or []:
+        seen, rows = set(), []
+        for _, archive in conclusion_service.conclusion_archives(program_id):
+            key = archive.archive_key or ''
+            if not key.startswith('conclusion_') or key in seen:
+                continue
+            seen.add(archive.archive_key)
+            rows.append({'key': archive.archive_key, 'name': archive.name})
+        options[program_id] = rows
+    return options

@@ -89,7 +89,7 @@
 {% macro field(id, label, type='text', name=none, required=false, help=none,
                autocomplete=none, placeholder=none, value=none, options=none,
                rows=3, disabled=false, readonly=false,
-               wrapper_class='mb-3', control_class='') %}
+               wrapper_class='mb-3', control_class='', min_value=none) %}
   {% set field_name = name or id %}
   {% set help_id = (id ~ 'Help') if help else none %}
 <div class="{{ wrapper_class }}">
@@ -118,6 +118,7 @@
     {%- if value is not none %} value="{{ value }}"{% endif %}
     {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
     {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
+    {%- if min_value %} min="{{ min_value }}"{% endif %}
     {%- if help_id %} aria-describedby="{{ help_id }}"{% endif %}
     {%- if required %} required{% endif %}
     {%- if disabled %} disabled{% endif %}
@@ -261,6 +262,7 @@
   'program_admin':      {'icon': 'building-fill-gear',   'label': 'Coordinador de programa'},
   'postgraduate_admin': {'icon': 'building-fill-check',  'label': 'Administración de posgrado'},
   'social_service':     {'icon': 'heart-fill',           'label': 'Servicio social'},
+  'teacher':            {'icon': 'easel-fill',           'label': 'Docente'},
 } %}
 
 {% macro role_banner(user, role_key, role_label=none, context_line=none, next_action=none, progress=none) %}

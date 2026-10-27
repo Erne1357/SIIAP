@@ -1,0 +1,60 @@
+{# user/dashboard/_partials/_postgraduate_program_stats.html - per-program statistics card
+   Context: metrics (+ current_user). Included by postgraduate_admin_dashboard.html and
+   re-sent alone as an out-of-band source by GET /user/dashboard (HX). #}
+{% from '_macros.html' import role_banner, empty_state, async_region, skeleton_text_block, data_table_open, data_table_close, icon_button %}
+<div id="postgradProgramStats">
+        <div class="row">
+            <div class="col-12">
+                <section class="card" aria-labelledby="programStatsTitle">
+                    <div class="card-header bg-transparent pt-4 pb-3">
+                        <h2 class="h5 mb-0 fw-bold" id="programStatsTitle">
+                            <i class="bi bi-mortarboard text-brand-primary me-2" aria-hidden="true"></i>Estadísticas por programa
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        {% if metrics.programs_stats %}
+                        {{ data_table_open('Estadísticas de solicitantes y documentos pendientes por programa', table_class='table-hover align-middle') }}
+                            <thead>
+                                <tr>
+                                    <th scope="col">Programa</th>
+                                    <th scope="col" class="text-center">Solicitantes</th>
+                                    <th scope="col" class="text-center">Documentos pendientes</th>
+                                    <th scope="col" class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prog in metrics.programs_stats %}
+                                <tr>
+                                    <th scope="row" class="fw-semibold">{{ prog.name }}</th>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary rounded-pill">{{ prog.applicants }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if prog.pending_docs > 0 %}
+                                            <span class="badge bg-warning rounded-pill">{{ prog.pending_docs }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success rounded-pill">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {{ icon_button('eye', 'Ver el programa ' ~ prog.name,
+                                                       cls='btn btn-sm btn-outline-primary',
+                                                       href=url_for('program.view_program', slug=prog.slug)) }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        {{ data_table_close() }}
+                        {% else %}
+                        {{ empty_state(
+                             icon='inbox',
+                             title='No hay programas registrados',
+                             description='Cuando se den de alta programas de posgrado aparecerán aquí.',
+                             compact=true
+                           ) }}
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+        </div>
+</div>

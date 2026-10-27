@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Acta · {{ subject.name }} · Grupo {{ group.group_code }}</title>
+{% from 'pdf/_letterhead.html' import letterhead, letterhead_styles %}
+<style>{{ letterhead_styles() }}</style>
+</head>
+<body>
+  {{ letterhead('Acta de calificaciones', program_name, issued_at, period.name) }}
+  <table class="id">
+    <tr><td><span class="muted">Materia:</span> <strong>{{ subject.name }}</strong>{% if subject.key %} ({{ subject.key }}){% endif %}</td>
+        <td><span class="muted">Grupo:</span> <strong>{{ group.group_code }}</strong></td></tr>
+    <tr><td><span class="muted">Docente:</span> {{ teacher_name }}</td>
+        <td><span class="muted">Acta cerrada el:</span> {{ group.closed_at|fecha_es if group.closed_at else '—' }}</td></tr>
+  </table>
+
+  <table class="data">
+    <caption>Calificaciones del grupo</caption>
+    <thead>
+      <tr>
+        <th scope="col" class="num">No.</th><th scope="col">Estudiante</th>
+        <th scope="col">No. de control</th><th scope="col">Intento</th>
+        <th scope="col" class="num">Calificación</th><th scope="col">Resultado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="num">{{ loop.index }}</td><td>{{ r.full_name }}</td>
+          <td>{{ r.control_number or '—' }}</td><td>{{ r.attempt_label }}</td>
+          <td class="num">{{ r.value or '—' }}</td>
+          <td>{{ 'Aprobada' if r.result == 'passed' else ('Reprobada' if r.result == 'failed' else '—') }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="sign">
+    <div class="sign__line"></div>
+    <div>Nombre y firma del docente</div>
+    <div class="muted">{{ teacher_name }}</div>
+  </div>
+</body>
+</html>

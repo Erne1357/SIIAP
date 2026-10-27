@@ -181,8 +181,8 @@ def test_execute_endpoint_accepted_applicant_409(app, client, applicant, from_pr
 
     assert resp.status_code == 409
     body = resp.get_json()
-    assert body['ok'] is False
-    assert 'coordinador' in body['error']
+    assert body['error'] is not None
+    assert 'coordinador' in body['error']['message']
     # Ni siquiera se registró una solicitud: la denegación va antes.
     assert ProgramChangeRequest.query.count() == 0
 
@@ -198,7 +198,7 @@ def test_execute_endpoint_foreign_program_404(app, client, applicant, from_progr
     )
 
     assert resp.status_code == 404
-    assert resp.get_json()['ok'] is False
+    assert resp.get_json()['error']['code'] == 'NOT_FOUND'
 
 
 def test_execute_endpoint_does_not_self_approve(app, client, applicant, from_program,

@@ -8,7 +8,7 @@ class RolePermission(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
-    permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), nullable=False)
+    permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), nullable=False, index=True)
 
     __table_args__ = (
         db.UniqueConstraint('role_id', 'permission_id', name='uq_role_permission'),
@@ -35,8 +35,8 @@ class RolePermissionOverride(db.Model):
     __tablename__ = 'role_permission_override'
 
     id = db.Column(db.Integer, primary_key=True)
-    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
-    permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), nullable=False)
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False, index=True)
+    permission_id = db.Column(db.Integer, db.ForeignKey('permission.id'), nullable=False, index=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)
     revoked_at = db.Column(db.DateTime, nullable=True)

@@ -6,7 +6,6 @@
   const USER_ID = CFG.userId;
   if (!USER_ID) return;
 
-  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
   let RECORD = null;
 
   function escHtml(s) {
@@ -26,7 +25,7 @@
   }
 
   function flashMsg(level, msg) {
-    if (typeof showFlash === 'function') showFlash(level, msg);
+    window.SIIAP.flash(level, msg);
   }
 
   // ── Spanish label maps ─────────────────────────────────────────────────
@@ -71,18 +70,17 @@
   // ── Loaders ──────────────────────────────────────────────────────────────
   async function loadRecord() {
     try {
-      const res = await fetch(`/api/v1/students/${USER_ID}/record`);
-      const json = await res.json();
-      if (!res.ok || json.error) {
+      const r = await window.SIIAP.api.get(`/api/v1/students/${USER_ID}/record`, { flash: false });
+      if (!r.ok) {
         // El servidor responde 404 tanto si el expediente no existe como si
         // queda fuera del alcance: distinguirlos publicaba qué ids existen.
         // El front tampoco debe inventar la diferencia.
-        if (res.status === 404 || res.status === 403) {
+        if (r.status === 404 || r.status === 403) {
           flashMsg('danger', 'No se encontró este expediente o no tienes acceso a él.');
         }
-        throw new Error(json.error?.message || 'Error');
+        throw new Error(r.error?.message || 'Error');
       }
-      RECORD = json.data;
+      RECORD = r.data;
       renderHeader();
       renderInfo();
       renderAcademic();
@@ -214,14 +212,11 @@
     const reason = approve ? null : (prompt('Motivo del rechazo (opcional):') || null);
 
     try {
-      const res = await fetch(`/api/v1/users/${USER_ID}/photo/enable-change`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-        body: JSON.stringify({ approve, reason }),
-      });
-      const json = await res.json();
-      if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
-      if (res.ok && !json.error) await loadRecord();
+      const r = await window.SIIAP.api.post(
+        `/api/v1/users/${USER_ID}/photo/enable-change`,
+        { approve, reason }
+      );
+      if (r.ok) await loadRecord();
     } catch (e) {
       flashMsg('danger', 'Error al procesar la solicitud.');
     }
@@ -247,14 +242,8 @@
       if (el.name) payload[el.name] = el.value;
     });
     try {
-      const res = await fetch(`/api/v1/students/${USER_ID}/personal-info`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
-      if (res.ok && !json.error) {
+      const r = await window.SIIAP.api.patch(`/api/v1/students/${USER_ID}/personal-info`, payload);
+      if (r.ok) {
         bootstrap.Modal.getInstance(document.getElementById('editPersonalInfoModal'))?.hide();
         await loadRecord();
       }
@@ -267,14 +256,8 @@
     e.preventDefault();
     const fd = new FormData(e.target);
     try {
-      const res = await fetch(`/api/v1/users/${USER_ID}/photo`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrfToken },
-        body: fd,
-      });
-      const json = await res.json();
-      if (json.flash) json.flash.forEach(f => flashMsg(f.level, f.message));
-      if (res.ok && !json.error) {
+      const r = await window.SIIAP.api.request('POST', `/api/v1/users/${USER_ID}/photo`, { body: fd });
+      if (r.ok) {
         bootstrap.Modal.getInstance(document.getElementById('coordUploadPhotoModal'))?.hide();
         e.target.reset();
         await loadRecord();
@@ -622,8 +605,50 @@
     }
   }
 
+  // ── Deep links and the admission tab (server-rendered fragment) ─────────
+  const TAB_BUTTONS = { admision: 'tab-admission-btn', trayectoria: 'tab-trajectory-btn', carga: 'tab-load-btn', kardex: 'tab-kardex-btn', conclusion: 'tab-conclusion-btn' };
+
+  function setupTabs() {
+    const wanted = TAB_BUTTONS[CFG.initialTab];
+    const btn = wanted && document.getElementById(wanted);
+    if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+
+    // Keep the address bar shareable: ?tab=<name> follows the active tab.
+    const reverse = Object.fromEntries(Object.entries(TAB_BUTTONS).map(([k, v]) => [v, k]));
+    document.getElementById('recordTabs')?.addEventListener('shown.bs.tab', (e) => {
+      const url = new URL(window.location.href);
+      const name = reverse[e.target.id];
+      if (name) url.searchParams.set('tab', name);
+      else url.searchParams.delete('tab');
+      window.history.replaceState(null, '', url);
+    });
+  }
+
+  function setupAdmissionUpload() {
+    const modalEl = document.getElementById('admissionUploadModal');
+    const form = document.getElementById('admissionUploadForm');
+    if (!modalEl || !form) return;
+
+    // The trigger button lives in the swapped fragment and carries the archive.
+    modalEl.addEventListener('show.bs.modal', (e) => {
+      const src = e.relatedTarget;
+      if (!src) return;
+      document.getElementById('admissionUploadArchiveId').value = src.dataset.archiveId || '';
+      document.getElementById('admissionUploadArchiveName').textContent = src.dataset.archiveName || '—';
+    });
+
+    // Success swaps the fragment (server answered 200): close and clear.
+    form.addEventListener('htmx:afterRequest', (e) => {
+      if (e.target !== form || !e.detail.successful) return;
+      bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      form.reset();
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     setupBackLink();
+    setupTabs();
+    setupAdmissionUpload();
     loadRecord();
   });
 })();

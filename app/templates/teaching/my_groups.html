@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import empty_state, data_table_open, data_table_close %}
+
+{% block title %}Mis grupos{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="coord-page__header">
+    <div class="flex-grow-1">
+      <h1 class="coord-page__title">Mis grupos</h1>
+      <p class="coord-page__subtitle small">Grupos que impartes en el periodo seleccionado.</p>
+    </div>
+  </div>
+
+  {% if periods %}
+    <form method="get" class="mb-3">
+      <label class="form-label" for="teachingPeriod">Periodo</label>
+      <div class="d-flex flex-wrap gap-2">
+        <select class="form-select w-auto tap-target" id="teachingPeriod" name="period">
+          {% for p in periods %}
+            <option value="{{ p.id }}" {{ 'selected' if period and p.id == period.id }}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-primary tap-target">Ver periodo</button>
+      </div>
+    </form>
+  {% endif %}
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {% if rows %}
+        {{ data_table_open('Grupos que impartes en el periodo', id='teachingGroups') }}
+          <thead>
+            <tr>
+              <th scope="col">Materia</th>
+              <th scope="col">Grupo</th>
+              <th scope="col">Inscritos</th>
+              <th scope="col">Horario</th>
+              <th scope="col">Lugar</th>
+              <th scope="col"><span class="visually-hidden">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td>{{ r.group.subject.name }}</td>
+                <td>{{ r.group.group_code }}</td>
+                <td>{{ r.enrolled }} / {{ r.group.capacity }}</td>
+                <td>{{ r.group.schedule or '—' }}</td>
+                <td>{{ r.group.location or '—' }}</td>
+                <td>
+                  <a class="btn btn-outline-primary btn-sm tap-target"
+                     href="{{ url_for('pages_teaching.group_detail', group_uuid=r.group.uuid) }}">
+                    <i class="bi bi-people-fill me-1" aria-hidden="true"></i>Ver lista
+                    <span class="visually-hidden">de {{ r.group.subject.name }}, grupo {{ r.group.group_code }}</span>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        {{ data_table_close() }}
+      {% else %}
+        {{ empty_state('journal-x', 'No tienes grupos asignados en este periodo.',
+                       'Cuando la coordinación te asigne un grupo aparecerá aquí.', compact=true) }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -5,22 +5,12 @@ API de limpieza de datos — endpoints de preview para el panel de administraci�
 La ejecución real de limpieza se delega a los Celery tasks en maintenance.py.
 Estos endpoints sólo permiten previsualizar candidatos antes de ejecutar.
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint
 from flask_login import login_required
 from app.utils.permissions import permission_required
+from app.utils.api_response import api_ok, api_server_error
 
 api_cleanup = Blueprint('api_cleanup', __name__, url_prefix='/api/admin/cleanup')
-
-
-def _ok(data, total=None):
-    payload = {'ok': True, 'data': data}
-    if total is not None:
-        payload['total'] = total
-    return jsonify(payload)
-
-
-def _err(msg, code=400):
-    return jsonify({'ok': False, 'error': msg}), code
 
 
 @api_cleanup.get('/expired-candidates')
@@ -36,9 +26,9 @@ def get_expired_candidates():
     try:
         from app.services.data_cleanup_service import DataCleanupService
         candidates = DataCleanupService.get_expired_candidates()
-        return _ok(candidates, total=len(candidates))
+        return api_ok(candidates, meta={'total': len(candidates)})
     except Exception as e:
-        return _err(str(e), 500)
+        return api_server_error(e, context='cleanup.get_expired_candidates')
 
 
 @api_cleanup.get('/inactive-students')
@@ -54,6 +44,6 @@ def get_inactive_students():
     try:
         from app.services.data_cleanup_service import DataCleanupService
         students = DataCleanupService.get_inactive_students()
-        return _ok(students, total=len(students))
+        return api_ok(students, meta={'total': len(students)})
     except Exception as e:
-        return _err(str(e), 500)
+        return api_server_error(e, context='cleanup.get_inactive_students')

@@ -7,18 +7,53 @@ from app.models.user import User
 from app.utils.permissions import permission_required, guard_program_scope
 from app.services import review_service
 from app.services.review_service import SubmissionNotFound
+from app.utils.htmx import is_htmx, render_fragment
+from app.utils.uuid7 import parse_uuid
 
 pages_review = Blueprint("pages_review", __name__, url_prefix="/review")
 
 VALID_PHASES = set(review_service.VALID_PHASES)
 
 
+#: Legacy phase filter -> kind of the "Por revisar" inbox.
+_PHASE_TO_KIND = {
+    'admission': 'admission_doc',
+    'permanence': 'permanence_doc',
+    'conclusion': 'conclusion_doc',
+}
+
+
+def _inbox_redirect():
+    """
+    302 to the unified inbox when the viewer holds it (phase 6D); None otherwise
+    (social service keeps the legacy list: it has no `review.page.inbox`).
+    """
+    if not current_user.has_permission('review.page.inbox'):
+        return None
+    # The inbox cannot filter by one submission or one applicant: a link that
+    # carries those filters must not silently lose them. A submission goes to
+    # its detail page (which checks scope itself); an applicant filter keeps
+    # the legacy list, which honours it.
+    submission_handle = request.args.get('submission_id')
+    if submission_handle:
+        sub_uuid = parse_uuid(submission_handle)
+        if sub_uuid is not None:
+            return redirect(url_for('pages_admin.pages_review.submission_detail',
+                                    sub_uuid=sub_uuid))
+        return None
+    if request.args.get('applicant_id'):
+        return None
+    kind = _PHASE_TO_KIND.get((request.args.get('phase') or '').lower())
+    program_id = request.args.get('program_id', type=int)
+    view = 'decided' if request.args.get('status') in ('approved', 'rejected') else None
+    return redirect(url_for('pages_review_inbox.index', kind=kind, program=program_id, view=view))
+
+
 @pages_review.route("/")
 @login_required
 @permission_required('admin_review.page.view')
 def index():
-    # redirige al listado
-    return redirect(url_for("pages_admin.pages_review.submissions"))
+    return _inbox_redirect() or redirect(url_for("pages_admin.pages_review.submissions"))
 
 
 @pages_review.route("/submissions")
@@ -31,6 +66,10 @@ def submissions():
     información prohibida entre programas, así que ya no existe el
     interruptor "ver documentos de otros programas".
     """
+    moved = _inbox_redirect()
+    if moved:
+        return moved
+
     # `applicant_id` llega por query string como UUID público. `type=int` lo
     # habría leído como None en silencio y el listado habría salido SIN filtrar.
     _applicant_raw = request.args.get('applicant_id')
@@ -84,7 +123,11 @@ def submissions():
         'is_program_admin': False,
         'managed_program_ids': [p.id for p in scoped_programs],
     }
-    return render_template("admin/review/submissions_list.html", **context)
+    # Realtime refresh (siiap:submission:* -> hx-get on this same URL): only the
+    # rows plus the out-of-band counters, never the whole page.
+    if is_htmx():
+        return render_fragment("admin/review/_partials/_submissions_refresh.html", **context)
+    return render_fragment("admin/review/submissions_list.html", **context)
 
 
 @pages_review.route("/submission/<uuid:sub_uuid>")

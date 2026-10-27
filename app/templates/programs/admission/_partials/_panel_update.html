@@ -1,0 +1,27 @@
+{# programs/admission/_partials/_panel_update.html
+   Respuesta de subir / reemplazar / eliminar un documento. El servidor calculó
+   get_admission_state UNA vez y de ahí salen todas las piezas:
+     1. el panel del paso que cambió (cuerpo de la respuesta; la ruta lo apunta con
+        HX-Retarget y HX-Reswap: morph:outerHTML);
+     2. el <li> de cada pestaña (candado / palomita / estado), fuera de banda;
+     3. los paneles de otros pasos cuyo candado cambió, fuera de banda;
+     4. el stepper, fuera de banda (admission_status puede cambiar).
+   Todo con morph: la instancia de bootstrap.Tab y el foco sobreviven. #}
+{% if active_item %}
+{% with item=active_item, active=true, oob=false %}
+{% include 'programs/admission/_partials/_step_pane.html' %}
+{% endwith %}
+{% for tab_item in processed_steps %}
+{% with item=tab_item, active=(tab_item is sameas active_item), oob=true %}
+{% include 'programs/admission/_partials/_step_tab_button.html' %}
+{% endwith %}
+{% endfor %}
+{% for stale_item in stale_items %}
+{% with item=stale_item, active=false, oob=true %}
+{% include 'programs/admission/_partials/_step_pane.html' %}
+{% endwith %}
+{% endfor %}
+{% endif %}
+{% with oob=true %}
+{% include 'programs/admission/_partials/_stepper.html' %}
+{% endwith %}

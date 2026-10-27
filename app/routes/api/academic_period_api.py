@@ -1,6 +1,7 @@
 # app/routes/api/academic_period_api.py
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app.utils.api_response import api_server_error
 from app.utils.permissions import permission_required
 from app.services import academic_period_service as svc
 import logging
@@ -91,12 +92,7 @@ def api_create_period():
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al crear periodo académico: {e}")
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al crear el periodo."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_create_period')
 
 
 @api_academic_periods.get('/active')
@@ -201,12 +197,7 @@ def api_update_period(period_id):
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al actualizar periodo: {e}")
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al actualizar el periodo."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_update_period')
 
 
 @api_academic_periods.post('/<int:period_id>/activate')
@@ -235,12 +226,7 @@ def api_activate_period(period_id):
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al activar periodo: {e}")
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al activar el periodo."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_activate_period')
 
 
 @api_academic_periods.post('/<int:period_id>/deactivate')
@@ -269,12 +255,7 @@ def api_deactivate_period(period_id):
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al desactivar periodo: {e}")
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al desactivar el periodo."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_deactivate_period')
 
 
 @api_academic_periods.delete('/<int:period_id>')
@@ -303,9 +284,4 @@ def api_delete_period(period_id):
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error al eliminar periodo: {e}")
-        return jsonify({
-            "data": None,
-            "flash": [{"level": "danger", "message": "Error al eliminar el periodo."}],
-            "error": {"code": "SERVER_ERROR", "message": str(e)},
-            "meta": {}
-        }), 500
+        return api_server_error(e, context='api_delete_period')

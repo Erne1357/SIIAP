@@ -98,6 +98,15 @@
             <span class="visually-hidden">solicitudes</span>
           </button>
         </li>
+        {% if current_user.has_permission('course_groups.page.manage') %}
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-course-load" data-bs-toggle="tab"
+            data-bs-target="#pane-course-load" type="button" role="tab"
+            aria-controls="pane-course-load" aria-selected="false">
+            <i class="bi bi-journal-text" aria-hidden="true"></i>Carga académica
+          </button>
+        </li>
+        {% endif %}
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="tab-documents" data-bs-toggle="tab"
             data-bs-target="#pane-documents" type="button" role="tab"
@@ -307,6 +316,28 @@
           </div>
           <div id="leaveList"></div>
         </div>
+
+        <!-- ── Pestaña: Carga académica (fragmento HTMX perezoso) ───────────── -->
+        {% if current_user.has_permission('course_groups.page.manage') %}
+        <div class="tab-pane fade" id="pane-course-load" role="tabpanel" aria-labelledby="tab-course-load">
+          <h2 class="h5 mb-3">Carga académica</h2>
+          <div aria-live="polite">
+            {% if selected_program %}
+            <div id="courseLoadRoot"
+                 hx-get="{{ url_for('pages_course_groups.program_groups', program_id=selected_program.id) }}"
+                 hx-trigger="shown.bs.tab from:#tab-course-load"
+                 hx-swap="innerHTML" hx-history="false" hx-sync="this:replace">
+              <div class="text-center py-3 text-secondary small">Cargando carga académica…</div>
+            </div>
+            {% else %}
+            <div id="courseLoadRoot">
+              {{ empty_state('funnel', 'Elige un programa',
+                             'Selecciona un programa arriba para ver y administrar sus grupos.', compact=true) }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
 
         <!-- ── Pestaña 3: Ventanas de entrega ─────────────────────────────── -->
         <div class="tab-pane fade" id="pane-documents" role="tabpanel" aria-labelledby="tab-documents">
@@ -888,4 +919,5 @@
   window.COORDINATOR_PROGRAMS = {{ coordinator_programs_json|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/coordinator/permanence.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/course_groups/load.js') }}?v={{ static_version }}"></script>
 {% endblock %}

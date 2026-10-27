@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import status_badge, empty_state %}
+
+{% block title %}Mi conclusión{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/conclusion/student.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="coord-page__header">
+    <h1 class="coord-page__title">Mi conclusión</h1>
+    <p class="coord-page__subtitle small">Tesis, requisitos de egreso y examen de grado de tu programa.</p>
+  </div>
+
+  {% if up is not defined or up is none %}
+    <div class="card shadow-sm"><div class="card-body">
+      {{ empty_state('mortarboard', 'Sin programa inscrito',
+                     'No hay un programa inscrito para mostrar la conclusión.', compact=true) }}
+    </div></div>
+  {% else %}
+    {% if program_options|length > 1 %}
+      <form class="mb-3" method="get" action="{{ url_for('pages_conclusion.my_conclusion') }}">
+        <label class="form-label" for="conclusionProgram">Programa</label>
+        <div class="d-flex flex-wrap gap-2">
+          <select class="form-select w-auto tap-target" id="conclusionProgram" name="program">
+            {% for opt in program_options %}
+              <option value="{{ opt.program_id }}" {{ 'selected' if opt.program_id == selected_program_id }}>{{ opt.program.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-outline-primary tap-target">Ver conclusión</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="text-secondary small mb-3">
+        <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>{{ up.program.name }}
+      </p>
+    {% endif %}
+
+    <section class="card shadow-sm mb-3" aria-labelledby="conclusionProgressTitle">
+      <div class="card-body">
+        <h2 class="h5" id="conclusionProgressTitle">Avance</h2>
+        <p class="mb-2">Etapa: <strong>{{ progress.label }}</strong></p>
+        <div class="conclusion-progress" role="progressbar" aria-valuenow="{{ progress.percent }}"
+             aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la conclusión">
+          <span class="conclusion-progress__fill" style="--progress: {{ progress.percent }}"></span>
+        </div>
+        <p class="conclusion-progress__label small mb-0">{{ progress.percent }}% completado</p>
+      </div>
+    </section>
+
+    <section class="card shadow-sm mb-3" aria-labelledby="conclusionThesisTitle">
+      <div class="card-body">
+        <h2 class="h5" id="conclusionThesisTitle">Tesis</h2>
+        {% include 'conclusion/_partials/_thesis.html' %}
+      </div>
+    </section>
+
+    {% if conditions %}
+    <section class="card shadow-sm mb-3" aria-labelledby="conclusionConditionsTitle">
+      <div class="card-body">
+        <h2 class="h5" id="conclusionConditionsTitle">Condiciones de aceptación</h2>
+        {% include 'conclusion/_partials/_conditions.html' %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="card shadow-sm mb-3" aria-labelledby="conclusionRequirementsTitle">
+      <div class="card-body">
+        <h2 class="h5" id="conclusionRequirementsTitle">Requisitos de conclusión</h2>
+        <div aria-live="polite">
+          <div id="conclusionRequirements">
+            {% include 'conclusion/_partials/_requirements.html' %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card shadow-sm mb-3" aria-labelledby="conclusionExamTitle">
+      <div class="card-body">
+        <h2 class="h5" id="conclusionExamTitle">Examen de grado</h2>
+        {% include 'conclusion/_partials/_exam.html' %}
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

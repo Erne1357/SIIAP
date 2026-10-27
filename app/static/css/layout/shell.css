@@ -1,0 +1,154 @@
+/* ==========================================================================
+   SIIAP — Shell autenticado: cabecera delgada, encabezado de página, pie
+
+   Hoja de layout (carga DESPUÉS del núcleo y los componentes, ANTES de la hoja
+   de cada página). La cabecera lleva UN logotipo y el nombre del sistema; los
+   cuatro logotipos institucionales viven en el pie. Las pantallas sin sesión
+   (auth_base.html) conservan su cabecera con los cuatro logos y no cargan esta
+   hoja.
+
+   Todo en tokens; sin !important.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. CABECERA — menú móvil, marca y campana
+   ========================================================================== */
+
+.app-header__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.app-header__actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* La marca es un enlace al inicio: objetivo táctil completo y foco visible
+   (el contorno global de :focus-visible lo aporta _tokens.css). */
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-brand:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-brand__logo {
+  display: block;
+  width: auto;
+  height: calc(var(--header-h) - var(--space-4));
+  max-height: var(--logo-h);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.app-brand__name {
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  color: var(--color-brand-accent);
+}
+
+/* ==========================================================================
+   2. ENCABEZADO DE PÁGINA — migas de pan (+ título opcional)
+   ========================================================================== */
+
+.page-header {
+  margin-bottom: var(--stack-gap);
+}
+
+.page-header__breadcrumb {
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-sm);
+}
+
+.page-header__breadcrumb .breadcrumb {
+  margin: 0;
+  row-gap: 0;
+}
+
+.page-header__breadcrumb .breadcrumb-item {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-min);
+}
+
+.page-header__breadcrumb .breadcrumb-item a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  color: var(--color-brand-primary);
+}
+
+.page-header__breadcrumb .breadcrumb-item.active {
+  font-weight: var(--fw-semibold);
+}
+
+/* Título opcional: la página lo declara en {% block page_title %}. Vacío, el
+   contenedor no ocupa espacio (las páginas actuales traen su propio <h1>). */
+.page-header__title {
+  margin: 0;
+  font-size: var(--fs-page-title);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  color: var(--text-primary);
+}
+
+.page-header__title-slot:empty {
+  display: none;
+}
+
+/* ==========================================================================
+   3. PIE — texto institucional y logotipos
+   ========================================================================== */
+
+.app-footer {
+  --footer-logo-h: calc(var(--footer-h) - var(--space-4));
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-6);
+}
+
+/* Los logotipos son de tinta oscura sobre transparente: la banda neutra del
+   pie los ocultaría, así que van sobre una pastilla clara. */
+.app-footer__logos {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.app-footer__logo {
+  display: block;
+  width: auto;
+  height: var(--footer-logo-h);
+  object-fit: contain;
+}
+
+.app-footer__text {
+  color: var(--text-inverse);
+}
+
+@media (max-width: 991.98px) {
+  .app-footer__logos {
+    gap: var(--space-3);
+  }
+}

@@ -9,6 +9,7 @@ import os
 import time
 
 import pytest
+from itsdangerous import URLSafeTimedSerializer
 
 from app import create_app, db
 from app.utils.csrf import CSRF_HEADER, CSRF_SESSION_KEY
@@ -25,7 +26,8 @@ def make_test_config(tmp_path, **overrides) -> dict:
         'TESTING': True,
         'SQLALCHEMY_DATABASE_URI': TEST_DATABASE_URL,
         'SECRET_KEY': 'test-secret-key',
-        'WTF_CSRF_ENABLED': False,
+        # CSRFProtect stays on: login_as() hands out a real signed token.
+        'WTF_CSRF_ENABLED': True,
         'CELERY_BROKER_URL': 'memory://',
         'CELERY_RESULT_BACKEND': 'cache+memory://',
         'REDIS_URL': 'redis://127.0.0.1:1/0',
@@ -126,6 +128,19 @@ class ApiClient:
         return self.raw.delete(*a, headers=self._headers(headers), **kw)
 
 
+def signed_csrf_token(flask_app, raw_token: str) -> str:
+    """The value Flask-WTF expects in X-CSRFToken for session token `raw_token`."""
+    serializer = URLSafeTimedSerializer(flask_app.secret_key, salt='wtf-csrf-token')
+    return serializer.dumps(raw_token)
+
+
+def seed_csrf(flask_client, raw_token: str = 'test-csrf-token') -> str:
+    """Store `raw_token` in the client's session; return the header value for it."""
+    with flask_client.session_transaction() as sess:
+        sess[CSRF_SESSION_KEY] = raw_token
+    return signed_csrf_token(flask_client.application, raw_token)
+
+
 def login_as(flask_client, user, csrf_token: str = 'test-csrf-token') -> ApiClient:
     """Open an authenticated session for `user` without going through /login."""
     with flask_client.session_transaction() as sess:
@@ -133,7 +148,7 @@ def login_as(flask_client, user, csrf_token: str = 'test-csrf-token') -> ApiClie
         sess['_fresh'] = True
         sess[CSRF_SESSION_KEY] = csrf_token
         sess['last_activity'] = time.time()
-    return ApiClient(flask_client, csrf_token)
+    return ApiClient(flask_client, signed_csrf_token(flask_client.application, csrf_token))
 
 
 @pytest.fixture

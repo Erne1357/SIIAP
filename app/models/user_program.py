@@ -25,16 +25,29 @@ class UserProgram(db.Model):
     vacia para 'admission' — los archives historicos no aparecen como pendientes.
     """
     __tablename__ = 'user_program'
+    # A user may hold several programs, each one once.
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'program_id', name='uq_user_program_user_program'),
+        db.CheckConstraint(
+            "admission_status IN ('in_progress', 'interview_completed', 'deliberation', "
+            "'accepted', 'rejected', 'deferred', 'enrolled', 'expired')",
+            name='ck_user_program_admission_status',
+        ),
+        db.CheckConstraint(
+            "academic_status IN ('active', 'on_leave', 'withdrawn', 'graduated', 'titled')",
+            name='ck_user_program_academic_status',
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False)
+    program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False, index=True)
     enrollment_date = db.Column(db.DateTime, default=now_local)
     current_semester = db.Column(db.Integer)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     # Relacion con periodo de admision
-    admission_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True)
+    admission_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True, index=True)
 
     # Campos de deliberacion (Fase 3)
     admission_status = db.Column(db.String(30), default='in_progress', nullable=False)
@@ -49,6 +62,23 @@ class UserProgram(db.Model):
 
     # Beca CONACyT — True si el estudiante es becario activo (Módulo C, Permanencia)
     has_conacyt_scholarship = db.Column(db.Boolean, default=False, nullable=False)
+
+    # Academic trajectory once enrolled; NULL before. Written only by
+    # academic_status_service.transition() (admission and trajectory never mix).
+    academic_status = db.Column(db.String(20), nullable=True)
+    academic_status_changed_at = db.Column(db.DateTime, nullable=True)
+    graduated_at = db.Column(db.Date, nullable=True)
+    # Date the grade exam was approved (phase 6C, academic_status='titled').
+    titled_at = db.Column(db.Date, nullable=True)
+    withdrawn_at = db.Column(db.DateTime, nullable=True)
+    withdrawal_reason = db.Column(db.Text, nullable=True)
+
+    # Curriculum version the student follows (set on enrollment; phase 6B1).
+    curriculum_plan_id = db.Column(
+        db.Integer, db.ForeignKey('curriculum_plan.id', ondelete='SET NULL'),
+        nullable=True, index=True
+    )
+    curriculum_plan = db.relationship('CurriculumPlan')
 
     # Relaciones
     user = db.relationship('User', foreign_keys=[user_id], back_populates='user_program')
@@ -103,14 +133,21 @@ class UserProgram(db.Model):
 
         return data
 
+    def _set_status(self, to_status):
+        """Write `admission_status` through the state machine (raises if not allowed)."""
+        # Function-local import: the service imports this model, so a module-level
+        # import would be circular.
+        from app.services.admission_status_service import transition
+        transition(self, to_status)
+
     def start_deliberation(self):
         """Marca el inicio del proceso de deliberacion despues de la entrevista."""
-        self.admission_status = 'deliberation'
+        self._set_status('deliberation')
         self.deliberation_started_at = now_local()
 
     def accept(self, decision_by, notes=None):
         """Acepta al aspirante en el programa."""
-        self.admission_status = 'accepted'
+        self._set_status('accepted')
         self.decision_at = now_local()
         self.decision_by = decision_by
         self.decision_notes = notes
@@ -127,16 +164,9 @@ class UserProgram(db.Model):
             notes: Notas sobre la decision
             correction_required: Descripcion de lo que debe corregir (si es parcial)
         """
-        self.admission_status = 'rejected'
+        self._set_status('rejected')
         self.decision_at = now_local()
         self.decision_by = decision_by
         self.decision_notes = notes
         self.rejection_type = rejection_type
         self.correction_required = correction_required
-
-    def defer(self, decision_by, notes=None):
-        """Difiere la inscripcion del aspirante para otro periodo."""
-        self.admission_status = 'deferred'
-        self.decision_at = now_local()
-        self.decision_by = decision_by
-        self.decision_notes = notes

@@ -41,6 +41,10 @@ from app.models.user_program import UserProgram
 from app.models.academic_period import AcademicPeriod
 from app.models.user_history import UserHistory
 from app.models.retention_policy import RetentionPolicy
+from app.services import admission_status_service
+from app.services.admission_status_service import (
+    EXPIRABLE_STATUSES, regular_periods_closed_since,
+)
 from app.services.user_history_service import UserHistoryService
 from app.utils.datetime_utils import now_local
 
@@ -51,11 +55,14 @@ logger = logging.getLogger(__name__)
 # Domain exceptions
 # ---------------------------------------------------------------------------
 
-class PurgeError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class PurgeError(DomainError):
     """Error base para operaciones de purga."""
 
 
-class PurgeRunNotFound(PurgeError):
+class PurgeRunNotFound(PurgeError, NotFoundError):
     pass
 
 
@@ -86,19 +93,6 @@ def _archive_path_for(run_id: str) -> Path:
 # ---------------------------------------------------------------------------
 # Candidate listing
 # ---------------------------------------------------------------------------
-
-def _periods_elapsed_since(period_code: str) -> int:
-    """Cuenta cuántos periodos cerraron su admisión después de period_code."""
-    from datetime import datetime
-    return (
-        AcademicPeriod.query
-        .filter(
-            AcademicPeriod.code > period_code,
-            AcademicPeriod.admission_end_date < now_local().date(),
-        )
-        .count()
-    )
-
 
 def _files_count_for(user_program: UserProgram) -> tuple:
     """Devuelve (count, total_bytes) de archivos físicamente en disco para este UP."""
@@ -178,9 +172,7 @@ def list_candidates(category: str) -> list:
         candidates = (
             UserProgram.query
             .filter(
-                UserProgram.admission_status.in_(
-                    ['in_progress', 'interview_completed', 'deliberation']
-                ),
+                UserProgram.admission_status.in_(EXPIRABLE_STATUSES),
                 UserProgram.admission_period_id.isnot(None),
             )
             .all()
@@ -190,7 +182,7 @@ def list_candidates(category: str) -> list:
             ap = AcademicPeriod.query.get(up.admission_period_id)
             if not ap:
                 continue
-            elapsed = _periods_elapsed_since(ap.code)
+            elapsed = regular_periods_closed_since(ap, now_local().date())
             if elapsed < 2:
                 continue
             count, total = _files_count_for(up)
@@ -599,6 +591,7 @@ def confirm_purge(run_id: str, confirmer_user_id: int) -> dict:
 
     deleted_files = 0
     purged_subs = 0
+    skipped_user_program_ids: list[int] = []
     user_program_ids = list(run.target_user_program_ids or [])
 
     try:
@@ -610,6 +603,25 @@ def confirm_purge(run_id: str, confirmer_user_id: int) -> dict:
 
         for up in ups:
             from app.models.program_step import ProgramStep
+
+            # The status may have changed since the run was listed (e.g. the
+            # applicant was deferred or enrolled). Skip the target BEFORE
+            # touching files or rows: the expiry transition would be refused
+            # after the documents were already gone.
+            if (
+                run.purge_type in (
+                    'admission_expired_with_files', 'admission_delta3_plus'
+                )
+                and up.admission_status != 'expired'
+                and up.admission_status not in EXPIRABLE_STATUSES
+            ):
+                skipped_user_program_ids.append(up.id)
+                logger.warning(
+                    f'Purga omitida para user_program {up.id}: estado '
+                    f'{up.admission_status} ya no es purgable '
+                    f'(run_id={run.run_id})'
+                )
+                continue
 
             if run.purge_type == 'retention_policy':
                 applicable_archive_ids = {
@@ -653,7 +665,7 @@ def confirm_purge(run_id: str, confirmer_user_id: int) -> dict:
                 'admission_expired_with_files', 'admission_delta3_plus'
             ):
                 if up.admission_status != 'expired':
-                    up.admission_status = 'expired'
+                    admission_status_service.transition(up, 'expired')
                     up.updated_at = now_local()
 
             UserHistoryService.log_action(
@@ -688,7 +700,9 @@ def confirm_purge(run_id: str, confirmer_user_id: int) -> dict:
         'run_id': run.run_id,
         'deleted_files': deleted_files,
         'purged_submissions': purged_subs,
-        'user_programs_affected': len(user_program_ids),
+        'user_programs_affected': len(user_program_ids) - len(skipped_user_program_ids),
+        'skipped_user_program_ids': skipped_user_program_ids,
+        'skipped': len(skipped_user_program_ids),
     }
 
 

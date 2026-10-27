@@ -24,13 +24,8 @@
   let modalInstance = null;     // Bootstrap Modal
 
   // ── Utils ──────────────────────────────────────────────────────────────────
-  function getCsrf() {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  }
-
   function flash(level, message) {
-    if (typeof showFlash === 'function') showFlash(level, message);
+    window.SIIAP.flash(level, message);
   }
 
   function fmtDate(isoStr) {
@@ -124,12 +119,8 @@
         source_period_id: sourcePeriodId,
         target_period_id: targetPeriodId,
       });
-      const res = await fetch(`${API_PREVIEW}?${params}`, {
-        headers: { 'X-CSRFToken': getCsrf() }
-      });
-      const json = await res.json();
-
-      if (json.flash) json.flash.forEach(f => flash(f.level, f.message));
+      const res = await window.SIIAP.api.get(`${API_PREVIEW}?${params}`);
+      const json = res.body || {};
 
       if (!res.ok || json.error) {
         showPreviewError(json.error?.message || 'Error al cargar vista previa.');
@@ -410,18 +401,9 @@
         target_period_id: targetPeriodId,
       };
 
-      const res = await fetch(API_EXECUTE, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrf(),
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await window.SIIAP.api.post(API_EXECUTE, payload);
 
-      const json = await res.json();
-
-      if (json.flash) json.flash.forEach(f => flash(f.level, f.message));
+      const json = res.body || {};
 
       if (!res.ok || json.error) {
         flash('danger', json.error?.message || 'Error al ejecutar la transición.');

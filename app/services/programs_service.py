@@ -9,11 +9,20 @@ from app.models.program_step import ProgramStep
 from app.models.user_program import UserProgram
 from app.utils.datetime_utils import now_local
 
-class AlreadyEnrolledError(Exception): ...
-class ProgramNotFound(Exception): ...
+from app.services.errors import DomainError, NotFoundError
 
 
-class AdmissionClosedError(Exception):
+class ProgramsError(DomainError):
+    """Base de los errores del catálogo de programas."""
+
+
+class AlreadyEnrolledError(ProgramsError): ...
+
+
+class ProgramNotFound(ProgramsError, NotFoundError): ...
+
+
+class AdmissionClosedError(ProgramsError):
     """Se lanza cuando no hay un periodo de admisión activo abierto."""
     def __init__(self, next_period=None):
         self.next_period = next_period
@@ -147,11 +156,11 @@ def update_program_config(program_id: int, data: dict):
 # Interés en una futura convocatoria de admisión
 # ---------------------------------------------------------------------------
 
-class AdmissionAlreadyOpenError(Exception):
+class AdmissionAlreadyOpenError(ProgramsError):
     """Raised when a user registers interest while admissions are already open."""
 
 
-class AlreadyInterestedError(Exception):
+class AlreadyInterestedError(ProgramsError):
     """Raised when the user already asked to be notified for the same period."""
 
 
@@ -248,3 +257,42 @@ def register_admission_interest(program_id: int, user_id: int):
         )
 
     return interest
+
+
+# --------------------------------------------------------------------------
+# Plain lookups for routes (None when absent; no eager loading)
+# --------------------------------------------------------------------------
+def find_program_by_slug(slug: str):
+    """Program with this slug, or None."""
+    return Program.query.filter_by(slug=slug).first()
+
+
+def find_program(program_id: int):
+    """Program by primary key, or None."""
+    return db.session.get(Program, program_id)
+
+
+def find_user_program(user_id: int, program_id: int):
+    """The user's UserProgram in that program, or None."""
+    if user_id is None:
+        return None
+    return UserProgram.query.filter_by(user_id=user_id, program_id=program_id).first()
+
+
+def list_active_programs():
+    """Active programs ordered by name."""
+    return Program.query.filter_by(is_active=True).order_by(Program.name).all()
+
+
+def record_enrollment_history(user_id: int, program) -> None:
+    """History entry for an enrollment (best effort: logs and swallows failures)."""
+    try:
+        from app.services.user_history_service import UserHistoryService
+        UserHistoryService.log_program_enrollment(
+            user_id=user_id,
+            program_name=program.name,
+            program_id=program.id
+        )
+        db.session.commit()
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Error al registrar postulación en historial: {e}")

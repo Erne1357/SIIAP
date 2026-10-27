@@ -32,6 +32,7 @@ class ProgramAdmissionInterest(db.Model):
         db.Integer,
         db.ForeignKey('academic_period.id', ondelete='SET NULL'),
         nullable=True,
+        index=True
     )
 
     created_at = db.Column(db.DateTime, default=now_local, nullable=False)

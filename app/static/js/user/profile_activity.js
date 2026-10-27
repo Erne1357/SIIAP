@@ -86,8 +86,8 @@
     setBusy(container, true, 'Cargando tu actividad reciente…');
 
     try {
-      const res = await fetch('/api/v1/users/me/activity?limit=6');
-      const json = await res.json();
+      const res = await window.SIIAP.api.get('/api/v1/users/me/activity?limit=6', { flash: false });
+      const json = res.body || {};
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       renderActivity(json.data || []);
     } catch (e) {
@@ -140,8 +140,8 @@
     setBusy(container, true, 'Cargando tus próximos eventos…');
 
     try {
-      const res = await fetch('/api/v1/users/me/upcoming-events?limit=5');
-      const json = await res.json();
+      const res = await window.SIIAP.api.get('/api/v1/users/me/upcoming-events?limit=5', { flash: false });
+      const json = res.body || {};
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       renderUpcoming(json.data || []);
     } catch (e) {
@@ -193,8 +193,8 @@
     setBusy(container, true, 'Cargando tus documentos históricos…');
 
     try {
-      const res = await fetch('/api/v1/users/me/documents-history');
-      const json = await res.json();
+      const res = await window.SIIAP.api.get('/api/v1/users/me/documents-history', { flash: false });
+      const json = res.body || {};
       if (!res.ok || json.error) throw new Error(json.error?.message || 'Error');
       renderDocumentsHistory(json.data || {});
     } catch (e) {

@@ -8,7 +8,6 @@ class PermanenceManager {
     this.programId = programId || null; // null = "Todos los programas"
     this.activePeriodId = activePeriodId;
     this.students = [];
-    this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     this.init();
   }
 
@@ -54,10 +53,9 @@ class PermanenceManager {
     const ids = this._targetProgramIds();
     return Promise.all(ids.map(async (pid) => {
       try {
-        const res = await fetch(urlBuilder(pid));
-        const json = await res.json();
-        if (!res.ok || json.error) return { pid, data: null, meta: null };
-        return { pid, data: json.data, meta: json.meta };
+        const r = await window.SIIAP.api.get(urlBuilder(pid), { flash: false });
+        if (!r.ok) return { pid, data: null, meta: null };
+        return { pid, data: r.data, meta: r.meta };
       } catch (e) {
         return { pid, data: null, meta: null };
       }
@@ -696,14 +694,8 @@ class PermanenceManager {
     if (mode === 'advance') fd.append('force', 'true');
 
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': this.csrfToken },
-        body: fd,
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) {
+      const r = await window.SIIAP.api.request('POST', endpoint, { body: fd });
+      if (r.ok) {
         await this.loadStudents();
         await this.loadStats();
         await this.loadEnrollmentTab();
@@ -911,14 +903,8 @@ class PermanenceManager {
   async _doMarkCompleted(seId) {
     bootstrap.Modal.getInstance(document.getElementById('confirmCompletedModal'))?.hide();
     try {
-      const res = await fetch(`/api/v1/permanence/semester-enrollment/${seId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({ status: 'completed' }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) {
+      const r = await window.SIIAP.api.patch(`/api/v1/permanence/semester-enrollment/${seId}/status`, { status: 'completed' });
+      if (r.ok) {
         await this.loadEnrollmentTab();
         await this.loadStudents();
       }
@@ -942,15 +928,15 @@ class PermanenceManager {
     modal.show();
 
     try {
-      const res = await fetch(
-        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`);
-      const json = await res.json();
-      if (!res.ok || json.ok === false) {
-        showFlash('danger', json.error || 'Error al cargar expediente');
+      const r = await window.SIIAP.api.get(
+        `/api/v1/coordinator/student/${encodeURIComponent(studentId)}/permanence-details`,
+        { flash: false });
+      if (!r.ok) {
+        showFlash('danger', r.error?.message || 'Error al cargar expediente');
         modal.hide();
         return;
       }
-      this._renderExpediente(json);
+      this._renderExpediente(r.data);
     } catch (e) {
       showFlash('danger', `Error al cargar expediente: ${e.message}`);
       modal.hide();
@@ -1112,14 +1098,8 @@ class PermanenceManager {
     bootstrap.Modal.getInstance(document.getElementById('updateStatusModal'))?.hide();
 
     try {
-      const res = await fetch(`/api/v1/permanence/semester-enrollment/${seId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({ status: newStatus, notes: notes || null }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) await this.loadStudents();
+      const r = await window.SIIAP.api.patch(`/api/v1/permanence/semester-enrollment/${seId}/status`, { status: newStatus, notes: notes || null });
+      if (r.ok) await this.loadStudents();
     } catch (e) {
       showFlash('danger', `Error al actualizar estado: ${e.message}`);
     }
@@ -1280,14 +1260,8 @@ class PermanenceManager {
     btn.disabled = true;
 
     try {
-      const res = await fetch(`/api/v1/permanence/submissions/${submissionId}/leave-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({ approve, notes }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) {
+      const r = await window.SIIAP.api.post(`/api/v1/permanence/submissions/${submissionId}/leave-request`, { approve, notes });
+      if (r.ok) {
         bootstrap.Modal.getInstance(document.getElementById('processLeaveModal'))?.hide();
         await this.loadLeaveRequestsTab();
         await this.loadStudents(); // refrescar badge SECIHTI y estado
@@ -1309,14 +1283,8 @@ class PermanenceManager {
     const originalHtml = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creando...';
     try {
-      const res = await fetch(`/api/v1/permanence/program/${this.programId}/deadlines/conacyt-monthly`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({}),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && json.data?.created > 0) {
+      const r = await window.SIIAP.api.post(`/api/v1/permanence/program/${this.programId}/deadlines/conacyt-monthly`, {});
+      if (r.ok && r.data?.created > 0) {
         await this.loadDocumentsTabData();
       }
     } catch (e) {
@@ -1346,14 +1314,8 @@ class PermanenceManager {
 
   async _doToggleConacyt(userProgramId, newValue) {
     try {
-      const res = await fetch(`/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({ value: newValue }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) await this.loadStudents();
+      const r = await window.SIIAP.api.patch(`/api/v1/permanence/user-program/${userProgramId}/conacyt-scholarship`, { value: newValue });
+      if (r.ok) await this.loadStudents();
     } catch (e) {
       showFlash('danger', `Error al actualizar beca SECIHTI: ${e.message}`);
     }
@@ -1392,21 +1354,15 @@ class PermanenceManager {
     bootstrap.Modal.getInstance(document.getElementById('createDeadlineModal'))?.hide();
 
     try {
-      const res = await fetch(`/api/v1/permanence/program/${this.programId}/deadlines`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({
-          archive_id: archiveId,
-          label,
-          sequence,
-          academic_period_id: periodId || null,
-          opens_at: opensAt,
-          closes_at: closesAt,
-        }),
+      const r = await window.SIIAP.api.post(`/api/v1/permanence/program/${this.programId}/deadlines`, {
+        archive_id: archiveId,
+        label,
+        sequence,
+        academic_period_id: periodId || null,
+        opens_at: opensAt,
+        closes_at: closesAt,
       });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) this.loadDocumentsTabData();
+      if (r.ok) this.loadDocumentsTabData();
     } catch (e) {
       showFlash('danger', `Error al crear ventana: ${e.message}`);
     }
@@ -1414,14 +1370,8 @@ class PermanenceManager {
 
   async toggleDeadline(deadlineId, isOpen) {
     try {
-      const res = await fetch(`/api/v1/permanence/deadlines/${deadlineId}/toggle`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({ is_open: isOpen }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) this.loadDocumentsTabData();
+      const r = await window.SIIAP.api.patch(`/api/v1/permanence/deadlines/${deadlineId}/toggle`, { is_open: isOpen });
+      if (r.ok) this.loadDocumentsTabData();
     } catch (e) {
       showFlash('danger', `Error al actualizar ventana: ${e.message}`);
     }
@@ -1443,13 +1393,8 @@ class PermanenceManager {
     const deadlineId = document.getElementById('deleteDeadlineId').value;
     bootstrap.Modal.getInstance(document.getElementById('deleteDeadlineModal'))?.hide();
     try {
-      const res = await fetch(`/api/v1/permanence/deadlines/${deadlineId}`, {
-        method: 'DELETE',
-        headers: { 'X-CSRFToken': this.csrfToken },
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) this.loadDocumentsTabData();
+      const r = await window.SIIAP.api.delete(`/api/v1/permanence/deadlines/${deadlineId}`);
+      if (r.ok) this.loadDocumentsTabData();
     } catch (e) {
       showFlash('danger', `Error al archivar ventana: ${e.message}`);
     }
@@ -1457,13 +1402,8 @@ class PermanenceManager {
 
   async restoreDeadline(deadlineId) {
     try {
-      const res = await fetch(`/api/v1/permanence/deadlines/${deadlineId}/restore`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': this.csrfToken },
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) this.loadDocumentsTabData();
+      const r = await window.SIIAP.api.post(`/api/v1/permanence/deadlines/${deadlineId}/restore`);
+      if (r.ok) this.loadDocumentsTabData();
     } catch (e) {
       showFlash('danger', `Error al restaurar ventana: ${e.message}`);
     }
@@ -1503,14 +1443,8 @@ class PermanenceManager {
       is_open: document.getElementById('editDeadlineIsOpen').checked,
     };
     try {
-      const res = await fetch(`/api/v1/permanence/deadlines/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) {
+      const r = await window.SIIAP.api.patch(`/api/v1/permanence/deadlines/${id}`, payload);
+      if (r.ok) {
         bootstrap.Modal.getInstance(document.getElementById('editDeadlineModal'))?.hide();
         this.loadDocumentsTabData();
       }
@@ -1554,14 +1488,8 @@ class PermanenceManager {
     bootstrap.Modal.getInstance(document.getElementById('reviewDocModal'))?.hide();
 
     try {
-      const res = await fetch(`/api/v1/permanence/submissions/${subId}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
-        body: JSON.stringify({ status, notes: notes || null }),
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => showFlash(f.level, f.message));
-      if (res.ok && !json.error) this.loadDocumentsTabData();
+      const r = await window.SIIAP.api.post(`/api/v1/permanence/submissions/${subId}/review`, { status, notes: notes || null });
+      if (r.ok) this.loadDocumentsTabData();
     } catch (e) {
       showFlash('danger', `Error al revisar documento: ${e.message}`);
     }

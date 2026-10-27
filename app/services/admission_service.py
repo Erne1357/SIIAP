@@ -21,18 +21,10 @@ def _add_months(dt, months):
     day = min(dt.day, calendar.monthrange(year, month)[1])
     return dt.replace(year=year, month=month, day=day)
 
-def get_admission_state(user_id: int, program_id: int, up) -> dict:
-    """
-    Devuelve todo lo necesario para la vista de Admisión:
-      - steps: lista de objetos Step con sus archives cargados
-      - subs: dict archive_id → Submission
-      - extensions: dict archive_id → ExtensionRequest (solo las activas)
-      - lock_info: dict step_id → bool (bloqueado)
-      - step_states: dict step_id → 'approved'|'rejected'|'review'|'pending'|'extended'
-      - progress_segments, status_count, progress_pct, pending_items, timeline
-    """
-    # 1) Traer pasos + archivos
-    steps = (
+
+def _load_steps(program_id):
+    """Admission steps of the program with their archives, in sequence order."""
+    return (
         Step.query
         .join(ProgramStep)
         .join(Phase)
@@ -45,22 +37,21 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         .all()
     )
 
-    # 2) Map submissions del usuario
-    archive_ids = [a.id for step in steps for a in step.archives]
-    
-    # Separar archivos de secuencia 0 (informativos) de los que cuentan para progreso
-    informative_archive_ids = []
+
+def _progress_archive_ids(steps):
+    """IDs of the archives that count for progress (sequence 0 is informative)."""
     progress_archive_ids = []
-    
     for step in steps:
         seq = step.program_steps[0].sequence if step.program_steps else None
         for archive in step.archives:
-            if seq == 0:
-                informative_archive_ids.append(archive.id)
-            else:
+            if seq != 0:
                 progress_archive_ids.append(archive.id)
-    
-    subs = {
+    return progress_archive_ids
+
+
+def _load_submissions(user_id, archive_ids):
+    """Map archive_id -> the user's Submission."""
+    return {
         s.archive_id: s
         for s in Submission.query
                           .filter_by(user_id=user_id)
@@ -68,8 +59,13 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                           .all()
     }
 
-    # 2.5) Calcular documentos con validez vencida (basado en archive.validity_months)
-    # Solo aplica a submissions aprobadas cuya vigencia configurada ya expiró.
+
+def _expired_archive_ids(subs):
+    """
+    Archives whose validity (archive.validity_months) already lapsed.
+
+    Only submissions with a configured validity and an upload date apply.
+    """
     expired_archive_ids = set()
     for aid, sub in subs.items():
         arch = sub.archive
@@ -78,8 +74,11 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
             expiry_dt = to_local_timezone(expiry_dt)
             if expiry_dt < now_local():
                 expired_archive_ids.add(aid)
+    return expired_archive_ids
 
-    # 3) Map extensiones activas del usuario (solo para archivos que cuentan para progreso)
+
+def _load_extensions(user_id, archive_ids):
+    """Return (all_extensions, active_extensions) keyed by archive_id."""
     # Usar hora local de Ciudad Juárez
     now = now_local()
     all_extensions = {
@@ -90,172 +89,174 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                                 .order_by(ExtensionRequest.created_at.desc())
                                 .all()
     }
-    
+
     # Extensiones activas (solo granted y no expiradas)
     active_extensions = {}
     for aid, ext in all_extensions.items():
         if ext.status == 'granted' and ext.granted_until:
             # Convertir a zona horaria local usando la utilidad
             granted_until = to_local_timezone(ext.granted_until)
-            
+
             if granted_until > now:
                 active_extensions[aid] = ext
-    
-    # 4) Lock info por paso (solo bloquear el último paso)
-    def _is_locked(step):
-        # Obtener la secuencia de este paso
-        seq = step.program_steps[0].sequence
-        
-        # Nunca bloquear los primeros pasos (secuencia 0 y 1)
-        if seq == 0 or seq == 1:
-            return False
-            
-        # Encontrar el paso con la secuencia más alta (último paso)
-        max_seq = max(st.program_steps[0].sequence for st in steps)
-        
-        # Solo bloquear el último paso (entrevista/defensa)
-        if seq != max_seq:
-            return False
-            
-        # Para el último paso, verificar que TODOS los pasos anteriores estén completos
-        for prev_step in steps:
-            prev_seq = prev_step.program_steps[0].sequence
-            
-            # Saltar el paso actual y el paso 0 (registro)
-            if prev_seq >= seq or prev_seq == 0:
-                continue
-                
-            # Revisar todos los archivos del paso anterior
-            for arch in prev_step.archives:
-                if not arch.is_uploadable:
-                    continue
-                    
-                sub = subs.get(arch.id)
-                ext = active_extensions.get(arch.id)
-                
-                # Si hay extensión activa, está válido
-                if ext:
-                    continue
-                    
-                # Si no hay submission o no está aprobada/extendida, bloquea
-                if not sub or sub.status not in ['approved', 'extended']:
-                    return True
-                    
+    return all_extensions, active_extensions
+
+
+def _is_step_locked(step, steps, subs, active_extensions):
+    """Only the last step (interview/defense) locks, until all earlier ones are complete."""
+    # Obtener la secuencia de este paso
+    seq = step.program_steps[0].sequence
+
+    # Nunca bloquear los primeros pasos (secuencia 0 y 1)
+    if seq == 0 or seq == 1:
         return False
 
-    lock_info = { step.id: _is_locked(step) for step in steps }
+    # Encontrar el paso con la secuencia más alta (último paso)
+    max_seq = max(st.program_steps[0].sequence for st in steps)
 
-    # 4.5) Verificar si el usuario tiene entrevista asignada o realizada
-    def _has_interview_assigned():
-        from app.models.appointment import Appointment
-        # Cualquier cita no cancelada cuenta: scheduled (pendiente), done (realizada), no_show
-        appt = db.session.execute(
-            select(Appointment)
-            .join(EventSlot, Appointment.slot_id == EventSlot.id)
-            .join(EventWindow, EventSlot.event_window_id == EventWindow.id)
-            .join(Event, EventWindow.event_id == Event.id)
-            .where(
-                and_(
-                    Appointment.applicant_id == user_id,
-                    Appointment.status.in_(['scheduled', 'done', 'no_show']),
-                    or_(Event.program_id == program_id, Event.program_id.is_(None)),
-                    Event.type == 'interview'
-                )
+    # Solo bloquear el último paso (entrevista/defensa)
+    if seq != max_seq:
+        return False
+
+    # Para el último paso, verificar que TODOS los pasos anteriores estén completos
+    for prev_step in steps:
+        prev_seq = prev_step.program_steps[0].sequence
+
+        # Saltar el paso actual y el paso 0 (registro)
+        if prev_seq >= seq or prev_seq == 0:
+            continue
+
+        # Revisar todos los archivos del paso anterior
+        for arch in prev_step.archives:
+            if not arch.is_uploadable:
+                continue
+
+            sub = subs.get(arch.id)
+            ext = active_extensions.get(arch.id)
+
+            # Si hay extensión activa, está válido
+            if ext:
+                continue
+
+            # Si no hay submission o no está aprobada/extendida, bloquea
+            if not sub or sub.status not in ['approved', 'extended']:
+                return True
+
+    return False
+
+
+def _has_interview_assigned(user_id, program_id):
+    """True when the user has a non-cancelled interview appointment."""
+    from app.models.appointment import Appointment
+    # Cualquier cita no cancelada cuenta: scheduled (pendiente), done (realizada), no_show
+    appt = db.session.execute(
+        select(Appointment)
+        .join(EventSlot, Appointment.slot_id == EventSlot.id)
+        .join(EventWindow, EventSlot.event_window_id == EventWindow.id)
+        .join(Event, EventWindow.event_id == Event.id)
+        .where(
+            and_(
+                Appointment.applicant_id == user_id,
+                Appointment.status.in_(['scheduled', 'done', 'no_show']),
+                or_(Event.program_id == program_id, Event.program_id.is_(None)),
+                Event.type == 'interview'
             )
-        ).scalar_one_or_none()
-        return bool(appt)
-    
-    has_interview = _has_interview_assigned()
+        )
+    ).scalar_one_or_none()
+    return bool(appt)
 
-    # 5) Estado resumido por paso (incluyendo extensiones y entrevistas)
-    def _step_state(step):
-        # Determinar si este es el último paso (entrevista/defensa)
-        seq = step.program_steps[0].sequence
-        max_seq = max(st.program_steps[0].sequence for st in steps)
-        is_last_step = (seq == max_seq)
-        
-        statuses = []
-        has_extension = False
-        
-        for arch in step.archives:
-            if arch.id in active_extensions:  # Usar active_extensions
-                has_extension = True
-                # Si hay extensión activa, consideramos como "extended"
-                statuses.append('extended')
-            elif arch.id in subs:
-                statuses.append(subs[arch.id].status)
-            else:
-                statuses.append('pending')
-        
-        # Para el último paso, considerar también si tiene entrevista asignada
-        if is_last_step:
-            if has_interview:
-                return 'approved'  # Verde con palomita si tiene entrevista
-            else:
-                # Si no tiene entrevista, seguir la lógica normal pero no aprobar automáticamente
-                if 'rejected' in statuses:
-                    return 'rejected'
-                if 'extended' in statuses:
-                    return 'extended'
-                if any(s == 'review' for s in statuses):
-                    return 'review'
-                return 'pending'
+
+def _step_state(step, steps, subs, active_extensions, has_interview):
+    """Summary state of one step (including extensions and the interview)."""
+    # Determinar si este es el último paso (entrevista/defensa)
+    seq = step.program_steps[0].sequence
+    max_seq = max(st.program_steps[0].sequence for st in steps)
+    is_last_step = (seq == max_seq)
+
+    statuses = []
+
+    for arch in step.archives:
+        if arch.id in active_extensions:  # Usar active_extensions
+            # Si hay extensión activa, consideramos como "extended"
+            statuses.append('extended')
+        elif arch.id in subs:
+            statuses.append(subs[arch.id].status)
         else:
-            # Para otros pasos, lógica normal
+            statuses.append('pending')
+
+    # Para el último paso, considerar también si tiene entrevista asignada
+    if is_last_step:
+        if has_interview:
+            return 'approved'  # Verde con palomita si tiene entrevista
+        else:
+            # Si no tiene entrevista, seguir la lógica normal pero no aprobar automáticamente
             if 'rejected' in statuses:
                 return 'rejected'
-            if all(s == 'approved' for s in statuses):
-                return 'approved'
             if 'extended' in statuses:
                 return 'extended'
             if any(s == 'review' for s in statuses):
                 return 'review'
             return 'pending'
+    else:
+        # Para otros pasos, lógica normal
+        if 'rejected' in statuses:
+            return 'rejected'
+        if all(s == 'approved' for s in statuses):
+            return 'approved'
+        if 'extended' in statuses:
+            return 'extended'
+        if any(s == 'review' for s in statuses):
+            return 'review'
+        return 'pending'
 
-    step_states = { step.id: _step_state(step) for step in steps }
 
-    # 6) Conteos y segmentos de progreso (solo archivos que cuentan, excluyendo secuencia 0)
-    total = len(progress_archive_ids)
-    status_count = {k:0 for k in ('approved','rejected','review','pending','extended')}
+def _counted_status(sub, status_count):
+    # Submissions can also be 'expired' (cleanup_expired_admission_files)
+    # or 'purged' (retention policies); their file is gone, so for the
+    # applicant they count as still pending instead of raising KeyError.
+    return sub.status if sub.status in status_count else 'pending'
 
-    def _counted_status(sub):
-        # Submissions can also be 'expired' (cleanup_expired_admission_files)
-        # or 'purged' (retention policies); their file is gone, so for the
-        # applicant they count as still pending instead of raising KeyError.
-        return sub.status if sub.status in status_count else 'pending'
 
+def _count_statuses(progress_archive_ids, subs, active_extensions):
+    """Per-status document counts (only archives that count for progress)."""
+    status_count = {k: 0 for k in ('approved', 'rejected', 'review', 'pending', 'extended')}
     for aid in progress_archive_ids:  # Solo contar archivos que no son informativos
         if aid in active_extensions:  # Usar active_extensions
             status_count['extended'] += 1
         elif aid in subs:
-            status_count[_counted_status(subs[aid])] += 1
+            status_count[_counted_status(subs[aid], status_count)] += 1
         else:
             status_count['pending'] += 1
-    
+    return status_count
+
+
+def _progress_segments(status_count, total):
+    """Progress-bar segments (percentage + bootstrap colour class)."""
     segments = []
     if total:
         for key, css in [
-            ('rejected','danger'),
-            ('approved','success'),
-            ('extended','info'),
-            ('review','warning'),
-            ('pending','secondary')
+            ('rejected', 'danger'),
+            ('approved', 'success'),
+            ('extended', 'info'),
+            ('review', 'warning'),
+            ('pending', 'secondary')
         ]:
-            pct = round(status_count[key]/total*100,1)
+            pct = round(status_count[key]/total*100, 1)
             if pct:
-                segments.append({'pct':pct,'class':css})
-    
-    progress_pct = round(status_count['approved']/total*100) if total else 0
+                segments.append({'pct': pct, 'class': css})
+    return segments
 
-    # 7) Lista de pendientes/rechazados (solo archivos que cuentan para progreso)
+
+def _pending_items(steps, subs, active_extensions, status_count):
+    """Pending/rejected documents (only archives that count for progress)."""
     pending_items = []
     for step in steps:
         seq = step.program_steps[0].sequence if step.program_steps else None
-        
+
         # Saltar archivos informativos (secuencia 0)
         if seq == 0:
             continue
-            
+
         for arch in step.archives:
             if arch.id in active_extensions:
                 # Archivo con extensión activa
@@ -266,15 +267,17 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                     'extension_until': ext.granted_until.strftime('%d/%m/%Y %H:%M'),
                     'extension_reason': ext.reason
                 })
-            elif arch.id not in subs or _counted_status(subs[arch.id]) in ('pending','rejected'):
+            elif arch.id not in subs or _counted_status(subs[arch.id], status_count) in ('pending', 'rejected'):
                 # Archivo pendiente o rechazado sin extensión activa
                 pending_items.append({
                     'name': arch.name,
-                    'status': (_counted_status(subs[arch.id]) if arch.id in subs else 'pending')
+                    'status': (_counted_status(subs[arch.id], status_count) if arch.id in subs else 'pending')
                 })
+    return pending_items
 
-    # 8) Timeline mejorado con detección correcta de estados
-    # Calcular estados del timeline basado en submissions reales
+
+def _build_timeline(up, subs, status_count, total, has_interview):
+    """Applicant timeline, with states derived from the real submissions."""
     has_any_submission = len(subs) > 0
     all_docs_reviewed = (status_count['approved'] + status_count['rejected']) >= total if total > 0 else False
     all_docs_approved = status_count['approved'] >= total if total > 0 else False
@@ -323,7 +326,7 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
     else:
         decision_state = 'pending'
 
-    timeline = [
+    return [
         {
             'label': 'Registro completado',
             'date': up.enrollment_date.strftime('%d/%m/%Y') if up.enrollment_date else None,
@@ -356,36 +359,40 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
         }
     ]
 
+
+def _combined_state(step_states, step1_id, step2_id):
+    """Calcula el estado combinado de dos steps"""
+    s1 = step_states.get(step1_id, 'pending')
+    s2 = step_states.get(step2_id, 'pending')
+
+    if 'rejected' in (s1, s2):
+        return 'rejected'
+    if s1 == 'approved' and s2 == 'approved':
+        return 'approved'
+    if 'extended' in (s1, s2):
+        return 'extended'
+    if 'review' in (s1, s2):
+        return 'review'
+    return 'pending'
+
+
+def _process_steps(steps, lock_info, step_states):
+    """Steps as rendered by the view; sequences 2 and 3 are merged into one card."""
     processed_steps = []
     skip_next = False
-    def _combined_state(step1_id, step2_id):
-        """Calcula el estado combinado de dos steps"""
-        s1 = step_states.get(step1_id, 'pending')
-        s2 = step_states.get(step2_id, 'pending')
-        
-        if 'rejected' in (s1, s2):
-            return 'rejected'
-        if s1 == 'approved' and s2 == 'approved':
-            return 'approved'
-        if 'extended' in (s1, s2):
-            return 'extended'
-        if 'review' in (s1, s2):
-            return 'review'
-        return 'pending'
-    
+
     for i, step in enumerate(steps):
         if skip_next:
             skip_next = False
             continue
-            
+
         seq = step.program_steps[0].sequence if step.program_steps else None
-        
-        
+
         # Si es sequence 2, intentar combinar con 3
         if seq == 2 and i + 1 < len(steps):
             next_step = steps[i + 1]
             next_seq = next_step.program_steps[0].sequence if next_step.program_steps else None
-            
+
             if next_seq == 3:
                 # Crear step combinado
                 combined_step = {
@@ -396,12 +403,12 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                     'step1': step,
                     'step2': next_step,
                     'locked': lock_info.get(step.id, False) or lock_info.get(next_step.id, False),
-                    'state': _combined_state(step.id, next_step.id)
+                    'state': _combined_state(step_states, step.id, next_step.id)
                 }
                 processed_steps.append(combined_step)
                 skip_next = True
                 continue
-        
+
         # Step normal
         processed_steps.append({
             'is_combined': False,
@@ -410,12 +417,11 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
             'locked': lock_info.get(step.id, False),
             'state': step_states.get(step.id, 'pending')
         })
-    
+    return processed_steps
 
-    
-    # ========== FIN NUEVO ==========
 
-    # Documentos de aceptación (solo si está aceptado)
+def _acceptance_docs(up):
+    """Acceptance documents (only when the applicant is accepted)."""
     acceptance_docs = {}
     if up.admission_status == 'accepted':
         try:
@@ -428,6 +434,42 @@ def get_admission_state(user_id: int, program_id: int, up) -> dict:
                 acceptance_docs[doc_type] = doc.to_dict() if doc else None
         except Exception:
             pass
+    return acceptance_docs
+
+
+def get_admission_state(user_id: int, program_id: int, up) -> dict:
+    """
+    Devuelve todo lo necesario para la vista de Admisión:
+      - steps: lista de objetos Step con sus archives cargados
+      - subs: dict archive_id → Submission
+      - extensions: dict archive_id → ExtensionRequest (solo las activas)
+      - lock_info: dict step_id → bool (bloqueado)
+      - step_states: dict step_id → 'approved'|'rejected'|'review'|'pending'|'extended'
+      - progress_segments, status_count, progress_pct, pending_items, timeline
+    """
+    steps = _load_steps(program_id)
+
+    archive_ids = [a.id for step in steps for a in step.archives]
+    progress_archive_ids = _progress_archive_ids(steps)
+    subs = _load_submissions(user_id, archive_ids)
+    expired_archive_ids = _expired_archive_ids(subs)
+    all_extensions, active_extensions = _load_extensions(user_id, archive_ids)
+
+    lock_info = {step.id: _is_step_locked(step, steps, subs, active_extensions) for step in steps}
+    has_interview = _has_interview_assigned(user_id, program_id)
+    step_states = {
+        step.id: _step_state(step, steps, subs, active_extensions, has_interview)
+        for step in steps
+    }
+
+    total = len(progress_archive_ids)
+    status_count = _count_statuses(progress_archive_ids, subs, active_extensions)
+    segments = _progress_segments(status_count, total)
+    progress_pct = round(status_count['approved']/total*100) if total else 0
+    pending_items = _pending_items(steps, subs, active_extensions, status_count)
+    timeline = _build_timeline(up, subs, status_count, total, has_interview)
+    processed_steps = _process_steps(steps, lock_info, step_states)
+    acceptance_docs = _acceptance_docs(up)
 
     return {
         'steps': steps,  # mantener original para compatibilidad

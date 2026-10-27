@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Boleta · {{ student.full_name }} · {{ period.name }}</title>
+{% from 'pdf/_letterhead.html' import letterhead, letterhead_styles, student_block %}
+<style>{{ letterhead_styles() }}</style>
+</head>
+<body>
+  {{ letterhead('Boleta de calificaciones', student.program_name, issued_at, period.name) }}
+  {{ student_block(student) }}
+
+  <table class="data">
+    <caption>Calificaciones del periodo {{ period.name }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Clave</th><th scope="col">Materia</th>
+        <th scope="col" class="num">Créditos</th><th scope="col">Grupo</th>
+        <th scope="col">Intento</th><th scope="col" class="num">Calificación</th>
+        <th scope="col">Resultado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.key }}</td><td>{{ r.name }}</td>
+          <td class="num">{{ r.credits if r.credits is not none else '—' }}</td>
+          <td>{{ r.group }}</td><td>{{ r.attempt_label }}</td>
+          <td class="num">{{ r.value }}</td><td>{{ r.result }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Promedio del periodo</h2>
+  <p><strong>{{ '%.2f'|format(average) if average is not none else '—' }}</strong>
+    <span class="muted">(materias aprobadas con calificación numérica)</span></p>
+</body>
+</html>

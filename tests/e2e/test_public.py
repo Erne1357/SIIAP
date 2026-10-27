@@ -125,7 +125,8 @@ def test_unknown_page_renders_the_spanish_404(page):
     expect(page.locator('html')).to_have_attribute('lang', 'es')
     expect(page).to_have_title(re.compile('404'))
     expect(page.get_by_role('heading', level=1, name='Página no encontrada')).to_be_visible()
-    expect(page.get_by_role('link', name='Inicio')).to_be_visible()
+    # exact: the header brand link is named "SIIAP — ir al inicio".
+    expect(page.get_by_role('link', name='Inicio', exact=True)).to_be_visible()
     settle(page)
 
 

@@ -17,19 +17,26 @@ class Submission(PublicUUIDMixin, db.Model):
     reviewer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
     reviewer_comment = db.Column(db.Text, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    archive_id = db.Column(db.Integer,db.ForeignKey('archive.id') , nullable = False)
-    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id') , nullable = False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    archive_id = db.Column(db.Integer,db.ForeignKey('archive.id') , nullable = False, index=True)
+    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id') , nullable = False, index=True)
     semester = db.Column(db.Integer, nullable=True)
-    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True)
+    academic_period_id = db.Column(db.Integer, db.ForeignKey('academic_period.id'), nullable=True, index=True)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     uploaded_by_role = db.Column(db.String(20))  # 'student' | 'coordinator'
     deadline_at = db.Column(db.DateTime)         # fecha límite efectiva (si hay prórroga)
     is_in_extension = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Owning student program. Nullable until every writer fills it (expand).
+    user_program_id = db.Column(
+        db.Integer, db.ForeignKey('user_program.id', ondelete='SET NULL'),
+        nullable=True, index=True
+    )
+
     # FK nullable: solo submissions de permanencia con ventana configurada
     document_deadline_id = db.Column(
-        db.Integer, db.ForeignKey('document_deadline.id'), nullable=True
+        db.Integer, db.ForeignKey('document_deadline.id'), nullable=True,
+        index=True
     )
 
     user          = db.relationship('User',foreign_keys=[user_id],back_populates='submissions')
@@ -43,8 +50,9 @@ class Submission(PublicUUIDMixin, db.Model):
         backref=db.backref('submissions', lazy='dynamic')
     )
 
-    def __init__(self, file_path, status, user_id, archive_id, program_step_id, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False):
+    def __init__(self, file_path, status, user_id, archive_id, program_step_id, semester, review_date=None, reviewer_id=None, reviewer_comment=None, uploaded_by=None, uploaded_by_role=None, deadline_at=None, is_in_extension=False, user_program_id=None):
         self.file_path = file_path
+        self.user_program_id = user_program_id
         self.status = status
         self.user_id = user_id
         self.archive_id = archive_id

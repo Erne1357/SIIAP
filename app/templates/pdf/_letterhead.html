@@ -1,0 +1,60 @@
+{#
+  Membrete de los documentos informativos en PDF.
+  Uso: {% from 'pdf/_letterhead.html' import letterhead, letterhead_styles, student_block %}
+  Las imágenes se resuelven contra la carpeta static (base_url de WeasyPrint).
+#}
+{% macro letterhead_styles() %}
+  @page { size: A4; margin: 16mm 14mm 18mm; @bottom-center { content: "Documento informativo, sin validez oficial · Página " counter(page) " de " counter(pages); font-size: 8pt; color: #555; font-family: Arial, sans-serif; } }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; }
+  .lh { width: 100%; border-collapse: collapse; margin-bottom: 8pt; }
+  .lh td { vertical-align: middle; padding: 0; border: 0; }
+  .lh__logo { height: 12mm; }
+  .lh__text { width: 46%; }
+  .lh td.lh__right { text-align: right; white-space: nowrap; padding-left: 4mm; }
+  .lh__center { text-align: center; }
+  .lh__inst { font-size: 11pt; font-weight: bold; }
+  .lh__sub { font-size: 9pt; color: #444; }
+  .lh__title { font-size: 14pt; font-weight: bold; margin: 8pt 0 2pt; text-align: center; border-top: 1px solid #999; padding-top: 6pt; }
+  .lh__meta { font-size: 9pt; color: #444; text-align: center; margin-bottom: 4pt; }
+  .lh__legend { font-size: 9pt; font-style: italic; text-align: center; margin-bottom: 10pt; }
+  h2 { font-size: 11pt; margin: 12pt 0 4pt; padding-bottom: 2pt; border-bottom: 1px solid #999; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 8pt; }
+  table.data th, table.data td { padding: 3pt 5pt; border-bottom: 1px solid #ccc; text-align: left; vertical-align: top; }
+  table.data th { background: #f0f0f0; }
+  table.data caption { text-align: left; font-weight: bold; padding: 4pt 0; }
+  table.data tr { page-break-inside: avoid; }
+  .num { text-align: right !important; }
+  .id { width: 100%; font-size: 9.5pt; margin-bottom: 6pt; }
+  .id td { padding: 1pt 8pt 1pt 0; }
+  .muted { color: #555; }
+  .sign { margin-top: 40mm; text-align: center; }
+  .sign__line { width: 70mm; border-top: 1px solid #222; margin: 0 auto 3pt; }
+{% endmacro %}
+
+{% macro letterhead(title, program_name=none, issued_at=none, subtitle=none) %}
+  <table class="lh">
+    <tr>
+      <td><img class="lh__logo" src="assets/images/logo_tecnm.png" alt="Tecnológico Nacional de México"></td>
+      <td class="lh__center lh__text">
+        <div class="lh__inst">Tecnológico Nacional de México</div>
+        <div class="lh__sub">División de Estudios de Posgrado e Investigación</div>
+      </td>
+      <td class="lh__right"><img class="lh__logo" src="assets/images/logo_sep.png" alt="SEP"></td>
+      <td class="lh__right"><img class="lh__logo" src="assets/images/logo_posgrado.png" alt="Posgrado"></td>
+    </tr>
+  </table>
+  <div class="lh__title">{{ title }}</div>
+  <div class="lh__meta">
+    {% if program_name %}{{ program_name }} · {% endif %}{% if subtitle %}{{ subtitle }} · {% endif %}Emitido el {{ issued_at|fecha_es }}
+  </div>
+  <div class="lh__legend">Documento informativo, sin validez oficial</div>
+{% endmacro %}
+
+{% macro student_block(student) %}
+  <table class="id">
+    <tr><td><span class="muted">Estudiante:</span> <strong>{{ student.full_name }}</strong></td>
+        <td><span class="muted">No. de control:</span> <strong>{{ student.control_number }}</strong></td></tr>
+    <tr><td><span class="muted">Programa:</span> {{ student.program_name }}</td>
+        <td><span class="muted">Plan de estudios:</span> {% if student.plan_version %}Versión {{ student.plan_version }}{% else %}—{% endif %}</td></tr>
+  </table>
+{% endmacro %}

@@ -35,7 +35,10 @@ from app.utils.image_processing import compress_profile_photo, ImageProcessingEr
 AVATAR_FILENAME = 'avatar.jpg'
 
 
-class ProfilePhotoError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class ProfilePhotoError(DomainError):
     pass
 
 
@@ -43,7 +46,7 @@ class PhotoChangeNotAllowed(ProfilePhotoError):
     pass
 
 
-class PhotoRequestNotFound(ProfilePhotoError):
+class PhotoRequestNotFound(ProfilePhotoError, NotFoundError):
     pass
 
 

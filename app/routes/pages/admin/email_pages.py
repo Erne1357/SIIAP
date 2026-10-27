@@ -1,10 +1,12 @@
 import hmac
 import secrets
 
-from flask import Blueprint, render_template, redirect, url_for, request, jsonify, flash, session
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session
 from flask_login import login_required
 from markupsafe import escape
 from app.utils.permissions import permission_required
+from app.utils.htmx import render_fragment
+from app.utils.api_response import api_ok, api_error, api_server_error
 from app.utils.ms_graph import build_auth_url, process_auth_code, clear_account_and_cache, read_account_info
 from app.services.email_service import EmailService
 
@@ -29,6 +31,15 @@ def email_config():
     return render_template('admin/settings/emails.html', 
                          ms_account=account,
                          stats=stats)
+
+
+@pages_emails.get('/emails/connection')
+@login_required
+@permission_required('admin_emails.api.manage')
+def email_connection():
+    """Fragmento HTML: tarjeta de conexión con Microsoft (tras desconectar)."""
+    return render_fragment('admin/settings/_partials/_email_connection.html',
+                           ms_account=read_account_info())
 
 
 @pages_emails.route('/emails/login')
@@ -92,7 +103,7 @@ def ms_callback():
 def ms_logout():
     """Cierra sesión de Microsoft"""
     clear_account_and_cache()
-    return jsonify({'ok': True})
+    return api_ok()
 
 
 @pages_emails.post('/emails/process-queue')
@@ -106,20 +117,10 @@ def process_email_queue():
         # de Microsoft') sin lanzar excepción. Hay que propagarlo arriba o el
         # front muestra "Procesados: 0" sin explicar el motivo real.
         if result.get('error'):
-            return jsonify({
-                'ok': False,
-                'error': result['error'],
-                'result': result
-            }), 400
-        return jsonify({
-            'ok': True,
-            'result': result
-        })
+            return api_error('BUSINESS_ERROR', result['error'], status=400)
+        return api_ok({'result': result})
     except Exception as e:
-        return jsonify({
-            'ok': False,
-            'error': str(e)
-        }), 500
+        return api_server_error(e, context='emails.process_email_queue')
 
 
 @pages_emails.get('/emails/queue')
@@ -140,18 +141,14 @@ def get_email_queue():
         offset = (page - 1) * per_page
         result = EmailService.get_pending_emails(limit=per_page, offset=offset)
         
-        return jsonify({
-            'ok': True,
+        return api_ok({
             'emails': result['items'],
             'total': result['total'],
             'page': page,
             'per_page': per_page
         })
     except Exception as e:
-        return jsonify({
-            'ok': False,
-            'error': str(e)
-        }), 500
+        return api_server_error(e, context='emails.get_email_queue')
 
 
 @pages_emails.post('/emails/retry-failed')
@@ -161,12 +158,6 @@ def retry_failed_emails():
     """Reintenta enviar correos fallidos"""
     try:
         result = EmailService.retry_failed()
-        return jsonify({
-            'ok': True,
-            'result': result
-        })
+        return api_ok({'result': result})
     except Exception as e:
-        return jsonify({
-            'ok': False,
-            'error': str(e)
-        }), 500
+        return api_server_error(e, context='emails.retry_failed_emails')

@@ -7,6 +7,7 @@ import io
 from datetime import timedelta
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from werkzeug.datastructures import FileStorage
 
 from app import db
@@ -297,6 +298,7 @@ class TestAssignControlNumber:
         up = svc.assign_control_number(acc.applicant.id, acc.program.id, ' M21111182 ', acc.coord.id)
         user = User.query.get(acc.applicant.id)
         assert up.admission_status == 'enrolled' and up.current_semester == 1
+        assert up.academic_status == 'active'
         assert user.control_number == 'M21111182' and user.username == 'M21111182'
         assert user.role.name == 'student'
         assert user.control_number_assigned_at is not None
@@ -442,3 +444,195 @@ class TestAssignControlNumberAdmin:
         assert up.admission_status == 'enrolled'
         assert User.query.get(acc.applicant.id).control_number == 'L1'
         assert len(_hist(acc.applicant.id, 'control_number_assigned_admin')) == 1
+
+
+def _spy_notifications(monkeypatch):
+    """Record any control-number notification or queued email attempt."""
+    from app.services.email_service import EmailService
+    from app.services.notification_service import NotificationService
+    seen = []
+    monkeypatch.setattr(
+        NotificationService, 'notify_control_number_assigned',
+        staticmethod(lambda *a, **k: seen.append(('notify', a, k))),
+    )
+    monkeypatch.setattr(
+        EmailService, 'queue_email',
+        staticmethod(lambda *a, **k: seen.append(('email', a, k))),
+    )
+    return seen
+
+
+class TestAssignControlNumberRaces:
+    def test_integrity_error_gives_friendly_error_and_rolls_back(self, acc, monkeypatch):
+        _approved_receipt(acc)
+        real_commit = db.session.commit
+        calls = {'n': 0}
+
+        def boom():
+            calls['n'] += 1
+            if calls['n'] == 1:
+                raise IntegrityError('INSERT', {}, Exception('uq_user_control_number'))
+            return real_commit()
+
+        emitted = []
+        notified = _spy_notifications(monkeypatch)
+        monkeypatch.setattr(svc, '_emit_acceptance_updated', lambda *a, **k: emitted.append(a))
+        monkeypatch.setattr(db.session, 'commit', boom)
+        with pytest.raises(ValueError) as ei:
+            svc.assign_control_number(acc.applicant.id, acc.program.id, 'M900', acc.coord.id)
+        assert str(ei.value) == svc.CONTROL_NUMBER_REJECTED_MESSAGE
+        assert emitted == []
+        assert notified == []
+        monkeypatch.undo()
+        assert _notifs(acc.applicant.id, 'control_number_assigned') == []
+        assert UserProgram.query.get(acc.up.id).admission_status == 'accepted'
+        assert User.query.get(acc.applicant.id).control_number is None
+
+    def test_socket_emitted_only_after_commit(self, acc, monkeypatch):
+        _approved_receipt(acc)
+        order = []
+        real_commit = db.session.commit
+
+        def commit():
+            order.append('commit')
+            return real_commit()
+
+        monkeypatch.setattr(db.session, 'commit', commit)
+        monkeypatch.setattr(svc, '_emit_acceptance_updated',
+                            lambda *a, **k: order.append('emit'))
+        svc.assign_control_number(acc.applicant.id, acc.program.id, 'M901', acc.coord.id)
+        assert order[-2:] == ['commit', 'emit']
+
+
+class TestAssignControlNumberAdminOverride:
+    def test_from_rejected_enrolls_by_override(self, acc):
+        acc.up.admission_status = 'rejected'
+        db.session.commit()
+        up = svc.assign_control_number_admin(acc.applicant.id, acc.program.id, 'L100', acc.coord.id)
+        assert up.admission_status == 'enrolled'
+        user = User.query.get(acc.applicant.id)
+        assert user.control_number == 'L100' and user.role.name == 'student'
+        assert len(_hist(acc.applicant.id, 'control_number_assigned_admin')) == 1
+
+    def test_already_enrolled_keeps_status_and_reassigns_number(self, acc):
+        acc.up.admission_status = 'enrolled'
+        acc.up.current_semester = 3
+        db.session.commit()
+        up = svc.assign_control_number_admin(acc.applicant.id, acc.program.id, 'L200', acc.coord.id)
+        assert up.admission_status == 'enrolled' and up.current_semester == 3
+        assert User.query.get(acc.applicant.id).control_number == 'L200'
+
+    def test_integrity_error_is_friendly(self, acc, monkeypatch):
+        def boom():
+            raise IntegrityError('INSERT', {}, Exception('uq_user_control_number'))
+
+        emitted = []
+        notified = _spy_notifications(monkeypatch)
+        monkeypatch.setattr(svc, '_emit_acceptance_updated', lambda *a, **k: emitted.append(a))
+        monkeypatch.setattr(db.session, 'commit', boom)
+        with pytest.raises(ValueError) as ei:
+            svc.assign_control_number_admin(acc.applicant.id, acc.program.id, 'L300', acc.coord.id)
+        assert str(ei.value) == svc.CONTROL_NUMBER_REJECTED_MESSAGE
+        assert emitted == []
+        assert notified == []
+
+
+class TestEmitsAfterCommit:
+    """`acceptance:updated` emits for upload/submit/review must follow the commit."""
+
+    @staticmethod
+    def _spy_emitters(monkeypatch, log):
+        """Record only the `acceptance:updated` emits (other services emit too)."""
+        from app.extensions import socketio
+        from app.sockets import emitters
+
+        def record(event, *a, **k):
+            if event == 'acceptance:updated':
+                log.append('emit')
+
+        monkeypatch.setattr(socketio, 'emit', record)
+        monkeypatch.setattr(emitters, 'emit_to_coordinators', record)
+
+    @staticmethod
+    def _fail_service_commit(monkeypatch, module=None):
+        """Make only the commit issued by `module` (default acceptance_service) fail."""
+        import sys
+        real_commit = db.session.commit
+        module = module or svc.__name__
+
+        def commit():
+            if sys._getframe(1).f_globals.get('__name__') == module:
+                raise RuntimeError('commit failed')
+            return real_commit()
+
+        monkeypatch.setattr(db.session, 'commit', commit)
+
+    @staticmethod
+    def _track_commits(monkeypatch, log):
+        real_commit = db.session.commit
+
+        def commit():
+            log.append('commit')
+            return real_commit()
+
+        monkeypatch.setattr(db.session, 'commit', commit)
+
+    @staticmethod
+    def _assert_emit_after_last_commit(log):
+        assert 'emit' in log
+        last_commit = len(log) - 1 - log[::-1].index('commit')
+        assert log.index('emit') > last_commit
+
+    def test_upload_coordinator_doc_no_emit_when_commit_fails(self, acc, monkeypatch):
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._fail_service_commit(monkeypatch)
+        with pytest.raises(RuntimeError):
+            svc.upload_coordinator_doc(acc.applicant.id, acc.program.id, 'acceptance_letter',
+                                       _file(), acc.coord.id)
+        assert log == []
+
+    def test_upload_coordinator_doc_emits_after_commit(self, acc, monkeypatch):
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._track_commits(monkeypatch, log)
+        svc.upload_coordinator_doc(acc.applicant.id, acc.program.id, 'acceptance_letter',
+                                   _file(), acc.coord.id)
+        self._assert_emit_after_last_commit(log)
+
+    def test_submit_enrollment_receipt_no_emit_when_commit_fails(self, acc, monkeypatch):
+        _upload_both(acc)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._fail_service_commit(monkeypatch)
+        with pytest.raises(RuntimeError):
+            svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        assert log == []
+
+    def test_submit_enrollment_receipt_emits_after_commit(self, acc, monkeypatch):
+        _upload_both(acc)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._track_commits(monkeypatch, log)
+        svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        self._assert_emit_after_last_commit(log)
+
+    def test_review_enrollment_receipt_no_emit_when_commit_fails(self, acc, monkeypatch):
+        _upload_both(acc)
+        doc = svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        # 6D: the review engine issues the decision's commit.
+        self._fail_service_commit(monkeypatch, 'app.services.review_engine.engine')
+        with pytest.raises(RuntimeError):
+            svc.review_enrollment_receipt(doc.id, acc.coord.id, 'approved')
+        assert log == []
+
+    def test_review_enrollment_receipt_emits_after_commit(self, acc, monkeypatch):
+        _upload_both(acc)
+        doc = svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
+        log = []
+        self._spy_emitters(monkeypatch, log)
+        self._track_commits(monkeypatch, log)
+        svc.review_enrollment_receipt(doc.id, acc.coord.id, 'approved')
+        self._assert_emit_after_last_commit(log)

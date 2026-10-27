@@ -1,0 +1,100 @@
+{#
+  Pestaña «Carga» del expediente: materias inscritas por periodo y versión del
+  plan de estudios del estudiante.
+
+  Contexto explícito: target_user, up (UserProgram o None), load
+  (course_enrollment_service.load_for), plan (CurriculumPlan o None),
+  plan_options (versiones del programa), can_change_plan, program_options y
+  selected_program_id. NO entra en el historial del navegador.
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
+
+{% set _STATUS_BADGE = {'enrolled': 'enrolled', 'dropped': 'rejected'} %}
+{% set _STATUS_LABEL = {'enrolled': 'Inscrito', 'dropped': 'Baja'} %}
+{% set _ATTEMPT_LABEL = {'ordinary': 'Ordinario', 'repeat': 'Repetición', 'special': 'Especial'} %}
+{% set _target = '#recordLoad' %}
+
+{% if up is none %}
+  {{ empty_state('signpost-split', 'Sin programa inscrito',
+                 'Esta cuenta no tiene un programa inscrito dentro de tu alcance, así que no hay carga que mostrar.',
+                 compact=true) }}
+{% else %}
+  {% if program_options|length > 1 %}
+    <form class="mb-3" hx-get="{{ url_for('pages_student_record.record_load', user_uuid=target_user.uuid) }}"
+          hx-trigger="change" hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false">
+      <label class="form-label" for="loadProgram">Programa</label>
+      <select class="form-select w-auto tap-target" id="loadProgram" name="program">
+        {% for opt in program_options %}
+          <option value="{{ opt.program_id }}" {{ 'selected' if opt.program_id == selected_program_id }}>{{ opt.program.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  {% else %}
+    <p class="text-secondary small mb-3">
+      <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>{{ up.program.name }}
+    </p>
+  {% endif %}
+
+  <dl class="row mb-3">
+    <dt class="col-sm-4">Versión del plan de estudios</dt>
+    <dd class="col-sm-8">{% if plan %}Versión {{ plan.version }}{% else %}Sin plan asignado{% endif %}</dd>
+  </dl>
+
+  <h3 class="h5 mb-2">Carga académica</h3>
+  {% if load %}
+    {% for block in load %}
+      {{ data_table_open('Materias de ' ~ block.period.name, id='loadPeriod' ~ block.period.id, wrapper_class='mb-3') }}
+        <thead>
+          <tr>
+            <th scope="col">{{ block.period.name }}: materia</th>
+            <th scope="col">Grupo</th>
+            <th scope="col">Docente</th>
+            <th scope="col">Horario</th>
+            <th scope="col">Lugar</th>
+            <th scope="col">Intento</th>
+            <th scope="col">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in block['items'] %}
+            <tr>
+              <td>{{ item.subject.name }}{% if item.slot_name %} <span class="text-secondary small">({{ item.slot_name }})</span>{% endif %}</td>
+              <td>{{ item.group_code or '—' }}</td>
+              <td>{{ item.teacher_name or '—' }}</td>
+              <td>{{ item.schedule or '—' }}</td>
+              <td>{{ item.location or '—' }}</td>
+              <td>{{ _ATTEMPT_LABEL.get(item.attempt_type, item.attempt_type) }}</td>
+              <td>{{ status_badge(_STATUS_BADGE.get(item.status, 'pending'), _STATUS_LABEL.get(item.status, item.status), 'sm') }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {{ data_table_close() }}
+    {% endfor %}
+  {% else %}
+    {{ empty_state('journal-x', 'Sin carga registrada',
+                   'Este estudiante aún no está inscrito en materias.', compact=true) }}
+  {% endif %}
+
+  {% if can_change_plan and plan_options %}
+    <form class="mt-4" id="loadPlanForm"
+          hx-post="{{ url_for('pages_student_record.record_load_plan', user_uuid=target_user.uuid) }}"
+          hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false"
+          hx-confirm="¿Cambiar la versión del plan de estudios del estudiante?"
+          data-confirm-title="Cambiar versión de plan" data-confirm-type="warning"
+          data-confirm-label="Sí, cambiar versión">
+      <input type="hidden" name="program" value="{{ selected_program_id }}">
+      <h3 class="h5 mb-2">Cambiar versión de plan</h3>
+      <label class="form-label" for="loadPlanId">Versión del plan</label>
+      <select class="form-select w-auto tap-target mb-2" id="loadPlanId" name="plan_id" required>
+        {% for p in plan_options %}
+          <option value="{{ p.id }}" {{ 'selected' if plan and p.id == plan.id }}>Versión {{ p.version }}{{ ' (vigente)' if p.is_current }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label" for="loadPlanReason">Motivo (obligatorio)</label>
+      <textarea class="form-control mb-2" id="loadPlanReason" name="reason" rows="3" required></textarea>
+      <button type="submit" class="btn btn-primary tap-target">
+        <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Cambiar versión de plan
+      </button>
+    </form>
+  {% endif %}
+{% endif %}

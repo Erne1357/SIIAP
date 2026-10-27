@@ -1,0 +1,23 @@
+{# programs/admission/_partials/_stepper.html
+   Dónde está el aspirante dentro del proceso completo.
+   Requiere: admission_status. `oob` (opcional): emitido como respuesta fuera de
+   banda (hx-swap-oob) cuando cambia admission_status. #}
+{% from '_macros.html' import stepper %}
+{% set admission_stages = [
+       {'label': 'Documentos'},
+       {'label': 'Entrevista'},
+       {'label': 'Deliberación'},
+       {'label': 'Resultado'}
+     ] %}
+{% set stage_map = {
+       'in_progress': 1,
+       'interview_completed': 3,
+       'deliberation': 3,
+       'accepted': 4,
+       'rejected': 4,
+       'deferred': 4,
+       'enrolled': 4
+     } %}
+<div class="admission-panel__stepper" id="admission-stepper"{% if oob %} hx-swap-oob="morph"{% endif %}>
+  {{ stepper(admission_stages, current=stage_map.get(admission_status, 1)) }}
+</div>

@@ -23,14 +23,8 @@
   let currentRunId = null;
 
   // ── Utils ──────────────────────────────────────────────────────────────
-  function getCsrf() {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  }
-
   function flash(level, message) {
-    if (typeof showFlash === 'function') showFlash(level, message);
-    else console.log(`[${level}]`, message);
+    window.SIIAP.flash(level, message);
   }
 
   function formatBytes(bytes) {
@@ -222,10 +216,8 @@
   // ── Cargar candidatos ──────────────────────────────────────────────────
   async function loadCandidates(category) {
     try {
-      const res = await fetch(`${window.PURGE_API.candidates}?category=${encodeURIComponent(category)}`, {
-        headers: { 'Accept': 'application/json' },
-      });
-      const json = await res.json();
+      const res = await window.SIIAP.api.get(`${window.PURGE_API.candidates}?category=${encodeURIComponent(category)}`, { flash: false });
+      const json = res.body;
       if (!res.ok) {
         flash('danger', json?.error?.message || 'Error al cargar candidatos');
         return;
@@ -253,18 +245,11 @@
     }
 
     try {
-      const res = await fetch(window.PURGE_API.start, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrf(),
-        },
-        body: JSON.stringify({
-          user_program_ids: ids,
-          purge_type: purgeType,
-        }),
-      });
-      const json = await res.json();
+      const res = await window.SIIAP.api.post(window.PURGE_API.start, {
+        user_program_ids: ids,
+        purge_type: purgeType,
+      }, { flash: false });
+      const json = res.body;
       if (!res.ok) {
         flash('danger', json?.error?.message || 'Error al generar respaldo');
         return;
@@ -317,12 +302,8 @@
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Borrando…`;
     try {
-      const res = await fetch(window.PURGE_API.confirm(encodeURIComponent(currentRunId)), {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrf() },
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => flash(f.level, f.message));
+      const res = await window.SIIAP.api.post(window.PURGE_API.confirm(encodeURIComponent(currentRunId)));
+      const json = res.body;
       if (res.ok) {
         const modal = bootstrap.Modal.getInstance(
           document.getElementById('modalConfirmPurge')
@@ -352,12 +333,7 @@
     });
     if (!ok) return;
     try {
-      const res = await fetch(window.PURGE_API.cancel(encodeURIComponent(run_id)), {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrf() },
-      });
-      const json = await res.json();
-      (json.flash || []).forEach(f => flash(f.level, f.message));
+      await window.SIIAP.api.post(window.PURGE_API.cancel(encodeURIComponent(run_id)));
       loadRuns();
     } catch (e) {
       flash('danger', `Error: ${e.message}`);
@@ -367,8 +343,8 @@
   // ── Lista de runs ──────────────────────────────────────────────────────
   async function loadRuns() {
     try {
-      const res = await fetch(window.PURGE_API.runs);
-      const json = await res.json();
+      const res = await window.SIIAP.api.get(window.PURGE_API.runs, { flash: false });
+      const json = res.body || {};
       const container = document.getElementById('runsTableContainer');
       if (!container) return;
 

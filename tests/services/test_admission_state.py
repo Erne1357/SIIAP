@@ -368,3 +368,30 @@ class TestDeliberationFields:
 
     def test_user_program_id_exposed(self, env):
         assert _state(env)['user_program_id'] == env.up.id
+
+
+class TestReturnedShape:
+    """Characterization: the dict contract consumed by the admission views."""
+
+    EXPECTED_KEYS = [
+        'steps', 'processed_steps', 'subs', 'extensions', 'all_extensions', 'lock_info',
+        'step_states', 'progress_segments', 'status_count', 'progress_pct', 'pending_items',
+        'timeline', 'extended_docs', 'total_docs', 'expired_archive_ids', 'admission_status',
+        'decision_notes', 'correction_required', 'rejection_type', 'deliberation_started_at',
+        'decision_at', 'acceptance_docs', 'user_program_id',
+    ]
+
+    @pytest.mark.parametrize('status', [
+        'in_progress', 'interview_completed', 'deliberation', 'accepted',
+        'rejected', 'deferred', 'enrolled',
+    ])
+    def test_keys_for_every_admission_status(self, env, status):
+        env.up.admission_status = status
+        db.session.commit()
+        state = _state(env)
+        assert list(state) == self.EXPECTED_KEYS
+        assert state['admission_status'] == status
+        assert [t['label'] for t in state['timeline']] == [
+            'Registro completado', 'Documentos enviados', 'Revisión de documentos',
+            'Entrevista', 'Decisión final',
+        ]

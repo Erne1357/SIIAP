@@ -1,6 +1,6 @@
 {# app/templates/programs/admission/_archive_table.html
-   Tabla de documentos de UN paso. Requiere `step`, `subs`, `all_extensions`
-   y `current_user` en el contexto. Todo el markup de fila vive en
+   Tabla de documentos de UN paso. Requiere `step`, `program`, `subs`,
+   `all_extensions` y `current_user` en el contexto. Todo el markup de fila vive en
    _archive_rows.html: aquí sólo se abre la tabla. #}
 {% from '_macros.html' import data_table_open, data_table_close, empty_state %}
 {% from 'programs/admission/_archive_rows.html' import render_archive_row, archive_table_head %}
@@ -18,7 +18,7 @@
     <tbody>
       {% if step.archives %}
         {% for arch in step.archives %}
-          {{ render_archive_row(arch, step, subs, all_extensions, current_user, is_informative) }}
+          {{ render_archive_row(arch, step, subs, all_extensions, current_user, is_informative, program.slug) }}
         {% endfor %}
       {% else %}
         <tr>

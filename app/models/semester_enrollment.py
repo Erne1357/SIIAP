@@ -27,6 +27,18 @@ class SemesterEnrollment(PublicUUIDMixin, db.Model):
     because no route is addressed by it and no payload key names it.
     """
     __tablename__ = 'semester_enrollment'
+    # One enrollment per student program and period. Every "already
+    # enrolled?" check in the services is read-then-write; this is the guard.
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_program_id', 'academic_period_id',
+            name='uq_semester_enrollment_up_period',
+        ),
+        db.CheckConstraint(
+            "status IN ('pending', 'active', 'completed', 'on_leave', 'dropped')",
+            name='ck_semester_enrollment_status',
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
 
@@ -34,7 +46,8 @@ class SemesterEnrollment(PublicUUIDMixin, db.Model):
         db.Integer, db.ForeignKey('user_program.id'), nullable=False
     )
     academic_period_id = db.Column(
-        db.Integer, db.ForeignKey('academic_period.id'), nullable=False
+        db.Integer, db.ForeignKey('academic_period.id'), nullable=False,
+        index=True
     )
 
     # Numero de semestre que corresponde a esta inscripcion (1, 2, 3, ...)

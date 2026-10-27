@@ -1,16 +1,23 @@
 # app/models/extension_request.py - Modelo actualizado
 from app import db
 from datetime import datetime, timezone
+from app.models.mixins import PublicUUIDMixin
 from app.utils.datetime_utils import now_local
 
-class ExtensionRequest(db.Model):
+class ExtensionRequest(PublicUUIDMixin, db.Model):
     __tablename__ = 'extension_request'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    archive_id = db.Column(db.Integer, db.ForeignKey('archive.id', ondelete='CASCADE'), nullable=False)
-    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    archive_id = db.Column(db.Integer, db.ForeignKey('archive.id', ondelete='CASCADE'), nullable=False, index=True)
+    program_step_id = db.Column(db.Integer, db.ForeignKey('program_step.id', ondelete='CASCADE'), nullable=False, index=True)
     
+    # Owning student program. Nullable until every writer fills it (expand).
+    user_program_id = db.Column(
+        db.Integer, db.ForeignKey('user_program.id', ondelete='SET NULL'),
+        nullable=True, index=True
+    )
+
     # Información de la solicitud
     requested_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='student')  # student | coordinator
@@ -35,8 +42,10 @@ class ExtensionRequest(db.Model):
     requester = db.relationship('User', foreign_keys=[requested_by])
     reviewer = db.relationship('User', foreign_keys=[decided_by])
     
-    def __init__(self, user_id, archive_id, program_step_id, requested_by, reason, requested_until, role='student'):
+    def __init__(self, user_id, archive_id, program_step_id, requested_by, reason, requested_until, role='student',
+                 user_program_id=None):
         self.user_id = user_id
+        self.user_program_id = user_program_id
         self.archive_id = archive_id
         self.program_step_id = program_step_id
         self.requested_by = requested_by

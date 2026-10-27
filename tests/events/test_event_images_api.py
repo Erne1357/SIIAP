@@ -69,9 +69,9 @@ class TestEventImagesApi(unittest.TestCase):
         resp = self.client.get(f'/api/v1/events/{self.ev.id}/images')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
-        self.assertIsNone(data['cover'])
-        self.assertEqual(data['gallery'], [])
+        self.assertIsNone(data['error'])
+        self.assertIsNone(data['data']['cover'])
+        self.assertEqual(data['data']['gallery'], [])
 
     def test_list_images_event_not_found(self):
         resp = self.client.get('/api/v1/events/99999/images')
@@ -90,8 +90,8 @@ class TestEventImagesApi(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 201)
         result = json.loads(resp.data)
-        self.assertTrue(result['ok'])
-        self.assertIn('image', result)
+        self.assertIsNone(result['error'])
+        self.assertIn('image', result['data'])
 
     def test_upload_cover_no_file_returns_400(self):
         resp = self.client.post(
@@ -126,7 +126,7 @@ class TestEventImagesApi(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 201)
         result = json.loads(resp.data)
-        self.assertFalse(result['image']['is_cover'])
+        self.assertFalse(result['data']['image']['is_cover'])
 
     def test_upload_gallery_no_file_returns_400(self):
         resp = self.client.post(
@@ -150,7 +150,7 @@ class TestEventImagesApi(unittest.TestCase):
         resp = self._delete(f'/api/v1/events/images/{img.id}')
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
-        self.assertTrue(data['ok'])
+        self.assertIsNone(data['error'])
         self.assertIsNone(db.session.get(EventImage, img.id))
 
     def test_delete_image_not_found(self):

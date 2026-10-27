@@ -134,7 +134,7 @@ class DocumentTemplateCatalogScopeTest(unittest.TestCase):
         res = self.client.get(f'/api/admin/document-templates{query}')
         self.assertEqual(res.status_code, 200, res.data.decode('utf-8'))
         body = res.get_json()
-        self.assertEqual(body['total'], len(body['data']))
+        self.assertEqual(body['meta']['total'], len(body['data']))
         return {row['name'] for row in body['data']}
 
     # ── the invariant the next pass would check ─────────────────────────────

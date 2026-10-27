@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{super()}} - Perfil{% endblock %}
+{% block title %}Perfil - SIIAP{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/user/profile.css') }}?v={{ static_version }}" rel="stylesheet">
@@ -38,92 +38,9 @@
                             </div>
                         </div>
                         <div class="col-12 col-md-9">
-                            <div
-                                class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-3">
-                                <div>
-                                    <h1 class="mb-1 h3">{{ current_user.first_name }} {{ current_user.last_name }}
-                                        {% if current_user.mother_last_name %}{{ current_user.mother_last_name }}{% endif %}
-                                    </h1>
-                                    <p class="text-muted mb-2">{{ role_label or '—' }}</p>
-                                </div>
-                                <!-- Botón de editar en desktop -->
-                                <div class="d-none d-md-flex gap-2">
-                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                        data-bs-target="#editProfileModal">
-                                        <i class="bi bi-pencil-fill me-2" aria-hidden="true"></i>Editar perfil
-                                    </button>
-                                    {% if not current_user.profile_completed %}
-                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
-                                        data-bs-target="#completeProfileModal">
-                                        <i class="bi bi-person-plus me-2" aria-hidden="true"></i>Completar perfil
-                                    </button>
-                                    {% endif %}
-                                </div>
+                            <div id="profileHeaderMain">
+                                {% include 'user/profile/_profile_header.html' %}
                             </div>
-
-                            <!-- Estado de la cuenta -->
-                            <ul class="list-unstyled d-flex flex-wrap gap-2 mb-3">
-                                <li>{{ status_badge('enrolled', label='Cuenta activa', size='sm') }}</li>
-                                {% if current_user.is_internal %}
-                                <li>{{ status_badge('in_progress', label='Usuario interno', size='sm') }}</li>
-                                {% endif %}
-                                {% if has_perm('coordinator.page.view') %}
-                                <li>{{ status_badge('interview_completed', label='Administrador', size='sm') }}</li>
-                                {% endif %}
-                                {% if current_user.scolarship_type and current_user.scolarship_type != 'none' %}
-                                <li>{{ status_badge('enrolled', label='Beca: ' ~ current_user.scolarship_type, size='sm') }}</li>
-                                {% endif %}
-                                {% if not current_user.profile_completed %}
-                                <li>{{ status_badge('deliberation', label='Perfil incompleto', size='sm') }}</li>
-                                {% else %}
-                                <li>{{ status_badge('approved', label='Perfil completo', size='sm') }}</li>
-                                {% endif %}
-                            </ul>
-
-                            <!-- Resumen de la cuenta -->
-                            <div class="row g-2 g-md-3">
-                                {% if current_user.user_program %}
-                                {% set up = current_user.user_program|first %}
-                                <div class="col-6 col-md-3">
-                                    <div class="profile-summary-card">
-                                        <p class="kpi-value kpi-value--sm mb-1">{{ up.program.slug }}</p>
-                                        <p class="kpi-label mb-0">Programa</p>
-                                    </div>
-                                </div>
-                                {% endif %}
-                                <div class="col-6 col-md-3">
-                                    <div class="profile-summary-card">
-                                        <p class="kpi-value kpi-value--sm mb-1">{{ current_user.last_login|fecha_es('numeric') or '—' }}</p>
-                                        <p class="kpi-label mb-0">Último acceso</p>
-                                    </div>
-                                </div>
-                                <div class="col-6 col-md-3">
-                                    <div class="profile-summary-card">
-                                        <p class="kpi-value kpi-value--sm mb-1">{{ current_user.registration_date|fecha_es('numeric') or '—' }}</p>
-                                        <p class="kpi-label mb-0">Fecha de registro</p>
-                                    </div>
-                                </div>
-                                {% if has_perm('coordinator.page.view') %}
-                                <div class="col-6 col-md-3">
-                                    <div class="profile-summary-card">
-                                        <p class="kpi-value kpi-value--sm mb-1">
-                                            <i class="bi bi-shield-check" aria-hidden="true"></i>
-                                        </p>
-                                        <p class="kpi-label mb-0">Administrador</p>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-
-                            <!-- Completar perfil en móvil -->
-                            {% if not current_user.profile_completed %}
-                            <div class="d-md-none mt-3">
-                                <button type="button" class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal"
-                                    data-bs-target="#completeProfileModal">
-                                    <i class="bi bi-person-plus me-2" aria-hidden="true"></i>Completar perfil
-                                </button>
-                            </div>
-                            {% endif%}
                         </div>
                     </div>
                 </div>

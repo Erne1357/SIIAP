@@ -17,7 +17,7 @@ from app.models.role_permission import RolePermissionOverride
 from app.models.role_permission_audit import RolePermissionAudit
 from app.models.user_permission import UserPermission
 from app.services import permission_service as ps
-from app.services.permission_service import PermissionError as PermError
+from app.services.permission_service import PermissionServiceError as PermError
 from app.utils.datetime_utils import now_local
 from tests.support.factories import (
     get_or_create_permission,

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from '_macros.html' import modal_shell %}
 
-{% block title %}{{ super() }} - Periodos académicos{% endblock %}
+{% block title %}Periodos académicos - SIIAP{% endblock %}
 
 {% block styles %}
 <link href="{{ url_for('static', filename='css/admin/settings/academic_periods.css') }}?v={{ static_version }}" rel="stylesheet">
@@ -76,6 +76,10 @@
             <div>
               <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>
               <strong>Clases:</strong> <span class="class-dates"></span>
+            </div>
+            <div class="d-none capture-dates-row">
+              <i class="bi bi-journal-check me-1" aria-hidden="true"></i>
+              <strong>Captura de calificaciones:</strong> <span class="capture-dates"></span>
             </div>
           </div>
         </div>
@@ -163,6 +167,25 @@
                 </label>
                 <input type="date" class="form-control" id="admissionEndDate" name="admissionEndDate" required>
               </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="mt-4">
+            <legend class="h6 text-muted">Captura de calificaciones (opcional)</legend>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="gradeCaptureStart" class="form-label">Inicio de captura de calificaciones</label>
+                <input type="date" class="form-control" id="gradeCaptureStart" name="gradeCaptureStart"
+                       aria-describedby="gradeCaptureHelp">
+              </div>
+              <div class="col-md-6">
+                <label for="gradeCaptureEnd" class="form-label">Fin de captura de calificaciones</label>
+                <input type="date" class="form-control" id="gradeCaptureEnd" name="gradeCaptureEnd"
+                       aria-describedby="gradeCaptureHelp">
+              </div>
+            </div>
+            <div id="gradeCaptureHelp" class="form-text">
+              Si las dejas vacías, los docentes pueden capturar en cualquier momento.
             </div>
           </fieldset>
 

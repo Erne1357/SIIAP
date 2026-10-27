@@ -1,0 +1,181 @@
+{#
+  Pestaña «Trayectoria» del expediente: estado académico, semestres, baja
+  definitiva y egreso.
+
+  Contexto explícito: target_user, trajectory (dict de
+  permanence_service.get_trajectory o None), program_options (UserPrograms
+  inscritos dentro del alcance), selected_program_id y admission_debt
+  (admission_debt_service.overdue_admission_documents: prórrogas vencidas). Se carga bajo demanda y
+  NO entra en el historial del navegador.
+#}
+{% from '_macros.html' import status_badge, empty_state, data_table_open, data_table_close %}
+
+{% set _STATUS_BADGE = {
+  'active':    'accepted',
+  'on_leave':  'deferred',
+  'withdrawn': 'rejected',
+  'graduated': 'enrolled',
+  'titled':    'approved',
+} %}
+{% set _ENROLLMENT_BADGE = {
+  'active':    'accepted',
+  'completed': 'approved',
+  'on_leave':  'deferred',
+  'dropped':   'rejected',
+} %}
+{% set _target = '#recordTrajectory' %}
+
+{% if trajectory is none %}
+  {{ empty_state('signpost-split', 'Sin programa inscrito',
+                 'Esta cuenta no tiene un programa inscrito dentro de tu alcance, así que no hay trayectoria que mostrar.',
+                 compact=true) }}
+{% else %}
+  {% set t = trajectory %}
+  {% set can_graduate_ui = t.can_graduate and current_user.has_permission('permanence.api.register_graduation') %}
+  {% set can_withdraw_ui = t.can_withdraw and current_user.has_permission('permanence.api.withdraw') %}
+  {% set can_revert_ui = t.can_revert_withdrawal and current_user.has_permission('permanence.api.revert_withdrawal') %}
+
+  {% if program_options|length > 1 %}
+    <form class="mb-3" hx-get="{{ url_for('pages_student_record.record_trajectory', user_uuid=target_user.uuid) }}"
+          hx-trigger="change" hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false">
+      <label class="form-label" for="trajectoryProgram">Programa</label>
+      <select class="form-select w-auto tap-target" id="trajectoryProgram" name="program">
+        {% for opt in program_options %}
+          <option value="{{ opt.program_id }}" {{ 'selected' if opt.program_id == selected_program_id }}>{{ opt.program.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  {% else %}
+    <p class="text-secondary small mb-3">
+      <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>{{ t.program.name }}
+    </p>
+  {% endif %}
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <h3 class="h5 mb-0">Estado académico</h3>
+    {{ status_badge(_STATUS_BADGE.get(t.academic_status, 'pending'), t.academic_status_label|capitalize) }}
+  </div>
+
+  {% if admission_debt %}
+    <div class="alert alert-warning" role="status" id="trajectoryAdmissionDebt">
+      <p class="mb-1"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+        No puede reinscribirse al siguiente semestre: prórroga de admisión vencida o rechazada sin entregar.</p>
+      <ul class="mb-0">
+        {% for d in admission_debt %}
+          <li>{{ d.archive.name }} ({% if d.granted_until %}prórroga hasta el {{ d.granted_until|fecha_es }}{% else %}prórroga rechazada{% endif %})</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <dl class="row mb-3">
+    <dt class="col-sm-4">Semestre</dt>
+    <dd class="col-sm-8">
+      {% if t.current_semester %}Semestre {{ t.current_semester }}{% if t.duration_semesters %} de {{ t.duration_semesters }}{% endif %}
+      {% else %}Sin semestres registrados{% endif %}
+    </dd>
+    <dt class="col-sm-4">Semestres concluidos</dt>
+    <dd class="col-sm-8">{{ t.completed_semesters or 0 }}{% if t.duration_semesters %} de {{ t.duration_semesters }}{% endif %}</dd>
+    {% if t.permanence_limit is not none %}
+      <dt class="col-sm-4">Periodos usados</dt>
+      <dd class="col-sm-8">{{ t.periods_used or 0 }} de {{ t.permanence_limit }}</dd>
+    {% endif %}
+    {% if t.graduated_at %}
+      <dt class="col-sm-4">Fecha de egreso</dt>
+      <dd class="col-sm-8">{{ t.graduated_at|fecha_es }}</dd>
+    {% endif %}
+    {% if t.withdrawn_at %}
+      <dt class="col-sm-4">Fecha de baja definitiva</dt>
+      <dd class="col-sm-8">{{ t.withdrawn_at|fecha_es }}</dd>
+    {% endif %}
+    {% if t.academic_status == 'withdrawn' and t.withdrawal_reason %}
+      <dt class="col-sm-4">Motivo de la baja</dt>
+      <dd class="col-sm-8">{{ t.withdrawal_reason }}</dd>
+    {% endif %}
+  </dl>
+
+  {% if t.graduation_suggested and t.can_graduate %}
+    <div class="alert alert-info mb-3" role="status">
+      <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>Cumple los semestres del plan: puedes registrar su egreso.
+    </div>
+  {% endif %}
+
+  <h3 class="h5 mb-2">Semestres cursados</h3>
+  {% if t.enrollments %}
+    {{ data_table_open('Semestres cursados por el estudiante', id='trajectoryEnrollments') }}
+      <thead>
+        <tr>
+          <th scope="col">Semestre</th>
+          <th scope="col">Periodo</th>
+          <th scope="col">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in t.enrollments %}
+          <tr>
+            <td>{{ e.semester_number }}</td>
+            <td>{{ e.period_name }}</td>
+            <td>{{ status_badge(_ENROLLMENT_BADGE.get(e.status, 'pending'), e.status_label, 'sm') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    {{ data_table_close() }}
+  {% else %}
+    {{ empty_state('calendar2-x', 'Sin semestres registrados',
+                   'Aún no hay inscripciones semestrales para este programa.', compact=true) }}
+  {% endif %}
+
+  {% if can_graduate_ui %}
+    <form class="mt-4" id="trajectoryGraduateForm"
+          hx-post="{{ url_for('pages_student_record.record_trajectory_graduate', user_uuid=target_user.uuid) }}"
+          hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false"
+          hx-confirm="¿Registrar el egreso del estudiante?"
+          data-confirm-title="Registrar egreso" data-confirm-type="warning"
+          data-confirm-label="Sí, registrar egreso">
+      <input type="hidden" name="program" value="{{ selected_program_id }}">
+      <h3 class="h5 mb-2">Registrar egreso</h3>
+      <label class="form-label" for="trajectoryGraduatedAt">Fecha de egreso</label>
+      <input class="form-control w-auto tap-target mb-2" type="date" id="trajectoryGraduatedAt"
+             name="graduated_at" required>
+      <div>
+        <button type="submit" class="btn btn-primary tap-target">
+          <i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>Registrar egreso
+        </button>
+      </div>
+    </form>
+  {% endif %}
+
+  {% if can_withdraw_ui %}
+    <form class="mt-4" id="trajectoryWithdrawForm"
+          hx-post="{{ url_for('pages_student_record.record_trajectory_withdraw', user_uuid=target_user.uuid) }}"
+          hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false"
+          hx-confirm="La baja definitiva cierra el programa del estudiante. ¿Continuar?"
+          data-confirm-title="Baja definitiva" data-confirm-type="danger"
+          data-confirm-label="Sí, dar de baja">
+      <input type="hidden" name="program" value="{{ selected_program_id }}">
+      <h3 class="h5 mb-2">Baja definitiva</h3>
+      <label class="form-label" for="trajectoryWithdrawReason">Motivo (obligatorio)</label>
+      <textarea class="form-control mb-2" id="trajectoryWithdrawReason" name="reason" rows="3" required></textarea>
+      <button type="submit" class="btn btn-danger tap-target">
+        <i class="bi bi-person-x-fill me-1" aria-hidden="true"></i>Dar de baja definitiva
+      </button>
+    </form>
+  {% endif %}
+
+  {% if can_revert_ui %}
+    <form class="mt-4" id="trajectoryRevertForm"
+          hx-post="{{ url_for('pages_student_record.record_trajectory_revert_withdrawal', user_uuid=target_user.uuid) }}"
+          hx-target="{{ _target }}" hx-swap="innerHTML" hx-history="false"
+          hx-confirm="¿Revertir la baja definitiva del estudiante?"
+          data-confirm-title="Revertir baja definitiva" data-confirm-type="warning"
+          data-confirm-label="Sí, revertir">
+      <input type="hidden" name="program" value="{{ selected_program_id }}">
+      <h3 class="h5 mb-2">Revertir baja definitiva</h3>
+      <label class="form-label" for="trajectoryRevertReason">Motivo (obligatorio)</label>
+      <textarea class="form-control mb-2" id="trajectoryRevertReason" name="reason" rows="3" required></textarea>
+      <button type="submit" class="btn btn-outline-danger tap-target">
+        <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Revertir baja definitiva
+      </button>
+    </form>
+  {% endif %}
+{% endif %}

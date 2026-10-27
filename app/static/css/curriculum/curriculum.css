@@ -1,0 +1,25 @@
+/* app/static/css/curriculum/curriculum.css
+   Planes de estudio. Tablas, badges y estados vacíos vienen de components/. */
+
+.curriculum-program-form__select {
+  max-width: 100%;
+  width: 24rem;
+}
+
+.curriculum-actions {
+  white-space: nowrap;
+}
+
+.curriculum-actions .btn + .btn {
+  margin-left: var(--space-1);
+}
+
+@media (max-width: 576px) {
+  .curriculum-program-form__select {
+    width: 100%;
+  }
+
+  .curriculum-actions {
+    white-space: normal;
+  }
+}

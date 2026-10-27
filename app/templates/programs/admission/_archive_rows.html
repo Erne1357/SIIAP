@@ -39,17 +39,34 @@
 {% endmacro %}
 
 
+{# Atributos htmx del botón de eliminar. La respuesta del servidor trae su propio
+   HX-Retarget / HX-Reswap (el panel que cambió), por eso aquí hx-swap="none".
+   El confirm lo atiende el puente (siiapConfirm). data-focus-fallback: si el botón
+   desaparece, el foco pasa al botón de subir de la misma fila. #}
+{% macro delete_attrs(program_slug, sub, focus_fallback) -%}
+hx-delete="{{ url_for('program.admission.delete_submission', slug=program_slug, sub_uuid=sub.uuid) }}"
+                  hx-swap="none" hx-sync="this:drop" hx-disabled-elt="this"
+                  hx-confirm="¿Eliminar este archivo?"
+                  data-confirm-title="Eliminar archivo" data-confirm-type="danger"
+                  data-confirm-label="Sí, eliminar"
+                  data-admission-ctx="true" data-focus-fallback="{{ focus_fallback }}"
+{%- endmacro %}
+
+
 {# Fila principal + fila colapsable con la descripción del documento.
+   program_slug construye las URL de los fragmentos htmx (subir / eliminar).
+   Todo control lleva un `id` estable derivado del uuid público: Idiomorph casa
+   los nodos por id y htmx sólo restaura el foco en un nodo que lo tenga.
    is_informative suprime los botones de subida en los pasos de sólo lectura
    (sequence 0). Antes esta rama sólo existía en _archive_table.html y el
    panel combinado ofrecía subir archivos donde no se admite. #}
-{% macro render_archive_row(arch, step, subs, all_extensions, current_user, is_informative=false) %}
+{% macro render_archive_row(arch, step, subs, all_extensions, current_user, is_informative=false, program_slug='') %}
   {% set sub = subs.get(arch.id) %}
-  {% set row_id = "row-" ~ arch.id %}
+  {% set row_id = "row-" ~ arch.uuid %}
   {% set can_upload = arch.is_uploadable and not is_informative %}
 
   {# Fila principal #}
-  <tr>
+  <tr id="arow-{{ arch.uuid }}">
     <td><i class="bi bi-file-earmark-text text-secondary" aria-hidden="true"></i></td>
     <td>
       <a class="text-decoration-none" data-bs-toggle="collapse" href="#{{ row_id }}"
@@ -113,7 +130,7 @@
              formulario (`archive_id`), en `DELETE /api/v1/submissions/<uuid>`
              y el que compara con `data.archive_id` del socket. `step` sigue
              siendo entero: Step no tiene handle público. #}
-          <button type="button" class="btn btn-outline-success btn-sm"
+          <button type="button" class="btn btn-outline-success btn-sm" id="upload-btn-m-{{ arch.uuid }}"
                   data-bs-toggle="modal" data-bs-target="#uploadModal"
                   data-archive="{{ arch.uuid }}" data-step="{{ step.id }}"
                   data-archive-name="{{ arch.name }}"
@@ -124,15 +141,16 @@
           </button>
 
           {% if arch.allow_extension_request %}
-          <button type="button" class="btn btn-outline-info btn-sm btn-request-extension"
+          <button type="button" class="btn btn-outline-info btn-sm btn-request-extension" id="ext-btn-m-{{ arch.uuid }}"
                   data-archive-id="{{ arch.uuid }}" data-archive-name="{{ arch.name }}">
             <i class="bi bi-clock me-1" aria-hidden="true"></i>Prórroga
           </button>
           {% endif %}
 
           {% if sub and sub.uploaded_by == current_user.id %}
-          <button type="button" class="btn btn-outline-danger btn-sm"
-                  data-delete-submission="{{ sub.uuid }}" data-step="{{ step.id }}">
+          <button type="button" class="btn btn-outline-danger btn-sm" id="delete-btn-m-{{ arch.uuid }}"
+                  data-delete-submission="{{ sub.uuid }}"
+                  {{ delete_attrs(program_slug, sub, 'upload-btn-m-' ~ arch.uuid) }}>
             <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar
           </button>
           {% endif %}
@@ -163,7 +181,7 @@
           </a>
           {% endif %}
 
-          <button type="button" class="btn btn-outline-success tap-target"
+          <button type="button" class="btn btn-outline-success tap-target" id="upload-btn-d-{{ arch.uuid }}"
                   aria-label="{% if sub %}Reemplazar{% else %}Subir{% endif %} el documento {{ arch.name }}"
                   title="{% if sub %}Reemplazar{% else %}Subir{% endif %} archivo"
                   data-bs-toggle="modal" data-bs-target="#uploadModal"
@@ -176,7 +194,7 @@
           </button>
 
           {% if arch.allow_extension_request %}
-          <button type="button" class="btn btn-outline-info btn-request-extension tap-target"
+          <button type="button" class="btn btn-outline-info btn-request-extension tap-target" id="ext-btn-d-{{ arch.uuid }}"
                   aria-label="Solicitar prórroga para {{ arch.name }}"
                   title="Solicitar prórroga"
                   data-archive-id="{{ arch.uuid }}" data-archive-name="{{ arch.name }}">
@@ -185,10 +203,11 @@
           {% endif %}
 
           {% if sub and sub.uploaded_by == current_user.id %}
-          <button type="button" class="btn btn-outline-danger tap-target"
+          <button type="button" class="btn btn-outline-danger tap-target" id="delete-btn-d-{{ arch.uuid }}"
                   aria-label="Eliminar el archivo de {{ arch.name }}"
                   title="Eliminar archivo"
-                  data-delete-submission="{{ sub.uuid }}" data-step="{{ step.id }}">
+                  data-delete-submission="{{ sub.uuid }}"
+                  {{ delete_attrs(program_slug, sub, 'upload-btn-d-' ~ arch.uuid) }}>
             <i class="bi bi-trash" aria-hidden="true"></i>
           </button>
           {% endif %}

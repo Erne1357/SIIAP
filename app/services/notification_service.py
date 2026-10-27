@@ -45,6 +45,14 @@ class NotificationService:
     }
     
     @staticmethod
+    def _email_program_slug(user, program_slug: str = None) -> str:
+        """Slug for e-mail dashboard links: explicit, else the user's current program, else 'general'."""
+        if program_slug:
+            return program_slug
+        up = user.current_user_program()
+        return up.program.slug if up and up.program else 'general'
+
+    @staticmethod
     def create_notification(
         user_id: int,
         notification_type: str,
@@ -126,7 +134,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.document_approved(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -170,7 +178,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.document_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -210,7 +218,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.coordinator_uploaded(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -252,7 +260,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.extension_approved(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -296,7 +304,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.extension_rejected(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -698,7 +706,8 @@ class NotificationService:
         return notification
     
     @staticmethod
-    def notify_program_changed(user_id: int, from_program: str, to_program: str) -> Notification:
+    def notify_program_changed(user_id: int, from_program: str, to_program: str,
+                               program_slug: str = None) -> Notification:
         """Notifica cuando hay un cambio de programa"""
         notification = NotificationService.create_notification(
             user_id=user_id,
@@ -720,7 +729,7 @@ class NotificationService:
             from app.services.email_templates import EmailTemplates
             user = User.query.get(user_id)
             if user:
-                slug = user.user_program[0].program.slug if user.user_program else 'general'
+                slug = NotificationService._email_program_slug(user, program_slug)
                 dashboard_url = external_url('program.admission.admission_dashboard', slug=slug)
                 subject, html = EmailTemplates.program_changed(
                     user_name=f"{user.first_name} {user.last_name}",
@@ -1101,3 +1110,46 @@ class NotificationService:
             email_html=email_html,
         )
         return task.id
+
+# ==================== OPERACIONES CON COMMIT (usadas por las rutas) ====================
+# The NotificationService methods above only flush; these wrappers own the
+# commit so routes never touch the session.
+
+def get_notification_for_user(notification_id: int, user_id: int) -> Optional[Notification]:
+    """Read-only: the notification scoped to its owner, or None."""
+    return Notification.query.filter_by(id=notification_id, user_id=user_id).first()
+
+
+def mark_read_and_commit(notification_id: int, user_id: int) -> Optional[Notification]:
+    """Mark one notification as read and commit. None if it is not the user's."""
+    notification = NotificationService.mark_as_read(notification_id, user_id)
+    if notification:
+        db.session.commit()
+    return notification
+
+
+def mark_all_read_and_commit(user_id: int) -> int:
+    """Mark every unread notification of the user as read and commit."""
+    count = NotificationService.mark_all_as_read(user_id)
+    db.session.commit()
+    return count
+
+
+def delete_and_commit(notification_id: int, user_id: int) -> Optional[Notification]:
+    """Soft-delete one notification and commit. None if it is not the user's."""
+    notification = NotificationService.delete_notification(notification_id, user_id)
+    if notification:
+        db.session.commit()
+    return notification
+
+
+def clear_read_and_commit(user_id: int) -> int:
+    """Soft-delete every read notification of the user and commit."""
+    count = NotificationService.clear_read_notifications(user_id)
+    db.session.commit()
+    return count
+
+
+def rollback_session() -> None:
+    """Discard pending changes after a failed operation."""
+    db.session.rollback()

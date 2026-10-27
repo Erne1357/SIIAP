@@ -22,7 +22,7 @@ class AcceptanceDocument(PublicUUIDMixin, db.Model):
     __tablename__ = 'acceptance_document'
 
     id = db.Column(db.Integer, primary_key=True)
-    user_program_id = db.Column(db.Integer, db.ForeignKey('user_program.id'), nullable=False)
+    user_program_id = db.Column(db.Integer, db.ForeignKey('user_program.id'), nullable=False, index=True)
     document_type = db.Column(db.String(30), nullable=False)
     file_path = db.Column(db.String(500), nullable=True)
 

@@ -11,6 +11,8 @@ Flujo:
 6. Una vez aprobada, se puede proceder a la transicion a estudiante (Fase 5)
 """
 
+import logging
+
 from app import db
 from app.services import public_id_service
 from app.models import UserProgram, User, Program, ExtensionRequest, Submission, ProgramStep
@@ -20,6 +22,8 @@ from app.services.user_history_service import UserHistoryService
 from app.utils.files import save_user_doc
 from app.utils.datetime_utils import now_local, to_local_timezone
 from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError
+from app.services import admission_status_service, academic_status_service
 
 
 VALID_DOC_TYPES = {'acceptance_letter', 'course_schedule', 'enrollment_receipt', 'acceptance_opinion'}
@@ -72,12 +76,15 @@ CONTROL_NUMBER_REJECTED_MESSAGE = (
 )
 
 
-class AcceptanceError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class AcceptanceError(DomainError):
     """Error base para operaciones de aceptacion."""
     pass
 
 
-class ApplicantNotFound(AcceptanceError):
+class ApplicantNotFound(AcceptanceError, NotFoundError):
     pass
 
 
@@ -107,6 +114,15 @@ class DocumentDebtError(AcceptanceError):
     def __init__(self, debts: list):
         self.debts = debts  # lista de {'archive_name': str, 'expired_at': str}
         super().__init__("Existen documentos con prórroga vencida sin entregar.")
+
+
+def _set_current_plan(up) -> None:
+    """Tie an enrolled student to the program's current study plan (if any)."""
+    if up.curriculum_plan_id is None:
+        from app.services import curriculum_service
+        plan = curriculum_service.current_plan(up.program_id)
+        if plan is not None:
+            up.curriculum_plan_id = plan.id
 
 
 def _get_user_program(user_id: int, program_id: int) -> UserProgram:
@@ -357,6 +373,10 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
             details=f'Carta de aceptación y tira de materias subidas para {program.name}'
         )
 
+    db.session.commit()
+
+    # Emit only after the commit succeeded: a rollback must not tell clients
+    # that the acceptance state changed.
     # WebSocket: actualizar pestaña de aceptación del aspirante en tiempo real
     try:
         from app.extensions import socketio
@@ -375,8 +395,6 @@ def upload_coordinator_doc(user_id: int, program_id: int, document_type: str,
         }, room=f'coordinator:program:{program_id}')
     except Exception:
         pass
-
-    db.session.commit()
 
     return doc
 
@@ -453,6 +471,10 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
             data={'student_id': user_id, 'program_id': program_id},
         )
 
+    db.session.commit()
+
+    # Emit only after the commit succeeded: a rollback must not tell clients
+    # that the acceptance state changed.
     # WebSocket: actualizar pestaña de aceptación del coordinador
     try:
         # Igual que los otros emits de aceptación de este servicio: la sala
@@ -465,8 +487,6 @@ def submit_enrollment_receipt(user_id: int, program_id: int,
         }, program_id)
     except Exception:
         pass
-
-    db.session.commit()
 
     return doc
 
@@ -488,7 +508,10 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     if status not in ('approved', 'rejected'):
         raise ValueError("status debe ser 'approved' o 'rejected'")
 
-    doc = AcceptanceDocument.query.get(doc_id)
+    from app.services import review_engine
+
+    doc = (AcceptanceDocument.query.filter_by(id=doc_id)
+           .with_for_update().populate_existing().first())
     if not doc:
         raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
 
@@ -500,89 +523,21 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
             f"Solo se pueden revisar documentos en estado 'uploaded', estado actual: '{doc.status}'"
         )
 
-    doc.status = status
-    doc.reviewed_by_id = coordinator_id
-    doc.reviewed_at = now_local()
-    doc.review_notes = notes
-
-    up = doc.user_program
-    user_id = up.user_id
-    program = up.program
-
-    # Notificar e historiar (en la misma transaccion)
-    if status == 'approved':
-        NotificationService.create_notification(
-            user_id=user_id,
-            notification_type='enrollment_receipt_approved',
-            title='Carta de número de control aprobada',
-            message=f'Tu carta de asignación de número de control para {program.name} fue aprobada. '
-                    f'El coordinador te asignará tu número de control próximamente.',
-            priority='high',
-            action_url='/user/dashboard',
-        )
-        UserHistoryService.log_action(
-            user_id=user_id,
-            admin_id=coordinator_id,
-            action='enrollment_receipt_approved',
-            details=f'Carta aprobada para {program.name}. {notes or ""}'
-        )
-    else:
-        NotificationService.create_notification(
-            user_id=user_id,
-            notification_type='enrollment_receipt_rejected',
-            title='Carta de número de control rechazada',
-            message=f'Tu carta de asignación de número de control para {program.name} fue rechazada. '
-                    f'Motivo: {notes or "Sin especificar"}. Por favor vuelve a subirla.',
-            priority='high',
-            action_url='/user/dashboard',
-        )
-        UserHistoryService.log_action(
-            user_id=user_id,
-            admin_id=coordinator_id,
-            action='enrollment_receipt_rejected',
-            details=f'Carta rechazada para {program.name}. {notes or ""}'
-        )
-
-    # Enviar email al aspirante
+    # The decision itself (side effects, notices, e-mail, history, socket)
+    # lives in the `enrollment_receipt` review kind; the row is locked above.
+    actor = User.query.get(coordinator_id)
+    # Engine refusals in this service's own vocabulary (the route maps
+    # ApplicantNotFound -> 404 and InvalidStateTransition -> 400).
     try:
-        from app.services.email_service import EmailService
-        from app.services.email_templates import EmailTemplates
-        from app.utils.urls import external_url
-        user = User.query.get(user_id)
-        if user:
-            # Pinned to APP_BASE_URL, never to the request host.
-            dashboard_url = external_url('pages_user.dashboard')
-            if status == 'approved':
-                subject, html = EmailTemplates.enrollment_receipt_approved(
-                    user_name=f"{user.first_name} {user.last_name}",
-                    program_name=program.name,
-                    dashboard_url=dashboard_url,
-                )
-            else:
-                subject, html = EmailTemplates.enrollment_receipt_rejected(
-                    user_name=f"{user.first_name} {user.last_name}",
-                    program_name=program.name,
-                    reason=notes or "Sin especificar",
-                    dashboard_url=dashboard_url,
-                )
-            EmailService.queue_email(user_id, subject, html)
-    except Exception as e:
-        import logging
-        logging.error(f"Error queueing email for enrollment_receipt_{status}: {e}")
-
-    # WebSocket: actualizar pestaña de aceptación del aspirante
-    try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
-            'user_id': public_id_service.user_uuid(user_id),
-            'program_id': up.program_id,
-            'action': f'receipt_{status}',
-        }, room=f'user:{user_id}')
-    except Exception:
-        pass
-
-    db.session.commit()
-
+        review_engine.decide_item(
+            actor, 'enrollment_receipt', doc,
+            'approve' if status == 'approved' else 'reject',
+            comment=notes or '',
+        )
+    except review_engine.ReviewNotFound:
+        raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
+    except review_engine.ReviewError as exc:
+        raise InvalidStateTransition(exc.message)
     return doc
 
 
@@ -658,6 +613,55 @@ def _check_document_debt(user_id: int, program_id: int) -> None:
         raise DocumentDebtError(debts=debts)
 
 
+def _commit_control_number() -> None:
+    """
+    Commit de una asignación de número de control.
+
+    La consulta de unicidad es check-then-act: dos asignaciones simultáneas
+    pueden pasarla con el mismo número. La restricción única de
+    user.control_number es la que decide; el perdedor recibe el mismo mensaje
+    genérico que el chequeo previo.
+    """
+    try:
+        db.session.flush()
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
+
+
+def _notify_control_number_assigned(user_id: int, control_number: str) -> None:
+    """
+    Post-commit notification. The notification and queued-email rows need
+    their own commit; a failure here must not undo the committed assignment.
+    """
+    try:
+        NotificationService.notify_control_number_assigned(
+            user_id=user_id,
+            control_number=control_number,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logging.getLogger(__name__).exception(
+            'No se pudo notificar la asignación del número de control (user_id=%s)',
+            user_id,
+        )
+
+
+def _emit_acceptance_updated(user_id: int, program_id: int, action: str) -> None:
+    """Notifica por WebSocket a la pestaña de aceptación; nunca interrumpe el flujo."""
+    try:
+        from app.extensions import socketio
+        socketio.emit('acceptance:updated', {
+            'user_id': public_id_service.user_uuid(user_id),
+            'program_id': program_id,
+            'action': action,
+        }, room=f'user:{user_id}')
+    except Exception:
+        pass
+
+
 def assign_control_number(user_id: int, program_id: int,
                            control_number: str, coordinator_id: int) -> UserProgram:
     """
@@ -692,7 +696,9 @@ def assign_control_number(user_id: int, program_id: int,
     if existing and existing.id != user_id:
         raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
-    up = _get_user_program(user_id, program_id)
+    up = admission_status_service.lock_user_program(user_id, program_id)
+    if not up:
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     if up.admission_status != 'accepted':
         raise InvalidStateTransition(
@@ -728,7 +734,9 @@ def assign_control_number(user_id: int, program_id: int,
     user.role_id = student_role.id
 
     # 3. Actualizar estado de inscripción
-    up.admission_status = 'enrolled'
+    admission_status_service.transition(up, 'enrolled')
+    _set_current_plan(up)
+    academic_status_service.transition(up, 'active', actor_id=coordinator_id)
     up.current_semester = 1
 
     # 3b. Crear SemesterEnrollment para semestre 1 ya confirmado.
@@ -763,23 +771,14 @@ def assign_control_number(user_id: int, program_id: int,
         details=f'Número de control {ctrl} asignado en {program.name}. Transición a estudiante completada.'
     )
 
-    NotificationService.notify_control_number_assigned(
-        user_id=user_id,
-        control_number=ctrl,
-    )
+    _commit_control_number()
 
-    # WebSocket: actualizar pestaña de aceptación del aspirante
-    try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
-            'user_id': public_id_service.user_uuid(user_id),
-            'program_id': program_id,
-            'action': 'control_number_assigned',
-        }, room=f'user:{user_id}')
-    except Exception:
-        pass
+    # Notification (socket + email) only after the assignment is durable: the
+    # loser of a unique-constraint race must not hear about a rolled-back number.
+    _notify_control_number_assigned(user_id, ctrl)
 
-    db.session.commit()
+    # WebSocket (después del commit): actualizar pestaña de aceptación del aspirante
+    _emit_acceptance_updated(user_id, program_id, 'control_number_assigned')
 
     return up
 
@@ -827,7 +826,9 @@ def assign_control_number_admin(user_id: int, program_id: int,
     if existing and existing.id != user_id:
         raise ValueError(CONTROL_NUMBER_REJECTED_MESSAGE)
 
-    up = _get_user_program(user_id, program_id)
+    up = admission_status_service.lock_user_program(user_id, program_id)
+    if not up:
+        raise ApplicantNotFound(APPLICANT_NOT_FOUND_MESSAGE)
 
     student_role = Role.query.filter_by(name='student').first()
     if not student_role:
@@ -845,8 +846,13 @@ def assign_control_number_admin(user_id: int, program_id: int,
     # 2. Cambiar rol a 'student'
     user.role_id = student_role.id
 
-    # 3. Actualizar estado de inscripción (forzado, sin verificar transición previa)
-    up.admission_status = 'enrolled'
+    # 3. Actualizar estado de inscripción (override administrativo). Si ya está
+    #    inscrito se conserva el estado: solo se reasigna el número de control.
+    if up.admission_status != 'enrolled':
+        admission_status_service.transition(up, 'enrolled', override=True)
+    _set_current_plan(up)
+    if up.academic_status is None:
+        academic_status_service.transition(up, 'active', actor_id=admin_id)
     if not up.current_semester or up.current_semester < 1:
         up.current_semester = 1
 
@@ -884,21 +890,12 @@ def assign_control_number_admin(user_id: int, program_id: int,
         )
     )
 
-    NotificationService.notify_control_number_assigned(
-        user_id=user_id,
-        control_number=ctrl,
-    )
+    _commit_control_number()
 
-    try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
-            'user_id': public_id_service.user_uuid(user_id),
-            'program_id': program_id,
-            'action': 'control_number_assigned_admin',
-        }, room=f'user:{user_id}')
-    except Exception:
-        pass
+    # Notification (socket + email) only after the assignment is durable: the
+    # loser of a unique-constraint race must not hear about a rolled-back number.
+    _notify_control_number_assigned(user_id, ctrl)
 
-    db.session.commit()
+    _emit_acceptance_updated(user_id, program_id, 'control_number_assigned_admin')
 
     return up

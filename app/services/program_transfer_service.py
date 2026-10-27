@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from app.utils.datetime_utils import now_local
 from typing import Dict, Iterable, List, Optional, Tuple
 from app import db
-from app.services import public_id_service
+from app.services import admission_status_service, public_id_service
 from app.models.user_program import UserProgram
 from app.models.program import Program
 from app.models.program_change_request import ProgramChangeRequest
@@ -54,7 +54,10 @@ ADMISSION_PHASE_ID = 1
 TRANSFERABLE_ADMISSION_STATUSES = frozenset({'in_progress'})
 
 
-class ProgramTransferError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class ProgramTransferError(DomainError):
     """
     Regla de negocio del cambio de programa incumplida.
 
@@ -63,10 +66,9 @@ class ProgramTransferError(Exception):
 
     def __init__(self, message: str):
         super().__init__(message)
-        self.message = message
 
 
-class ProgramTransferNotFound(ProgramTransferError):
+class ProgramTransferNotFound(ProgramTransferError, NotFoundError):
     """El objeto (inscripción, programa o solicitud) no existe para este usuario."""
 
 
@@ -451,7 +453,7 @@ class ProgramTransferService:
             #    una decisión tomada en otro comité.
             user_program.program_id = to_program_id
             user_program.enrollment_date = now_local()
-            user_program.admission_status = 'in_progress'
+            admission_status_service.transition(user_program, 'in_progress')
             user_program.deliberation_started_at = None
             user_program.decision_at = None
             user_program.decision_by = None

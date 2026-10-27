@@ -1,9 +1,7 @@
 # app/routes/pages/events_pages.py
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
-from app.models.event import Event
 from app.services.events_service import EventsService
-from app import db
 
 pages_events_public = Blueprint(
     'pages_events_public',
@@ -34,7 +32,7 @@ def view_event(event_id: int):
     enumerables (el código de estado ya distingue "existe pero no es tuyo" de
     "no existe") y el título es justo lo que se quiere ocultar.
     """
-    event = db.session.get(Event, event_id)
+    event = EventsService.get_event_or_none(event_id)
     if not event:
         return render_template('404.html'), 404
 

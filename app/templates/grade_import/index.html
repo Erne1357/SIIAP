@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Importar historial de calificaciones{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/grade_import/index.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="coord-page__header">
+    <h1 class="coord-page__title">Importar historial de calificaciones</h1>
+    <p class="coord-page__subtitle small">Carga las calificaciones de periodos concluidos desde un archivo CSV. Primero se muestra una vista previa; nada se guarda hasta que confirmes.</p>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h5">Formato del archivo</h2>
+      <ul class="small">
+        <li><code>no_control</code>: número de control del alumno.</li>
+        <li><code>clave_materia</code>: clave de la materia en el plan de estudios del alumno.</li>
+        <li><code>periodo</code>: código del periodo, por ejemplo <code>20251</code>.</li>
+        <li><code>calificacion</code>: de 0 a 100, o <code>NP</code> (no presentó).</li>
+        <li><code>hueco</code> (opcional): clave del hueco de optativa que ocupa la materia.</li>
+      </ul>
+      <h2 class="h6">Reglas</h2>
+      <ul class="small">
+        <li>Sólo se importan periodos ya concluidos.</li>
+        <li>El intento (ordinario, repetición o especial) se calcula por el orden de los periodos.</li>
+        <li>Un especial reprobado se marca y se avisa al coordinador; no da de baja al alumno.</li>
+        <li>Las filas con error no se importan; las válidas sí.</li>
+      </ul>
+      <a class="btn btn-outline-primary tap-target" href="{{ url_for('pages_grade_import.template_csv') }}">
+        <i class="bi bi-download" aria-hidden="true"></i> Descargar plantilla
+      </a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form id="gradeImportForm" hx-post="{{ url_for('pages_grade_import.preview') }}"
+            hx-encoding="multipart/form-data" hx-target="#gradeImportOutput" hx-swap="innerHTML">
+        <label for="gradeImportFile" class="form-label">Archivo CSV</label>
+        <input type="file" class="form-control mb-3" id="gradeImportFile" name="file"
+               accept=".csv,text/csv" required>
+        <button type="submit" class="btn btn-primary tap-target">
+          <i class="bi bi-eye" aria-hidden="true"></i> Ver vista previa
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div role="region" aria-live="polite" aria-label="Resultado de la importación">
+    <div id="gradeImportOutput"></div>
+  </div>
+</div>
+{% endblock %}

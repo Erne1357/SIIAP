@@ -479,3 +479,183 @@ class AppointmentsService:
 
         db.session.commit()
         return acr
+
+
+# --------------------------------------------------------------------------
+# Route-facing helpers (keep db access out of app/routes/api/appointments_api.py)
+# --------------------------------------------------------------------------
+def get_event(event_id: int):
+    """Event by primary key, or None."""
+    return db.session.get(Event, event_id)
+
+
+def resolve_applicant_id(raw_uuid: str) -> int | None:
+    """Internal user id for a public UUID, or None when it resolves to nobody."""
+    from app.models.user import User
+    target = User.by_uuid(raw_uuid)
+    return target.id if target else None
+
+
+def get_user_ref(user_id: int | None) -> dict | None:
+    """Public reference of a user: {"id": <uuid>, "full_name": ...}, or None."""
+    if not user_id:
+        return None
+    from app.models.user import User
+    user = db.session.get(User, user_id)
+    if not user:
+        return None
+    return {
+        "id": str(user.uuid) if user.uuid else None,
+        "full_name": f"{user.first_name} {user.last_name}",
+    }
+
+
+def list_pending_change_requests(event_id: int) -> list[dict]:
+    """Pending change requests of an event, newest first, serialised for the API."""
+    from app.models.user import User
+
+    results = db.session.execute(
+        select(AppointmentChangeRequest, Appointment, EventSlot, User)
+        .join(Appointment, AppointmentChangeRequest.appointment_id == Appointment.id)
+        .join(EventSlot, Appointment.slot_id == EventSlot.id)
+        .join(User, Appointment.applicant_id == User.id)
+        .where(
+            Appointment.event_id == event_id,
+            AppointmentChangeRequest.status == 'pending'
+        )
+        .order_by(AppointmentChangeRequest.created_at.desc())
+    ).all()
+
+    items = []
+    for req, appt, slot, user in results:
+        items.append({
+            "id": req.id,
+            "appointment_id": appt.id,
+            "student": {
+                "id": str(user.uuid) if user.uuid else None,
+                "full_name": f"{user.first_name} {user.last_name}",
+                "email": user.email
+            },
+            "current_slot": {
+                "id": slot.id,
+                "starts_at": slot.starts_at.isoformat(),
+                "ends_at": slot.ends_at.isoformat()
+            },
+            "reason": req.reason,
+            "suggestions": req.suggestions,
+            "created_at": req.created_at.isoformat()
+        })
+    return items
+
+
+def record_assignment(appt, event, slot, applicant_id: int, assigned_by: int) -> None:
+    """History entry + notification (with e-mail) for a new appointment.
+
+    Best effort: a failure is logged and never undoes the appointment.
+    """
+    import logging
+    try:
+        from app.services.notification_service import NotificationService
+        from app.services.user_history_service import UserHistoryService
+
+        UserHistoryService.log_appointment_assignment(
+            user_id=applicant_id,
+            event_title=event.title,
+            appointment_datetime=slot.starts_at.isoformat(),
+            assigned_by_admin=assigned_by
+        )
+        NotificationService.notify_appointment_assigned(
+            user_id=applicant_id,
+            event_title=event.title,
+            appointment_id=appt.id,
+            slot_datetime=slot.starts_at.strftime('%d/%m/%Y a las %H:%M'),
+            event_id=event.id,
+            location=event.location
+        )
+        db.session.commit()
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            f"Error al registrar asignación de cita en historial: {e}")
+
+
+def record_cancellation(applicant_id: int, event_title: str, reason: str,
+                        cancelled_by_admin: bool, admin_id: int | None) -> None:
+    """History entry (with automatic notification) for a cancelled appointment.
+
+    Best effort: a failure is logged and never undoes the cancellation.
+    """
+    import logging
+    try:
+        from app.services.user_history_service import UserHistoryService
+        UserHistoryService.log_appointment_cancellation(
+            user_id=applicant_id,
+            event_title=event_title,
+            reason=reason,
+            cancelled_by_admin=cancelled_by_admin,
+            admin_id=admin_id
+        )
+        db.session.commit()
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            f"Error al registrar cancelación de cita en historial: {e}")
+
+
+def notify_change_decision(acr) -> None:
+    """Notify the applicant (and e-mail) about the decision on a change request.
+
+    Best effort: a failure is logged and never undoes the decision.
+    """
+    import logging
+    try:
+        from app.services.notification_service import NotificationService
+
+        appt = db.session.get(Appointment, acr.appointment_id)
+        slot = db.session.get(EventSlot, appt.slot_id)
+        window = db.session.get(EventWindow, slot.event_window_id)
+        event = db.session.get(Event, window.event_id)
+
+        new_slot_str = slot.starts_at.strftime('%d/%m/%Y %H:%M') if slot else ''
+        location = getattr(event, 'location', None)
+
+        if acr.status == 'accepted':
+            NotificationService.notify_appointment_reassigned(
+                user_id=appt.applicant_id,
+                event_title=event.title,
+                appointment_id=appt.id,
+                new_slot_datetime=new_slot_str,
+                old_slot_datetime='',
+                event_id=event.id,
+                location=location
+            )
+        elif acr.status == 'rejected':
+            NotificationService.create_notification(
+                user_id=appt.applicant_id,
+                notification_type='appointment_change_rejected',
+                title='Cambio de horario rechazado',
+                message=f'Tu solicitud de cambio de horario para "{event.title}" fue rechazada. Tu cita original se mantiene el {new_slot_str}.',
+                priority='medium',
+                data={'event_id': event.id, 'event_title': event.title, 'slot_datetime': new_slot_str}
+            )
+    except Exception as notify_err:
+        logging.error(f"Error enviando notificación de cambio de cita: {notify_err}")
+
+
+def mark_status(appt, new_status: str, notes: str | None, actor_id: int) -> None:
+    """Set an appointment to 'done' / 'no_show'.
+
+    A 'done' interview also moves the applicant's admission status. The single
+    commit (appointment + admission) happens here; on failure the session is
+    rolled back and the exception re-raised.
+    """
+    from app.services.deliberation_service import complete_interview_from_appointment
+    try:
+        appt.status = new_status
+        if notes:
+            appt.notes = f"{appt.notes or ''}\n[{new_status.upper()}]: {notes}".strip()
+        if new_status == 'done':
+            complete_interview_from_appointment(appt, actor_id)
+        else:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise

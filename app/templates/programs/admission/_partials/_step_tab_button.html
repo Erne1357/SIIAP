@@ -1,0 +1,40 @@
+{# programs/admission/_partials/_step_tab_button.html
+   <li> de la pestaña de un paso, con el chip de estado (candado / palomita).
+   Requiere: item (elemento de processed_steps), active (bool: pestaña abierta).
+   `oob` (opcional): fuera de banda con hx-swap-oob="morph" (NUNCA "morph:outerHTML":
+   htmx lee "estilo:selector" y buscaría un elemento llamado "outerHTML"), de modo que
+   la instancia de bootstrap.Tab del nodo existente sobrevive. #}
+{% set key = item.id if item.is_combined else item.step.id %}
+{% set pane_id = 'pane-' ~ key %}
+{% set tab_id = 'tab-' ~ key %}
+{% set label = item.name if item.is_combined else item.step.name %}
+{% set seq = item.sequence if item.is_combined else (item.sequence if item.sequence <= 2 else item.sequence - 1) %}
+<li class="nav-item" role="presentation" id="tab-item-{{ key }}"{% if oob %} hx-swap-oob="morph"{% endif %}>
+  <button class="nav-link{% if active %} active{% endif %}{% if item.locked %} disabled{% endif %}"
+          id="{{ tab_id }}" data-bs-toggle="tab" data-bs-target="#{{ pane_id }}"
+          type="button" role="tab" aria-controls="{{ pane_id }}"
+          aria-selected="{{ 'true' if active else 'false' }}"
+          {% if item.locked %}aria-disabled="true" tabindex="-1"{% endif %}>
+    {{ seq }}. {{ label }}
+    {# El estado nunca se comunica sólo con color o icono #}
+    {% if item.locked %}
+    <i class="bi bi-lock-fill ms-1" aria-hidden="true"></i>
+    <span class="visually-hidden">(bloqueado: completa el paso anterior)</span>
+    {% elif item.state == 'approved' %}
+    <i class="bi bi-check-circle-fill ms-1 text-success-strong" aria-hidden="true"></i>
+    <span class="visually-hidden">(aprobado)</span>
+    {% elif item.state == 'rejected' %}
+    <i class="bi bi-x-circle-fill ms-1 text-danger-strong" aria-hidden="true"></i>
+    <span class="visually-hidden">(rechazado)</span>
+    {% elif item.state == 'pending' %}
+    <i class="bi bi-exclamation-circle-fill ms-1 text-warning-strong" aria-hidden="true"></i>
+    <span class="visually-hidden">(pendiente)</span>
+    {% elif item.state == 'extended' %}
+    <i class="bi bi-clock ms-1 text-warning-strong" aria-hidden="true"></i>
+    <span class="visually-hidden">(en prórroga)</span>
+    {% elif item.state == 'review' %}
+    <i class="bi bi-eye-fill ms-1 text-warning-strong" aria-hidden="true"></i>
+    <span class="visually-hidden">(en revisión)</span>
+    {% endif %}
+  </button>
+</li>

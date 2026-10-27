@@ -1,0 +1,61 @@
+{% from '_macros.html' import data_table_open, data_table_close, status_badge %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5">Vista previa</h2>
+    <div class="grade-import__counters">
+      <div class="stat-card stat-card--success"><p class="stat-card__value">{{ summary.valid_count }}</p><p class="stat-card__label">Válidas</p></div>
+      <div class="stat-card stat-card--danger"><p class="stat-card__value">{{ summary.error_count }}</p><p class="stat-card__label">Con error</p></div>
+      <div class="stat-card stat-card--info"><p class="stat-card__value">{{ summary.student_count }}</p><p class="stat-card__label">Alumnos</p></div>
+      <div class="stat-card stat-card--warning"><p class="stat-card__value">{{ summary.special_failed_count }}</p><p class="stat-card__label">Especiales reprobados</p></div>
+    </div>
+
+    {{ data_table_open('Filas del archivo de historial') }}
+      <thead>
+        <tr>
+          <th scope="col">Línea</th>
+          <th scope="col">Estado</th>
+          <th scope="col">No. control</th>
+          <th scope="col">Alumno</th>
+          <th scope="col">Materia</th>
+          <th scope="col">Periodo</th>
+          <th scope="col">Calificación</th>
+          <th scope="col">Intento</th>
+          <th scope="col">Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in summary.rows %}
+        <tr>
+          <td>{{ r.line }}</td>
+          <td>{% if r.errors %}{{ status_badge('rejected', 'Error') }}{% else %}{{ status_badge('approved', 'Válida') }}{% endif %}</td>
+          <td>{{ r.control }}</td>
+          <td>{{ r.student }}</td>
+          <td>{{ r.subject }}{% if r.slot %} <small>({{ r.slot }})</small>{% endif %}</td>
+          <td>{{ r.period }}</td>
+          <td>{{ r.value }}</td>
+          <td>{{ r.attempt_label }}</td>
+          <td>
+            {% if r.errors %}
+            <ul class="grade-import__errors">{% for e in r.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if r.special_failed %}
+            <span class="grade-import__warning">{{ status_badge('pending', 'Especial reprobado') }} Se avisará al coordinador.</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    {{ data_table_close() }}
+
+    {% if summary.valid_count > 0 %}
+    <form class="mt-3" hx-post="{{ url_for('pages_grade_import.execute') }}"
+          hx-target="#gradeImportOutput" hx-swap="innerHTML"
+          hx-confirm="Se importarán {{ summary.valid_count }} calificaciones de {{ summary.student_count }} {{ 'alumno' if summary.student_count == 1 else 'alumnos' }}. ¿Continuar?">
+      <textarea name="csv_text" hidden>{{ csv_text }}</textarea>
+      <button type="submit" class="btn btn-primary tap-target">
+        <i class="bi bi-check2-circle" aria-hidden="true"></i> Importar {{ summary.valid_count }} calificaciones
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>

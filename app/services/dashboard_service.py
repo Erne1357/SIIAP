@@ -28,13 +28,40 @@ class DashboardService:
             return DashboardService._program_admin_context(user, program_id_param)
         if role_name == 'postgraduate_admin':
             return {"metrics": DashboardService.get_postgraduate_admin_metrics()}
+        if role_name == 'teacher':
+            return DashboardService._teacher_context(user)
         return {}
+
+    @staticmethod
+    def dashboard_kind(user):
+        """Which dashboard variant the template renders (same precedence as the template).
+
+        Returns ``applicant`` | ``student`` | ``program_admin`` | ``postgraduate`` |
+        ``teacher`` | ``none``.
+
+        ``teacher`` is permission-based like the rest: whoever may open "Mis grupos"
+        (``teaching.page.my_groups``) and matched none of the staff or student
+        branches above it. A coordinator also holds that permission but keeps
+        the ``program_admin`` dashboard because it is checked first.
+        """
+        if user.has_permission('programs.api.enroll'):
+            return 'applicant'
+        if user.has_permission('permanence.api.view_status'):
+            return 'student'
+        can_create_period = user.has_permission('academic_periods.api.create')
+        if user.has_permission('coordinator.page.view') and not can_create_period:
+            return 'program_admin'
+        if can_create_period:
+            return 'postgraduate'
+        if user.has_permission('teaching.page.my_groups'):
+            return 'teacher'
+        return 'none'
 
     @staticmethod
     def _applicant_context(user):
         from app.services.admission_service import get_admission_state
 
-        up = user.user_program[0] if user.user_program else None
+        up = user.current_user_program()
         program = up.program if up else None
 
         if program:
@@ -72,8 +99,17 @@ class DashboardService:
         }
 
     @staticmethod
+    def events_widget_for(user):
+        """Events widget data for the dashboards (``None`` when it cannot be built)."""
+        from app.services.events_service import EventsService
+        try:
+            return EventsService.get_dashboard_widget(user.id)
+        except Exception:
+            return None
+
+    @staticmethod
     def _student_context(user):
-        up = user.user_program[0] if user.user_program else None
+        up = user.current_user_program()
         program = up.program if up else None
 
         permanence_data = None
@@ -100,14 +136,58 @@ class DashboardService:
         except Exception:
             events_widget = None
 
+        # Admission documents still owed under an extension (phase 6C, decision 5).
+        from app.services import admission_debt_service
+        extension_docs = (admission_debt_service.pending_extension_documents(up)
+                          if up and up.admission_status == 'enrolled' else [])
+
         return {
             'program': program,
             'up': up,
+            'extension_docs': extension_docs,
+            'academic_load': DashboardService.academic_load_for(user, up),
             'permanence_data': permanence_data,
             'pending_admission_docs': pending_admission_docs,
             'pending_permanence_docs': pending_permanence_docs,
             'events_widget': events_widget,
         }
+
+    @staticmethod
+    def academic_load_for(user, up):
+        """Active-period load items of a student (``[]`` without the permission or a period)."""
+        if not up or not user.has_permission('course_enrollment.page.view_own'):
+            return []
+        from app.models.academic_period import AcademicPeriod
+        from app.services import course_enrollment_service
+
+        period = AcademicPeriod.get_active_period()
+        if period is None:
+            return []
+        for bucket in course_enrollment_service.load_for(up.id):
+            if bucket['period'].id == period.id:
+                return bucket['items']
+        return []
+
+    @staticmethod
+    def _teacher_context(user):
+        """Groups the user teaches in the active academic period."""
+        from app.models.academic_period import AcademicPeriod
+        from app.services import course_group_service, teaching_scope_service
+
+        period = AcademicPeriod.get_active_period()
+        groups = []
+        if period is not None:
+            for group in teaching_scope_service.groups_of(user.id, period.id):
+                groups.append({
+                    'subject_name': group.subject.name,
+                    'program_name': group.program.name if group.program else None,
+                    'group_code': group.group_code,
+                    'enrolled': course_group_service.enrolled_count(group.id),
+                    'capacity': group.capacity,
+                    'schedule': group.schedule,
+                    'location': group.location,
+                })
+        return {'period': period, 'teaching_groups': groups}
 
     @staticmethod
     def _program_admin_context(user, program_id_param):

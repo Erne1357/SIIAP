@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, abort
 from flask_login import login_required, current_user
 from app.utils.permissions import permission_required
 from app.services import programs_service as svc
+from app.services import academic_period_service, permission_service
 
 pages_settings = Blueprint('pages_settings', __name__, url_prefix='/settings')
 
@@ -79,10 +80,8 @@ def celery_worker():
 @permission_required('student_bulk.page.view')
 def student_bulk_import():
     """Alta masiva e individual de estudiantes existentes."""
-    from app.models.program import Program
-    from app.models.academic_period import AcademicPeriod
-    programs = Program.query.filter_by(is_active=True).order_by(Program.name).all()
-    periods = AcademicPeriod.query.order_by(AcademicPeriod.id.desc()).all()
+    programs = svc.list_active_programs()
+    periods = academic_period_service.list_periods_newest_first()
     return render_template(
         'admin/settings/student_bulk_import.html',
         programs=programs,
@@ -103,18 +102,10 @@ def data_cleanup():
 @permission_required('permissions.page.manage_roles')
 def permissions_manager():
     """Gestión de permisos de roles (solo jefe de posgrado)."""
-    from app.models.role import Role
-    from app.models.permission import Permission
-    roles = Role.query.order_by(Role.name).all()
-    resources = (
-        Permission.query
-        .with_entities(Permission.resource)
-        .distinct()
-        .order_by(Permission.resource)
-        .all()
-    )
+    roles = permission_service.list_roles()
+    resources = permission_service.list_permission_resources()
     return render_template(
         'admin/settings/permissions.html',
         roles=roles,
-        resources=[r[0] for r in resources],
+        resources=resources,
     )

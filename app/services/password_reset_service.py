@@ -33,11 +33,14 @@ INTERACTIVE_TTL_MINUTES = 45
 # Domain exceptions
 # ---------------------------------------------------------------------------
 
-class PasswordResetError(Exception):
+from app.services.errors import DomainError, NotFoundError
+
+
+class PasswordResetError(DomainError):
     """Base error for password reset operations."""
 
 
-class TokenNotFound(PasswordResetError):
+class TokenNotFound(PasswordResetError, NotFoundError):
     pass
 
 

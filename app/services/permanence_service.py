@@ -25,12 +25,16 @@ if TYPE_CHECKING:  # string annotations only; imported lazily at runtime
     from app.models.document_deadline import DocumentDeadline
 
 
-class PermanenceError(Exception):
+from app.services.errors import DomainError, NotFoundError
+from app.services import academic_progress, academic_status_service
+
+
+class PermanenceError(DomainError):
     """Error base para operaciones de permanencia."""
     pass
 
 
-class StudentNotFound(PermanenceError):
+class StudentNotFound(PermanenceError, NotFoundError):
     pass
 
 
@@ -282,10 +286,17 @@ def confirm_semester_enrollment(
             f"Solo estudiantes inscritos pueden tener permanencia semestral. "
             f"Estado actual: '{up.admission_status}'"
         )
+    _require_current_trajectory(up)
 
     period = AcademicPeriod.query.get(academic_period_id)
     if not period:
         raise StudentNotFound(f"Periodo academico {academic_period_id} no encontrado")
+
+    # Prórroga de admisión vencida sin entregar: no se reinscribe (decisión 5, 6C).
+    from app.services import admission_debt_service
+    overdue = admission_debt_service.overdue_admission_documents(up)
+    if overdue:
+        raise InvalidStateTransition(admission_debt_service.debt_message(overdue))
 
     # Verificar si ya existe inscripcion para este periodo
     se = SemesterEnrollment.query.filter_by(
@@ -302,12 +313,7 @@ def confirm_semester_enrollment(
 
     if is_new:
         # ── Buscar el último SE del estudiante para validar y cerrarlo ──
-        last_se = (
-            SemesterEnrollment.query
-            .filter_by(user_program_id=user_program_id)
-            .order_by(SemesterEnrollment.semester_number.desc())
-            .first()
-        )
+        last_se = academic_progress.last_enrollment(user_program_id)
 
         # Validación: el periodo destino debe ser el inmediato siguiente al último SE
         # Permite saltar solo si force=True (coordinador confirma explícitamente)
@@ -332,27 +338,18 @@ def confirm_semester_enrollment(
                     )
 
         # ── Cerrar el SE anterior si está activo/pendiente ──
+        # Si avanzó, se asume que cursó (también un 'pending').
         if last_se and last_se.status in ('active', 'pending'):
-            last_se.status = 'completed'
+            academic_progress.set_enrollment_status(last_se, 'completed', closing=True)
             last_se.updated_at = now_local()
 
-        # Calcular el numero de semestre: uno mas que el maximo registrado
-        max_sem = db.session.query(
-            db.func.max(SemesterEnrollment.semester_number)
-        ).filter_by(user_program_id=user_program_id).scalar() or 0
-
-        semester_number = max_sem + 1
-
-        # Validar límite de semestres del programa (duration_semesters + 4)
-        program = up.program
-        if program and program.duration_semesters:
-            max_allowed = program.duration_semesters + 4
-            if semester_number > max_allowed:
-                raise InvalidStateTransition(
-                    f"No se puede confirmar: el estudiante excedería el límite de "
-                    f"{max_allowed} semestres del programa "
-                    f"(duración oficial {program.duration_semesters} + 4 de gracia)."
-                )
+        # Semestre académico = semestres completados + 1 (una baja temporal
+        # no avanza el semestre); el límite se mide en periodos calendario.
+        semester_number = academic_progress.next_semester_number(user_program_id)
+        academic_progress.assert_within_permanence_limit(up, academic_period_id)
+        if up.academic_status == academic_status_service.ON_LEAVE:
+            academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                               actor_id=coordinator_id)
 
         se = SemesterEnrollment(
             user_program_id=user_program_id,
@@ -365,7 +362,7 @@ def confirm_semester_enrollment(
         # Actualizar el semestre actual en user_program
         up.current_semester = semester_number
     else:
-        se.status = 'active'
+        academic_progress.set_enrollment_status(se, 'active')
 
     se.enrollment_confirmed = True
     se.confirmed_by = coordinator_id
@@ -434,7 +431,9 @@ def update_enrollment_status(
     """
     Actualiza el estado de una inscripcion semestral.
 
-    Estados validos: active, completed, on_leave, dropped
+    Estados validos: active, completed, on_leave, dropped. Los cambios siguen
+    `academic_progress.SE_ALLOWED_TRANSITIONS`; 'dropped' es la baja
+    definitiva y se delega en `withdraw()` (motivo = `notes`).
     """
     VALID_STATUSES = {'active', 'completed', 'on_leave', 'dropped'}
     if new_status not in VALID_STATUSES:
@@ -444,8 +443,18 @@ def update_enrollment_status(
     if not se:
         raise StudentNotFound(f"Inscripcion semestral {semester_enrollment_id} no encontrada")
 
+    if new_status == 'dropped':
+        withdraw(se.user_program_id, notes, coordinator_id)
+        return se
+
     old_status = se.status
-    se.status = new_status
+    if not academic_progress.can_change_enrollment_status(old_status, new_status):
+        raise InvalidStateTransition(
+            f"No se puede cambiar la inscripción de "
+            f"'{STATUS_LABELS.get(old_status, old_status)}' a "
+            f"'{STATUS_LABELS.get(new_status, new_status)}'."
+        )
+    academic_progress.set_enrollment_status(se, new_status)
     if notes:
         se.notes = notes
     se.updated_at = now_local()
@@ -455,12 +464,14 @@ def update_enrollment_status(
     program = up.program
     period = se.academic_period
 
-    STATUS_LABELS = {
-        'active': 'Activo',
-        'completed': 'Completado',
-        'on_leave': 'Baja temporal',
-        'dropped': 'Baja definitiva',
-    }
+    # La trayectoria acompaña a la inscripción vigente.
+    if new_status == 'on_leave' and up.academic_status == academic_status_service.ACTIVE:
+        academic_status_service.transition(up, academic_status_service.ON_LEAVE,
+                                           actor_id=coordinator_id)
+    elif (new_status == 'active' and old_status == 'on_leave'
+          and up.academic_status == academic_status_service.ON_LEAVE):
+        academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                           actor_id=coordinator_id)
 
     UserHistoryService.log_action(
         user_id=coordinator_id,
@@ -471,8 +482,25 @@ def update_enrollment_status(
             f'{user.first_name} {user.last_name} en {program.name} '
             f'({period.name}): {STATUS_LABELS.get(old_status, old_status)} → '
             f'{STATUS_LABELS.get(new_status, new_status)}'
-        )
+        ),
+        user_program_id=up.id,
     )
+
+    _notify_enrollment_status(se, new_status)
+
+    db.session.commit()
+    return se
+
+
+STATUS_LABELS = academic_progress.SE_STATUS_LABELS_ES
+
+
+def _notify_enrollment_status(se: SemesterEnrollment, new_status: str) -> None:
+    """Notificación (y correo para bajas) al estudiante por un cambio de estado."""
+    up = se.user_program
+    user = up.user
+    program = up.program
+    period = se.academic_period
 
     # Notificar al estudiante solo en estados finales significativos
     NOTIFY_STATUSES = {
@@ -515,9 +543,6 @@ def update_enrollment_status(
                 import logging as _log
                 _log.error(f"Error queueing email for enrollment_status_changed: {e}")
 
-    db.session.commit()
-    return se
-
 
 def reinstate_from_leave(
     user_program_id: int,
@@ -529,8 +554,8 @@ def reinstate_from_leave(
     """
     Reincorpora a un estudiante que estaba en baja temporal.
 
-    Crea un nuevo SemesterEnrollment activo+confirmado en el periodo dado,
-    incrementando el semester_number a max+1. El SE 'on_leave' previo
+    Crea un nuevo SemesterEnrollment activo+confirmado en el periodo dado con
+    el mismo semestre académico que dejó (completados + 1). El SE 'on_leave' previo
     permanece sin cambios para preservar el historial.
 
     Reglas:
@@ -550,12 +575,9 @@ def reinstate_from_leave(
     if not period:
         raise StudentNotFound(f"Periodo académico {academic_period_id} no encontrado")
 
-    last_se = (
-        SemesterEnrollment.query
-        .filter_by(user_program_id=user_program_id)
-        .order_by(SemesterEnrollment.semester_number.desc())
-        .first()
-    )
+    _require_current_trajectory(up)
+
+    last_se = academic_progress.last_enrollment(user_program_id)
     if not last_se or last_se.status != 'on_leave':
         raise InvalidStateTransition(
             "El estudiante no está en baja temporal — no aplica reincorporación."
@@ -569,11 +591,13 @@ def reinstate_from_leave(
         raise InvalidStateTransition(
             f"Ya existe inscripción para el periodo {period.name}."
         )
+    academic_progress.assert_within_permanence_limit(up, academic_period_id)
 
     new_se = SemesterEnrollment(
         user_program_id=user_program_id,
         academic_period_id=academic_period_id,
-        semester_number=last_se.semester_number + 1,
+        # Repite el semestre que dejó: la baja temporal no lo avanza.
+        semester_number=academic_progress.next_semester_number(user_program_id),
         status='active',
         enrollment_confirmed=True,
         confirmed_by=coordinator_id,
@@ -583,6 +607,9 @@ def reinstate_from_leave(
     )
     db.session.add(new_se)
     up.current_semester = new_se.semester_number
+    if up.academic_status == academic_status_service.ON_LEAVE:
+        academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                           actor_id=coordinator_id)
 
     user = up.user
     program = up.program
@@ -628,6 +655,194 @@ def reinstate_from_leave(
 
     return new_se
 
+
+
+# ── Trayectoria académica: baja definitiva, egreso y su reversión ─────────────
+#
+# El estado vive en `UserProgram.academic_status` y sólo lo cambia
+# `academic_status_service.transition()`. Aquí se orquesta: fila bloqueada,
+# inscripción semestral vigente, notificación, commit y evento en tiempo real.
+
+def _require_current_trajectory(up: UserProgram) -> None:
+    """Rechaza inscribir/reincorporar a quien ya egresó o tiene baja definitiva."""
+    if up.academic_status in academic_status_service.CLOSED_STATUSES:
+        label = academic_status_service.STATUS_LABELS_ES[up.academic_status]
+        raise InvalidStateTransition(
+            f"El estudiante tiene estado académico '{label}': no puede inscribirse a otro semestre."
+        )
+
+
+def _locked_user_program(user_program_id: int) -> UserProgram:
+    """
+    `SELECT ... FOR UPDATE` that also refreshes the row: a double submit
+    waits on the lock and must then see the status the first one wrote.
+    """
+    up = (
+        UserProgram.query
+        .filter_by(id=user_program_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+    return up
+
+
+def _emit_trajectory(up: UserProgram, action: str) -> None:
+    from app.sockets.emitters import emit_user_and_coordinators
+    emit_user_and_coordinators(
+        'permanence:status_changed',
+        {
+            'user_id': public_id_service.user_uuid(up.user_id),
+            'user_program_id': up.id,
+            'program_id': up.program_id,
+            'action': action,
+            'academic_status': up.academic_status,
+        },
+        user_id=up.user_id,
+        program_id=up.program_id,
+    )
+
+
+def withdraw(user_program_id: int, reason: str, actor_id: int) -> UserProgram:
+    """
+    Baja definitiva: la inscripción vigente pasa a 'dropped' y el programa
+    queda cerrado (`academic_status='withdrawn'`). El motivo es obligatorio.
+    """
+    up = _locked_user_program(user_program_id)
+    academic_status_service.transition(up, academic_status_service.WITHDRAWN,
+                                       actor_id=actor_id, reason=reason)
+
+    se = academic_progress.last_enrollment(up.id)
+    if se is not None and academic_progress.can_change_enrollment_status(se.status, 'dropped'):
+        academic_progress.set_enrollment_status(se, 'dropped')
+        se.notes = up.withdrawal_reason
+        se.updated_at = now_local()
+        _notify_enrollment_status(se, 'dropped')
+    else:
+        NotificationService.create_notification(
+            user_id=up.user_id,
+            notification_type='enrollment_status_changed',
+            title='Baja definitiva registrada',
+            message=(f'Se ha registrado tu baja definitiva en {up.program.name}. '
+                     f'Contacta al coordinador si crees que esto es un error.'),
+            priority='high',
+            action_url='/user/dashboard',
+        )
+
+    db.session.commit()
+    _emit_trajectory(up, 'withdrawn')
+    return up
+
+
+def revert_withdrawal(user_program_id: int, reason: str, actor_id: int) -> UserProgram:
+    """
+    Revierte una baja definitiva capturada por error (sólo postgraduate_admin:
+    lo garantiza el permiso de la ruta). La inscripción 'dropped' se conserva
+    como historia; el estudiante se reinscribe con el flujo normal.
+    """
+    up = _locked_user_program(user_program_id)
+    academic_status_service.transition(up, academic_status_service.ACTIVE,
+                                       actor_id=actor_id, reason=reason, allow_revert=True)
+    NotificationService.create_notification(
+        user_id=up.user_id,
+        notification_type='enrollment_status_changed',
+        title='Baja definitiva revertida',
+        message=f'Tu baja definitiva en {up.program.name} fue revertida. Ya puedes reinscribirte.',
+        priority='high',
+        action_url='/user/dashboard',
+    )
+    db.session.commit()
+    _emit_trajectory(up, 'withdrawal_reverted')
+    return up
+
+
+def register_graduation(user_program_id: int, on_date, actor_id: int) -> UserProgram:
+    """Registra el egreso con su fecha. La inscripción vigente activa se cierra como 'completed'."""
+    if on_date is not None and on_date > now_local().date():
+        raise InvalidStateTransition('La fecha de egreso no puede ser futura.')
+    up = _locked_user_program(user_program_id)
+    academic_status_service.transition(up, academic_status_service.GRADUATED,
+                                       actor_id=actor_id, on_date=on_date)
+
+    se = academic_progress.last_enrollment(up.id)
+    if se is not None and se.status == 'active':
+        academic_progress.set_enrollment_status(se, 'completed')
+        se.updated_at = now_local()
+
+    NotificationService.create_notification(
+        user_id=up.user_id,
+        notification_type='enrollment_status_changed',
+        title='Egreso registrado',
+        message=f'Se registró tu egreso de {up.program.name}. ¡Felicidades!',
+        priority='high',
+        action_url='/user/dashboard',
+    )
+    db.session.commit()
+    _emit_trajectory(up, 'graduated')
+    return up
+
+
+def graduation_suggested(up: UserProgram) -> bool:
+    """
+    Activo y con el plan cubierto: el kardex completo cuando su versión del plan
+    tiene materias; si no, los semestres del plan completados (o cursando el último).
+    """
+    if up.academic_status != academic_status_service.ACTIVE:
+        return False
+    if up.curriculum_plan is not None and up.curriculum_plan.subjects:
+        from app.services import kardex_service
+        return kardex_service.kardex(up.id)['complete']
+    duration = up.program.duration_semesters if up.program else None
+    if not duration:
+        return False
+    last = academic_progress.last_enrollment(up.id)
+    return academic_progress.next_semester_number(up.id, closing=last) > duration
+
+
+def get_trajectory(user_program_id: int) -> dict:
+    """Datos de la pestaña 'Trayectoria' del expediente."""
+    up = db.session.get(UserProgram, user_program_id)
+    if not up:
+        raise StudentNotFound(f"UserProgram {user_program_id} no encontrado")
+
+    enrollments = (
+        academic_progress.chronological_enrollments(up.id)
+        .order_by(AcademicPeriod.start_date.asc(), SemesterEnrollment.id.asc())
+        .all()
+    )
+    last = enrollments[-1] if enrollments else None
+    duration = up.program.duration_semesters if up.program else None
+    status = up.academic_status
+    return {
+        'user_program': up,
+        'program': up.program,
+        'academic_status': status,
+        'academic_status_label': academic_status_service.STATUS_LABELS_ES.get(status, status),
+        'graduated_at': up.graduated_at,
+        'withdrawn_at': up.withdrawn_at,
+        'withdrawal_reason': up.withdrawal_reason,
+        'current_semester': last.semester_number if last else None,
+        'completed_semesters': academic_progress.completed_semesters(up.id),
+        'duration_semesters': duration,
+        'periods_used': (academic_progress.regular_periods_elapsed(up.id, last.academic_period_id)
+                         if last else 0),
+        'permanence_limit': academic_progress.permanence_limit(up),
+        'graduation_suggested': graduation_suggested(up),
+        'can_withdraw': status in academic_status_service.CURRENT_STATUSES,
+        'can_graduate': status == academic_status_service.ACTIVE,
+        'can_revert_withdrawal': status == academic_status_service.WITHDRAWN,
+        'enrollments': [
+            {
+                'semester_number': se.semester_number,
+                'period_name': se.academic_period.name if se.academic_period else None,
+                'status': se.status,
+                'status_label': STATUS_LABELS.get(se.status, se.status),
+            }
+            for se in enrollments
+        ],
+    }
 
 def get_enrollment_overview(program_id: int) -> dict:
     """
@@ -1153,6 +1368,7 @@ def submit_permanence_document(
         uploaded_by=student_id,
         uploaded_by_role='student',
         deadline_at=dl.closes_at,
+        user_program_id=up.id,
     )
     sub.document_deadline_id = dl.id
     sub.academic_period_id = dl.academic_period_id
@@ -1264,98 +1480,37 @@ def review_permanence_document(
     status: str,
     notes: str = None,
 ) -> dict:
-    """El coordinador aprueba o rechaza un documento de permanencia."""
-    from app.models.submission import Submission
+    """
+    El coordinador aprueba o rechaza un documento de permanencia.
+
+    Phase 6D: thin wrapper over the review engine (`permanence_doc` kind, or
+    the submission's own kind). The route already enforced
+    `permanence.api.review_doc` and the program scope; the engine checks the
+    scope again and refuses an already decided document (changing a decision
+    needs a reason and goes through `review_engine.decide`).
+    """
+    from app.services import review_engine
+    from app.services.review_engine import submission_kinds
 
     if status not in ('approved', 'rejected'):
         raise ValueError("status debe ser 'approved' o 'rejected'")
 
-    sub = Submission.query.get(submission_id)
+    sub = submission_kinds.lock_submission(submission_id)
     if not sub:
         raise StudentNotFound(f"Submission {submission_id} no encontrada")
 
-    if sub.status != 'review':
-        raise InvalidStateTransition(
-            f"Solo submissions en estado 'review' pueden revisarse. "
-            f"Estado actual: '{sub.status}'"
-        )
-
-    sub.status = status
-    sub.reviewer_id = coordinator_id
-    sub.review_date = now_local()
-    sub.reviewer_comment = notes
-
-    dl_label = sub.document_deadline.label if sub.document_deadline else sub.archive.name
-
-    if status == 'approved':
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='permanence_doc_approved',
-            title=f'Documento aprobado — {dl_label}',
-            message=f'Tu documento "{dl_label}" fue aprobado para el periodo actual.',
-            priority='medium',
-            action_url='/user/dashboard',
-        )
-    else:
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='permanence_doc_rejected',
-            title=f'Documento rechazado — {dl_label}',
-            message=(
-                f'Tu documento "{dl_label}" fue rechazado. '
-                f'Motivo: {notes or "Sin especificar"}. '
-                'Vuelve a subirlo cuando la ventana esté abierta.'
-            ),
-            priority='high',
-            action_url='/user/dashboard',
-        )
-        # Enviar email para documentos rechazados
-        try:
-            from app.services.email_service import EmailService
-            from app.services.email_templates import EmailTemplates
-            from app.utils.urls import external_url
-            user = User.query.get(sub.user_id)
-            if user:
-                # Pinned to APP_BASE_URL, never to the request host.
-                dashboard_url = external_url('pages_user.dashboard')
-                subject, html = EmailTemplates.permanence_doc_rejected(
-                    user_name=f"{user.first_name} {user.last_name}",
-                    document_label=dl_label,
-                    reason=notes or "Sin especificar",
-                    dashboard_url=dashboard_url,
-                )
-                EmailService.queue_email(sub.user_id, subject, html)
-        except Exception as e:
-            logging.error(f"Error queueing email for permanence_doc_rejected: {e}")
-
-    UserHistoryService.log_action(
-        user_id=sub.user_id,
-        admin_id=coordinator_id,
-        action=f'permanence_document_{status}',
-        details=f'{"Aprobó" if status == "approved" else "Rechazó"} "{dl_label}". {notes or ""}',
-    )
+    kind = (submission_kinds.kind_for_submission(sub)
+            or review_engine.get_kind('permanence_doc'))
+    actor = db.session.get(User, coordinator_id)
     try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
-
-    # Notificar al estudiante + coordinadores del programa en tiempo real
-    from app.sockets.emitters import emit_user_and_coordinators
-    program_id = sub.program_step.program_id if sub.program_step else None
-    emit_user_and_coordinators(
-        'permanence:status_changed',
-        {
-            'user_id': public_id_service.user_uuid(sub.user_id),
-            'submission_id': public_id_service.submission_uuid(sub.id),
-            'program_id': program_id,
-            'action': 'doc_reviewed',
-            'status': status,
-            'document_label': dl_label,
-        },
-        user_id=sub.user_id,
-        program_id=program_id,
-    )
+        review_engine.decide_item(
+            actor, kind, sub, 'approve' if status == 'approved' else 'reject',
+            comment=notes or '',
+        )
+    except review_engine.ReviewNotFound:
+        raise StudentNotFound(f"Submission {submission_id} no encontrada")
+    except review_engine.ReviewConflict as exc:
+        raise InvalidStateTransition(exc.message)
 
     return sub.to_dict()
 
@@ -1459,6 +1614,7 @@ def submit_leave_request(
         semester=up.current_semester,
         uploaded_by=student_id,
         uploaded_by_role='student',
+        user_program_id=up.id,
     )
     sub.academic_period_id = active_period.id
     db.session.add(sub)
@@ -1583,116 +1739,30 @@ def process_leave_request(
     """
     El coordinador aprueba o rechaza una solicitud de baja temporal.
     Si aprueba: el SemesterEnrollment activo pasa a 'on_leave'.
-    """
-    from app.models.submission import Submission
-    from app.models.program_step import ProgramStep
 
-    sub = Submission.query.get(submission_id)
+    Phase 6D: thin wrapper over the review engine (`leave_request` kind),
+    which keeps the effects, notices, e-mail, history and socket event.
+    """
+    from app.services import review_engine
+    from app.services.review_engine import submission_kinds
+
+    sub = submission_kinds.lock_submission(submission_id)
     if not sub:
         raise StudentNotFound(f"Submission {submission_id} no encontrada")
 
     if not sub.archive or sub.archive.archive_key != 'leave_request':
         raise InvalidStateTransition("Este documento no es una solicitud de baja temporal")
 
-    if sub.status != 'review':
-        raise InvalidStateTransition(
-            f"Solo solicitudes en estado 'review' pueden procesarse. Estado: '{sub.status}'"
-        )
-
-    sub.status = 'approved' if approve else 'rejected'
-    sub.reviewer_id = coordinator_id
-    sub.review_date = now_local()
-    sub.reviewer_comment = notes
-
-    if approve:
-        # Buscar el SemesterEnrollment activo del estudiante en el programa correcto
-        program_step = ProgramStep.query.get(sub.program_step_id)
-        if program_step:
-            up = UserProgram.query.filter_by(
-                user_id=sub.user_id,
-                program_id=program_step.program_id,
-            ).first()
-            if up:
-                active_se = SemesterEnrollment.query.filter_by(
-                    user_program_id=up.id,
-                    status='active',
-                ).first()
-                if active_se:
-                    active_se.status = 'on_leave'
-
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='leave_request_approved',
-            title='Baja temporal aprobada',
-            message=(
-                'Tu solicitud de baja temporal fue aprobada. '
-                'Tu estado se actualizó a baja temporal. '
-                'Para reincorporarte, contacta al coordinador.'
-            ),
-            priority='high',
-            action_url='/user/dashboard',
-        )
-    else:
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='leave_request_rejected',
-            title='Baja temporal rechazada',
-            message=(
-                f'Tu solicitud de baja temporal fue rechazada. '
-                f'Motivo: {notes or "Sin especificar"}.'
-            ),
-            priority='high',
-            action_url='/user/dashboard',
-        )
-
-    UserHistoryService.log_action(
-        user_id=sub.user_id,
-        admin_id=coordinator_id,
-        action='leave_request_approved' if approve else 'leave_request_rejected',
-        details=f'{"Aprobó" if approve else "Rechazó"} solicitud de baja temporal. {notes or ""}',
-    )
-
-    # Enviar email al estudiante
+    actor = db.session.get(User, coordinator_id)
     try:
-        from app.services.email_service import EmailService
-        from app.services.email_templates import EmailTemplates
-        from app.utils.urls import external_url
-        user = User.query.get(sub.user_id)
-        if user:
-            # Obtener nombre del programa
-            up_for_email = UserProgram.query.filter_by(user_id=sub.user_id).first()
-            program_name = up_for_email.program.name if up_for_email and up_for_email.program else 'tu programa'
-            # Pinned to APP_BASE_URL, never to the request host.
-            dashboard_url = external_url('pages_user.dashboard')
-            subject, html = EmailTemplates.leave_request_result(
-                user_name=f"{user.first_name} {user.last_name}",
-                program_name=program_name,
-                approved=approve,
-                reason=notes or "",
-                dashboard_url=dashboard_url,
-            )
-            EmailService.queue_email(sub.user_id, subject, html)
-    except Exception as e:
-        logging.error(f"Error queueing email for leave_request_result: {e}")
-
-    db.session.commit()
-
-    # Notificar al estudiante + coordinadores del programa en tiempo real
-    from app.sockets.emitters import emit_user_and_coordinators
-    program_id = sub.program_step.program_id if sub.program_step else None
-    emit_user_and_coordinators(
-        'permanence:status_changed',
-        {
-            'user_id': public_id_service.user_uuid(sub.user_id),
-            'submission_id': public_id_service.submission_uuid(sub.id),
-            'program_id': program_id,
-            'action': 'leave_decided',
-            'approved': bool(approve),
-            'new_enrollment_status': 'on_leave' if approve else None,
-        },
-        user_id=sub.user_id,
-        program_id=program_id,
-    )
+        review_engine.decide_item(
+            actor, 'leave_request', sub, 'approve' if approve else 'reject',
+            comment=notes or '',
+        )
+    except review_engine.ReviewNotFound:
+        raise StudentNotFound(f"Submission {submission_id} no encontrada")
+    except review_engine.ReviewConflict as exc:
+        raise InvalidStateTransition(exc.message)
 
     return {
         'submission': sub.to_dict(),
@@ -1955,3 +2025,145 @@ def get_student_permanence(user_program_id: int) -> dict:
             for se in history
         ],
     }
+
+
+# ── "Mi inscripción" (vista del propio estudiante) ────────────────────────────
+
+class NoActivePeriod(PermanenceError, NotFoundError):
+    """No hay periodo académico activo."""
+    code = 'NO_ACTIVE_PERIOD'
+
+
+class NoActiveEnrollment(PermanenceError, NotFoundError):
+    """El estudiante no tiene un UserProgram con estado 'enrolled'."""
+
+
+def _enrolled_user_program(user_id: int):
+    return (
+        UserProgram.query
+        .filter_by(user_id=user_id, admission_status='enrolled')
+        .first()
+    )
+
+
+def get_my_enrollment(user_id: int) -> dict:
+    """Inscripción semestral del periodo activo del propio estudiante.
+
+    Raises NoActivePeriod / NoActiveEnrollment (both 404).
+    """
+    from app.services.payment_reference_service import PaymentReferenceService
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        raise NoActivePeriod("No hay periodo académico activo")
+
+    # El usuario puede estar en varios programas — se usa el 'enrolled'.
+    up = _enrolled_user_program(user_id)
+    if not up:
+        raise NoActiveEnrollment("No tienes una inscripción activa")
+
+    se = SemesterEnrollment.query.filter_by(
+        user_program_id=up.id,
+        academic_period_id=active_period.id,
+    ).first()
+
+    payment_ref = PaymentReferenceService.generate(up.id, active_period.id)
+
+    return {
+        "user_program": up.to_dict(),
+        "program": {
+            "id": up.program.id,
+            "name": up.program.name,
+        } if up.program else None,
+        "current_period": active_period.to_dict(),
+        "enrollment": se.to_dict() if se else None,
+        "payment_reference": payment_ref,
+    }
+
+
+def upload_my_payment_proof(user, file) -> dict:
+    """El estudiante sube su comprobante de pago semestral (PDF).
+
+    Auto-detecta el SemesterEnrollment del periodo activo. NO marca
+    enrollment_confirmed (eso lo hace el coordinador). Notifica al coordinador
+    del programa. Devuelve el SemesterEnrollment serializado.
+
+    Raises PermanenceError / NotFoundError subclasses with the codes the UI
+    knows: MISSING_FILE, INVALID_FILE, NO_ACTIVE_PERIOD, NOT_FOUND,
+    ALREADY_CONFIRMED.
+    """
+    from app.utils.files import save_user_doc
+
+    if not file or not file.filename:
+        raise PermanenceError("No se recibió ningún archivo", code='MISSING_FILE')
+
+    if not file.filename.lower().endswith('.pdf'):
+        raise PermanenceError("El comprobante debe ser un archivo PDF", code='INVALID_FILE')
+
+    active_period = AcademicPeriod.get_active_period()
+    if not active_period:
+        raise NoActivePeriod("No hay periodo académico activo")
+
+    up = _enrolled_user_program(user.id)
+    if not up:
+        raise NoActiveEnrollment("No tienes una inscripción activa")
+
+    try:
+        se = SemesterEnrollment.query.filter_by(
+            user_program_id=up.id,
+            academic_period_id=active_period.id,
+        ).first()
+
+        if not se:
+            raise StudentNotFound("No tienes inscripción semestral en el periodo activo")
+
+        if se.enrollment_confirmed:
+            err = PermanenceError(
+                "Tu inscripción ya fue confirmada por el coordinador", code='ALREADY_CONFIRMED')
+            err.level = 'info'
+            raise err
+
+        file_path = save_user_doc(file, user.id, 'permanence', 'payment_proof')
+        se.payment_proof_path = file_path
+        se.updated_at = now_local()
+
+        UserHistoryService.log_action(
+            user_id=user.id,
+            admin_id=user.id,
+            action='payment_proof_uploaded',
+            details=(
+                f'Subió comprobante de pago para semestre {se.semester_number} '
+                f'({active_period.name}) en {up.program.name if up.program else up.program_id}'
+            ),
+        )
+
+        # Notificar al coordinador del programa (best effort).
+        try:
+            if up.program and up.program.coordinator_id:
+                student_name = f"{user.first_name} {user.last_name}"
+                NotificationService.create_notification(
+                    user_id=up.program.coordinator_id,
+                    notification_type='payment_proof_uploaded',
+                    title='Comprobante de pago recibido',
+                    message=(
+                        f'{student_name} ha subido su comprobante de pago '
+                        f'para el semestre {se.semester_number} ({active_period.name}) '
+                        f'en {up.program.name}.'
+                    ),
+                    priority='normal',
+                    action_url='/coordinator/permanence',
+                    data={
+                        'student_id': user.id,
+                        'program_id': up.program_id,
+                        'semester_enrollment_id': se.id,
+                    },
+                )
+        except Exception as notify_err:
+            logging.getLogger(__name__).error(
+                f"Error notificando coordinador de comprobante: {notify_err}")
+
+        db.session.commit()
+        return se.to_dict()
+    except Exception:
+        db.session.rollback()
+        raise

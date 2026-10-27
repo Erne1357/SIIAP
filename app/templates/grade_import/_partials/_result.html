@@ -1,0 +1,14 @@
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="h5">Importación terminada</h2>
+    <div class="grade-import__counters">
+      <div class="stat-card stat-card--success"><p class="stat-card__value">{{ summary.valid_count }}</p><p class="stat-card__label">Importadas</p></div>
+      <div class="stat-card stat-card--danger"><p class="stat-card__value">{{ summary.error_count }}</p><p class="stat-card__label">Rechazadas</p></div>
+    </div>
+    {% if summary.flagged_students %}
+    <h3 class="h6">Alumnos con especial reprobado</h3>
+    <ul>{% for name in summary.flagged_students %}<li>{{ name }}</li>{% endfor %}</ul>
+    <p class="small">Se avisó al coordinador; revisa si procede la baja.</p>
+    {% endif %}
+  </div>
+</div>

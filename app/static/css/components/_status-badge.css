@@ -94,6 +94,13 @@
   border-color: var(--status-review-bd);
 }
 
+/* Aviso de atención (p. ej. "Más de 7 días"): el texto siempre acompaña al color. */
+.status-badge--warning {
+  background: var(--color-warning-100);
+  color: var(--color-warning-700);
+  border-color: var(--border-warning-subtle);
+}
+
 /* Alias semántico de accepted, usado por los flujos de documentos. */
 .status-badge--approved {
   background: var(--status-accepted-bg);

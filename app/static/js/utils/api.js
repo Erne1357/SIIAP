@@ -1,7 +1,10 @@
 // app/static/js/utils/api.js
 
 /**
- * Utilitarios para hacer peticiones API de forma consistente
+ * Compatibility wrapper (window.apiClient) over SIIAP.api (utils/http.js).
+ * Resolves a Response-like object: { ok, status, json() } so existing callers
+ * keep reading `res.ok` / `await res.json()`. New code should call SIIAP.api.
+ * Flash messages and the login redirect stay with the caller, as before.
  */
 
 class ApiClient {
@@ -9,30 +12,18 @@ class ApiClient {
         this.baseUrl = `${window.location.protocol}//${window.location.host}`;
     }
 
-    /**
-     * Construye una URL absoluta desde una ruta relativa
-     * @param {string} path - Ruta relativa (ej: '/api/v1/notifications')
-     * @returns {string} URL absoluta
-     */
+    /** Builds an absolute URL from a relative path (e.g. '/api/v1/notifications'). */
     url(path) {
-        // Remover slash inicial si existe para evitar doble slash
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
         return `${this.baseUrl}/${cleanPath}`;
     }
 
-    /**
-     * Obtiene el token CSRF actual
-     * @returns {string} Token CSRF
-     */
+    /** Current CSRF token. */
     getCsrf() {
-        const el = document.querySelector('meta[name="csrf-token"]');
-        return el ? el.getAttribute('content') : '';
+        return window.SIIAP.api.csrfToken();
     }
 
-    /**
-     * Headers por defecto para peticiones
-     * @returns {Object} Headers
-     */
+    /** Default headers (kept for old callers). */
     getDefaultHeaders() {
         return {
             'X-CSRFToken': this.getCsrf(),
@@ -40,102 +31,27 @@ class ApiClient {
         };
     }
 
-    /**
-     * Realiza una petición GET
-     * @param {string} path - Ruta de la API
-     * @param {Object} options - Opciones adicionales de fetch
-     * @returns {Promise<Response>}
-     */
-    async get(path, options = {}) {
-        return fetch(this.url(path), {
-            method: 'GET',
-            credentials: 'same-origin',
-            headers: {
-                ...this.getDefaultHeaders(),
-                ...options.headers
-            },
-            ...options
-        });
+    async _send(method, path, data, options = {}) {
+        const opts = { flash: false, onUnauthorized: false, headers: options.headers, signal: options.signal };
+        if (data instanceof FormData) opts.body = data;
+        else if (data !== null && data !== undefined) opts.json = data;
+        const r = await window.SIIAP.api.request(method, this.url(path), opts);
+        return {
+            ok: r.ok,
+            status: r.status,
+            json: async () => (r.body === null ? {} : r.body)
+        };
     }
 
-    /**
-     * Realiza una petición POST
-     * @param {string} path - Ruta de la API
-     * @param {Object} data - Datos a enviar
-     * @param {Object} options - Opciones adicionales
-     * @returns {Promise<Response>}
-     */
-    async post(path, data = null, options = {}) {
-        const headers = { ...this.getDefaultHeaders() };
-        let body = data;
-
-        if (data && !(data instanceof FormData)) {
-            headers['Content-Type'] = 'application/json';
-            body = JSON.stringify(data);
-        }
-
-        return fetch(this.url(path), {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                ...headers,
-                ...options.headers
-            },
-            body,
-            ...options
-        });
-    }
-
-    /**
-     * Realiza una petición PATCH
-     * @param {string} path - Ruta de la API
-     * @param {Object} data - Datos a enviar
-     * @param {Object} options - Opciones adicionales
-     * @returns {Promise<Response>}
-     */
-    async patch(path, data = null, options = {}) {
-        const headers = { ...this.getDefaultHeaders() };
-        let body = data;
-
-        if (data && !(data instanceof FormData)) {
-            headers['Content-Type'] = 'application/json';
-            body = JSON.stringify(data);
-        }
-
-        return fetch(this.url(path), {
-            method: 'PATCH',
-            credentials: 'same-origin',
-            headers: {
-                ...headers,
-                ...options.headers
-            },
-            body,
-            ...options
-        });
-    }
-
-    /**
-     * Realiza una petición DELETE
-     * @param {string} path - Ruta de la API
-     * @param {Object} options - Opciones adicionales
-     * @returns {Promise<Response>}
-     */
-    async delete(path, options = {}) {
-        return fetch(this.url(path), {
-            method: 'DELETE',
-            credentials: 'same-origin',
-            headers: {
-                ...this.getDefaultHeaders(),
-                ...options.headers
-            },
-            ...options
-        });
-    }
+    get(path, options = {}) { return this._send('GET', path, null, options); }
+    post(path, data = null, options = {}) { return this._send('POST', path, data, options); }
+    patch(path, data = null, options = {}) { return this._send('PATCH', path, data, options); }
+    delete(path, options = {}) { return this._send('DELETE', path, null, options); }
 }
 
-// Instancia global
+// Global instance
 window.apiClient = new ApiClient();
 
-// Para compatibilidad con código existente, exportar también funciones individuales
+// Legacy helpers
 window.getApiUrl = (path) => window.apiClient.url(path);
 window.getCsrfToken = () => window.apiClient.getCsrf();

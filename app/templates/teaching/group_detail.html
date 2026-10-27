@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% set breadcrumb_current = group.subject.name ~ ' · ' ~ group.group_code %}
+
+{% block title %}{{ group.subject.name }} · Grupo {{ group.group_code }}{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/coordinator/page-shell.css') }}?v={{ static_version }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/teaching/acta.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid coord-page">
+  <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3 coord-page__header">
+    <a href="{{ url_for('pages_teaching.my_groups', period=group.academic_period_id) }}"
+       class="btn btn-outline-secondary btn-sm tap-target">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver
+    </a>
+    <div class="flex-grow-1">
+      <h1 class="coord-page__title">{{ group.subject.name }} · Grupo {{ group.group_code }}</h1>
+      <p class="coord-page__subtitle small">{{ group.academic_period.name }}</p>
+    </div>
+    {% if group.status == 'closed' and has_perm('grades.page.export_acta') %}
+      <a class="btn btn-outline-primary btn-sm tap-target"
+         href="{{ url_for('pages_academic_documents.acta_pdf', group_uuid=group.uuid) }}">
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Descargar acta (PDF)
+      </a>
+    {% endif %}
+  </div>
+
+  <dl class="row mb-3">
+    <dt class="col-sm-3">Inscritos</dt>
+    <dd class="col-sm-9">{{ enrolled }} de {{ group.capacity }}</dd>
+    <dt class="col-sm-3">Horario</dt>
+    <dd class="col-sm-9">{{ group.schedule or '—' }}</dd>
+    <dt class="col-sm-3">Lugar</dt>
+    <dd class="col-sm-9">{{ group.location or '—' }}</dd>
+  </dl>
+
+  <div class="card shadow-sm">
+    <div class="card-body" id="actaRoot">
+      {% include "teaching/_partials/_acta.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/teaching/acta.js') }}?v={{ static_version }}"></script>
+{% endblock %}

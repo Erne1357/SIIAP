@@ -22,7 +22,7 @@
     // =================================================================
     async function loadKpis() {
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/admin-stats`);
+            const { data } = await C.apiData(`${C.API}/events/admin-stats`);
             el('kpiToday').textContent = data.today ?? 0;
             el('kpiUpcoming').textContent = data.upcoming_7d ?? 0;
             el('kpiActive').textContent = data.active ?? 0;
@@ -123,7 +123,7 @@
         try {
             const qs = buildFilterQuery();
             const url = qs ? `${C.API}/events?${qs}` : `${C.API}/events`;
-            const { data } = await C.apiRequest(url);
+            const { data } = await C.apiData(url);
             currentEvents = data.items || [];
             renderEventsTable();
         } catch (err) {
@@ -371,7 +371,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/conclude`, { method: 'POST' });
+            await C.apiData(`${C.API}/events/${eventId}/conclude`, { method: 'POST' });
             C.flash('Evento concluido', 'success');
             await Promise.all([loadEvents(), loadKpis()]);
         } catch (err) {
@@ -389,7 +389,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/archive`, { method: 'POST' });
+            await C.apiData(`${C.API}/events/${eventId}/archive`, { method: 'POST' });
             C.flash('Evento archivado', 'success');
             await Promise.all([loadEvents(), loadKpis()]);
         } catch (err) {
@@ -404,7 +404,7 @@
         });
         if (!ok) return;
         try {
-            await C.apiRequest(`${C.API}/events/${eventId}/unarchive`, {
+            await C.apiData(`${C.API}/events/${eventId}/unarchive`, {
                 method: 'POST', body: JSON.stringify({ new_status: 'published' })
             });
             C.flash('Evento reactivado', 'success');
@@ -433,7 +433,7 @@
         const eventId = parseInt(el('deleteEventId').value);
         if (!eventId) return;
         try {
-            const { data } = await C.apiRequest(`${C.API}/events/${eventId}`, { method: 'DELETE' });
+            const { data } = await C.apiData(`${C.API}/events/${eventId}`, { method: 'DELETE' });
             if (data.requires_force) {
                 const confirmed = await siiapConfirm({
                     type: 'danger', title: 'Eliminar evento con citas',
@@ -441,7 +441,7 @@
                     confirmLabel: 'Sí, eliminar'
                 });
                 if (!confirmed) return;
-                await C.apiRequest(`${C.API}/events/${eventId}?force=true`, { method: 'DELETE' });
+                await C.apiData(`${C.API}/events/${eventId}?force=true`, { method: 'DELETE' });
             }
             C.flash('Evento eliminado', 'success');
             modalInstance('confirmDeleteEventModal')?.hide();
@@ -627,7 +627,7 @@
         }
 
         try {
-            const { data } = await C.apiRequest(`${C.API}/events`, {
+            const { data } = await C.apiData(`${C.API}/events`, {
                 method: 'POST', body: JSON.stringify(payload)
             });
             C.flash('Evento creado exitosamente', 'success');
