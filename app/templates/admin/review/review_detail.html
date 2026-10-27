@@ -19,10 +19,17 @@
 {% set phase_labels = {'admission': 'Admisión', 'permanence': 'Permanencia', 'conclusion': 'Conclusión'} %}
 
 <div class="container py-4 review-page">
+  {% if has_perm('review.page.inbox') %}
+  <a href="{{ url_for('pages_review_inbox.index', kind=phase ~ '_doc' if phase in ('admission', 'permanence', 'conclusion') else none) }}"
+     class="btn btn-link ps-0 mb-2">
+    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver a Por revisar
+  </a>
+  {% else %}
   <a href="{{ url_for('pages_admin.pages_review.submissions', phase=phase) }}"
      class="btn btn-link ps-0 mb-2">
     <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Volver al listado
   </a>
+  {% endif %}
 
   <header class="review-header mb-3">
     <h1 class="h4 mb-1">{{ sub.archive.name }}</h1>

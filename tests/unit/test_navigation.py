@@ -21,7 +21,7 @@ COORDINATOR = (
     'archives.api.list', 'admin_users.page.view', 'admin_emails.api.manage',
     'admin_templates.page.view', 'student_bulk.page.view',
     'curriculum.page.manage', 'teaching.page.my_groups', 'grades.page.import_history',
-    'conclusion.page.my_theses',
+    'conclusion.page.my_theses', 'review.page.inbox',
 )
 POSTGRAD = COORDINATOR + (
     'grades.page.decide_correction',
@@ -138,7 +138,7 @@ def test_coordinator_sees_staff_groups_but_not_global_settings(app):
         'inicio', 'admision', 'permanencia', 'eventos', 'expedientes', 'docencia',
         'configuracion']
     links = _links(nav)
-    assert {'curriculum', 'grade-import', 'my-groups', 'my-theses', 'review', 'deliberation', 'acceptance', 'permanence', 'events-admin',
+    assert {'curriculum', 'grade-import', 'my-groups', 'my-theses', 'review-inbox', 'deliberation', 'acceptance', 'permanence', 'events-admin',
             'students', 'bulk-import', 'files', 'users', 'emails', 'templates',
             'program-config'} <= links
     assert not links & {'periods', 'celery', 'permissions', 'cleanup', 'programs-config',
@@ -158,7 +158,7 @@ def test_postgraduate_admin_sees_everything_and_no_coordinator_program_link(app)
     nav = _nav(app, _user('postgraduate_admin', POSTGRAD))
     links = _links(nav)
     every_key = {i.key for _, i in ALL_ITEMS}
-    assert links == every_key - {'my-admission', 'program-config', 'my-kardex', 'my-conclusion'}
+    assert links == every_key - {'my-admission', 'program-config', 'my-kardex', 'my-conclusion', 'review'}
 
 
 def test_user_without_permissions_gets_only_the_open_links(app):
@@ -178,9 +178,8 @@ def _active(nav):
     ('pages_user.profile', ('inicio', 'profile')),
     ('program.list_programs', ('admision', 'programs')),
     ('program.view_program', ('admision', 'programs')),
-    # Regression: the old menu tested `review.` but the endpoint is nested.
-    ('pages_admin.pages_review.index', ('admision', 'review')),
-    ('pages_admin.pages_review.submission_detail', ('admision', 'review')),
+    ('pages_review_inbox.index', ('admision', 'review-inbox')),
+    ('pages_review_inbox.rows', ('admision', 'review-inbox')),
     ('pages_coordinator.deliberation', ('admision', 'deliberation')),
     ('pages_coordinator.acceptance', ('admision', 'acceptance')),
     ('pages_coordinator.permanence', ('permanencia', 'permanence')),
@@ -313,3 +312,20 @@ def test_header_has_one_logo_and_footer_has_the_four_institutional_ones(app, cli
     assert header.count('<img') == 1
     for alt in ('SEP', 'TecNM', 'ITCJ', 'Posgrado'):
         assert f'alt="{alt}"' in footer
+
+
+def test_inbox_replaces_the_legacy_review_link_for_staff(app):
+    links = _links(_nav(app, _user('program_admin', COORDINATOR)))
+    assert 'review-inbox' in links
+    assert 'review' not in links
+
+
+@pytest.mark.parametrize('endpoint', [
+    # Regression: the old menu tested `review.` but the endpoint is nested.
+    'pages_admin.pages_review.index',
+    'pages_admin.pages_review.submission_detail',
+])
+def test_legacy_review_link_stays_for_reviewers_without_the_inbox(app, endpoint):
+    nav = _nav(app, _user('social_service', SOCIAL), endpoint)
+    assert _active(nav) == ('admision', 'review')
+

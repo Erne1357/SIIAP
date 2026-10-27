@@ -40,6 +40,7 @@ Framework-agnostic by contract: no `request`, no `g`, no `current_user`, and no
 e-mail renderer can call them outside a request context.
 """
 
+from pathlib import Path
 from posixpath import basename
 from typing import Optional
 
@@ -256,6 +257,22 @@ def document_download_name(relative_path: str) -> Optional[str]:
     if rel is None:
         return None
     return basename(rel) or None
+
+
+def stored_file_exists(relative_path: str) -> bool:
+    """True when the stored relative path exists under `USER_DOCS_FOLDER` (read-only check).
+
+    Needs an app context for the configured folder (like the route that serves it).
+    """
+    from flask import current_app
+    rel = normalize_relative_path(relative_path)
+    if rel is None:
+        return False
+    base = Path(current_app.config['USER_DOCS_FOLDER'])
+    try:
+        return (base / rel).is_file()
+    except OSError:
+        return False
 
 
 def _doc_url(row, slot: Optional[str] = None) -> Optional[str]:

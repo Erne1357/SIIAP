@@ -217,6 +217,7 @@ class EnrollmentReceiptKind(ReviewKind):
             'title': self.title(item),
             'uploaded_at': self.submitted_at(item),
             'file_url': file_access_service.acceptance_document_url(item),
+            'file_path': item.file_path,  # stored path: the inbox checks it on disk
             'status': item.status,
             'decided_at': self.decided_at(item),
             'comment': item.review_notes,

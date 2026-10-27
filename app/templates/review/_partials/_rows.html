@@ -1,0 +1,116 @@
+{#
+  Contenido de #reviewBody: pestañas, filtros, tabla y paginación.
+  Contexto explícito: data (list_items), filters {program, kind, view, page},
+  programs [(id, nombre)], overdue_days.
+  Es lo que devuelven GET /review/rows y POST .../decide.
+#}
+{% from '_macros.html' import data_table_open, data_table_close, empty_state %}
+
+{% set view = data.view %}
+{% set rows_url = url_for('pages_review_inbox.rows') %}
+{% set total_pending = data.counts.values()|sum %}
+
+{% macro view_tab(key, label) %}
+  {% set active = (view == key) %}
+  <li class="nav-item">
+    <a class="nav-link{% if active %} active{% endif %}" id="reviewTab-{{ key }}"
+       href="{{ url_for('pages_review_inbox.index', view=key, program=filters.program, kind=filters.kind or none) }}"
+       hx-get="{{ rows_url }}" hx-vals='{"view": "{{ key }}"}'
+       hx-include="#reviewFilters [name=program], #reviewFilters [name=kind]"
+       hx-target="#reviewBody" hx-swap="morph:innerHTML" hx-history="false"
+       {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
+  </li>
+{% endmacro %}
+
+<ul class="nav nav-tabs review-inbox__tabs" aria-label="Vista de la bandeja">
+  {{ view_tab('pending', 'Pendientes') }}
+  {{ view_tab('decided', 'Decididos recientemente') }}
+</ul>
+
+<form id="reviewFilters" class="review-filters" method="get"
+      action="{{ url_for('pages_review_inbox.index') }}"
+      hx-get="{{ rows_url }}" hx-trigger="change" hx-target="#reviewBody"
+      hx-swap="morph:innerHTML" hx-history="false">
+  <input type="hidden" name="view" value="{{ view }}">
+  <div class="review-filters__field">
+    <label class="form-label" for="reviewProgram">Programa</label>
+    <select class="form-select" id="reviewProgram" name="program">
+      <option value="">Todos los programas</option>
+      {% for pid, pname in programs %}
+        <option value="{{ pid }}"{% if filters.program == pid %} selected{% endif %}>{{ pname }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="review-filters__field">
+    <label class="form-label" for="reviewKind">Tipo</label>
+    <select class="form-select" id="reviewKind" name="kind">
+      <option value="">Todos los tipos ({{ total_pending }})</option>
+      {% for key, label in data.kinds %}
+        <option value="{{ key }}"{% if filters.kind == key %} selected{% endif %}>{{ label }} ({{ data.counts.get(key, 0) }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <noscript><button type="submit" class="btn btn-outline-primary tap-target">Filtrar</button></noscript>
+</form>
+{# Página actual: la leen los botones de decisión para volver a la misma página. #}
+<input type="hidden" id="reviewPage" name="page" value="{{ data.page }}">
+
+<p class="review-inbox__summary text-secondary" id="reviewSummary">
+  {% if view == 'pending' %}
+    {{ data.total }} pendiente{{ '' if data.total == 1 else 's' }}
+  {% else %}
+    {{ data.total }} decisión{{ '' if data.total == 1 else 'es' }} en los últimos 30 días
+  {% endif %}
+</p>
+
+{% if data['items'] %}
+  {{ data_table_open('Elementos por revisar' if view == 'pending' else 'Decisiones recientes',
+                     id='reviewTable', table_class='review-table') }}
+    <thead>
+      <tr>
+        <th scope="col">Alumno</th>
+        <th scope="col">Programa</th>
+        <th scope="col">Tipo</th>
+        <th scope="col">Documento o motivo</th>
+        <th scope="col">Subido</th>
+        <th scope="col">{{ 'Días en espera' if view == 'pending' else 'Decisión' }}</th>
+        <th scope="col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data['items'] %}
+        {% include 'review/_partials/_row.html' %}
+      {% endfor %}
+    </tbody>
+  {{ data_table_close() }}
+
+  {% if data.pages > 1 %}
+  <nav class="review-pager" aria-label="Paginación de la bandeja">
+    {% if data.page > 1 %}
+      <a class="btn btn-outline-secondary tap-target" id="reviewPrev"
+         href="{{ url_for('pages_review_inbox.index', view=view, program=filters.program, kind=filters.kind or none, page=data.page - 1) }}"
+         hx-get="{{ url_for('pages_review_inbox.rows', view=view, program=filters.program, kind=filters.kind or none, page=data.page - 1) }}"
+         hx-target="#reviewBody" hx-swap="morph:innerHTML" hx-history="false">
+        <i class="bi bi-chevron-left" aria-hidden="true"></i> Anterior
+      </a>
+    {% endif %}
+    <span class="review-pager__status">Página {{ data.page }} de {{ data.pages }}</span>
+    {% if data.page < data.pages %}
+      <a class="btn btn-outline-secondary tap-target" id="reviewNext"
+         href="{{ url_for('pages_review_inbox.index', view=view, program=filters.program, kind=filters.kind or none, page=data.page + 1) }}"
+         hx-get="{{ url_for('pages_review_inbox.rows', view=view, program=filters.program, kind=filters.kind or none, page=data.page + 1) }}"
+         hx-target="#reviewBody" hx-swap="morph:innerHTML" hx-history="false">
+        Siguiente <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+{% else %}
+  {% if view == 'pending' %}
+    {{ empty_state('check2-circle', 'No hay nada por revisar',
+                   'Cuando un alumno entregue un documento, un recibo o pida una prórroga, aparecerá aquí.') }}
+  {% else %}
+    {{ empty_state('clock-history', 'Sin decisiones recientes',
+                   'Aquí verás lo que decidiste en los últimos 30 días, por si necesitas cambiarlo.') }}
+  {% endif %}
+{% endif %}

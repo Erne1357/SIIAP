@@ -24,6 +24,7 @@ def register_page_blueprints(app):
     from app.routes.pages.academic_documents_pages import pages_academic_documents
     from app.routes.pages.conclusion_record_pages import pages_conclusion_record
     from app.routes.pages.conclusion_pages import pages_conclusion
+    from app.routes.pages.review_inbox_pages import pages_review_inbox
 
     blueprints = [
         pages_auth,
@@ -42,6 +43,7 @@ def register_page_blueprints(app):
         pages_academic_documents,
         pages_conclusion,
         pages_conclusion_record,
+        pages_review_inbox,
     ]
 
     for bp in blueprints:

@@ -90,6 +90,7 @@ STAFF = (
     | _codes('kardex', 'page.export_pdf')
     # Phase 6C: conclusion.
     | _codes('conclusion', 'page.manage', 'page.my_theses')
+    | _codes('review', 'page.inbox')
 )
 
 #: Institution-wide administration, on top of STAFF. academic_periods.api.create

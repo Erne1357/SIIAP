@@ -80,6 +80,17 @@ def register_template_context(app):
                 g._page_nav = nav
             return nav
 
+        def review_pending_count():
+            """Pending "Por revisar" items for the sidebar badge (once per request)."""
+            if not _viewer_is_authenticated():
+                return 0
+            count = getattr(g, '_review_pending_count', None)
+            if count is None:
+                from app.services import review_inbox_service
+                count = review_inbox_service.pending_total(current_user)
+                g._review_pending_count = count
+            return count
+
         return {
             "static_version": app.config.get("STATIC_VERSION", "1.0.0"),
             "csrf_token": generate_csrf_token,
@@ -88,6 +99,7 @@ def register_template_context(app):
             "now_local": now_local,
             "has_perm": has_perm,
             "page_nav": page_nav,
+            "review_pending_count": review_pending_count,
             "role_label": role_label,
             "role_badge_class": role_badge_class,
         }

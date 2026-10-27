@@ -28,6 +28,7 @@ from typing import Optional
 
 from sqlalchemy import func
 
+from app.services import file_access_service
 from app.services import program_scope_service as scope_service
 from app.services.review_engine import KINDS
 from app.utils.datetime_utils import now_local, to_local_timezone
@@ -98,6 +99,18 @@ def _keys(kind, view: str, program_ids, since: datetime) -> list:
             for item_id, ts in query.with_entities(kind.model.id, getattr(kind.model, attr)).all()]
 
 
+def _file_missing(row: dict) -> bool:
+    """True when the row points at a stored file that is no longer on disk.
+
+    Rows without a file (extensions, a submission resolved without upload)
+    are not "missing". The stored
+    path comes in the row's `file_path` (no extra query per item).
+    """
+    if not row.get('file_url'):
+        return False
+    return not file_access_service.stored_file_exists(row.get('file_path') or '')
+
+
 # ── Public API ──────────────────────────────────────────────────────────
 
 
@@ -119,6 +132,8 @@ def list_items(actor, *, program_id=None, kind=None, view: str = VIEW_PENDING,
     - counts: pending items per visible kind (program filter applied, kind
       filter ignored), so the tabs always show every kind's backlog.
     - kinds: [(key, label)] of the visible kinds.
+    - every item also carries 'file_missing' (stored file gone from disk: the
+      row is still listed and decidable, the template shows "Archivo no disponible").
     An unknown or invisible `kind` filter, or a program out of scope, gives
     no items.
     """
@@ -173,6 +188,8 @@ def list_items(actor, *, program_id=None, kind=None, view: str = VIEW_PENDING,
         if row is None:  # vanished between the two reads
             continue
         row = dict(row, kind=k.key)
+        row['file_missing'] = _file_missing(row)
+        row['approved'] = row['status'] == k.status_for('approve')
         if view == VIEW_PENDING:
             days = _days_waiting(ts, now)
             row['days_waiting'] = days
@@ -203,3 +220,32 @@ def pending_total(actor) -> int:
     if program_ids is not None and not program_ids:
         return 0
     return sum(_count(k.pending_query(program_ids), k) for k in kinds)
+
+
+def program_options(actor) -> list:
+    """[(id, name)] of the programs in the actor's scope, for the filter select."""
+    from app.services import review_service
+    return [(p.id, p.name) for p in review_service.reviewable_programs(actor)]
+
+
+def get_row(actor, kind: str, item_uuid) -> dict:
+    """
+    The inbox row of one item (for the decision modal), plus 'pending'.
+
+    Same refusals as `review_engine.decide`: unknown kind or item outside the
+    actor's scope -> ReviewNotFound (404), no decision permission ->
+    ReviewForbidden (403). Read-only: the row lock taken to load it is
+    released when the request ends without writing.
+    """
+    from app.services.review_engine import ReviewForbidden, ReviewNotFound, get_kind
+
+    kind_obj = get_kind(kind)
+    if actor is None or not actor.has_permission(kind_obj.permission):
+        raise ReviewForbidden('No tienes permiso para decidir este tipo de revisión.')
+    item = kind_obj.load_for_update(item_uuid)
+    if item is None or not scope_service.program_in_scope(actor, kind_obj.program_id(item)):
+        raise ReviewNotFound(kind_obj.not_found_message)
+    row = dict(kind_obj.row(item), kind=kind_obj.key, pending=kind_obj.is_pending(item))
+    row['file_missing'] = _file_missing(row)
+    row['approved'] = row['status'] == kind_obj.status_for('approve')
+    return row

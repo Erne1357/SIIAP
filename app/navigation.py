@@ -43,7 +43,8 @@ class NavItem:
     active_endpoints: tuple[str, ...] = ()  # extra exact endpoints that highlight it
     active_prefixes: tuple[str, ...] = ()   # endpoint prefixes that highlight it
     url_params: Optional[str] = None       # key into URL_PARAMS (None: no url arguments)
-    badge: Optional[str] = None            # 'invitations' -> live counter span
+    badge: Optional[str] = None            # 'invitations' | 'review' -> counter span
+    hide_if_any: tuple[str, ...] = ()      # hidden if the viewer holds ANY of these (supersedes)
 
 
 @dataclass(frozen=True)
@@ -108,9 +109,17 @@ MENU: tuple[NavGroup, ...] = (
                     # it too; programs.api.enroll is what marks an applicant.
                     all_of=('submissions.api.upload', 'programs.api.enroll'),
                     url_params='enrolled_program'),
+            NavItem('review-inbox', 'Por revisar', 'bi-inbox',
+                    'pages_review_inbox.index',
+                    any_of=('review.page.inbox',),
+                    active_prefixes=('pages_review_inbox.',),
+                    badge='review'),
+            # Legacy list: only for reviewers without the inbox (social service);
+            # everyone else is redirected to "Por revisar".
             NavItem('review', 'Revisión de documentos', 'bi-file-earmark-text',
                     'pages_admin.pages_review.index',
                     any_of=('admin_review.page.view',),
+                    hide_if_any=('review.page.inbox',),
                     active_endpoints=('pages_admin.home',),
                     active_prefixes=('pages_admin.pages_review.',)),
             NavItem('deliberation', 'Deliberación', 'bi-hammer',
@@ -248,6 +257,8 @@ class ResolvedGroup:
 
 
 def _is_visible(user, item: NavItem) -> bool:
+    if item.hide_if_any and any(user.has_permission(c) for c in item.hide_if_any):
+        return False
     if item.any_of and not any(user.has_permission(c) for c in item.any_of):
         return False
     return all(user.has_permission(c) for c in item.all_of)

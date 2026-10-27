@@ -1,0 +1,65 @@
+{#
+  Modal de decisión. Contexto explícito: row (get_row: incluye pending, approved),
+  decision ('approve'|'reject'), filters {program, kind, view, page}.
+  inbox.js lo pasa a <body> al mostrarlo y lo quita al cerrarse. El formulario
+  reemplaza #reviewBody con la respuesta (no entra al historial del navegador).
+#}
+{% from '_macros.html' import field %}
+{% set reject = (decision == 'reject') %}
+{% set change = not row.pending %}
+{% set is_extension_grant = (row.kind == 'extension' and not reject) %}
+<div class="modal fade" id="reviewDecideModal" tabindex="-1" aria-labelledby="reviewDecideModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" hx-ext="morph"
+          hx-post="{{ url_for('pages_review_inbox.decide', item_kind=row.kind, item_uuid=row.uuid) }}"
+          hx-target="#reviewBody" hx-swap="morph:innerHTML" hx-history="false">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="reviewDecideModalTitle">
+          {% if change %}Cambiar decisión{% elif reject %}Rechazar{% else %}Aprobar{% endif %}
+          · {{ row.kind_label }}
+        </h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">
+          <strong>{{ row.student_name }}</strong>
+          {% if row.program_name %}<span class="text-secondary"> · {{ row.program_name }}</span>{% endif %}<br>
+          <span>{{ row.title }}</span>
+        </p>
+        {% if change %}
+          <p class="text-secondary">
+            Decisión actual: {{ 'aprobado' if row.approved else 'rechazado' }}.
+            Nueva decisión: <strong>{{ 'rechazar' if reject else 'aprobar' }}</strong>.
+          </p>
+        {% endif %}
+
+        <input type="hidden" name="decision" value="{{ decision }}">
+        <input type="hidden" name="program" value="{{ filters.program if filters.program is not none else '' }}">
+        <input type="hidden" name="kind" value="{{ filters.kind or '' }}">
+        <input type="hidden" name="view" value="{{ filters.view }}">
+        <input type="hidden" name="page" value="{{ filters.page }}">
+
+        {% if is_extension_grant %}
+          {{ field('reviewGrantedUntil', 'Prórroga otorgada hasta', type='date', name='granted_until', required=true) }}
+          {{ field('reviewConditionText', 'Condición (opcional)', type='textarea', name='condition_text', rows=2) }}
+        {% endif %}
+
+        {% if change %}
+          {{ field('reviewRevertReason', 'Motivo del cambio', type='textarea', name='revert_reason', required=true,
+                   help='El alumno verá este motivo.') }}
+        {% elif reject %}
+          {{ field('reviewComment', 'Motivo del rechazo', type='textarea', name='comment', required=true,
+                   help='El alumno verá este motivo.') }}
+        {% elif not is_extension_grant %}
+          {{ field('reviewComment', 'Comentario (opcional)', type='textarea', name='comment') }}
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary tap-target" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn {{ 'btn-danger' if reject else 'btn-success' }} tap-target">
+          {% if change %}Cambiar decisión{% elif reject %}Rechazar{% else %}Aprobar{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

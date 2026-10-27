@@ -1,0 +1,38 @@
+{#
+  «Por revisar» (fase 6D): bandeja única de todo lo que el usuario puede decidir.
+  Contexto: data, filters, programs, overdue_days (ver review_inbox_pages._context).
+  El contenido de #reviewBody es el parcial _rows.html; filtros, pestañas, paginación y
+  decisiones lo reemplazan por HTMX (morph). El modal de decisión se carga en
+  #reviewModalHost y inbox.js lo pasa a <body> al mostrarlo.
+#}
+{% extends 'base.html' %}
+
+{% block title %}Por revisar{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/review/inbox.css') }}?v={{ static_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid review-inbox" id="reviewInbox">
+  <h1 class="h3 review-inbox__title">
+    <i class="bi bi-inbox me-2" aria-hidden="true"></i>Por revisar
+  </h1>
+  <p class="text-secondary review-inbox__lead">
+    Documentos, recibos y prórrogas que esperan tu decisión, del más antiguo al más reciente.
+  </p>
+
+  <div id="reviewRegion" role="region" aria-label="Elementos por revisar" aria-live="polite"
+       hx-ext="morph" hx-history="false">
+    <div id="reviewBody">
+      {% include 'review/_partials/_rows.html' %}
+    </div>
+  </div>
+
+  <div id="reviewModalHost"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/review/inbox.js') }}?v={{ static_version }}"></script>
+{% endblock %}

@@ -45,6 +45,13 @@
         data-role="invitations-badge"
         role="status" aria-live="polite" aria-atomic="true"
         aria-label="Invitaciones pendientes"></span>
+  {% elif item.badge == 'review' %}
+  {# review/inbox.js mantiene el número tras decidir; sin pendientes se oculta. #}
+  {% set pending = review_pending_count() %}
+  <span class="badge bg-danger ms-auto{% if not pending %} d-none{% endif %}"
+        data-role="review-badge"
+        role="status" aria-live="polite" aria-atomic="true"
+        aria-label="Elementos por revisar">{{ pending }}</span>
   {% endif %}
 </a>
 {% endmacro %}

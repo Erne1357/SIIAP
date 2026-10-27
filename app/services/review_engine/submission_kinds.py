@@ -216,6 +216,7 @@ class SubmissionKind(ReviewKind):
             'title': self.title(item),
             'uploaded_at': self.submitted_at(item),
             'file_url': file_access_service.submission_file_url(item),
+            'file_path': item.file_path,  # stored path: the inbox checks it on disk
             'status': item.status,
             'decided_at': self.decided_at(item),
             'comment': item.reviewer_comment,

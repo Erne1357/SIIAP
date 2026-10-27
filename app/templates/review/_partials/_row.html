@@ -1,0 +1,75 @@
+{#
+  Fila de la bandeja. Contexto explícito: row (review_inbox_service), view, overdue_days.
+  Se incluye desde _rows.html; id estable = uuid público (morph / foco).
+  Los botones leen los filtros vigentes con hx-include.
+#}
+{% set base = url_for('pages_review_inbox.decide_form', item_kind=row.kind, item_uuid=row.uuid) %}
+<tr id="review-row-{{ row.uuid }}" class="review-row{% if row.overdue %} review-row--overdue{% endif %}">
+  <td data-label="Alumno">
+    {% if row.student_uuid %}
+      <a class="review-row__student" href="{{ url_for('pages_student_record.student_record', user_uuid=row.student_uuid) }}">{{ row.student_name }}</a>
+    {% else %}
+      {{ row.student_name }}
+    {% endif %}
+  </td>
+  <td data-label="Programa">{{ row.program_name or '—' }}</td>
+  <td data-label="Tipo">{{ row.kind_label }}</td>
+  <td data-label="Documento o motivo">
+    <span class="review-row__title">{{ row.title }}</span>
+    {% if row.file_url and not row.file_missing %}
+      <a class="review-row__file tap-target" href="{{ row.file_url }}" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Ver archivo
+        <span class="visually-hidden">de {{ row.student_name }} (se abre en otra pestaña)</span>
+      </a>
+    {% elif row.kind != 'extension' %}
+      <span class="review-row__missing text-secondary">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Archivo no disponible
+      </span>
+    {% endif %}
+  </td>
+  <td data-label="Subido">{% if row.uploaded_at %}{{ row.uploaded_at|fecha_es('numeric') }}{% else %}—{% endif %}</td>
+  {% if view == 'pending' %}
+    <td data-label="Días en espera">
+      {{ row.days_waiting }} {{ 'día' if row.days_waiting == 1 else 'días' }}
+      {% if row.overdue %}
+        <span class="status-badge status-badge--warning status-badge--sm">
+          <i class="bi bi-hourglass-split" aria-hidden="true"></i><span>Más de {{ overdue_days }} días</span>
+        </span>
+      {% endif %}
+    </td>
+    <td data-label="Acciones">
+      <div class="review-row__actions">
+        <button type="button" class="btn btn-success btn-sm tap-target"
+                hx-get="{{ base }}?decision=approve" hx-include="#reviewFilters, #reviewPage"
+                hx-target="#reviewModalHost" hx-swap="innerHTML" hx-history="false">
+          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Aprobar
+          <span class="visually-hidden">{{ row.title }} de {{ row.student_name }}</span>
+        </button>
+        <button type="button" class="btn btn-outline-danger btn-sm tap-target"
+                hx-get="{{ base }}?decision=reject" hx-include="#reviewFilters, #reviewPage"
+                hx-target="#reviewModalHost" hx-swap="innerHTML" hx-history="false">
+          <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Rechazar
+          <span class="visually-hidden">{{ row.title }} de {{ row.student_name }}</span>
+        </button>
+      </div>
+    </td>
+  {% else %}
+    <td data-label="Decisión">
+      <span class="status-badge status-badge--{{ 'approved' if row.approved else 'rejected' }} status-badge--sm">
+        <i class="bi bi-{{ 'check-circle-fill' if row.approved else 'x-circle-fill' }}" aria-hidden="true"></i>
+        <span>{{ 'Aprobado' if row.approved else 'Rechazado' }}</span>
+      </span>
+      {% if row.decided_at %}<span class="review-row__when">{{ row.decided_at|fecha_es('numeric') }}</span>{% endif %}
+      {% if row.comment %}<span class="review-row__comment text-secondary">{{ row.comment }}</span>{% endif %}
+    </td>
+    <td data-label="Acciones">
+      <button type="button" class="btn btn-outline-secondary btn-sm tap-target"
+              hx-get="{{ base }}?decision={{ 'reject' if row.approved else 'approve' }}"
+              hx-include="#reviewFilters, #reviewPage"
+              hx-target="#reviewModalHost" hx-swap="innerHTML" hx-history="false">
+        <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Cambiar decisión
+        <span class="visually-hidden">de {{ row.title }} de {{ row.student_name }}</span>
+      </button>
+    </td>
+  {% endif %}
+</tr>
