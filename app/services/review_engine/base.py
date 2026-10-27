@@ -153,6 +153,31 @@ class ReviewKind:
         """Inbox row. Keys are fixed: the inbox templates read them."""
         raise NotImplementedError
 
+    # Inbox paging (`review_inbox_service`): the inbox merges every kind by
+    # date, so it first reads only (id, date) keys, then loads full rows for
+    # one page. A kind names the columns `submitted_at` / `decided_at` read
+    # (as strings: a mapped attribute on a plain class would act as a descriptor).
+
+    #: Name of the model column behind `submitted_at(item)` (pending sort key).
+    submitted_attr: str = ''
+    #: Name of the model column behind `decided_at(item)` (decided sort key).
+    decided_attr: str = ''
+
+    def row_load_options(self) -> tuple:
+        """Loader options (`joinedload`...) so `row()` needs no query per item."""
+        return ()
+
+    def inbox_rows(self, ids) -> dict:
+        """{id: row(item)} for the items with internal ids `ids`, loaded in bulk."""
+        ids = list(ids)
+        if not ids:
+            return {}
+        items = (self.model.query
+                 .options(*self.row_load_options())
+                 .filter(self.model.id.in_(ids))
+                 .all())
+        return {item.id: self.row(item) for item in items}
+
     # ── Helpers ──────────────────────────────────────────────────────────
 
     @staticmethod

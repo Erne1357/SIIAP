@@ -18,6 +18,7 @@ from datetime import date, datetime, time
 from typing import Optional
 
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.models import Program, ProgramStep, UserProgram
@@ -180,6 +181,32 @@ class ExtensionKind(ReviewKind):
                         ExtensionRequest.decided_at.isnot(None),
                         ExtensionRequest.decided_at >= since)
                 .order_by(ExtensionRequest.decided_at.desc(), ExtensionRequest.id.desc()))
+
+    submitted_attr = 'created_at'
+    decided_attr = 'decided_at'
+
+    def row_load_options(self):
+        return (
+            joinedload(ExtensionRequest.user),
+            joinedload(ExtensionRequest.archive),
+            joinedload(ExtensionRequest.program_step).joinedload(ProgramStep.program),
+        )
+
+    def inbox_rows(self, ids) -> dict:
+        ids = list(ids)
+        if not ids:
+            return {}
+        items = (ExtensionRequest.query.options(*self.row_load_options())
+                 .filter(ExtensionRequest.id.in_(ids)).all())
+        # `program_id()` / `row()` read the student program and its program
+        # through `session.get`: load them in one query and keep them alive
+        # (the identity map holds weak references) while the rows are built.
+        up_ids = {item.user_program_id for item in items if item.user_program_id}
+        user_programs = (UserProgram.query.options(joinedload(UserProgram.program))
+                         .filter(UserProgram.id.in_(up_ids)).all() if up_ids else [])
+        rows = {item.id: self.row(item) for item in items}
+        del user_programs
+        return rows
 
     def title(self, item) -> str:
         if item.archive is not None:

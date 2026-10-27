@@ -27,6 +27,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import or_
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.models import Archive, Phase, ProgramStep, Step, Submission, User, UserProgram
@@ -178,6 +179,17 @@ class SubmissionKind(ReviewKind):
                         Submission.review_date.isnot(None),
                         Submission.review_date >= since)
                 .order_by(Submission.review_date.desc(), Submission.id.desc()))
+
+    submitted_attr = 'upload_date'
+    decided_attr = 'review_date'
+
+    def row_load_options(self):
+        return (
+            joinedload(Submission.user),
+            joinedload(Submission.archive),
+            joinedload(Submission.document_deadline),
+            joinedload(Submission.program_step).joinedload(ProgramStep.program),
+        )
 
     def title(self, item) -> str:
         if item.archive is not None:

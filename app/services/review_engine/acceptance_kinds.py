@@ -15,6 +15,8 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy.orm import joinedload
+
 from app.models import Program, User, UserProgram
 from app.models.acceptance_document import AcceptanceDocument
 from app.services import file_access_service
@@ -183,6 +185,13 @@ class EnrollmentReceiptKind(ReviewKind):
                         AcceptanceDocument.reviewed_at.isnot(None),
                         AcceptanceDocument.reviewed_at >= since)
                 .order_by(AcceptanceDocument.reviewed_at.desc(), AcceptanceDocument.id.desc()))
+
+    submitted_attr = 'uploaded_at'
+    decided_attr = 'reviewed_at'
+
+    def row_load_options(self):
+        up = joinedload(AcceptanceDocument.user_program)
+        return (up.joinedload(UserProgram.user), up.joinedload(UserProgram.program))
 
     def title(self, item) -> str:
         return self.label
