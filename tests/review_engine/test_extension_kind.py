@@ -11,7 +11,7 @@ from app.models.user_history import UserHistory
 from app.services import admission_debt_service as debt
 from app.services.extensions_service import ExtensionsService, record_decision
 from app.services.review_engine import (
-    KINDS, ReviewConflict, ReviewForbidden, ReviewNotFound, decide, get_kind,
+    KINDS, ReviewConflict, ReviewError, ReviewForbidden, ReviewNotFound, decide, get_kind,
 )
 from app.utils.datetime_utils import now_local
 from tests.support.factories import (
@@ -194,9 +194,10 @@ def test_revert_granted_reblocks_enrollment(w):
 
 
 def test_revert_of_a_lapsed_grant_keeps_the_block(w):
-    er = w.make_request()
-    decide(w.coord, 'extension', er.uuid, 'approve',
-           extra={'granted_until': _naive_now() - timedelta(days=1)})
+    # Granted in the past with a date that has since passed (a new grant
+    # cannot be born lapsed: see test_grant_with_past_date_is_refused).
+    er = w.make_request(status='granted', decided_by=w.coord.id, decided_at=_naive_now(),
+                        granted_until=_naive_now() - timedelta(days=1))
     assert len(debt.overdue_admission_documents(w.up)) == 1
     decide(w.coord, 'extension', er.uuid, 'reject', revert_reason='Error de captura')
     assert len(debt.overdue_admission_documents(w.up)) == 1
@@ -256,3 +257,73 @@ def test_cancel_is_unchanged(w):
     # A cancelled request cannot be revived through the engine.
     with pytest.raises(ReviewConflict):
         decide(w.coord, 'extension', er.uuid, 'reject', revert_reason='x')
+
+
+# ─── Review fixes (phase 6D QA) ──────────────────────────────────────────────
+
+@pytest.mark.parametrize('days', [-1, 0])
+def test_grant_with_past_date_is_refused(w, days):
+    er = w.make_request()
+    past = _naive_now() + timedelta(days=days) - timedelta(minutes=1)
+    with pytest.raises(ReviewError, match='debe ser futura') as info:
+        decide(w.coord, 'extension', er.uuid, 'approve', extra={'granted_until': past})
+    assert info.value.status_code == 400
+    assert _reload(er).status == 'pending'
+
+
+def test_grant_with_past_bare_date_is_refused(w):
+    er = w.make_request()
+    yesterday = (_naive_now() - timedelta(days=1)).date()
+    with pytest.raises(ReviewError, match='debe ser futura'):
+        decide(w.coord, 'extension', er.uuid, 'approve', extra={'granted_until': yesterday})
+    assert _reload(er).status == 'pending'
+
+
+def test_revert_to_grant_with_past_date_is_refused(w):
+    er = w.make_request()
+    decide(w.coord, 'extension', er.uuid, 'reject', comment='No procede')
+    with pytest.raises(ReviewError, match='debe ser futura'):
+        decide(w.coord, 'extension', er.uuid, 'approve', revert_reason='Error',
+               extra={'granted_until': _naive_now() - timedelta(days=2)})
+    assert _reload(er).status == 'rejected'
+
+
+def test_wrapper_grant_with_past_date_is_a_value_error(w):
+    er = w.make_request()
+    with pytest.raises(ValueError, match='debe ser futura'):
+        ExtensionsService.decide_request(er.id, 'granted', w.coord.id,
+                                         granted_until=_naive_now() - timedelta(days=1))
+    assert _reload(er).status == 'pending'
+
+
+def test_reject_comment_is_stored_and_notified(w):
+    er = w.make_request()
+    decide(w.coord, 'extension', er.uuid, 'reject', comment='Falta el oficio')
+    assert _reload(er).condition_text == 'Falta el oficio'
+    notice = (Notification.query.filter_by(user_id=w.student.id)
+              .order_by(Notification.id.desc()).first())
+    assert notice is not None and 'Falta el oficio' in (notice.message or '')
+
+
+def test_revert_reason_is_stored_on_rejection(w):
+    er = w.make_request()
+    decide(w.coord, 'extension', er.uuid, 'approve', extra={'granted_until': _future()})
+    decide(w.coord, 'extension', er.uuid, 'reject', revert_reason='Documento apócrifo')
+    er = _reload(er)
+    assert er.status == 'rejected' and er.condition_text == 'Documento apócrifo'
+    notice = (Notification.query.filter_by(user_id=w.student.id)
+              .order_by(Notification.id.desc()).first())
+    assert 'Documento apócrifo' in (notice.message or '')
+
+
+def test_wrapper_reject_keeps_condition_text(w):
+    er = w.make_request()
+    ExtensionsService.decide_request(er.id, 'rejected', w.coord.id, condition_text='Sin sustento')
+    assert _reload(er).condition_text == 'Sin sustento'
+
+
+def test_cancelled_request_reports_cancelled_first(w):
+    er = w.make_request(status='cancelled')
+    with pytest.raises(ReviewConflict, match='cancelada'):
+        decide(w.coord, 'extension', er.uuid, 'reject')
+    assert _reload(er).status == 'cancelled'

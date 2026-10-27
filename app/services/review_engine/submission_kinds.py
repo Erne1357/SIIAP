@@ -8,7 +8,7 @@ step decides (admission / permanence / conclusion).
 
 Each kind keeps the side effects its legacy service had:
 - admission_doc / conclusion_doc (`review_service.decide_submission`):
-  `log_document_review`, `notify_document_approved|rejected`, socket
+  `log_document_review` (history only), one `notify_document_approved|rejected`, socket
   `submission:reviewed`; an approval meets the linked admission conditions
   (`conclusion_service.on_requirement_approved`), a reverted approval
   reopens them.
@@ -237,14 +237,16 @@ class _ReviewInboxSubmissionKind(SubmissionKind):
         return query.filter(Phase.name == self.phase_name, _not_leave())
 
     def log_decision(self, item, status, actor, comment) -> None:
-        # Kept as before 6D: log_document_review also sends its own notice.
+        # History only: `notify()` sends the one notice of the decision.
         UserHistoryService.log_document_review(
             user_id=item.user_id,
             archive_name=self.title(item),
             status=status,
             reviewer_comment=comment,
             admin_id=actor.id,
+            submission_id=item.id,
             user_program_id=self.user_program_id(item),
+            notify=False,
         )
 
     def notify(self, item, status, reverted) -> None:
@@ -293,6 +295,11 @@ class PermanenceDocKind(SubmissionKind):
     label = 'Documento de permanencia'
     permission = 'permanence.api.review_doc'
     empty_comment = None
+    # Legacy `review_permanence_document` only decided `review` submissions
+    # (every permanence upload is created as `review`).
+    pending_statuses = ('review',)
+    only_known_statuses = True
+    not_decidable_message = 'Solo se pueden revisar documentos en revisión.'
 
     def _kind_filter(self, query):
         return query.filter(Phase.name == 'permanence', _not_leave())
@@ -388,6 +395,11 @@ class LeaveRequestKind(SubmissionKind):
     permission = 'permanence.api.review_doc'
     not_found_message = 'Solicitud no encontrada.'
     empty_comment = None
+    # Legacy `process_leave_request` only processed `review` submissions
+    # (`submit_leave_request` creates them as `review`).
+    pending_statuses = ('review',)
+    only_known_statuses = True
+    not_decidable_message = 'Solo se pueden procesar solicitudes en revisión.'
 
     def _kind_filter(self, query):
         return query.filter(Archive.archive_key == LEAVE_ARCHIVE_KEY)

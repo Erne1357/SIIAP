@@ -148,3 +148,22 @@ def test_wrapper_keeps_contract(rx):
     letter = rx.receipt(doc_type='acceptance_letter')
     with pytest.raises(svc.InvalidDocumentType):
         svc.review_enrollment_receipt(letter.id, rx.world.coordinator.id, 'approved')
+
+
+def test_wrapper_translates_engine_refusals(rx, monkeypatch):
+    # Out of the coordinator's scope: the engine's 404 becomes the service's own.
+    foreign = rx.receipt(owner=rx.other_up)
+    with pytest.raises(svc.ApplicantNotFound):
+        svc.review_enrollment_receipt(foreign.id, rx.world.coordinator.id, 'approved')
+    assert _reload(foreign).status == 'uploaded'
+
+    # Any other engine refusal is an InvalidStateTransition (400), never a 500.
+    from app.services import review_engine
+
+    def refuse(*_a, **_k):
+        raise ReviewConflict('El estado cambió.')
+
+    monkeypatch.setattr(review_engine, 'decide_item', refuse)
+    doc = rx.receipt()
+    with pytest.raises(svc.InvalidStateTransition, match='El estado cambió.'):
+        svc.review_enrollment_receipt(doc.id, rx.world.coordinator.id, 'approved')

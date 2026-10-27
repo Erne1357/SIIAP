@@ -53,11 +53,9 @@
     if (instance) instance.hide();
   });
 
+  // HX-Trigger events bubble from the form up to window: one listener only
+  // (a second one on <body> would handle every event twice).
   window.addEventListener('siiap:review-count', function (evt) {
-    var detail = evt.detail || {};
-    if (typeof detail.count === 'number') setBadge(detail.count);
-  });
-  document.body.addEventListener('siiap:review-count', function (evt) {
     var detail = evt.detail || {};
     if (typeof detail.count === 'number') setBadge(detail.count);
   });

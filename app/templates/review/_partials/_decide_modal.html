@@ -1,6 +1,7 @@
 {#
   Modal de decisión. Contexto explícito: row (get_row: incluye pending, approved),
-  decision ('approve'|'reject'), filters {program, kind, view, page}.
+  decision ('approve'|'reject'), filters {program, kind, view, page},
+  min_granted_until (ISO, mañana: la prórroga debe ser futura).
   inbox.js lo pasa a <body> al mostrarlo y lo quita al cerrarse. El formulario
   reemplaza #reviewBody con la respuesta (no entra al historial del navegador).
 #}
@@ -40,7 +41,8 @@
         <input type="hidden" name="page" value="{{ filters.page }}">
 
         {% if is_extension_grant %}
-          {{ field('reviewGrantedUntil', 'Prórroga otorgada hasta', type='date', name='granted_until', required=true) }}
+          {{ field('reviewGrantedUntil', 'Prórroga otorgada hasta', type='date', name='granted_until', required=true,
+                   min_value=min_granted_until) }}
           {{ field('reviewConditionText', 'Condición (opcional)', type='textarea', name='condition_text', rows=2) }}
         {% endif %}
 

@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
 
+from app.services.review_engine.errors import ReviewConflict
 from app.utils.datetime_utils import now_local
 
 #: Decisions every kind accepts; `status_for` maps them to the kind's status.
@@ -72,12 +73,24 @@ class ReviewKind:
     status_by_decision: dict = {'approve': 'approved', 'reject': 'rejected'}
     #: Spanish 404 message: unknown item and out-of-scope item are indistinguishable.
     not_found_message: str = 'Elemento no encontrado.'
+    #: When True, an item whose status is neither pending nor decided (e.g. a
+    #: permanence document still `pending`, never submitted) cannot be decided,
+    #: not even as a "change of decision" with a reason.
+    only_known_statuses: bool = False
+    #: Spanish 409 message for an item that is not in a decidable status.
+    not_decidable_message: str = 'El elemento no está en revisión; no se puede decidir.'
 
     # ── Loading ──────────────────────────────────────────────────────────
 
     def load_for_update(self, item_uuid):
         """The item with public id `item_uuid`, row-locked; None if unknown or of another kind."""
         raise NotImplementedError
+
+    def load(self, item_uuid):
+        """The item with public id `item_uuid`, WITHOUT a lock (read paths); None if unknown."""
+        by_uuid = getattr(self.model, 'by_uuid', None)
+        item = by_uuid(item_uuid) if by_uuid is not None else None
+        return item if self.matches(item) else None
 
     def matches(self, item) -> bool:
         """True if `item` belongs to this kind (several kinds may share a table)."""
@@ -105,6 +118,17 @@ class ReviewKind:
 
     def status_for(self, decision: str) -> str:
         return self.status_by_decision[decision]
+
+    def check_decidable(self, item) -> None:
+        """Raise ReviewConflict when the item's status admits no decision at all.
+
+        Runs before the pending / re-decision rules, so the student sees the
+        real reason (e.g. "cancelled") instead of "already decided".
+        """
+        if not self.only_known_statuses:
+            return
+        if self.status(item) not in tuple(self.pending_statuses) + tuple(self.decided_statuses):
+            raise ReviewConflict(self.not_decidable_message)
 
     # ── Decision (inside the transaction, no commit) ─────────────────────
 

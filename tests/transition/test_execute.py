@@ -276,3 +276,35 @@ def test_execute_global_iterates_all_programs(app, periods, program, archives,
     assert 'programs' in out
     assert out['total']['advanced'] >= 1
     assert any(p['program_id'] == program.id for p in out['programs'])
+
+
+@pytest.mark.parametrize('se_status', ['on_leave', 'pending', 'dropped'])
+def test_execute_never_closes_a_non_active_source_se(app, periods, program, student_factory,
+                                                     postgrad_admin, permissions, se_status):
+    """
+    Phase 6D QA: only an `active` source SE reaches the "close as completed"
+    line. on_leave is skipped before evaluation and pending / dropped are
+    blockers of evaluate_student, so none of them is closed (on_leave ->
+    completed is not in SE_ALLOWED_TRANSITIONS: a student on leave did not
+    complete the semester) and no target SE is created.
+    """
+    user, up, se = student_factory(suffix=f'exec_src_{se_status}', se_status=se_status)
+    db.session.commit()
+
+    if se_status != 'on_leave':
+        codes = [b['code'] for b in tsvc.evaluate_student(
+            up.id, periods['20263'].id, periods['20271'].id)['blockers']]
+        assert codes, f'{se_status} must be a blocker'
+
+    stats = tsvc.execute_program_transition(
+        program.id, periods['20263'].id, periods['20271'].id,
+        coordinator_id=postgrad_admin.id,
+    )
+
+    assert stats['advanced'] == 0
+    assert stats['errors'] == []
+    db.session.expire_all()
+    assert SemesterEnrollment.query.get(se.id).status == se_status
+    assert SemesterEnrollment.query.filter_by(
+        user_program_id=up.id, academic_period_id=periods['20271'].id,
+    ).first() is None

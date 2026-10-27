@@ -797,6 +797,12 @@ def execute_program_transition(
                     continue
 
                 # ── Marcar SE actual como completed ──
+                # Only an `active` source SE reaches this line: `on_leave` is
+                # skipped above, and evaluate_student blocks a missing SE
+                # (not_enrolled), `dropped`, `pending` (not confirmed) and a
+                # closed trajectory. on_leave -> completed would also be
+                # invalid (SE_ALLOWED_TRANSITIONS): a student on leave did not
+                # complete the semester. `completed` (re-run) stays as it is.
                 if source_se and source_se.status in ('active', 'pending'):
                     academic_progress.set_enrollment_status(source_se, 'completed', closing=True)
                     source_se.updated_at = now

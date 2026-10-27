@@ -234,18 +234,28 @@ def get_row(actor, kind: str, item_uuid) -> dict:
 
     Same refusals as `review_engine.decide`: unknown kind or item outside the
     actor's scope -> ReviewNotFound (404), no decision permission ->
-    ReviewForbidden (403). Read-only: the row lock taken to load it is
-    released when the request ends without writing.
+    ReviewForbidden (403). Read-only: the item is loaded WITHOUT a row lock
+    (only `review_engine.decide` locks), so opening the modal never blocks
+    a concurrent decision.
     """
     from app.services.review_engine import ReviewForbidden, ReviewNotFound, get_kind
 
     kind_obj = get_kind(kind)
     if actor is None or not actor.has_permission(kind_obj.permission):
         raise ReviewForbidden('No tienes permiso para decidir este tipo de revisión.')
-    item = kind_obj.load_for_update(item_uuid)
+    item = kind_obj.load(item_uuid)
     if item is None or not scope_service.program_in_scope(actor, kind_obj.program_id(item)):
         raise ReviewNotFound(kind_obj.not_found_message)
     row = dict(kind_obj.row(item), kind=kind_obj.key, pending=kind_obj.is_pending(item))
     row['file_missing'] = _file_missing(row)
     row['approved'] = row['status'] == kind_obj.status_for('approve')
     return row
+
+
+def min_extension_date() -> str:
+    """Earliest `granted_until` the decision modal offers (ISO date): tomorrow.
+
+    The engine refuses a grant that is already over (`ExtensionKind.apply`);
+    this only keeps the date picker from offering past days.
+    """
+    return (now_local().date() + timedelta(days=1)).isoformat()

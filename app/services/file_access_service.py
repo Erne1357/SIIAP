@@ -268,10 +268,15 @@ def stored_file_exists(relative_path: str) -> bool:
     rel = normalize_relative_path(relative_path)
     if rel is None:
         return False
-    base = Path(current_app.config['USER_DOCS_FOLDER'])
     try:
-        return (base / rel).is_file()
-    except OSError:
+        base = Path(current_app.config['USER_DOCS_FOLDER']).resolve()
+        target = (base / rel).resolve()
+        # Defense in depth: a stored path with '..' (or a symlink) must not
+        # probe files outside the documents folder.
+        if not target.is_relative_to(base):
+            return False
+        return target.is_file()
+    except (OSError, ValueError):
         return False
 
 

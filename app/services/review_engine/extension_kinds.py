@@ -26,12 +26,15 @@ from app.models.extension_request import ExtensionRequest
 from app.services import public_id_service
 from app.services.notification_service import NotificationService
 from app.services.review_engine.base import ReviewKind
-from app.services.review_engine.errors import ReviewConflict
+from app.services.review_engine.errors import ReviewConflict, ReviewError
 from app.services.review_engine.registry import register
 from app.services.user_history_service import UserHistoryService
+from app.utils.datetime_utils import now_local, to_local_timezone
 
 GRANTED_UNTIL_REQUIRED_MESSAGE = 'Indica la fecha límite de la prórroga.'
 CANCELLED_MESSAGE = 'La solicitud fue cancelada; ya no se puede decidir.'
+#: Same text as the legacy route (`extensions_api.decide_extension_request`).
+GRANTED_UNTIL_PAST_MESSAGE = 'La fecha de la prórroga debe ser futura'
 
 
 def _full_name(user) -> str:
@@ -97,6 +100,12 @@ class ExtensionKind(ReviewKind):
 
     # ── Decision ─────────────────────────────────────────────────────────
 
+    def check_decidable(self, item) -> None:
+        # Before the "already decided" rule: a cancelled request is not a
+        # decision to change, it simply cannot be decided.
+        if item.status == 'cancelled':
+            raise ReviewConflict(CANCELLED_MESSAGE)
+
     def apply(self, item, status, actor, comment, extra) -> None:
         if item.status == 'cancelled':
             raise ReviewConflict(CANCELLED_MESSAGE)
@@ -105,13 +114,23 @@ class ExtensionKind(ReviewKind):
             granted_until = _as_datetime(extra.get('granted_until'))
             if granted_until is None:
                 raise ReviewConflict(GRANTED_UNTIL_REQUIRED_MESSAGE)
+            # A grant that is already over is born lapsed: it fabricates an
+            # admission debt that blocks the control number. Every entry point
+            # (inbox, legacy API) shares this check; 400 like the legacy route.
+            if to_local_timezone(granted_until) <= now_local():
+                raise ReviewError(GRANTED_UNTIL_PAST_MESSAGE)
         now = self.now()
         item.status = status
         item.decided_by = actor.id
         item.decided_at = now
         item.updated_at = now
         item.granted_until = granted_until
-        item.condition_text = extra.get('condition_text')
+        condition_text = extra.get('condition_text')
+        if status == 'rejected':
+            # The reason the coordinator typed (rejection comment, or the
+            # reason of a change of decision) is what the student reads.
+            condition_text = condition_text or comment or None
+        item.condition_text = condition_text
 
     # ── After the commit ─────────────────────────────────────────────────
 

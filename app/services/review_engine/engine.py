@@ -85,6 +85,7 @@ def decide_item(actor, kind, item, decision: str, comment: str = '',
     decision = _normalize_decision(decision)
     if item is None or not scope_service.program_in_scope(actor, kind_obj.program_id(item)):
         raise ReviewNotFound(kind_obj.not_found_message)
+    kind_obj.check_decidable(item)
 
     previous = kind_obj.status(item)
     target = kind_obj.status_for(decision)

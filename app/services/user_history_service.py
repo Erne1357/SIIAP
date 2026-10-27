@@ -665,8 +665,13 @@ class UserHistoryService:
     @staticmethod
     def log_document_review(user_id: int, archive_name: str, status: str, 
                           reviewer_comment: str = None, admin_id: int = None, submission_id: int = None,
-                          user_program_id: int = None) -> 'UserHistory':
-        """Registra revisión de documento (aprobar/rechazar) - SE GUARDA EN EL HISTORIAL DEL REVISOR"""
+                          user_program_id: int = None, notify: bool = True) -> 'UserHistory':
+        """Registra revisión de documento (aprobar/rechazar) - SE GUARDA EN EL HISTORIAL DEL REVISOR
+
+        `notify=False` writes the history only: the review engine sends the
+        student's notice itself (with the submission and program), so a
+        decision produces exactly one notice.
+        """
         # Obtener información del estudiante afectado
         student = User.query.get(user_id)
         student_name = f"{student.first_name} {student.last_name}" if student else f"Usuario {user_id}"
@@ -690,6 +695,8 @@ class UserHistoryService:
         )
         
         # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el estudiante)
+        if not notify:
+            return history
         if status == 'approved':
             NotificationService.notify_document_approved(user_id, archive_name, submission_id)
         elif status == 'rejected':

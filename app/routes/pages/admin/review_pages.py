@@ -8,6 +8,7 @@ from app.utils.permissions import permission_required, guard_program_scope
 from app.services import review_service
 from app.services.review_service import SubmissionNotFound
 from app.utils.htmx import is_htmx, render_fragment
+from app.utils.uuid7 import parse_uuid
 
 pages_review = Blueprint("pages_review", __name__, url_prefix="/review")
 
@@ -28,6 +29,19 @@ def _inbox_redirect():
     (social service keeps the legacy list: it has no `review.page.inbox`).
     """
     if not current_user.has_permission('review.page.inbox'):
+        return None
+    # The inbox cannot filter by one submission or one applicant: a link that
+    # carries those filters must not silently lose them. A submission goes to
+    # its detail page (which checks scope itself); an applicant filter keeps
+    # the legacy list, which honours it.
+    submission_handle = request.args.get('submission_id')
+    if submission_handle:
+        sub_uuid = parse_uuid(submission_handle)
+        if sub_uuid is not None:
+            return redirect(url_for('pages_admin.pages_review.submission_detail',
+                                    sub_uuid=sub_uuid))
+        return None
+    if request.args.get('applicant_id'):
         return None
     kind = _PHASE_TO_KIND.get((request.args.get('phase') or '').lower())
     program_id = request.args.get('program_id', type=int)

@@ -526,11 +526,18 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     # The decision itself (side effects, notices, e-mail, history, socket)
     # lives in the `enrollment_receipt` review kind; the row is locked above.
     actor = User.query.get(coordinator_id)
-    review_engine.decide_item(
-        actor, 'enrollment_receipt', doc,
-        'approve' if status == 'approved' else 'reject',
-        comment=notes or '',
-    )
+    # Engine refusals in this service's own vocabulary (the route maps
+    # ApplicantNotFound -> 404 and InvalidStateTransition -> 400).
+    try:
+        review_engine.decide_item(
+            actor, 'enrollment_receipt', doc,
+            'approve' if status == 'approved' else 'reject',
+            comment=notes or '',
+        )
+    except review_engine.ReviewNotFound:
+        raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
+    except review_engine.ReviewError as exc:
+        raise InvalidStateTransition(exc.message)
     return doc
 
 

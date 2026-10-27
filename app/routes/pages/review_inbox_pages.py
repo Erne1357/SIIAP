@@ -81,7 +81,8 @@ def decide_form(item_kind, item_uuid):
     row = inbox.get_row(current_user, item_kind, item_uuid)
     if decision not in ('approve', 'reject'):
         decision = 'approve'
-    return render_fragment(MODAL, row=row, decision=decision, filters=_filters(request.args))
+    return render_fragment(MODAL, row=row, decision=decision, filters=_filters(request.args),
+                           min_granted_until=inbox.min_extension_date())
 
 
 def _granted_until():
