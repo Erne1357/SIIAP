@@ -77,7 +77,12 @@ def test_sidebar_is_role_specific(page, base_url, login_as):
     assert '/admin/settings/academic-periods' not in seen['program_admin']
     assert '/admin/settings/academic-periods' in seen['postgraduate_admin']
     assert '/admin/settings/permissions' in seen['postgraduate_admin']
-    assert seen['social_service'] <= seen['postgraduate_admin']
+    # 6D: the inbox replaces the legacy review list for whoever may use it;
+    # social_service keeps the legacy list.
+    assert '/review/' in seen['postgraduate_admin']
+    assert '/admin/review/' not in seen['postgraduate_admin']
+    legacy_review = {'/admin/review/'}
+    assert seen['social_service'] - legacy_review <= seen['postgraduate_admin']
     assert '/coordinator/dashboard' not in seen['social_service']
 
 
