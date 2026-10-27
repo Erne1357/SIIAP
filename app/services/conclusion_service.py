@@ -682,12 +682,18 @@ def create_condition(actor, user_program_id: int, description: str, *,
 
 
 def _mark_resolved(up: UserProgram, condition: AdmissionCondition, resolution: str,
-                   note: Optional[str], actor_id: Optional[int]) -> None:
-    """Write the resolution + history + student notice. No commit."""
+                   note: Optional[str], actor_id: Optional[int],
+                   submission_id: Optional[int] = None) -> None:
+    """
+    Write the resolution + history + student notice. No commit.
+    `submission_id` names the approval that met the condition automatically
+    (None when resolved by hand), so reverting it can reopen the condition.
+    """
     condition.status = resolution
     condition.resolved_at = now_local()
     condition.resolved_by = actor_id
     condition.resolution_note = note
+    condition.resolved_by_submission_id = submission_id
     UserHistoryService.log_action(
         user_id=up.user_id, action='admission_condition_resolved', admin_id=actor_id,
         user_program_id=up.id,
@@ -749,8 +755,42 @@ def on_requirement_approved(submission: Submission, reviewer_id: Optional[int]) 
         return []
     up = db.session.get(UserProgram, submission.user_program_id)
     for condition in pending:
-        _mark_resolved(up, condition, 'met', AUTO_RESOLVE_NOTE, reviewer_id)
+        _mark_resolved(up, condition, 'met', AUTO_RESOLVE_NOTE, reviewer_id,
+                       submission_id=submission.id)
     return pending
+
+
+def reopen_conditions_for_submission(submission: Optional[Submission],
+                                     actor_id: Optional[int]) -> list:
+    """
+    Phase 6D: the approval of `submission` was reverted. Every condition that
+    approval met automatically (`resolved_by_submission_id`, still `met`)
+    goes back to pending, with history and a student notice. Conditions
+    resolved by hand or waived are left alone. No commit. Returns them.
+    """
+    if submission is None or submission.id is None:
+        return []
+    met = (AdmissionCondition.query
+           .filter_by(resolved_by_submission_id=submission.id, status='met')
+           .with_for_update().populate_existing().all())
+    for condition in met:
+        up = db.session.get(UserProgram, condition.user_program_id)
+        condition.status = 'pending'
+        condition.resolved_at = None
+        condition.resolved_by = None
+        condition.resolution_note = None
+        condition.resolved_by_submission_id = None
+        UserHistoryService.log_action(
+            user_id=up.user_id, action='admission_condition_reopened', admin_id=actor_id,
+            user_program_id=up.id,
+            details={'program_id': up.program_id, 'description': condition.description,
+                     'submission_id': submission.id},
+        )
+        _notify_student(up, 'admission_condition_reopened', 'Condición reabierta',
+                        'Se revirtió la aprobación del requisito; tu condición de '
+                        f'aceptación vuelve a estar pendiente: {condition.description}',
+                        priority='medium')
+    return met
 
 
 # ─── Requirement uploads ─────────────────────────────────────────────────────

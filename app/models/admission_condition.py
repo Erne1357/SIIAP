@@ -29,6 +29,13 @@ class AdmissionCondition(PublicUUIDMixin, db.Model):
     resolved_at = db.Column(db.DateTime, nullable=True)
     resolved_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
     resolution_note = db.Column(db.Text, nullable=True)
+    # Phase 6D: the submission whose approval met this condition automatically.
+    # NULL for a condition resolved by hand; reverting that approval reopens it.
+    resolved_by_submission_id = db.Column(
+        db.Integer,
+        db.ForeignKey('submission.id', ondelete='SET NULL',
+                      name='fk_admission_condition_resolved_by_submission_id'),
+        nullable=True, index=True)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=now_local)
 

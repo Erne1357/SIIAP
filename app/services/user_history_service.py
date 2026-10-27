@@ -664,7 +664,8 @@ class UserHistoryService:
 
     @staticmethod
     def log_document_review(user_id: int, archive_name: str, status: str, 
-                          reviewer_comment: str = None, admin_id: int = None, submission_id: int = None) -> 'UserHistory':
+                          reviewer_comment: str = None, admin_id: int = None, submission_id: int = None,
+                          user_program_id: int = None) -> 'UserHistory':
         """Registra revisión de documento (aprobar/rechazar) - SE GUARDA EN EL HISTORIAL DEL REVISOR"""
         # Obtener información del estudiante afectado
         student = User.query.get(user_id)
@@ -684,7 +685,8 @@ class UserHistoryService:
             user_id=admin_id or current_user.id,  # Historial del REVISOR
             action='document_reviewed',
             details=details,
-            admin_id=None  # Es su propia acción
+            admin_id=None,  # Es su propia acción
+            user_program_id=user_program_id,
         )
         
         # ✅ CORRECTO: La notificación se envía a quien se AFECTA (el estudiante)
@@ -983,6 +985,7 @@ class UserHistoryService:
         # Acciones irreversibles del sistema
         'deleted',                 # Eliminaciones de usuarios
         'document_reviewed',       # Decisiones de revisión de documentos
+        'document_review_reverted',  # Cambio de una decisión ya tomada (fase 6D)
         'purge_run_confirmed',     # Purga física post-respaldo (irreversible)
         
         # Seguridad y acceso
@@ -1107,6 +1110,8 @@ class UserHistoryService:
         'grade_exam_cancelled': 'Canceló el examen de grado',
         'conclusion_requirement_override_set': 'Marcó un requisito de conclusión como «no aplica» o aceptó una vigencia vencida',
         'conclusion_requirement_override_removed': 'Deshizo «no aplica» o la aceptación de vigencia vencida de un requisito de conclusión',
+        'admission_condition_reopened': 'Reabrió una condición de aceptación al revertirse la aprobación del requisito',
+        'document_review_reverted': 'Cambió una decisión de revisión ya tomada (con motivo)',
 
         # ACCIONES DE TRANSICIÓN SEMESTRAL ("Pasar Semestre")
         'semester_advanced': 'Avanzó al siguiente semestre',

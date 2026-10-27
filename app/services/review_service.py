@@ -23,16 +23,12 @@ import logging
 from sqlalchemy.orm import joinedload
 
 from app import db
-from app.services import public_id_service
 from app.models import Program, ProgramStep, Submission, User
 from app.models.archive import Archive
 from app.models.phase import Phase
 from app.models.step import Step
 from app.models.user_program import UserProgram
 from app.services import program_scope_service as scope_service
-from app.services.notification_service import NotificationService
-from app.services.user_history_service import UserHistoryService
-from app.utils.datetime_utils import now_local
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +38,6 @@ VALID_PHASES = ('admission', 'permanence', 'conclusion')
 
 #: Acciones aceptadas por `decide_submission`.
 VALID_ACTIONS = ('approve', 'reject')
-
-_STATUS_BY_ACTION = {'approve': 'approved', 'reject': 'rejected'}
 
 
 class SubmissionNotFound(LookupError):
@@ -263,90 +257,36 @@ def reviewable_programs(reviewer):
 
 def decide_submission(reviewer, submission_id, action, comment=''):
     """
-    Aprueba o rechaza una entrega. Verifica el alcance ANTES de escribir.
+    Approve or reject a submission. Thin wrapper over the review engine
+    (phase 6D): scope is checked before writing, the row is locked, and an
+    already decided submission is a `ReviewConflict` (409) — changing a
+    decision needs a reason and goes through `review_engine.decide`.
 
-    Args:
-        reviewer: `User` que dictamina (el llamador lo extrae de la sesión).
-        submission_id: id de la entrega.
-        action: 'approve' | 'reject'.
-        comment: comentario para el aspirante.
+    The route already enforced `admin_review.api.decide`, so the kind's
+    permission is not checked again here.
 
     Returns:
-        La `Submission` actualizada.
+        The updated `Submission`.
 
     Raises:
-        InvalidReviewAction: acción no soportada.
-        SubmissionNotFound: no existe o está fuera del alcance del revisor.
+        InvalidReviewAction: unsupported action.
+        SubmissionNotFound: unknown or outside the reviewer's scope.
+        ReviewConflict: the submission was already decided.
     """
+    from app.services import review_engine
+    from app.services.review_engine import submission_kinds
+
     action = (action or '').strip().lower()
     if action not in VALID_ACTIONS:
         raise InvalidReviewAction()
 
-    submission = get_submission_for_review(reviewer, submission_id)
-    comment = (comment or '').strip()
-
-    submission.status = _STATUS_BY_ACTION[action]
-    submission.reviewer_id = reviewer.id
-    submission.review_date = now_local()
-    submission.reviewer_comment = comment
-    if action == 'approve':
-        # Phase 6C: approving the requirement a pending admission condition
-        # points at fulfils that condition (same transaction).
-        from app.services import conclusion_service
-        conclusion_service.on_requirement_approved(submission, reviewer.id)
-    db.session.commit()
-
-    archive_name = (
-        submission.archive.name if submission.archive
-        else f'Documento ID {submission.archive_id}'
-    )
-
-    # Historial del revisor
+    submission = submission_kinds.lock_submission(submission_id)
+    if submission is None:
+        raise SubmissionNotFound()
+    kind = (submission_kinds.kind_for_submission(submission)
+            or review_engine.get_kind('admission_doc'))
     try:
-        UserHistoryService.log_document_review(
-            user_id=submission.user_id,
-            archive_name=archive_name,
-            status=submission.status,
-            reviewer_comment=comment,
-            admin_id=reviewer.id,
-        )
-        db.session.commit()
-    except Exception as exc:
-        logger.error('Error al registrar revisión de documento en historial: %s', exc)
-
-    # Notificación al aspirante (incluye correo automático)
-    try:
-        program = submission.program_step.program if submission.program_step else None
-        program_slug = program.slug if program else None
-        if action == 'approve':
-            NotificationService.notify_document_approved(
-                submission.user_id, archive_name, submission.id,
-                program_slug=program_slug,
-            )
-        else:
-            NotificationService.notify_document_rejected(
-                submission.user_id, archive_name, submission.id, comment,
-                program_slug=program_slug,
-            )
-        db.session.commit()
-    except Exception as exc:
-        logger.error('Error al enviar notificación de revisión: %s', exc)
-
-    # WebSocket: dashboard del aspirante + coordinadores del programa
-    from app.sockets.emitters import emit_user_and_coordinators
-
-    program_id = submission_program_id(submission)
-    emit_user_and_coordinators(
-        'submission:reviewed',
-        {
-            'user_id': public_id_service.user_uuid(submission.user_id),
-            'submission_id': public_id_service.submission_uuid(submission.id),
-            'archive_id': public_id_service.archive_uuid(submission.archive_id),
-            'program_id': program_id,
-            'status': submission.status,
-        },
-        user_id=submission.user_id,
-        program_id=program_id,
-    )
-
+        review_engine.decide_item(reviewer, kind, submission, action, comment=comment)
+    except review_engine.ReviewNotFound:
+        raise SubmissionNotFound()
     return submission

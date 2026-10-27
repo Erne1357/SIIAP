@@ -1479,98 +1479,37 @@ def review_permanence_document(
     status: str,
     notes: str = None,
 ) -> dict:
-    """El coordinador aprueba o rechaza un documento de permanencia."""
-    from app.models.submission import Submission
+    """
+    El coordinador aprueba o rechaza un documento de permanencia.
+
+    Phase 6D: thin wrapper over the review engine (`permanence_doc` kind, or
+    the submission's own kind). The route already enforced
+    `permanence.api.review_doc` and the program scope; the engine checks the
+    scope again and refuses an already decided document (changing a decision
+    needs a reason and goes through `review_engine.decide`).
+    """
+    from app.services import review_engine
+    from app.services.review_engine import submission_kinds
 
     if status not in ('approved', 'rejected'):
         raise ValueError("status debe ser 'approved' o 'rejected'")
 
-    sub = Submission.query.get(submission_id)
+    sub = submission_kinds.lock_submission(submission_id)
     if not sub:
         raise StudentNotFound(f"Submission {submission_id} no encontrada")
 
-    if sub.status != 'review':
-        raise InvalidStateTransition(
-            f"Solo submissions en estado 'review' pueden revisarse. "
-            f"Estado actual: '{sub.status}'"
-        )
-
-    sub.status = status
-    sub.reviewer_id = coordinator_id
-    sub.review_date = now_local()
-    sub.reviewer_comment = notes
-
-    dl_label = sub.document_deadline.label if sub.document_deadline else sub.archive.name
-
-    if status == 'approved':
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='permanence_doc_approved',
-            title=f'Documento aprobado — {dl_label}',
-            message=f'Tu documento "{dl_label}" fue aprobado para el periodo actual.',
-            priority='medium',
-            action_url='/user/dashboard',
-        )
-    else:
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='permanence_doc_rejected',
-            title=f'Documento rechazado — {dl_label}',
-            message=(
-                f'Tu documento "{dl_label}" fue rechazado. '
-                f'Motivo: {notes or "Sin especificar"}. '
-                'Vuelve a subirlo cuando la ventana esté abierta.'
-            ),
-            priority='high',
-            action_url='/user/dashboard',
-        )
-        # Enviar email para documentos rechazados
-        try:
-            from app.services.email_service import EmailService
-            from app.services.email_templates import EmailTemplates
-            from app.utils.urls import external_url
-            user = User.query.get(sub.user_id)
-            if user:
-                # Pinned to APP_BASE_URL, never to the request host.
-                dashboard_url = external_url('pages_user.dashboard')
-                subject, html = EmailTemplates.permanence_doc_rejected(
-                    user_name=f"{user.first_name} {user.last_name}",
-                    document_label=dl_label,
-                    reason=notes or "Sin especificar",
-                    dashboard_url=dashboard_url,
-                )
-                EmailService.queue_email(sub.user_id, subject, html)
-        except Exception as e:
-            logging.error(f"Error queueing email for permanence_doc_rejected: {e}")
-
-    UserHistoryService.log_action(
-        user_id=sub.user_id,
-        admin_id=coordinator_id,
-        action=f'permanence_document_{status}',
-        details=f'{"Aprobó" if status == "approved" else "Rechazó"} "{dl_label}". {notes or ""}',
-    )
+    kind = (submission_kinds.kind_for_submission(sub)
+            or review_engine.get_kind('permanence_doc'))
+    actor = db.session.get(User, coordinator_id)
     try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
-
-    # Notificar al estudiante + coordinadores del programa en tiempo real
-    from app.sockets.emitters import emit_user_and_coordinators
-    program_id = sub.program_step.program_id if sub.program_step else None
-    emit_user_and_coordinators(
-        'permanence:status_changed',
-        {
-            'user_id': public_id_service.user_uuid(sub.user_id),
-            'submission_id': public_id_service.submission_uuid(sub.id),
-            'program_id': program_id,
-            'action': 'doc_reviewed',
-            'status': status,
-            'document_label': dl_label,
-        },
-        user_id=sub.user_id,
-        program_id=program_id,
-    )
+        review_engine.decide_item(
+            actor, kind, sub, 'approve' if status == 'approved' else 'reject',
+            comment=notes or '',
+        )
+    except review_engine.ReviewNotFound:
+        raise StudentNotFound(f"Submission {submission_id} no encontrada")
+    except review_engine.ReviewConflict as exc:
+        raise InvalidStateTransition(exc.message)
 
     return sub.to_dict()
 
@@ -1799,119 +1738,30 @@ def process_leave_request(
     """
     El coordinador aprueba o rechaza una solicitud de baja temporal.
     Si aprueba: el SemesterEnrollment activo pasa a 'on_leave'.
-    """
-    from app.models.submission import Submission
-    from app.models.program_step import ProgramStep
 
-    sub = Submission.query.get(submission_id)
+    Phase 6D: thin wrapper over the review engine (`leave_request` kind),
+    which keeps the effects, notices, e-mail, history and socket event.
+    """
+    from app.services import review_engine
+    from app.services.review_engine import submission_kinds
+
+    sub = submission_kinds.lock_submission(submission_id)
     if not sub:
         raise StudentNotFound(f"Submission {submission_id} no encontrada")
 
     if not sub.archive or sub.archive.archive_key != 'leave_request':
         raise InvalidStateTransition("Este documento no es una solicitud de baja temporal")
 
-    if sub.status != 'review':
-        raise InvalidStateTransition(
-            f"Solo solicitudes en estado 'review' pueden procesarse. Estado: '{sub.status}'"
-        )
-
-    sub.status = 'approved' if approve else 'rejected'
-    sub.reviewer_id = coordinator_id
-    sub.review_date = now_local()
-    sub.reviewer_comment = notes
-
-    if approve:
-        # Buscar el SemesterEnrollment activo del estudiante en el programa correcto
-        program_step = ProgramStep.query.get(sub.program_step_id)
-        if program_step:
-            up = UserProgram.query.filter_by(
-                user_id=sub.user_id,
-                program_id=program_step.program_id,
-            ).first()
-            if up:
-                active_se = SemesterEnrollment.query.filter_by(
-                    user_program_id=up.id,
-                    status='active',
-                ).first()
-                if active_se:
-                    active_se.status = 'on_leave'
-                    if up.academic_status == academic_status_service.ACTIVE:
-                        academic_status_service.transition(
-                            up, academic_status_service.ON_LEAVE, actor_id=coordinator_id)
-
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='leave_request_approved',
-            title='Baja temporal aprobada',
-            message=(
-                'Tu solicitud de baja temporal fue aprobada. '
-                'Tu estado se actualizó a baja temporal. '
-                'Para reincorporarte, contacta al coordinador.'
-            ),
-            priority='high',
-            action_url='/user/dashboard',
-        )
-    else:
-        NotificationService.create_notification(
-            user_id=sub.user_id,
-            notification_type='leave_request_rejected',
-            title='Baja temporal rechazada',
-            message=(
-                f'Tu solicitud de baja temporal fue rechazada. '
-                f'Motivo: {notes or "Sin especificar"}.'
-            ),
-            priority='high',
-            action_url='/user/dashboard',
-        )
-
-    UserHistoryService.log_action(
-        user_id=sub.user_id,
-        admin_id=coordinator_id,
-        action='leave_request_approved' if approve else 'leave_request_rejected',
-        details=f'{"Aprobó" if approve else "Rechazó"} solicitud de baja temporal. {notes or ""}',
-    )
-
-    # Enviar email al estudiante
+    actor = db.session.get(User, coordinator_id)
     try:
-        from app.services.email_service import EmailService
-        from app.services.email_templates import EmailTemplates
-        from app.utils.urls import external_url
-        user = User.query.get(sub.user_id)
-        if user:
-            # Obtener nombre del programa
-            up_for_email = UserProgram.query.filter_by(user_id=sub.user_id).first()
-            program_name = up_for_email.program.name if up_for_email and up_for_email.program else 'tu programa'
-            # Pinned to APP_BASE_URL, never to the request host.
-            dashboard_url = external_url('pages_user.dashboard')
-            subject, html = EmailTemplates.leave_request_result(
-                user_name=f"{user.first_name} {user.last_name}",
-                program_name=program_name,
-                approved=approve,
-                reason=notes or "",
-                dashboard_url=dashboard_url,
-            )
-            EmailService.queue_email(sub.user_id, subject, html)
-    except Exception as e:
-        logging.error(f"Error queueing email for leave_request_result: {e}")
-
-    db.session.commit()
-
-    # Notificar al estudiante + coordinadores del programa en tiempo real
-    from app.sockets.emitters import emit_user_and_coordinators
-    program_id = sub.program_step.program_id if sub.program_step else None
-    emit_user_and_coordinators(
-        'permanence:status_changed',
-        {
-            'user_id': public_id_service.user_uuid(sub.user_id),
-            'submission_id': public_id_service.submission_uuid(sub.id),
-            'program_id': program_id,
-            'action': 'leave_decided',
-            'approved': bool(approve),
-            'new_enrollment_status': 'on_leave' if approve else None,
-        },
-        user_id=sub.user_id,
-        program_id=program_id,
-    )
+        review_engine.decide_item(
+            actor, 'leave_request', sub, 'approve' if approve else 'reject',
+            comment=notes or '',
+        )
+    except review_engine.ReviewNotFound:
+        raise StudentNotFound(f"Submission {submission_id} no encontrada")
+    except review_engine.ReviewConflict as exc:
+        raise InvalidStateTransition(exc.message)
 
     return {
         'submission': sub.to_dict(),
