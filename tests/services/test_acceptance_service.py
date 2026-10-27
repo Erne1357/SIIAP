@@ -554,13 +554,14 @@ class TestEmitsAfterCommit:
         monkeypatch.setattr(emitters, 'emit_to_coordinators', record)
 
     @staticmethod
-    def _fail_service_commit(monkeypatch):
-        """Make only the commit issued by acceptance_service itself fail."""
+    def _fail_service_commit(monkeypatch, module=None):
+        """Make only the commit issued by `module` (default acceptance_service) fail."""
         import sys
         real_commit = db.session.commit
+        module = module or svc.__name__
 
         def commit():
-            if sys._getframe(1).f_globals.get('__name__') == svc.__name__:
+            if sys._getframe(1).f_globals.get('__name__') == module:
                 raise RuntimeError('commit failed')
             return real_commit()
 
@@ -621,7 +622,8 @@ class TestEmitsAfterCommit:
         doc = svc.submit_enrollment_receipt(acc.applicant.id, acc.program.id, _file(), acc.applicant.id)
         log = []
         self._spy_emitters(monkeypatch, log)
-        self._fail_service_commit(monkeypatch)
+        # 6D: the review engine issues the decision's commit.
+        self._fail_service_commit(monkeypatch, 'app.services.review_engine.engine')
         with pytest.raises(RuntimeError):
             svc.review_enrollment_receipt(doc.id, acc.coord.id, 'approved')
         assert log == []

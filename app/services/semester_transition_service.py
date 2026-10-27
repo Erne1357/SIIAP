@@ -797,8 +797,8 @@ def execute_program_transition(
                     continue
 
                 # ── Marcar SE actual como completed ──
-                if source_se:
-                    source_se.status = 'completed'
+                if source_se and source_se.status in ('active', 'pending'):
+                    academic_progress.set_enrollment_status(source_se, 'completed', closing=True)
                     source_se.updated_at = now
 
                 # ── Nuevo semestre académico (completados + 1) ──

@@ -101,13 +101,41 @@ class ExtensionsService:
 
     @staticmethod
     def decide_request(request_id: int, status: str, decided_by: int, granted_until=None, condition_text=None) -> ExtensionRequest:
-        """Decide sobre una solicitud de prórroga"""
+        """
+        Decide sobre una solicitud de prórroga.
+
+        `granted` / `rejected` pasan por el motor de revisión (kind `extension`):
+        alcance, bloqueo de fila, historial, aviso y evento de socket viven allí.
+        `cancelled` conserva el flujo anterior. Todo rechazo es ValueError con
+        texto en español, que la ruta ya sabe mostrar.
+        """
+        from app.models.user import User
+        from app.services import review_engine
+        from app.services.review_engine import ReviewError
+
         er = db.session.get(ExtensionRequest, request_id)
         if not er:
             raise ValueError("Solicitud de extensión no encontrada")
 
         if status not in ('granted', 'rejected', 'cancelled'):
             raise ValueError("Estado inválido")
+
+        if status in ('granted', 'rejected'):
+            actor = db.session.get(User, decided_by)
+            if actor is None:
+                raise ValueError("Usuario no encontrado")
+            kind = review_engine.get_kind('extension')
+            locked = kind.load_for_update(er.uuid)
+            try:
+                review_engine.decide_item(
+                    actor, kind, locked,
+                    'approve' if status == 'granted' else 'reject',
+                    extra={'granted_until': granted_until,
+                           'condition_text': condition_text},
+                )
+            except ReviewError as e:
+                raise ValueError(str(e)) from e
+            return locked
 
         er.status = status
         er.decided_by = decided_by
@@ -196,6 +224,10 @@ def record_decision(er, status: str, granted_until_dt, condition_text, admin_id:
 
     # First commit the decision itself.
     db.session.commit()
+
+    if status in ('granted', 'rejected'):
+        # The review engine already logged it and notified the student.
+        return
 
     try:
         from app.services.user_history_service import UserHistoryService

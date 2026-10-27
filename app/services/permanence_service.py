@@ -338,8 +338,9 @@ def confirm_semester_enrollment(
                     )
 
         # ── Cerrar el SE anterior si está activo/pendiente ──
+        # Si avanzó, se asume que cursó (también un 'pending').
         if last_se and last_se.status in ('active', 'pending'):
-            last_se.status = 'completed'
+            academic_progress.set_enrollment_status(last_se, 'completed', closing=True)
             last_se.updated_at = now_local()
 
         # Semestre académico = semestres completados + 1 (una baja temporal
@@ -361,7 +362,7 @@ def confirm_semester_enrollment(
         # Actualizar el semestre actual en user_program
         up.current_semester = semester_number
     else:
-        se.status = 'active'
+        academic_progress.set_enrollment_status(se, 'active')
 
     se.enrollment_confirmed = True
     se.confirmed_by = coordinator_id
@@ -453,7 +454,7 @@ def update_enrollment_status(
             f"'{STATUS_LABELS.get(old_status, old_status)}' a "
             f"'{STATUS_LABELS.get(new_status, new_status)}'."
         )
-    se.status = new_status
+    academic_progress.set_enrollment_status(se, new_status)
     if notes:
         se.notes = notes
     se.updated_at = now_local()
@@ -715,7 +716,7 @@ def withdraw(user_program_id: int, reason: str, actor_id: int) -> UserProgram:
 
     se = academic_progress.last_enrollment(up.id)
     if se is not None and academic_progress.can_change_enrollment_status(se.status, 'dropped'):
-        se.status = 'dropped'
+        academic_progress.set_enrollment_status(se, 'dropped')
         se.notes = up.withdrawal_reason
         se.updated_at = now_local()
         _notify_enrollment_status(se, 'dropped')
@@ -767,7 +768,7 @@ def register_graduation(user_program_id: int, on_date, actor_id: int) -> UserPro
 
     se = academic_progress.last_enrollment(up.id)
     if se is not None and se.status == 'active':
-        se.status = 'completed'
+        academic_progress.set_enrollment_status(se, 'completed')
         se.updated_at = now_local()
 
     NotificationService.create_notification(

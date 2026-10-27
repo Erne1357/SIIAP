@@ -508,7 +508,10 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
     if status not in ('approved', 'rejected'):
         raise ValueError("status debe ser 'approved' o 'rejected'")
 
-    doc = AcceptanceDocument.query.get(doc_id)
+    from app.services import review_engine
+
+    doc = (AcceptanceDocument.query.filter_by(id=doc_id)
+           .with_for_update().populate_existing().first())
     if not doc:
         raise ApplicantNotFound(DOCUMENT_NOT_FOUND_MESSAGE)
 
@@ -520,91 +523,14 @@ def review_enrollment_receipt(doc_id: int, coordinator_id: int,
             f"Solo se pueden revisar documentos en estado 'uploaded', estado actual: '{doc.status}'"
         )
 
-    doc.status = status
-    doc.reviewed_by_id = coordinator_id
-    doc.reviewed_at = now_local()
-    doc.review_notes = notes
-
-    up = doc.user_program
-    user_id = up.user_id
-    program = up.program
-
-    # Notificar e historiar (en la misma transaccion)
-    if status == 'approved':
-        NotificationService.create_notification(
-            user_id=user_id,
-            notification_type='enrollment_receipt_approved',
-            title='Carta de número de control aprobada',
-            message=f'Tu carta de asignación de número de control para {program.name} fue aprobada. '
-                    f'El coordinador te asignará tu número de control próximamente.',
-            priority='high',
-            action_url='/user/dashboard',
-        )
-        UserHistoryService.log_action(
-            user_id=user_id,
-            admin_id=coordinator_id,
-            action='enrollment_receipt_approved',
-            details=f'Carta aprobada para {program.name}. {notes or ""}'
-        )
-    else:
-        NotificationService.create_notification(
-            user_id=user_id,
-            notification_type='enrollment_receipt_rejected',
-            title='Carta de número de control rechazada',
-            message=f'Tu carta de asignación de número de control para {program.name} fue rechazada. '
-                    f'Motivo: {notes or "Sin especificar"}. Por favor vuelve a subirla.',
-            priority='high',
-            action_url='/user/dashboard',
-        )
-        UserHistoryService.log_action(
-            user_id=user_id,
-            admin_id=coordinator_id,
-            action='enrollment_receipt_rejected',
-            details=f'Carta rechazada para {program.name}. {notes or ""}'
-        )
-
-    # Enviar email al aspirante
-    try:
-        from app.services.email_service import EmailService
-        from app.services.email_templates import EmailTemplates
-        from app.utils.urls import external_url
-        user = User.query.get(user_id)
-        if user:
-            # Pinned to APP_BASE_URL, never to the request host.
-            dashboard_url = external_url('pages_user.dashboard')
-            if status == 'approved':
-                subject, html = EmailTemplates.enrollment_receipt_approved(
-                    user_name=f"{user.first_name} {user.last_name}",
-                    program_name=program.name,
-                    dashboard_url=dashboard_url,
-                )
-            else:
-                subject, html = EmailTemplates.enrollment_receipt_rejected(
-                    user_name=f"{user.first_name} {user.last_name}",
-                    program_name=program.name,
-                    reason=notes or "Sin especificar",
-                    dashboard_url=dashboard_url,
-                )
-            EmailService.queue_email(user_id, subject, html)
-    except Exception as e:
-        import logging
-        logging.error(f"Error queueing email for enrollment_receipt_{status}: {e}")
-
-    db.session.commit()
-
-    # Emit only after the commit succeeded: a rollback must not tell clients
-    # that the acceptance state changed.
-    # WebSocket: actualizar pestaña de aceptación del aspirante
-    try:
-        from app.extensions import socketio
-        socketio.emit('acceptance:updated', {
-            'user_id': public_id_service.user_uuid(user_id),
-            'program_id': up.program_id,
-            'action': f'receipt_{status}',
-        }, room=f'user:{user_id}')
-    except Exception:
-        pass
-
+    # The decision itself (side effects, notices, e-mail, history, socket)
+    # lives in the `enrollment_receipt` review kind; the row is locked above.
+    actor = User.query.get(coordinator_id)
+    review_engine.decide_item(
+        actor, 'enrollment_receipt', doc,
+        'approve' if status == 'approved' else 'reject',
+        comment=notes or '',
+    )
     return doc
 
 

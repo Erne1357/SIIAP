@@ -1,9 +1,10 @@
 # app/models/extension_request.py - Modelo actualizado
 from app import db
 from datetime import datetime, timezone
+from app.models.mixins import PublicUUIDMixin
 from app.utils.datetime_utils import now_local
 
-class ExtensionRequest(db.Model):
+class ExtensionRequest(PublicUUIDMixin, db.Model):
     __tablename__ = 'extension_request'
     
     id = db.Column(db.Integer, primary_key=True)

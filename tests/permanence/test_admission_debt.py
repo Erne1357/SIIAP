@@ -123,6 +123,81 @@ def test_delivered_document_unblocks_and_rejected_reblocks(w):
     permanence_service.confirm_semester_enrollment(w.up.id, w.target.id, w.coord.id, force=True)
 
 
+def _reject(w, **kw):
+    w.ext.status = 'rejected'
+    w.ext.granted_until = None
+    w.ext.decided_at = _naive_now() - timedelta(hours=2)
+    for k, v in kw.items():
+        setattr(w.ext, k, v)
+    db.session.commit()
+
+
+def test_rejected_undelivered_extension_blocks(w):
+    _reject(w)
+    docs = debt.overdue_admission_documents(w.up)
+    assert [d['archive'].id for d in docs] == [w.title.id] and docs[0]['rejected']
+    assert 'admission_document_debt' in _codes(w)
+    assert 'rechazada' in debt.debt_message(docs)
+
+
+def test_rejected_while_applicant_without_up_link_still_blocks(w):
+    _reject(w, user_program_id=None)
+    assert len(debt.overdue_admission_documents(w.up)) == 1
+
+
+def test_rejected_then_later_granted_not_expired_does_not_block(w):
+    _reject(w)
+    later = ExtensionRequest(user_id=w.student.id, archive_id=w.title.id,
+                             program_step_id=w.ps.id, requested_by=w.student.id,
+                             reason='otra', requested_until=_naive_now() + timedelta(days=9),
+                             user_program_id=w.up.id)
+    later.status = 'granted'
+    later.decided_at = _naive_now() - timedelta(hours=1)
+    later.granted_until = _naive_now() + timedelta(days=9)
+    db.session.add(later)
+    db.session.commit()
+    assert debt.overdue_admission_documents(w.up) == []
+    assert 'admission_document_debt' not in _codes(w)
+
+
+def test_granted_then_later_rejected_blocks(w):
+    w.ext.granted_until = _naive_now() + timedelta(days=9)
+    w.ext.decided_at = _naive_now() - timedelta(hours=3)
+    later = ExtensionRequest(user_id=w.student.id, archive_id=w.title.id,
+                             program_step_id=w.ps.id, requested_by=w.student.id,
+                             reason='otra', requested_until=_naive_now() + timedelta(days=9),
+                             user_program_id=w.up.id)
+    later.status = 'rejected'
+    later.decided_at = _naive_now() - timedelta(hours=1)
+    db.session.add(later)
+    db.session.commit()
+    assert len(debt.overdue_admission_documents(w.up)) == 1
+
+
+def test_delivered_document_unblocks_a_rejected_extension(w):
+    _reject(w)
+    sub = _submit(w, 'pending')
+    assert debt.overdue_admission_documents(w.up) == []
+    assert 'admission_document_debt' not in _codes(w)
+    sub.status = 'rejected'
+    db.session.commit()
+    assert 'admission_document_debt' in _codes(w)
+
+
+def test_upload_allowed_for_a_rejected_extension(w):
+    _reject(w)
+    assert [d['archive'].id for d in debt.pending_extension_documents(w.up)] == [w.title.id]
+    sub = debt.upload_extension_document(w.student, w.up.id, w.title.uuid, _pdf())
+    assert sub.status == 'pending'
+    assert debt.overdue_admission_documents(w.up) == []
+
+
+def test_dashboard_shows_rejected_extension(w, login):
+    _reject(w)
+    html = login(w.student).get('/user/dashboard').get_data(as_text=True)
+    assert 'Prórroga rechazada' in html and 'Título de Licenciatura' in html
+
+
 def test_enrolled_student_uploads_overdue_document(w):
     sub = debt.upload_extension_document(w.student, w.up.id, w.title.uuid, _pdf())
     assert sub.status == 'pending' and sub.archive_id == w.title.id

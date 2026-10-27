@@ -23,7 +23,7 @@ from app.models.academic_period import AcademicPeriod
 from app.models.semester_enrollment import SemesterEnrollment
 from app.models.user_program import UserProgram
 from app.services.admission_status_service import regular_periods_between
-from app.services.errors import DomainError
+from app.services.errors import ConflictError, DomainError
 
 #: Extra regular periods allowed beyond the plan length.
 GRACE_PERIODS = 4
@@ -51,8 +51,36 @@ class PermanenceLimitExceeded(DomainError):
     """Enrolling in the target period would pass `duration_semesters + 4`."""
 
 
+class InvalidEnrollmentTransition(ConflictError):
+    """The semester enrollment cannot move to the requested status."""
+
+
 def can_change_enrollment_status(from_status: str, to_status: str) -> bool:
     return to_status in SE_ALLOWED_TRANSITIONS.get(from_status, frozenset())
+
+
+def set_enrollment_status(se: SemesterEnrollment, new_status: str,
+                          *, closing: bool = False) -> SemesterEnrollment:
+    """The only writer of `SemesterEnrollment.status` on an existing row.
+
+    Raises `InvalidEnrollmentTransition` (409) when `SE_ALLOWED_TRANSITIONS`
+    forbids the move. Setting the status it already has is a no-op.
+
+    `closing=True` is for the semester advance only: the student moved on, so
+    a `pending` enrollment is assumed studied and may close as `completed`
+    (owner's decision). Nothing else is widened.
+    """
+    if se.status == new_status:
+        return se
+    close_pending = closing and se.status == 'pending' and new_status == 'completed'
+    if not close_pending and not can_change_enrollment_status(se.status, new_status):
+        raise InvalidEnrollmentTransition(
+            f"No se puede cambiar la inscripción semestral de "
+            f"'{SE_STATUS_LABELS_ES.get(se.status, se.status)}' a "
+            f"'{SE_STATUS_LABELS_ES.get(new_status, new_status)}'."
+        )
+    se.status = new_status
+    return se
 
 
 def chronological_enrollments(user_program_id: int):

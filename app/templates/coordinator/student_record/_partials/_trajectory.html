@@ -59,10 +59,10 @@
   {% if admission_debt %}
     <div class="alert alert-warning" role="status" id="trajectoryAdmissionDebt">
       <p class="mb-1"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-        No puede reinscribirse al siguiente semestre: prórroga de admisión vencida sin entregar.</p>
+        No puede reinscribirse al siguiente semestre: prórroga de admisión vencida o rechazada sin entregar.</p>
       <ul class="mb-0">
         {% for d in admission_debt %}
-          <li>{{ d.archive.name }} (prórroga hasta el {{ d.granted_until|fecha_es }})</li>
+          <li>{{ d.archive.name }} ({% if d.granted_until %}prórroga hasta el {{ d.granted_until|fecha_es }}{% else %}prórroga rechazada{% endif %})</li>
         {% endfor %}
       </ul>
     </div>

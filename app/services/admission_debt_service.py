@@ -6,13 +6,18 @@ A granted extension (`ExtensionRequest.status == 'granted'`) lets a student
 enroll without an admission document. Once `granted_until` passes and the
 document is still not delivered — no submission of that archive for the
 student program in status pending/review/approved (a rejected one counts as
-not delivered) — the student owes it, and the debt blocks re-enrolling in the
-next semester (`semester_transition_service.evaluate_student` and
+not delivered) — the student owes it. So does a document whose extension was
+`rejected` (also one rejected while the student was still an applicant, and
+one whose grant was reverted to rejected): the document was due. Per archive
+and student program the latest decided request (granted or rejected) wins, so
+a later grant that has not lapsed lifts the block. The debt blocks
+re-enrolling in the next semester (`semester_transition_service.evaluate_student` and
 `permanence_service.confirm_semester_enrollment`) until it is delivered.
 
 An enrolled student sees these documents on their dashboard and uploads them
 through the regular admission upload (`submissions_service.upload_submission`);
-only archives with a granted extension are open to them.
+only archives whose latest extension decision is a grant or a rejection are
+open to them.
 
 Framework-agnostic: callers pass the user / ids explicitly.
 """
@@ -20,7 +25,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import or_
+from sqlalchemy import and_, func, or_
 
 from app import db
 from app.models import Archive, ExtensionRequest, Phase, ProgramStep, Step, Submission, UserProgram
@@ -52,11 +57,16 @@ def _latest_submission(up: UserProgram, archive_id: int) -> Optional[Submission]
 
 def extension_documents(up: Optional[UserProgram]) -> list:
     """
-    Admission documents of the student program covered by a granted
-    extension, one per archive (the latest `granted_until`):
+    Admission documents of the student program covered by an extension
+    decision, one per archive (the latest decided request, granted or
+    rejected, wins):
 
-    [{'archive', 'program_step', 'extension', 'granted_until' (local),
-      'submission', 'delivered', 'overdue'}]
+    [{'archive', 'program_step', 'extension', 'granted_until' (local; None when
+      the request was rejected), 'rejected', 'submission', 'delivered',
+      'overdue'}]
+
+    A rejected request is overdue while the document is not delivered; a
+    granted one once `granted_until` passed.
     """
     if up is None:
         return []
@@ -65,12 +75,16 @@ def extension_documents(up: Optional[UserProgram]) -> list:
         .join(ProgramStep, ExtensionRequest.program_step_id == ProgramStep.id)
         .join(Step, ProgramStep.step_id == Step.id)
         .join(Phase, Step.phase_id == Phase.id)
-        .filter(ExtensionRequest.user_id == up.user_id,
-                ExtensionRequest.status == 'granted',
-                ExtensionRequest.granted_until.isnot(None),
-                ProgramStep.program_id == up.program_id,
+        .filter(or_(ExtensionRequest.user_program_id == up.id,
+                    and_(ExtensionRequest.user_program_id.is_(None),
+                         ExtensionRequest.user_id == up.user_id,
+                         ProgramStep.program_id == up.program_id)),
+                or_(and_(ExtensionRequest.status == 'granted',
+                         ExtensionRequest.granted_until.isnot(None)),
+                    ExtensionRequest.status == 'rejected'),
                 Phase.name == 'admission')
-        .order_by(ExtensionRequest.granted_until.desc(), ExtensionRequest.id.desc())
+        .order_by(func.coalesce(ExtensionRequest.decided_at, ExtensionRequest.created_at).desc(),
+                  ExtensionRequest.id.desc())
         .all()
     )
     now = now_local()
@@ -81,15 +95,17 @@ def extension_documents(up: Optional[UserProgram]) -> list:
         seen.add(ext.archive_id)
         sub = _latest_submission(up, ext.archive_id)
         delivered = sub is not None and sub.status in DELIVERED_STATUSES
-        granted_until = to_local_timezone(ext.granted_until)
+        rejected = ext.status == 'rejected'
+        granted_until = None if rejected else to_local_timezone(ext.granted_until)
         docs.append({
             'archive': ext.archive,
             'program_step': ext.program_step,
             'extension': ext,
             'granted_until': granted_until,
+            'rejected': rejected,
             'submission': sub,
             'delivered': delivered,
-            'overdue': granted_until < now and not delivered,
+            'overdue': not delivered and (rejected or granted_until < now),
         })
     return docs
 
@@ -102,7 +118,7 @@ def overdue_admission_documents(up: Optional[UserProgram]) -> list:
 def debt_message(docs: list) -> str:
     names = ', '.join(d['archive'].name for d in docs)
     return ('No puede inscribirse al siguiente semestre: tiene documentos de admisión con '
-            f'prórroga vencida sin entregar: {names}.')
+            f'prórroga vencida o rechazada sin entregar: {names}.')
 
 
 def require_no_debt(up: UserProgram) -> None:
@@ -122,8 +138,8 @@ def pending_extension_documents(up: Optional[UserProgram]) -> list:
 
 def upload_extension_document(user, user_program_id: int, archive_uuid, file):
     """
-    An enrolled student uploads an admission document covered by a granted
-    extension. Goes through the regular admission upload (same validation,
+    An enrolled student uploads an admission document covered by an extension
+    decision. Goes through the regular admission upload (same validation,
     history and coordinator notice). Returns the Submission.
     """
     from app.services import submissions_service
